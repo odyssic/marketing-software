@@ -155,12 +155,33 @@ function openDb(file = process.env.DB_PATH || path.join(__dirname, '..', 'data',
 const ADDED_COLUMNS = [
   ['accounts', 'stripe_secret_key', "TEXT NOT NULL DEFAULT ''"],
   ['accounts', 'stripe_webhook_secret', "TEXT NOT NULL DEFAULT ''"],
+  // Funnel tree: each page has a "yes" exit (form submitted, purchase, Next
+  // button) and a "no" exit ("No thanks" button), plus a spot on the canvas.
+  ['funnels', 'entry_step_id', 'INTEGER'],
+  ['funnel_steps', 'next_step_id', 'INTEGER'],
+  ['funnel_steps', 'no_step_id', 'INTEGER'],
+  ['funnel_steps', 'x', 'REAL'],
+  ['funnel_steps', 'y', 'REAL'],
 ];
 
 function migrate(db) {
+  const added = new Set();
   for (const [table, column, type] of ADDED_COLUMNS) {
     const exists = db.prepare(`PRAGMA table_info(${table})`).all().some((c) => c.name === column);
-    if (!exists) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
+    if (!exists) {
+      db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
+      added.add(`${table}.${column}`);
+    }
+  }
+  // Funnels made before the tree existed were a straight line ordered by
+  // position: keep that path by linking each page to the one after it.
+  if (added.has('funnel_steps.next_step_id')) {
+    db.exec(`
+      UPDATE funnel_steps SET next_step_id = (
+        SELECT n.id FROM funnel_steps n WHERE n.funnel_id = funnel_steps.funnel_id AND n.position > funnel_steps.position
+        ORDER BY n.position LIMIT 1);
+      UPDATE funnels SET entry_step_id = (
+        SELECT s.id FROM funnel_steps s WHERE s.funnel_id = funnels.id ORDER BY s.position LIMIT 1);`);
   }
 }
 

@@ -42,6 +42,12 @@ function createApp({ dbPath } = {}) {
     if (!s) throw new HttpError(404, 'Page not found');
     return s;
   };
+  const num = (v) => (v === null || v === undefined || v === '' || !Number.isFinite(Number(v)) ? null : Number(v));
+  const stepInFunnel = (funnelId, stepId) => {
+    const st = db.prepare('SELECT * FROM funnel_steps WHERE id = ? AND funnel_id = ?').get(stepId, funnelId);
+    if (!st) throw new HttpError(400, 'That page isn’t part of this funnel');
+    return st;
+  };
   const stepOut = (s) => ({ ...s, blocks: JSON.parse(s.blocks), settings: JSON.parse(s.settings) });
   const contactOut = (c) => ({ ...c, tags: JSON.parse(c.tags), unsubscribed: Boolean(c.unsubscribed) });
   const uniqueFunnelSlug = (name) => {
@@ -86,14 +92,13 @@ function createApp({ dbPath } = {}) {
     db.prepare('SELECT * FROM products WHERE account_id = ?').all(accountId).map((p) => [p.id, p]),
   );
   const orderToken = (orderId) => crypto.createHmac('sha256', secret).update(`order:${orderId}`).digest('hex').slice(0, 24);
-  const stepAfter = (stepId) => {
-    const step = db.prepare('SELECT * FROM funnel_steps WHERE id = ?').get(stepId);
-    if (!step) return null;
-    const funnel = db.prepare('SELECT slug FROM funnels WHERE id = ?').get(step.funnel_id);
-    const next = db.prepare('SELECT slug FROM funnel_steps WHERE funnel_id = ? AND position > ? ORDER BY position LIMIT 1')
-      .get(step.funnel_id, step.position);
-    return next ? `/f/${funnel.slug}/${next.slug}` : null;
+  // Public URL of the page a step's "yes" (next_step_id) or "no" exit leads to.
+  const linkUrl = (linkedId) => {
+    const st = linkedId && db.prepare(`SELECT s.slug, f.slug AS funnel_slug FROM funnel_steps s
+      JOIN funnels f ON f.id = s.funnel_id WHERE s.id = ?`).get(linkedId);
+    return st ? `/f/${st.funnel_slug}/${st.slug}` : null;
   };
+  const stepAfter = (stepId) => linkUrl(db.prepare('SELECT next_step_id FROM funnel_steps WHERE id = ?').get(stepId)?.next_step_id);
 
   // Marks an order paid and adds the buyer to contacts, tagged as a customer.
   // Idempotent: the success redirect and the Stripe webhook can both call it.
@@ -122,7 +127,8 @@ function createApp({ dbPath } = {}) {
   // Basic CSRF defence: state-changing API calls must be JSON, which a
   // cross-site HTML form cannot send.
   api.use((req, res, next) => {
-    if (req.method !== 'GET' && !req.is('application/json')) {
+    // Check the header, not req.is(): DELETEs have no body, and req.is() is null without one.
+    if (req.method !== 'GET' && !String(req.get('content-type') || '').startsWith('application/json')) {
       return res.status(415).json({ error: 'Expected application/json' });
     }
     next();
@@ -361,10 +367,17 @@ function createApp({ dbPath } = {}) {
       const f = db.prepare('INSERT INTO funnels (account_id, name, slug) VALUES (?, ?, ?)')
         .run(req.accountId, name, uniqueFunnelSlug(name));
       const newest = db.prepare('SELECT id FROM products WHERE account_id = ? ORDER BY id DESC LIMIT 1').get(req.accountId);
-      template.steps().forEach((s, i) => {
+      const steps = template.steps();
+      const ids = steps.map((s, i) => {
         for (const b of s.blocks) if (b.type === 'pricing' && newest) b.productId = newest.id;
-        insertStep(f.lastInsertRowid, s, i);
+        return Number(insertStep(f.lastInsertRowid, s, i).lastInsertRowid);
       });
+      const idOf = (key) => (key == null ? null : ids[steps.findIndex((s) => s.key === key)] ?? null);
+      steps.forEach((s, i) => {
+        const next = 'next' in s ? idOf(s.next) : ids[i + 1] ?? null;
+        db.prepare('UPDATE funnel_steps SET next_step_id = ?, no_step_id = ? WHERE id = ?').run(next, idOf(s.no), ids[i]);
+      });
+      db.prepare('UPDATE funnels SET entry_step_id = ? WHERE id = ?').run(ids[0], f.lastInsertRowid);
       return Number(f.lastInsertRowid);
     });
     res.status(201).json({ id });
@@ -374,7 +387,8 @@ function createApp({ dbPath } = {}) {
     const f = getFunnel(req.accountId, req.params.id);
     const steps = db.prepare(`SELECT s.*,
         (SELECT COUNT(*) FROM page_events e WHERE e.step_id = s.id AND e.type = 'view') AS views,
-        (SELECT COUNT(*) FROM page_events e WHERE e.step_id = s.id AND e.type = 'optin') AS optins
+        (SELECT COUNT(*) FROM page_events e WHERE e.step_id = s.id AND e.type = 'optin') AS optins,
+        (SELECT COUNT(*) FROM page_events e WHERE e.step_id = s.id AND e.type = 'sale') AS sales
       FROM funnel_steps s WHERE s.funnel_id = ? ORDER BY position`).all(f.id).map(stepOut);
     res.json({ ...f, steps });
   });
@@ -398,10 +412,44 @@ function createApp({ dbPath } = {}) {
 
   api.post('/funnels/:id/steps', (req, res) => {
     const f = getFunnel(req.accountId, req.params.id);
+    const { from, port, x, y } = req.body || {};
     const name = String(req.body?.name || '').trim() || 'New page';
+    const parent = from ? stepInFunnel(f.id, from) : null;
     const pos = db.prepare('SELECT COALESCE(MAX(position), -1) + 1 AS p FROM funnel_steps WHERE funnel_id = ?').get(f.id).p;
-    const r = insertStep(f.id, { name, blocks: [], settings: {} }, pos);
-    res.status(201).json({ id: Number(r.lastInsertRowid) });
+    const id = transaction(db, () => {
+      const newId = Number(insertStep(f.id, { name, blocks: [], settings: {} }, pos).lastInsertRowid);
+      db.prepare('UPDATE funnel_steps SET x = ?, y = ? WHERE id = ?').run(num(x), num(y), newId);
+      // Created by dragging out of a page's exit: connect it to that exit.
+      if (parent) db.prepare(`UPDATE funnel_steps SET ${port === 'no' ? 'no_step_id' : 'next_step_id'} = ? WHERE id = ?`).run(newId, parent.id);
+      if (!f.entry_step_id) db.prepare('UPDATE funnels SET entry_step_id = ? WHERE id = ?').run(newId, f.id);
+      return newId;
+    });
+    res.status(201).json({ id });
+  });
+
+  // Saves the funnel map: card positions, the links between pages, and which
+  // page visitors land on first. Everything is optional and applied together.
+  api.put('/funnels/:id/map', (req, res) => {
+    const f = getFunnel(req.accountId, req.params.id);
+    const { entry_step_id, steps = [] } = req.body || {};
+    const link = (v, selfId) => {
+      if (v === null) return null;
+      if (Number(v) === selfId) throw new HttpError(400, 'A page can’t lead to itself');
+      return stepInFunnel(f.id, v).id;
+    };
+    transaction(db, () => {
+      if (entry_step_id !== undefined) {
+        db.prepare('UPDATE funnels SET entry_step_id = ? WHERE id = ?').run(stepInFunnel(f.id, entry_step_id).id, f.id);
+      }
+      for (const st of Array.isArray(steps) ? steps : []) {
+        const cur = stepInFunnel(f.id, st.id);
+        db.prepare('UPDATE funnel_steps SET x = ?, y = ?, next_step_id = ?, no_step_id = ? WHERE id = ?').run(
+          st.x !== undefined ? num(st.x) : cur.x, st.y !== undefined ? num(st.y) : cur.y,
+          st.next_step_id !== undefined ? link(st.next_step_id, cur.id) : cur.next_step_id,
+          st.no_step_id !== undefined ? link(st.no_step_id, cur.id) : cur.no_step_id, cur.id);
+      }
+    });
+    res.json({ ok: true });
   });
 
   api.get('/steps/:id', (req, res) => {
@@ -422,21 +470,16 @@ function createApp({ dbPath } = {}) {
     res.json({ ok: true, slug });
   });
 
-  api.post('/steps/:id/move', (req, res) => {
-    const s = getStep(req.accountId, req.params.id);
-    const steps = db.prepare('SELECT id FROM funnel_steps WHERE funnel_id = ? ORDER BY position').all(s.funnel_id).map((x) => x.id);
-    const i = steps.indexOf(s.id);
-    const j = req.body?.direction === 'up' ? i - 1 : i + 1;
-    if (j >= 0 && j < steps.length) {
-      [steps[i], steps[j]] = [steps[j], steps[i]];
-      transaction(db, () => steps.forEach((id, pos) => db.prepare('UPDATE funnel_steps SET position = ? WHERE id = ?').run(pos, id)));
-    }
-    res.json({ ok: true });
-  });
-
   api.delete('/steps/:id', (req, res) => {
     const s = getStep(req.accountId, req.params.id);
-    db.prepare('DELETE FROM funnel_steps WHERE id = ?').run(s.id);
+    transaction(db, () => {
+      db.prepare('UPDATE funnel_steps SET next_step_id = NULL WHERE next_step_id = ?').run(s.id);
+      db.prepare('UPDATE funnel_steps SET no_step_id = NULL WHERE no_step_id = ?').run(s.id);
+      db.prepare('DELETE FROM funnel_steps WHERE id = ?').run(s.id);
+      // If the start page was deleted, start at whichever page is left first.
+      db.prepare(`UPDATE funnels SET entry_step_id = (SELECT id FROM funnel_steps WHERE funnel_id = ? ORDER BY position LIMIT 1)
+        WHERE id = ? AND entry_step_id = ?`).run(s.funnel_id, s.funnel_id, s.id);
+    });
     res.json({ ok: true });
   });
 
@@ -503,11 +546,12 @@ function createApp({ dbPath } = {}) {
   const findPublicStep = (funnelSlug, stepSlug) => {
     const funnel = db.prepare('SELECT * FROM funnels WHERE slug = ?').get(funnelSlug);
     if (!funnel) return null;
-    const steps = db.prepare('SELECT * FROM funnel_steps WHERE funnel_id = ? ORDER BY position').all(funnel.id);
-    const idx = stepSlug ? steps.findIndex((s) => s.slug === stepSlug) : 0;
-    if (idx < 0 || !steps[idx]) return null;
-    const next = steps[idx + 1];
-    return { funnel, step: steps[idx], nextUrl: next ? `/f/${funnel.slug}/${next.slug}` : '#' };
+    const step = stepSlug
+      ? db.prepare('SELECT * FROM funnel_steps WHERE funnel_id = ? AND slug = ?').get(funnel.id, stepSlug)
+      : db.prepare('SELECT * FROM funnel_steps WHERE id = ?').get(funnel.entry_step_id)
+        || db.prepare('SELECT * FROM funnel_steps WHERE funnel_id = ? ORDER BY position LIMIT 1').get(funnel.id);
+    if (!step) return null;
+    return { funnel, step, nextUrl: linkUrl(step.next_step_id) || '#', noUrl: linkUrl(step.no_step_id) || '#' };
   };
 
   const notFound = (res) => res.status(404).type('html').send('<!doctype html><title>Not found</title><p style="font:18px system-ui;text-align:center;margin-top:20vh">Page not found.</p>');
@@ -515,12 +559,12 @@ function createApp({ dbPath } = {}) {
   app.get('/f/:funnel{/:step}', (req, res) => {
     const found = findPublicStep(req.params.funnel, req.params.step);
     if (!found) return notFound(res);
-    const { funnel, step, nextUrl } = found;
+    const { funnel, step, nextUrl, noUrl } = found;
     db.prepare("INSERT INTO page_events (account_id, funnel_id, step_id, type) VALUES (?, ?, ?, 'view')")
       .run(funnel.account_id, funnel.id, step.id);
     res.type('html').send(renderPage({
       title: step.name, blocks: JSON.parse(step.blocks), settings: JSON.parse(step.settings),
-      nextUrl, formAction: `/f/${funnel.slug}/${step.slug}/optin`, buyAction: `/f/${funnel.slug}/${step.slug}/buy`,
+      nextUrl, noUrl, formAction: `/f/${funnel.slug}/${step.slug}/optin`, buyAction: `/f/${funnel.slug}/${step.slug}/buy`,
       products: productsMap(funnel.account_id),
     }));
   });

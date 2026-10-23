@@ -114,3 +114,10 @@ test('page renderer escapes user content', async () => {
   assert.doesNotMatch(html, /<script>alert/);
   assert.doesNotMatch(html, /javascript:/);
 });
+
+test('deletes work from the dashboard (no request body)', async () => {
+  const c = await signup('deleter@example.com');
+  const { body: contact } = await c('POST', '/api/contacts', { email: 'gone@example.com' });
+  assert.equal((await c('DELETE', `/api/contacts/${contact.id}`)).status, 200);
+  assert.equal((await c('GET', '/api/contacts')).body.length, 0);
+});

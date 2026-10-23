@@ -1,4 +1,7 @@
 // Starter funnels a user can pick when creating a new funnel.
+// Steps link to each other by `key`: `next` is the "yes" exit (form submit,
+// purchase, Next button) and `no` the "No thanks" exit. If `next` is left out,
+// the step leads to the one listed after it.
 const id = () => Math.random().toString(36).slice(2, 10);
 
 const TEMPLATES = {
@@ -76,6 +79,47 @@ const TEMPLATES = {
           { id: id(), type: 'heading', text: 'Payment received. Welcome aboard! 🎉', align: 'center' },
           { id: id(), type: 'text', text: 'A receipt is on its way to your inbox.', align: 'center' },
         ],
+      },
+    ],
+  },
+  upsell: {
+    label: 'Sales + upsell / downsell (branching)',
+    steps: () => [
+      {
+        key: 'sales', name: 'Sales page', slug: 'offer', next: 'upsell',
+        settings: { accent: '#4f46e5', width: 960 },
+        blocks: [
+          { id: id(), type: 'hero', eyebrow: 'New', text: 'The main offer', subtext: 'Describe the result your buyer gets.', background: '#4338ca', textColor: '#ffffff' },
+          { id: id(), type: 'pricing', productId: null, badge: 'TODAY ONLY', compareText: '', billingText: '', note: '',
+            featuresTitle: 'What you get:', features: 'Benefit one\nBenefit two\nBenefit three\nBenefit four',
+            buttonLabel: 'Buy now', buttonSubtext: '30-day money-back guarantee', buttonColor: '#f97316' },
+        ],
+      },
+      {
+        key: 'upsell', name: 'Upsell', slug: 'upgrade', next: 'thanks', no: 'downsell',
+        settings: { accent: '#16a34a' },
+        blocks: [
+          { id: id(), type: 'heading', text: 'Wait! Add the VIP upgrade?', align: 'center' },
+          { id: id(), type: 'text', text: 'One-time offer, only on this page.', align: 'center' },
+          { id: id(), type: 'pricing', productId: null, badge: 'ONE-TIME OFFER', compareText: '', billingText: '', note: '',
+            featuresTitle: '', features: '', buttonLabel: 'Yes, upgrade me', buttonSubtext: '', buttonColor: '#16a34a' },
+          { id: id(), type: 'button', label: 'No thanks, I’ll skip this', url: '#no', align: 'center' },
+        ],
+      },
+      {
+        key: 'downsell', name: 'Downsell', slug: 'lite', next: 'thanks', no: 'thanks',
+        settings: { accent: '#0ea5e9' },
+        blocks: [
+          { id: id(), type: 'heading', text: 'How about the lite version instead?', align: 'center' },
+          { id: id(), type: 'pricing', productId: null, badge: 'LAST CHANCE', compareText: '', billingText: '', note: '',
+            featuresTitle: '', features: '', buttonLabel: 'Yes, add the lite version', buttonSubtext: '', buttonColor: '#0ea5e9' },
+          { id: id(), type: 'button', label: 'No thanks', url: '#no', align: 'center' },
+        ],
+      },
+      {
+        key: 'thanks', name: 'Thank you', slug: 'thank-you', next: null,
+        settings: {},
+        blocks: [{ id: id(), type: 'heading', text: 'Thanks for your order! 🎉', align: 'center' }],
       },
     ],
   },

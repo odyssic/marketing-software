@@ -84,7 +84,7 @@ function renderBlock(b, ctx, index) {
     case 'image':
       return b.url ? `<div style="text-align:${a}"><img src="${esc(safeUrl(b.url))}" alt="${esc(b.alt)}"></div>` : '';
     case 'button': {
-      const href = b.url === '#next' || !b.url ? ctx.nextUrl : safeUrl(b.url);
+      const href = b.url === '#next' || !b.url ? ctx.nextUrl : b.url === '#no' ? ctx.noUrl : safeUrl(b.url);
       return `<div style="text-align:${a}"><a class="btn" href="${esc(href)}">${esc(b.label || 'Continue')}</a></div>`;
     }
     case 'video': {
@@ -112,12 +112,12 @@ function renderBlock(b, ctx, index) {
   }
 }
 
-function renderPage({ title, blocks, settings = {}, nextUrl = '#', formAction = '#', buyAction = '#', products = {}, preview = false }) {
+function renderPage({ title, blocks, settings = {}, nextUrl = '#', noUrl = '#', formAction = '#', buyAction = '#', products = {}, preview = false }) {
   const bg = color(settings.background, '#ffffff');
   const fg = color(settings.textColor, '#1f2937');
   const accent = color(settings.accent, '#4f46e5');
   const width = Math.min(Math.max(Number(settings.width) || 720, 360), 1200);
-  const ctx = { nextUrl, formAction, buyAction, products, preview, accent, background: bg };
+  const ctx = { nextUrl, noUrl, formAction, buyAction, products, preview, accent, background: bg };
   const body = (blocks || []).map((b, i) => renderBlock(b, ctx, i)).join('\n');
   return `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">

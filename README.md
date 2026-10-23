@@ -8,7 +8,8 @@ A simple, all-in-one marketing platform for small businesses. It starts with the
 
 | Area | Features |
 | --- | --- |
-| **Funnels** | Create from templates (lead magnet, sales page, blank). Multi-page funnels with reorderable steps, public links at `/f/<funnel>/<page>`, and per-page views, opt-ins and conversion rate. |
+| **Funnels** | Templates: lead magnet, sales page, pricing page, upsell/downsell, blank. Public links at `/f/<funnel>/<page>`, with per-page views, opt-ins and sales. |
+| **Visual funnel tree** | Each funnel is a canvas of page cards. Every page has a **✓ Yes / Next** exit (form submitted, purchase, `#next` button) and a **✕ No thanks** exit (`#no` button). Drag cards around, drag from an exit onto a card to link them, or into empty space to create the next page there. Pick any page as the start page; **Tidy up** auto-arranges the tree. You can pan, zoom and fit to screen. |
 | **Page builder** | Block editor with live desktop/mobile preview and autosave. Blocks: hero banner, pricing card, heading, text, image, YouTube video, button (`#next` → next page), opt-in form, spacer, divider. Also page colors, width and SEO title/description. |
 | **Products & checkout** | Products with one-time, monthly or yearly pricing. A pricing card block sells a product through Stripe Checkout. Payment is confirmed server-side (on the success redirect and via a signed webhook), and buyers become contacts tagged `customer` plus a product tag. There's an orders list and a revenue stat. Without Stripe connected, a **test-mode checkout** lets you run the whole flow without charging anyone. |
 | **Contacts (CRM)** | Opt-in forms create or merge contacts and apply tags. Search, tag filter, add/edit/delete, CSV import (dedupes by email) and CSV export, plus a bot honeypot on forms. |
