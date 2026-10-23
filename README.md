@@ -19,7 +19,7 @@ A simple, all-in-one marketing platform for small businesses. It starts with the
 
 ## Run it
 
-Requires Node.js 22.5+ (it uses the built-in `node:sqlite`, so there's no native build step).
+Requires Node.js 22+.
 
 ```bash
 npm install
@@ -28,7 +28,21 @@ npm run dev        # auto-restart on file changes
 npm test           # end-to-end API tests
 ```
 
-Data is stored in `data/app.db` (SQLite).
+Locally, data is stored in `data/pglite/` using [PGlite](https://pglite.dev): real Postgres compiled to
+WebAssembly, so local runs and tests use the same SQL as production with nothing to install.
+
+## Production: Netlify + Supabase
+
+- **Supabase Postgres** holds the data, in a private `app` schema that Supabase's Data API can't reach.
+  The server connects as a dedicated `app_server` role through the transaction pooler (port 6543).
+  `src/schema.js` is the schema; on Supabase it's applied as a migration.
+- **Netlify** serves `public/` from its CDN. The server routes (`/api`, `/f`, `/checkout`, `/stripe`,
+  `/unsubscribe`) run as one function, `netlify/functions/app.mjs`, which hosts the Express app.
+- Environment variables on Netlify (Functions scope): `DATABASE_URL`, `APP_SECRET`, `PUBLIC_URL`.
+- `GET /api/health` checks the database connection.
+
+To run the tests through the production Postgres driver, point `DATABASE_URL` at any Postgres and set
+`TEST_DATABASE_URL=1` (use a throwaway database).
 
 ### Configuration (environment variables)
 
@@ -37,7 +51,8 @@ Data is stored in `data/app.db` (SQLite).
 | `PORT` | HTTP port (default 3000) |
 | `PUBLIC_URL` | Public base URL used in links/emails, e.g. `https://app.yourdomain.com` |
 | `APP_SECRET` | Signs unsubscribe links (auto-generated and stored if unset) |
-| `DB_PATH` | SQLite file location |
+| `DATABASE_URL` | Postgres connection string (production). Without it, local PGlite is used |
+| `DB_PATH` | Local PGlite data directory (default `data/pglite`) |
 | `NODE_ENV=production` | Marks session cookies `Secure` (use behind HTTPS) |
 | `STRIPE_API_BASE` | Override the Stripe API URL (tests only) |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_SECURE`, `SMTP_FROM` | Real email delivery (Postmark, SES, Mailgun, Brevo, etc.). Without `SMTP_HOST`, emails only go to the Outbox. |
@@ -47,21 +62,23 @@ Data is stored in `data/app.db` (SQLite).
 Each workspace connects its own Stripe account under **Settings → Payments**, by pasting a secret key
 (`sk_test_…` to try it, `sk_live_…` for real money). For reliability, also add a webhook in
 Stripe for `checkout.session.completed` that points to the URL shown there, then paste its
-`whsec_…` signing secret. Keys are write-only in the UI, but they're stored unencrypted in SQLite,
-so protect the database file (see roadmap).
+`whsec_…` signing secret. Keys are write-only in the UI, but they're stored unencrypted in the database (see roadmap).
 
 ## Project layout
 
 ```
 server.js            entry point
 src/app.js           API routes + public funnel/unsubscribe routes
-src/db.js            SQLite schema (every table is scoped by account_id)
+src/schema.js        Postgres schema (every table is scoped by account_id)
+src/db.js            database access: Supabase via DATABASE_URL, or local PGlite
 src/auth.js          password hashing, sessions
 src/render.js        block → HTML renderer (shared by live pages and the preview)
 src/templates.js     starter funnels
 src/mailer.js        SMTP / dev-mode email
 src/stripe.js        Stripe Checkout client + webhook signature check
 public/              dashboard single-page app (vanilla JS, no build step)
+netlify/functions/   Netlify Function that hosts the server
+netlify.toml         Netlify build + function settings
 test/                node:test end-to-end tests
 ```
 
@@ -83,4 +100,3 @@ test/                node:test end-to-end tests
 - Agency mode: one agency account managing many client sub-accounts (the `accounts`/`memberships` tables are already shaped for this), white-label, SaaS re-billing
 - Reputation management, forms/surveys, reporting
 
-When it outgrows SQLite, swap `src/db.js` for Postgres (e.g. Supabase). The SQL is mostly standard.

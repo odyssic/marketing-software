@@ -2,14 +2,15 @@ const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const { createApp } = require('../src/app');
 
-let server, base;
+let app, server, base;
 
 before(async () => {
-  server = createApp({ dbPath: ':memory:' }).listen(0);
+  app = createApp(process.env.TEST_DATABASE_URL ? {} : { dbPath: ':memory:' });
+  server = app.listen(0);
   await new Promise((r) => server.once('listening', r));
   base = `http://localhost:${server.address().port}`;
 });
-after(() => server.close());
+after(async () => { server.close(); await app.close(); });
 
 // Minimal client that keeps the session cookie between calls.
 function client() {

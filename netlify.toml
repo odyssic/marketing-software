@@ -1,0 +1,7 @@
+[build]
+  publish = "public"
+  command = "echo 'No build step: the dashboard is plain HTML/CSS/JS'"
+
+[functions]
+  # PGlite is only for local development and tests; production uses DATABASE_URL.
+  included_files = ["!node_modules/@electric-sql/**"]

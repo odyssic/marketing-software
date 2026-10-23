@@ -24,16 +24,17 @@ const fakeStripe = http.createServer((req, res) => {
   });
 });
 
-let server, base;
+let app, server, base;
 before(async () => {
   await new Promise((r) => fakeStripe.listen(0, r));
   process.env.STRIPE_API_BASE = `http://localhost:${fakeStripe.address().port}`;
   const { createApp } = require('../src/app');
-  server = createApp({ dbPath: ':memory:' }).listen(0);
+  app = createApp(process.env.TEST_DATABASE_URL ? {} : { dbPath: ':memory:' });
+  server = app.listen(0);
   await new Promise((r) => server.once('listening', r));
   base = `http://localhost:${server.address().port}`;
 });
-after(() => { server.close(); fakeStripe.close(); });
+after(async () => { server.close(); fakeStripe.close(); await app.close(); });
 
 function client() {
   let cookie = '';

@@ -28,7 +28,7 @@ function toast(msg, bad = false) {
   toastTimer = setTimeout(() => { t.className = ''; }, 2600);
 }
 
-const fmtDate = (s) => (s ? new Date(`${s.replace(' ', 'T')}Z`).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '');
+const fmtDate = (s) => (s ? new Date(s).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '');
 const fullName = (c) => [c.first_name, c.last_name].filter(Boolean).join(' ');
 const tagsHtml = (tags) => tags.map((t) => `<span class="tag">${esc(t)}</span>`).join('');
 const publicUrl = (path) => `${state.me.baseUrl}${path}`;

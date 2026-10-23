@@ -23,33 +23,33 @@ function parseCookies(header = '') {
   return out;
 }
 
-function createSession(db, res, userId, accountId) {
+async function createSession(db, req, res, userId, accountId) {
   const token = crypto.randomBytes(32).toString('hex');
   const expires = new Date(Date.now() + SESSION_DAYS * 864e5);
-  db.prepare('INSERT INTO sessions (token, user_id, account_id, expires_at) VALUES (?, ?, ?, ?)')
-    .run(token, userId, accountId, expires.toISOString());
+  await db.run('INSERT INTO sessions (token, user_id, account_id, expires_at) VALUES (?, ?, ?, ?)',
+    token, userId, accountId, expires.toISOString());
   res.cookie('sid', token, {
     httpOnly: true,
     sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production',
+    secure: req.secure, // true behind HTTPS (trust proxy reads X-Forwarded-Proto)
     expires,
   });
 }
 
-function destroySession(db, req, res) {
+async function destroySession(db, req, res) {
   const token = parseCookies(req.headers.cookie).sid;
-  if (token) db.prepare('DELETE FROM sessions WHERE token = ?').run(token);
+  if (token) await db.run('DELETE FROM sessions WHERE token = ?', token);
   res.clearCookie('sid');
 }
 
 // Attaches req.user and req.accountId, or responds 401.
-function requireAuth(db) {
-  return (req, res, next) => {
+function requireAuth(getDb) {
+  return async (req, res, next) => {
     const token = parseCookies(req.headers.cookie).sid;
-    const row = token && db.prepare(`
+    const row = token && await getDb().get(`
       SELECT s.account_id, s.expires_at, u.id, u.email, u.name
       FROM sessions s JOIN users u ON u.id = s.user_id
-      WHERE s.token = ?`).get(token);
+      WHERE s.token = ?`, token);
     if (!row || new Date(row.expires_at) < new Date()) {
       return res.status(401).json({ error: 'Not signed in' });
     }
