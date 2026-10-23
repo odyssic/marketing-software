@@ -9,7 +9,8 @@ A simple, all-in-one marketing platform for small businesses. It starts with the
 | Area | Features |
 | --- | --- |
 | **Funnels** | Create from templates (lead magnet, sales page, blank). Multi-page funnels with reorderable steps, public links at `/f/<funnel>/<page>`, and per-page views, opt-ins and conversion rate. |
-| **Page builder** | Block editor with live desktop/mobile preview and autosave. Blocks: heading, text, image, YouTube video, button (`#next` → next page), opt-in form, spacer, divider. Also page colors, width and SEO title/description. |
+| **Page builder** | Block editor with live desktop/mobile preview and autosave. Blocks: hero banner, pricing card, heading, text, image, YouTube video, button (`#next` → next page), opt-in form, spacer, divider. Also page colors, width and SEO title/description. |
+| **Products & checkout** | Products with one-time, monthly or yearly pricing. A pricing card block sells a product through Stripe Checkout. Payment is confirmed server-side (on the success redirect and via a signed webhook), and buyers become contacts tagged `customer` plus a product tag. There's an orders list and a revenue stat. Without Stripe connected, a **test-mode checkout** lets you run the whole flow without charging anyone. |
 | **Contacts (CRM)** | Opt-in forms create or merge contacts and apply tags. Search, tag filter, add/edit/delete, CSV import (dedupes by email) and CSV export, plus a bot honeypot on forms. |
 | **Email** | Broadcasts to everyone or to a tag, `{{first_name}}` merge fields, an automatic signed unsubscribe link, and an Outbox log. SMTP delivery, or a dev mode that logs without sending. |
 | **Dashboard** | Contacts, views, opt-ins, conversion, a 14-day signup chart, a get-started checklist and recent contacts. |
@@ -37,7 +38,16 @@ Data is stored in `data/app.db` (SQLite).
 | `APP_SECRET` | Signs unsubscribe links (auto-generated and stored if unset) |
 | `DB_PATH` | SQLite file location |
 | `NODE_ENV=production` | Marks session cookies `Secure` (use behind HTTPS) |
+| `STRIPE_API_BASE` | Override the Stripe API URL (tests only) |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_SECURE`, `SMTP_FROM` | Real email delivery (Postmark, SES, Mailgun, Brevo, etc.). Without `SMTP_HOST`, emails only go to the Outbox. |
+
+### Taking payments
+
+Each workspace connects its own Stripe account under **Settings → Payments**, by pasting a secret key
+(`sk_test_…` to try it, `sk_live_…` for real money). For reliability, also add a webhook in
+Stripe for `checkout.session.completed` that points to the URL shown there, then paste its
+`whsec_…` signing secret. Keys are write-only in the UI, but they're stored unencrypted in SQLite,
+so protect the database file (see roadmap).
 
 ## Project layout
 
@@ -49,6 +59,7 @@ src/auth.js          password hashing, sessions
 src/render.js        block → HTML renderer (shared by live pages and the preview)
 src/templates.js     starter funnels
 src/mailer.js        SMTP / dev-mode email
+src/stripe.js        Stripe Checkout client + webhook signature check
 public/              dashboard single-page app (vanilla JS, no build step)
 test/                node:test end-to-end tests
 ```
@@ -56,7 +67,7 @@ test/                node:test end-to-end tests
 ## Roadmap
 
 **Phase 2: finish the systeme.io core**
-- Products and checkout with Stripe (one-time and subscriptions, order bumps, upsell steps)
+- ~~Products and checkout with Stripe~~ ✅. Next: order bumps, one-click upsells, coupons, Stripe Connect (OAuth instead of pasted keys), encrypting stored keys
 - Email sequences/autoresponders (send email N days after a tag is added)
 - Simple automation rules: "when form submitted → add tag → start sequence"
 - Online courses / members area

@@ -95,6 +95,37 @@ CREATE TABLE IF NOT EXISTS broadcasts (
   sent_at TEXT
 );
 
+CREATE TABLE IF NOT EXISTS products (
+  id INTEGER PRIMARY KEY,
+  account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  price_cents INTEGER NOT NULL,
+  currency TEXT NOT NULL DEFAULT 'usd',
+  billing TEXT NOT NULL DEFAULT 'one_time',
+  tag TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS orders (
+  id INTEGER PRIMARY KEY,
+  account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+  product_id INTEGER REFERENCES products(id) ON DELETE SET NULL,
+  product_name TEXT NOT NULL,
+  contact_id INTEGER REFERENCES contacts(id) ON DELETE SET NULL,
+  email TEXT NOT NULL DEFAULT '',
+  amount_cents INTEGER NOT NULL,
+  currency TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  mode TEXT NOT NULL,
+  stripe_session_id TEXT,
+  funnel_id INTEGER REFERENCES funnels(id) ON DELETE SET NULL,
+  step_id INTEGER REFERENCES funnel_steps(id) ON DELETE SET NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  paid_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_orders_account ON orders(account_id, created_at);
+
 CREATE TABLE IF NOT EXISTS email_log (
   id INTEGER PRIMARY KEY,
   account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
@@ -115,7 +146,22 @@ function openDb(file = process.env.DB_PATH || path.join(__dirname, '..', 'data',
   db.exec('PRAGMA foreign_keys = ON;');
   if (file !== ':memory:') db.exec('PRAGMA journal_mode = WAL;');
   db.exec(SCHEMA);
+  migrate(db);
   return db;
+}
+
+// Columns added after v0.1. CREATE TABLE IF NOT EXISTS won't add them to an
+// existing database, so add any that are missing.
+const ADDED_COLUMNS = [
+  ['accounts', 'stripe_secret_key', "TEXT NOT NULL DEFAULT ''"],
+  ['accounts', 'stripe_webhook_secret', "TEXT NOT NULL DEFAULT ''"],
+];
+
+function migrate(db) {
+  for (const [table, column, type] of ADDED_COLUMNS) {
+    const exists = db.prepare(`PRAGMA table_info(${table})`).all().some((c) => c.name === column);
+    if (!exists) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
+  }
 }
 
 function transaction(db, fn) {

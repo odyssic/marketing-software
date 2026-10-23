@@ -10,14 +10,71 @@ const align = (a) => (['left', 'center', 'right'].includes(a) ? a : 'center');
 const safeUrl = (u) => (/^(https?:\/\/|\/|#)/i.test(u || '') ? u : '#');
 const multiline = (s) => esc(s).replace(/\n/g, '<br>');
 
+const BILLING_TEXT = { one_time: 'one-time payment', monthly: 'per month', yearly: 'per year' };
+
+// Splits a price into symbol and amount so the card can style them apart:
+// (4700, 'usd') → { symbol: '$', amount: '47' }.
+function moneyParts(cents, currency = 'usd') {
+  const fmt = new Intl.NumberFormat('en-US', {
+    style: 'currency', currency: currency.toUpperCase(),
+    minimumFractionDigits: cents % 100 ? 2 : 0,
+  });
+  const parts = fmt.formatToParts(cents / 100);
+  return {
+    symbol: parts.filter((p) => p.type === 'currency').map((p) => p.value).join(''),
+    amount: parts.filter((p) => !['currency', 'literal'].includes(p.type)).map((p) => p.value).join(''),
+  };
+}
+const formatMoney = (cents, currency) => { const m = moneyParts(cents, currency); return m.symbol + m.amount; };
+
+function renderPricing(b, ctx) {
+  const product = ctx.products?.[b.productId];
+  const price = product ? moneyParts(product.price_cents, product.currency) : null;
+  const billing = b.billingText || (product ? BILLING_TEXT[product.billing] : '');
+  const features = String(b.features || '').split('\n').map((f) => f.trim()).filter(Boolean);
+  const btnStyle = `background:${color(b.buttonColor, ctx.accent)}`;
+  const label = `${esc(b.buttonLabel || 'Buy now')}&nbsp;&rarr;${b.buttonSubtext ? `<small>${esc(b.buttonSubtext)}</small>` : ''}`;
+  let cta;
+  if (product) {
+    const blocked = ctx.preview ? ' onsubmit="event.preventDefault();alert(\'Checkout is disabled in preview\')"' : '';
+    cta = `<form method="post" action="${esc(ctx.buyAction)}"${blocked}><input type="hidden" name="block" value="${esc(b.id)}">
+      <button class="btn cta" style="${btnStyle}">${label}</button></form>`;
+  } else {
+    cta = `<a class="btn cta" style="${btnStyle}" href="${esc(ctx.nextUrl)}">${label}</a>`
+      + (ctx.preview ? '<p class="warn">Choose a product for this pricing card so the button takes payment.</p>' : '');
+  }
+  return `<div class="pricing">
+    ${b.badge ? `<span class="badge">${esc(b.badge)}</span>` : ''}
+    ${b.compareText ? `<div class="was">${esc(b.compareText)}</div>` : ''}
+    <div class="price">${price ? `<sup>${esc(price.symbol)}</sup>${esc(price.amount)}` : esc(b.priceText || '$0')}</div>
+    ${billing ? `<div class="billing">${esc(billing)}</div>` : ''}
+    ${b.note ? `<div class="note">${esc(b.note)}</div>` : ''}
+    ${b.featuresTitle ? `<h3>${esc(b.featuresTitle)}</h3>` : ''}
+    ${features.length ? `<ul class="features">${features.map((f) => `<li>${esc(f)}</li>`).join('')}</ul>` : ''}
+    ${cta}</div>`;
+}
+
 function youtubeEmbed(url) {
   const m = String(url || '').match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([\w-]{11})/);
   return m ? `https://www.youtube-nocookie.com/embed/${m[1]}` : null;
 }
 
-function renderBlock(b, ctx) {
+function renderBlock(b, ctx, index) {
   const a = align(b.align);
   switch (b.type) {
+    case 'hero': {
+      const bg = color(b.background, '#0f766e');
+      const fg = color(b.textColor, '#ffffff');
+      // The wave is filled with the page background so the band blends into the page below it.
+      return `<section class="hero${index === 0 ? ' first' : ''}" style="background:linear-gradient(180deg,color-mix(in srgb,${bg} 75%,#000) 0%,${bg} 100%);color:${fg}">
+        ${b.eyebrow ? `<div class="eyebrow">${esc(b.eyebrow)}</div>` : ''}
+        <h1>${multiline(b.text)}</h1>${b.subtext ? `<p>${multiline(b.subtext)}</p>` : ''}
+        <svg class="wave" viewBox="0 0 1440 90" preserveAspectRatio="none" aria-hidden="true">
+          <path d="M0 40 C 300 0 500 70 800 45 S 1200 10 1440 40 V90 H0Z" fill="${ctx.background}" opacity=".45"/>
+          <path d="M0 60 C 350 25 600 85 900 60 S 1250 40 1440 55 V90 H0Z" fill="${ctx.background}"/></svg></section>`;
+    }
+    case 'pricing':
+      return renderPricing(b, ctx);
     case 'heading': {
       const tag = b.size === 'small' ? 'h3' : b.size === 'medium' ? 'h2' : 'h1';
       return `<${tag} style="text-align:${a}">${multiline(b.text)}</${tag}>`;
@@ -55,13 +112,13 @@ function renderBlock(b, ctx) {
   }
 }
 
-function renderPage({ title, blocks, settings = {}, nextUrl = '#', formAction = '#', preview = false }) {
+function renderPage({ title, blocks, settings = {}, nextUrl = '#', formAction = '#', buyAction = '#', products = {}, preview = false }) {
   const bg = color(settings.background, '#ffffff');
   const fg = color(settings.textColor, '#1f2937');
   const accent = color(settings.accent, '#4f46e5');
   const width = Math.min(Math.max(Number(settings.width) || 720, 360), 1200);
-  const ctx = { nextUrl, formAction, preview };
-  const body = (blocks || []).map((b) => renderBlock(b, ctx)).join('\n');
+  const ctx = { nextUrl, formAction, buyAction, products, preview, accent, background: bg };
+  const body = (blocks || []).map((b, i) => renderBlock(b, ctx, i)).join('\n');
   return `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${esc(settings.seoTitle || title)}</title>
@@ -78,9 +135,29 @@ h1{font-size:2.4rem;line-height:1.15;margin:.4em 0}h2{font-size:1.8rem;line-heig
 .optin .btn{width:100%}.hp{position:absolute;left:-9999px}
 .video{position:relative;padding-top:56.25%;margin:20px 0}.video iframe{position:absolute;inset:0;width:100%;height:100%;border:0;border-radius:10px}
 hr{border:0;border-top:1px solid rgba(0,0,0,.12);margin:28px 0}
+body{overflow-x:hidden}
+.hero{position:relative;margin:0 calc(50% - 50vw) 40px;padding:64px 20px 110px;text-align:center}
+.hero.first{margin-top:-48px}.hero h1{max-width:820px;margin:.2em auto;font-size:clamp(2rem,5vw,3.3rem);font-weight:800}
+.hero p{max-width:640px;margin:12px auto 0;font-size:1.15rem;opacity:.92}
+.eyebrow{display:inline-block;letter-spacing:.18em;text-transform:uppercase;font-size:.95rem;padding-bottom:4px;border-bottom:2px solid currentColor;margin-bottom:10px}
+.wave{position:absolute;left:0;bottom:-1px;width:100%;height:70px}
+.pricing{max-width:680px;margin:24px auto;padding:32px 28px;border:1px solid rgba(0,0,0,.14);border-radius:6px;text-align:center;background:#fff;color:#1f2937}
+.badge{display:inline-block;background:#fee2e2;color:#ef4444;border-radius:99px;padding:4px 12px;font-size:.85rem;letter-spacing:.03em}
+.was{text-decoration:line-through;font-size:1.4rem;margin-top:10px;opacity:.85}
+.price{font-size:5.5rem;font-weight:800;line-height:1;margin:14px 0 6px;color:#3f3f46}
+.price sup{font-size:1.9rem;vertical-align:top;position:relative;top:.35em;margin-right:2px}
+.billing{font-size:1.45rem}.note{font-weight:600;font-size:.95rem;margin-top:4px}
+.pricing h3{font-size:1.6rem;margin:28px 0 16px}
+.features{list-style:none;padding:0;margin:0 0 28px;display:grid;grid-template-columns:1fr 1fr;gap:10px 28px;text-align:left}
+.features li{position:relative;padding-left:40px;line-height:1.35}
+.features li::before{content:"✓";position:absolute;left:0;top:-1px;width:22px;height:22px;border:2px solid ${accent};color:${accent};border-radius:4px;display:grid;place-items:center;font-weight:800;font-size:.85rem}
+.pricing form{margin:0}.cta{display:block;width:100%;font-size:1.6rem;padding:16px 20px;border-radius:6px;font-weight:700}
+.cta small{display:block;font-size:.8rem;font-weight:400;margin-top:6px;opacity:.95}
+.warn{color:#b45309;font-size:.85rem}
+@media(max-width:560px){.features{grid-template-columns:1fr}.price{font-size:4.2rem}.cta{font-size:1.25rem}}
 </style></head><body><main>
 ${body || '<p style="text-align:center;opacity:.5">This page is empty. Add blocks in the editor.</p>'}
 </main></body></html>`;
 }
 
-module.exports = { renderPage, esc };
+module.exports = { renderPage, esc, formatMoney };

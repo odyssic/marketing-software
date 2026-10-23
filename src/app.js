@@ -3,12 +3,15 @@ const crypto = require('node:crypto');
 const path = require('node:path');
 const { openDb, transaction, appSecret } = require('./db');
 const auth = require('./auth');
-const { renderPage, esc } = require('./render');
+const { renderPage, esc, formatMoney } = require('./render');
 const { TEMPLATES } = require('./templates');
 const mailer = require('./mailer');
+const stripe = require('./stripe');
 
 const slugify = (s) => String(s || '').toLowerCase().normalize('NFKD').replace(/[^\w\s-]/g, '')
   .trim().replace(/[\s_]+/g, '-').replace(/-+/g, '-').slice(0, 60) || 'page';
+const CURRENCIES = ['usd', 'eur', 'gbp', 'cad', 'aud'];
+const BILLING = ['one_time', 'monthly', 'yearly'];
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const parseTags = (t) => [...new Set((Array.isArray(t) ? t : String(t || '').split(','))
   .map((x) => String(x).trim().toLowerCase()).filter(Boolean))];
@@ -79,6 +82,40 @@ function createApp({ dbPath } = {}) {
     return { id: Number(r.lastInsertRowid), created: true };
   }
 
+  const productsMap = (accountId) => Object.fromEntries(
+    db.prepare('SELECT * FROM products WHERE account_id = ?').all(accountId).map((p) => [p.id, p]),
+  );
+  const orderToken = (orderId) => crypto.createHmac('sha256', secret).update(`order:${orderId}`).digest('hex').slice(0, 24);
+  const stepAfter = (stepId) => {
+    const step = db.prepare('SELECT * FROM funnel_steps WHERE id = ?').get(stepId);
+    if (!step) return null;
+    const funnel = db.prepare('SELECT slug FROM funnels WHERE id = ?').get(step.funnel_id);
+    const next = db.prepare('SELECT slug FROM funnel_steps WHERE funnel_id = ? AND position > ? ORDER BY position LIMIT 1')
+      .get(step.funnel_id, step.position);
+    return next ? `/f/${funnel.slug}/${next.slug}` : null;
+  };
+
+  // Marks an order paid and adds the buyer to contacts, tagged as a customer.
+  // Idempotent: the success redirect and the Stripe webhook can both call it.
+  function fulfilOrder(order, { email, name = '', sessionId } = {}) {
+    transaction(db, () => {
+      if (db.prepare('SELECT status FROM orders WHERE id = ?').get(order.id).status === 'paid') return;
+      const product = order.product_id && db.prepare('SELECT * FROM products WHERE id = ?').get(order.product_id);
+      const contact = upsertContact(order.account_id, {
+        email: email || order.email, first_name: name.split(' ')[0] || '',
+        last_name: name.split(' ').slice(1).join(' '),
+        tags: ['customer', ...parseTags(product?.tag)], source: `order: ${order.product_name}`,
+      });
+      db.prepare(`UPDATE orders SET status = 'paid', paid_at = datetime('now'), contact_id = ?, email = ?,
+        stripe_session_id = COALESCE(?, stripe_session_id) WHERE id = ?`)
+        .run(contact.id, String(email || order.email).toLowerCase(), sessionId ?? null, order.id);
+      if (order.funnel_id && order.step_id) {
+        db.prepare("INSERT INTO page_events (account_id, funnel_id, step_id, type, contact_id) VALUES (?, ?, ?, 'sale', ?)")
+          .run(order.account_id, order.funnel_id, order.step_id, contact.id);
+      }
+    });
+  }
+
   // ---------- API ----------
   const api = express.Router();
   api.use(express.json({ limit: '1mb' }));
@@ -127,8 +164,35 @@ function createApp({ dbPath } = {}) {
   api.use(auth.requireAuth(db));
 
   api.get('/me', (req, res) => {
-    const account = db.prepare('SELECT * FROM accounts WHERE id = ?').get(req.accountId);
-    res.json({ user: req.user, account, emailLive: mailer.isLive(), baseUrl: baseUrl(req) });
+    const { stripe_secret_key: key, stripe_webhook_secret: whsec, ...account } = db.prepare('SELECT * FROM accounts WHERE id = ?').get(req.accountId);
+    res.json({
+      user: req.user, account, emailLive: mailer.isLive(), baseUrl: baseUrl(req),
+      payments: {
+        connected: Boolean(key), testKey: key.startsWith('sk_test_') || key.startsWith('rk_test_'),
+        keyHint: key ? `…${key.slice(-4)}` : '', webhookSecretSet: Boolean(whsec),
+        webhookUrl: `${baseUrl(req)}/stripe/webhook/${req.accountId}`,
+      },
+    });
+  });
+
+  // Secrets are write-only: the browser never gets them back, only whether they're set.
+  api.put('/account/stripe', (req, res) => {
+    const { secretKey, webhookSecret, disconnect } = req.body || {};
+    if (disconnect) {
+      db.prepare("UPDATE accounts SET stripe_secret_key = '', stripe_webhook_secret = '' WHERE id = ?").run(req.accountId);
+      return res.json({ ok: true });
+    }
+    if (secretKey) {
+      if (!/^(sk|rk)_(test|live)_\w+$/.test(secretKey.trim())) {
+        throw new HttpError(400, 'That doesn’t look like a Stripe secret key (it starts with sk_live_ or sk_test_)');
+      }
+      db.prepare('UPDATE accounts SET stripe_secret_key = ? WHERE id = ?').run(secretKey.trim(), req.accountId);
+    }
+    if (webhookSecret) {
+      if (!/^whsec_\w+$/.test(webhookSecret.trim())) throw new HttpError(400, 'Webhook signing secrets start with whsec_');
+      db.prepare('UPDATE accounts SET stripe_webhook_secret = ? WHERE id = ?').run(webhookSecret.trim(), req.accountId);
+    }
+    res.json({ ok: true });
   });
 
   api.put('/account', (req, res) => {
@@ -154,6 +218,9 @@ function createApp({ dbPath } = {}) {
       optins30d: optins,
       conversion: views ? Math.round((optins / views) * 1000) / 10 : 0,
       funnels: one('SELECT COUNT(*) FROM funnels WHERE account_id = ?'),
+      revenue30d: db.prepare(`SELECT currency, SUM(amount_cents) AS cents, COUNT(*) AS n FROM orders
+        WHERE account_id = ? AND status = 'paid' AND paid_at >= datetime('now', '-30 days') GROUP BY currency ORDER BY cents DESC`)
+        .all(a).map((r) => ({ ...r, label: formatMoney(r.cents, r.currency) })),
       emailsSent: one("SELECT COUNT(*) FROM email_log WHERE account_id = ? AND status IN ('sent', 'logged')"),
       daily,
       recent: db.prepare('SELECT * FROM contacts WHERE account_id = ? ORDER BY id DESC LIMIT 6').all(a).map(contactOut),
@@ -231,6 +298,48 @@ function createApp({ dbPath } = {}) {
     res.json(Object.entries(counts).sort((x, y) => y[1] - x[1]).map(([tag, count]) => ({ tag, count })));
   });
 
+  // Products & orders
+  const productInput = (b) => {
+    const name = String(b.name || '').trim();
+    const price = Math.round(Number(b.price) * 100);
+    if (!name) throw new HttpError(400, 'Give your product a name');
+    if (!Number.isFinite(price) || price < 50) throw new HttpError(400, 'Price must be at least 0.50');
+    const currency = CURRENCIES.includes(b.currency) ? b.currency : 'usd';
+    const billing = BILLING.includes(b.billing) ? b.billing : 'one_time';
+    return [name, String(b.description || '').trim(), price, currency, billing, parseTags(b.tag).join(',')];
+  };
+  const productOut = (p) => ({ ...p, price: p.price_cents / 100, priceLabel: formatMoney(p.price_cents, p.currency) });
+
+  api.get('/products', (req, res) => {
+    res.json(db.prepare(`SELECT p.*,
+        (SELECT COUNT(*) FROM orders o WHERE o.product_id = p.id AND o.status = 'paid') AS sales
+      FROM products p WHERE account_id = ? ORDER BY id DESC`).all(req.accountId).map(productOut));
+  });
+
+  api.post('/products', (req, res) => {
+    const r = db.prepare(`INSERT INTO products (account_id, name, description, price_cents, currency, billing, tag)
+      VALUES (?, ?, ?, ?, ?, ?, ?)`).run(req.accountId, ...productInput(req.body || {}));
+    res.status(201).json({ id: Number(r.lastInsertRowid) });
+  });
+
+  api.put('/products/:id', (req, res) => {
+    const r = db.prepare(`UPDATE products SET name = ?, description = ?, price_cents = ?, currency = ?, billing = ?, tag = ?
+      WHERE id = ? AND account_id = ?`).run(...productInput(req.body || {}), req.params.id, req.accountId);
+    if (!r.changes) throw new HttpError(404, 'Product not found');
+    res.json({ ok: true });
+  });
+
+  api.delete('/products/:id', (req, res) => {
+    db.prepare('DELETE FROM products WHERE id = ? AND account_id = ?').run(req.params.id, req.accountId);
+    res.json({ ok: true });
+  });
+
+  api.get('/orders', (req, res) => {
+    res.json(db.prepare(`SELECT o.*, f.name AS funnel_name FROM orders o LEFT JOIN funnels f ON f.id = o.funnel_id
+      WHERE o.account_id = ? ORDER BY o.id DESC LIMIT 500`).all(req.accountId)
+      .map((o) => ({ ...o, amountLabel: formatMoney(o.amount_cents, o.currency) })));
+  });
+
   // Funnels
   api.get('/templates', (req, res) => {
     res.json(Object.entries(TEMPLATES).map(([key, t]) => ({ key, label: t.label })));
@@ -251,7 +360,11 @@ function createApp({ dbPath } = {}) {
     const id = transaction(db, () => {
       const f = db.prepare('INSERT INTO funnels (account_id, name, slug) VALUES (?, ?, ?)')
         .run(req.accountId, name, uniqueFunnelSlug(name));
-      template.steps().forEach((s, i) => insertStep(f.lastInsertRowid, s, i));
+      const newest = db.prepare('SELECT id FROM products WHERE account_id = ? ORDER BY id DESC LIMIT 1').get(req.accountId);
+      template.steps().forEach((s, i) => {
+        for (const b of s.blocks) if (b.type === 'pricing' && newest) b.productId = newest.id;
+        insertStep(f.lastInsertRowid, s, i);
+      });
       return Number(f.lastInsertRowid);
     });
     res.status(201).json({ id });
@@ -329,7 +442,7 @@ function createApp({ dbPath } = {}) {
 
   api.post('/preview', (req, res) => {
     const { blocks, settings, name } = req.body || {};
-    res.json({ html: renderPage({ title: name || 'Preview', blocks, settings, preview: true }) });
+    res.json({ html: renderPage({ title: name || 'Preview', blocks, settings, products: productsMap(req.accountId), preview: true }) });
   });
 
   // Email broadcasts
@@ -407,7 +520,8 @@ function createApp({ dbPath } = {}) {
       .run(funnel.account_id, funnel.id, step.id);
     res.type('html').send(renderPage({
       title: step.name, blocks: JSON.parse(step.blocks), settings: JSON.parse(step.settings),
-      nextUrl, formAction: `/f/${funnel.slug}/${step.slug}/optin`,
+      nextUrl, formAction: `/f/${funnel.slug}/${step.slug}/optin`, buyAction: `/f/${funnel.slug}/${step.slug}/buy`,
+      products: productsMap(funnel.account_id),
     }));
   });
 
@@ -433,6 +547,116 @@ function createApp({ dbPath } = {}) {
       .run(funnel.account_id, funnel.id, step.id, contact.id);
     if (nextUrl !== '#') return res.redirect(303, nextUrl);
     res.type('html').send('<!doctype html><meta name="viewport" content="width=device-width"><p style="font:20px system-ui;text-align:center;margin-top:20vh">Thanks! You are subscribed.</p>');
+  });
+
+  // ---------- Checkout ----------
+  const messagePage = (res, status, text, link) => res.status(status).type('html').send(
+    `<!doctype html><meta name="viewport" content="width=device-width"><title>${esc(text)}</title>
+    <p style="font:20px system-ui;text-align:center;margin-top:20vh;padding:0 20px">${esc(text)}${link ? `<br><br><a href="${esc(link)}">Go back</a>` : ''}</p>`);
+
+  app.post('/f/:funnel/:step/buy', express.urlencoded({ extended: false, limit: '5kb' }), async (req, res) => {
+    const found = findPublicStep(req.params.funnel, req.params.step);
+    if (!found) return notFound(res);
+    const { funnel, step } = found;
+    const back = `/f/${funnel.slug}/${step.slug}`;
+    const block = JSON.parse(step.blocks).find((b) => b.type === 'pricing' && b.id === req.body.block);
+    const product = block?.productId && db.prepare('SELECT * FROM products WHERE id = ? AND account_id = ?')
+      .get(block.productId, funnel.account_id);
+    if (!product) return messagePage(res, 404, 'This offer is no longer available.', back);
+    const account = db.prepare('SELECT stripe_secret_key FROM accounts WHERE id = ?').get(funnel.account_id);
+    const r = db.prepare(`INSERT INTO orders (account_id, product_id, product_name, amount_cents, currency, mode, funnel_id, step_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(funnel.account_id, product.id, product.name, product.price_cents, product.currency,
+      account.stripe_secret_key ? 'stripe' : 'test', funnel.id, step.id);
+    const orderId = Number(r.lastInsertRowid);
+    if (!account.stripe_secret_key) return res.redirect(303, `/checkout/test/${orderId}/${orderToken(orderId)}`);
+    try {
+      const session = await stripe.createCheckoutSession(account.stripe_secret_key, {
+        product, orderId,
+        successUrl: `${baseUrl(req)}/checkout/success/${orderId}?session_id={CHECKOUT_SESSION_ID}`,
+        cancelUrl: `${baseUrl(req)}${back}`,
+      });
+      db.prepare('UPDATE orders SET stripe_session_id = ? WHERE id = ?').run(session.id, orderId);
+      res.redirect(303, session.url);
+    } catch (e) {
+      console.error('Stripe checkout failed:', e.message);
+      messagePage(res, 502, 'Checkout is temporarily unavailable. Please try again in a moment.', back);
+    }
+  });
+
+  // Buyer returns here from Stripe. We confirm the payment with Stripe
+  // ourselves rather than trusting the URL.
+  app.get('/checkout/success/:orderId', async (req, res) => {
+    const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(req.params.orderId);
+    if (!order || order.mode !== 'stripe') return notFound(res);
+    if (order.status !== 'paid') {
+      const account = db.prepare('SELECT stripe_secret_key FROM accounts WHERE id = ?').get(order.account_id);
+      try {
+        const session = await stripe.retrieveCheckoutSession(account.stripe_secret_key, String(req.query.session_id || ''));
+        if (String(session.client_reference_id) !== String(order.id) || !stripe.isPaid(session)) {
+          return messagePage(res, 402, 'We couldn’t confirm your payment. If you were charged, please contact us.');
+        }
+        fulfilOrder(order, { email: session.customer_details?.email, name: session.customer_details?.name || '', sessionId: session.id });
+      } catch (e) {
+        console.error('Stripe confirmation failed:', e.message);
+        return messagePage(res, 502, 'We couldn’t confirm your payment yet. Please refresh this page in a moment.');
+      }
+    }
+    const next = order.step_id && stepAfter(order.step_id);
+    if (next) return res.redirect(303, next);
+    messagePage(res, 200, `Thank you! Your purchase of ${order.product_name} is confirmed.`);
+  });
+
+  // Test-mode checkout, used while a workspace hasn't connected Stripe. No
+  // money moves; it lets you try the whole funnel end to end.
+  const testOrder = (req) => {
+    const order = db.prepare("SELECT * FROM orders WHERE id = ? AND mode = 'test'").get(req.params.orderId);
+    const ok = order && req.params.token.length === 24
+      && crypto.timingSafeEqual(Buffer.from(req.params.token), Buffer.from(orderToken(order.id)));
+    return ok ? order : null;
+  };
+  app.get('/checkout/test/:orderId/:token', (req, res) => {
+    const order = testOrder(req);
+    if (!order) return notFound(res);
+    res.type('html').send(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Test checkout</title><style>body{font:16px system-ui;background:#f6f7fb;margin:0;display:grid;place-items:center;min-height:100vh;padding:20px;box-sizing:border-box}
+.c{background:#fff;border-radius:14px;padding:28px;max-width:420px;width:100%;box-shadow:0 10px 30px rgba(0,0,0,.08)}
+.t{background:#fef3c7;color:#92400e;padding:8px 12px;border-radius:8px;font-size:.85rem;margin-bottom:16px}
+input,button{width:100%;padding:12px;border-radius:8px;font:inherit;box-sizing:border-box;margin-top:8px}input{border:1px solid #d1d5db}
+button{background:#4f46e5;color:#fff;border:0;font-weight:600;cursor:pointer;margin-top:14px}.p{font-size:2rem;font-weight:800;margin:6px 0 14px}</style></head>
+<body><form class="c" method="post"><div class="t"><b>Test mode.</b> Stripe isn’t connected for this business yet, so no card is charged.</div>
+<div>${esc(order.product_name)}</div><div class="p">${esc(formatMoney(order.amount_cents, order.currency))}</div>
+${order.status === 'paid' ? '<p>This order is already paid.</p>' : `<label>Name<input name="name" autocomplete="name"></label>
+<label>Email<input name="email" type="email" required autocomplete="email"></label><button>Complete test purchase</button>`}</form></body></html>`);
+  });
+  app.post('/checkout/test/:orderId/:token', express.urlencoded({ extended: false, limit: '5kb' }), (req, res) => {
+    const order = testOrder(req);
+    if (!order) return notFound(res);
+    if (!EMAIL_RE.test(String(req.body.email || '').trim())) return messagePage(res, 400, 'Please enter a valid email.', req.originalUrl);
+    fulfilOrder(order, { email: String(req.body.email).trim(), name: String(req.body.name || '').trim() });
+    const next = order.step_id && stepAfter(order.step_id);
+    if (next) return res.redirect(303, next);
+    messagePage(res, 200, `Thank you! Your purchase of ${order.product_name} is confirmed.`);
+  });
+
+  // Stripe webhook: catches payments where the buyer closed the tab before
+  // being redirected back. One endpoint per workspace, each with its own secret.
+  app.post('/stripe/webhook/:accountId', express.raw({ type: '*/*', limit: '1mb' }), (req, res) => {
+    const account = db.prepare('SELECT id, stripe_webhook_secret FROM accounts WHERE id = ?').get(req.params.accountId);
+    if (!account?.stripe_webhook_secret) return res.status(404).json({ error: 'Webhook not configured' });
+    let event;
+    try {
+      event = stripe.verifyWebhook(req.body.toString('utf8'), req.get('stripe-signature'), account.stripe_webhook_secret);
+    } catch (e) {
+      return res.status(400).json({ error: e.message });
+    }
+    if (['checkout.session.completed', 'checkout.session.async_payment_succeeded'].includes(event.type)) {
+      const session = event.data.object;
+      const order = db.prepare('SELECT * FROM orders WHERE id = ? AND account_id = ?').get(session.client_reference_id, account.id);
+      if (order && stripe.isPaid(session)) {
+        fulfilOrder(order, { email: session.customer_details?.email, name: session.customer_details?.name || '', sessionId: session.id });
+      }
+    }
+    res.json({ received: true });
   });
 
   app.get('/unsubscribe/:token', (req, res) => {

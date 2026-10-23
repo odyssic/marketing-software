@@ -49,6 +49,36 @@ const TEMPLATES = {
       },
     ],
   },
+  pricing: {
+    label: 'Pricing page (offer card + checkout)',
+    steps: () => [
+      {
+        name: 'Pricing',
+        slug: 'pricing',
+        settings: { accent: '#14b8a6', background: '#ffffff', width: 960 },
+        blocks: [
+          { id: id(), type: 'hero', eyebrow: 'Pricing', text: 'Simple pricing.\nEverything included.', background: '#0d9488', textColor: '#ffffff' },
+          {
+            id: id(), type: 'pricing', productId: null,
+            badge: 'LIMITED TIME OFFER', compareText: '$190 per year', billingText: '',
+            note: '🔥 Pay once. No monthly fees.',
+            featuresTitle: 'Everything you need to get started.',
+            features: 'Drag-and-drop page editor\nReady-made templates\nUnlimited funnels\nLead capture forms\nEmail broadcasts\nContact management\nSales & checkout pages\nPriority support',
+            buttonLabel: 'Get Instant Access Now', buttonSubtext: '14-day money-back guarantee', buttonColor: '#ff7849',
+          },
+        ],
+      },
+      {
+        name: 'Thank you',
+        slug: 'thank-you',
+        settings: { accent: '#14b8a6' },
+        blocks: [
+          { id: id(), type: 'heading', text: 'Payment received. Welcome aboard! 🎉', align: 'center' },
+          { id: id(), type: 'text', text: 'A receipt is on its way to your inbox.', align: 'center' },
+        ],
+      },
+    ],
+  },
   blank: {
     label: 'Blank (one empty page)',
     steps: () => [{ name: 'Page 1', slug: 'page-1', settings: {}, blocks: [] }],

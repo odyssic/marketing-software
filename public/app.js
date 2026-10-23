@@ -96,6 +96,7 @@ const NAV = [
   ['', '📊', 'Dashboard'],
   ['funnels', '🧲', 'Funnels'],
   ['contacts', '👥', 'Contacts'],
+  ['products', '🛒', 'Products'],
   ['email', '✉️', 'Email'],
   ['settings', '⚙️', 'Settings'],
 ];
@@ -131,6 +132,8 @@ async function viewDashboard() {
       <div class="muted">Here’s how ${esc(state.me.account.name)} is doing (last 30 days).</div></div>
       <a class="btn primary" href="#/funnels/new">+ New funnel</a></div>
     <div class="grid stats">
+      ${stat('Revenue', d.revenue30d.length ? d.revenue30d.map((r) => esc(r.label)).join(' · ') : '$0',
+        `${d.revenue30d.reduce((n, r) => n + r.n, 0)} paid orders`)}
       ${stat('Contacts', d.contacts, `+${d.newContacts7d} this week`)}
       ${stat('Page views', d.views30d, 'across all funnels')}
       ${stat('Opt-ins', d.optins30d, 'new form sign-ups')}
@@ -239,6 +242,17 @@ function bindCopy() {
 // ---------------- Page builder ----------------
 const ALIGN = ['align', 'align', 'Alignment'];
 const BLOCKS = {
+  hero: { label: 'Hero banner', icon: '▀', defaults: { eyebrow: 'New', text: 'A bold headline for your offer', subtext: '', background: '#0d9488', textColor: '#ffffff' },
+    fields: [['eyebrow', 'text', 'Small label above'], ['text', 'textarea', 'Headline'], ['subtext', 'textarea', 'Subheadline'],
+      ['background', 'color', 'Band color'], ['textColor', 'color', 'Text color']] },
+  pricing: { label: 'Pricing card', icon: '$', defaults: { productId: null, badge: 'LIMITED TIME OFFER', compareText: '', billingText: '', note: '',
+    featuresTitle: 'Everything you get:', features: 'Feature one\nFeature two\nFeature three', buttonLabel: 'Get Instant Access Now',
+    buttonSubtext: '14-day money-back guarantee', buttonColor: '#ff7849' },
+  fields: [['productId', 'product', 'Product sold by this card'], ['badge', 'text', 'Badge'],
+    ['compareText', 'text', 'Crossed-out “was” price', null, 'e.g. $190 per year'],
+    ['billingText', 'text', 'Text under the price', null, 'Leave empty to use the product’s billing (e.g. one-time payment)'],
+    ['note', 'text', 'Highlight line'], ['featuresTitle', 'text', 'Features heading'], ['features', 'textarea', 'Features (one per line)'],
+    ['buttonLabel', 'text', 'Button text'], ['buttonSubtext', 'text', 'Small text in button'], ['buttonColor', 'color', 'Button color']] },
   heading: { label: 'Heading', icon: 'H', defaults: { text: 'Your big headline', size: 'large', align: 'center' },
     fields: [['text', 'textarea', 'Text'], ['size', 'select', 'Size', ['large', 'medium', 'small']], ALIGN] },
   text: { label: 'Text', icon: '¶', defaults: { text: 'Write something persuasive here.', align: 'center' },
@@ -258,7 +272,7 @@ const BLOCKS = {
 const uid = () => Math.random().toString(36).slice(2, 10);
 
 async function viewEditor(stepId) {
-  const step = await api('GET', `/api/steps/${stepId}`);
+  const [step, products] = await Promise.all([api('GET', `/api/steps/${stepId}`), api('GET', '/api/products')]);
   const ed = { step, blocks: step.blocks, settings: { background: '#ffffff', textColor: '#1f2937', accent: '#4f46e5', width: 720, ...step.settings }, open: null };
   const link = publicUrl(`/f/${step.funnel.slug}/${step.slug}`);
   app.innerHTML = `<div class="editor">
@@ -307,11 +321,19 @@ async function viewEditor(stepId) {
     const attrs = `data-i="${i}" data-k="${key}"`;
     if (kind === 'textarea') return `<label class="f">${label}<textarea ${attrs} rows="3">${esc(v)}</textarea></label>`;
     if (kind === 'select') return `<label class="f">${label}<select ${attrs}>${options.map((o) => `<option ${o === v ? 'selected' : ''}>${o}</option>`).join('')}</select></label>`;
+    if (kind === 'color') return `<label class="f">${label}<input type="color" ${attrs} value="${esc(v || '#000000')}"></label>`;
+    if (kind === 'product') {
+      return `<label class="f">${label}${products.length ? `<select ${attrs} data-num>
+        <option value="">— None (button just goes to next page) —</option>
+        ${products.map((pr) => `<option value="${pr.id}" ${pr.id === v ? 'selected' : ''}>${esc(pr.name)} · ${esc(pr.priceLabel)}</option>`).join('')}</select>`
+        : '<div class="hint" style="margin-top:4px">No products yet. <a href="#/products" target="_blank">Create one</a>, then reload this page.</div>'}</label>`;
+    }
     if (kind === 'check') return `<label class="check"><input type="checkbox" ${attrs} ${v ? 'checked' : ''}>${label}</label>`;
     if (kind === 'align') return `<div class="f">${label}<div class="aligns">${['left', 'center', 'right'].map((a) => `<button type="button" data-align="${i}:${a}" class="${(v || 'center') === a ? 'on' : ''}">${a}</button>`).join('')}</div></div>`;
     return `<label class="f">${label}${hint ? ` <span class="hint">${esc(hint)}</span>` : ''}<input type="${kind}" ${attrs} value="${esc(v)}"></label>`;
   };
-  const summary = (b) => esc(String(b.text || b.label || b.buttonLabel || b.url || '').slice(0, 40));
+  const summary = (b) => esc(String(b.type === 'pricing' ? (products.find((pr) => pr.id === b.productId)?.name || 'no product')
+    : b.text || b.label || b.buttonLabel || b.url || '').slice(0, 40));
 
   const renderBlocks = () => {
     $('[data-blocks]').innerHTML = ed.blocks.length ? ed.blocks.map((b, i) => {
@@ -358,7 +380,8 @@ async function viewEditor(stepId) {
     const t = e.target;
     if (t.dataset.k) {
       const b = ed.blocks[t.dataset.i];
-      b[t.dataset.k] = t.type === 'checkbox' ? t.checked : t.type === 'number' ? Number(t.value) : t.value;
+      b[t.dataset.k] = t.type === 'checkbox' ? t.checked : t.type === 'number' ? Number(t.value)
+        : 'num' in t.dataset ? (t.value ? Number(t.value) : null) : t.value;
       const name = t.closest('.block')?.querySelector('.name span');
       if (name) name.innerHTML = summary(b);
       changed();
@@ -469,6 +492,67 @@ async function importCsv() {
   if (r) { toast(`Imported: ${r.created} new, ${r.updated} updated${r.skipped ? `, ${r.skipped} skipped` : ''}`); viewContacts(); }
 }
 
+// ---------------- Products & orders ----------------
+const BILLING_LABEL = { one_time: 'One-time', monthly: 'Monthly', yearly: 'Yearly' };
+
+async function viewProducts(tab) {
+  const orders = tab === 'orders';
+  const items = await api('GET', orders ? '/api/orders' : '/api/products');
+  const p = state.me.payments;
+  shell('products', `
+    <div class="head"><div><h1>Products</h1><div class="muted">What you sell, and the orders that come in.</div></div>
+      <button class="btn primary" data-new>+ New product</button></div>
+    ${p.connected ? (p.testKey ? '<div class="banner">Stripe is connected with a <b>test</b> key: checkouts use Stripe’s test cards and no real money moves.</div>' : '')
+      : '<div class="banner"><b>Test mode:</b> Stripe isn’t connected, so checkouts are simulated and no card is charged. <a href="#/settings">Connect Stripe</a> to take real payments.</div>'}
+    <div class="tabs"><a href="#/products" class="${orders ? '' : 'active'}">Products</a><a href="#/products/orders" class="${orders ? 'active' : ''}">Orders</a></div>
+    ${orders ? ordersHtml(items) : productsHtml(items)}`);
+
+  const form = (pr = {}) => `
+    <label class="f">Product name<input name="name" required value="${esc(pr.name)}" placeholder="e.g. Lifetime access"></label>
+    <label class="f">Description <span class="hint">shown at checkout</span><textarea name="description" rows="2">${esc(pr.description)}</textarea></label>
+    <div class="colors"><label class="f">Price<input name="price" type="number" min="0.5" step="0.01" required value="${pr.price ?? ''}"></label>
+      <label class="f">Currency<select name="currency">${['usd', 'eur', 'gbp', 'cad', 'aud'].map((c) => `<option value="${c}" ${pr.currency === c ? 'selected' : ''}>${c.toUpperCase()}</option>`).join('')}</select></label>
+      <label class="f">Billing<select name="billing">${Object.entries(BILLING_LABEL).map(([k, l]) => `<option value="${k}" ${pr.billing === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label></div>
+    <label class="f">Tag buyers with <span class="hint">buyers are always tagged “customer” too</span><input name="tag" value="${esc(pr.tag)}" placeholder="e.g. bought-course"></label>`;
+  $('[data-new]').onclick = async () => {
+    const r = await modal('New product', form(), { submit: 'Create product', onSubmit: (v) => api('POST', '/api/products', v) });
+    if (r) {
+      toast('Product created');
+      if (await modal('Sell it on a page?', '<p class="muted">Create a pricing page funnel for this product now? You can edit everything after.</p>', { submit: 'Create pricing page' })) {
+        const f = await api('POST', '/api/funnels', { name: `${(await api('GET', '/api/products')).find((x) => x.id === r.id).name} pricing`, template: 'pricing' });
+        location.hash = `#/funnels/${f.id}`;
+      } else viewProducts();
+    }
+  };
+  $$('[data-edit]').forEach((row) => { row.onclick = async () => {
+    const pr = items.find((x) => x.id === Number(row.dataset.edit));
+    const pending = modal('Edit product', `${form(pr)}<button type="button" class="btn danger sm" data-delp>Delete product</button>`,
+      { onSubmit: (v) => api('PUT', `/api/products/${pr.id}`, v) });
+    $('[data-delp]').onclick = async () => {
+      $('.modal-bg [data-x]').click();
+      if (await confirmBox('Delete product?', `Pricing cards selling “${pr.name}” will stop taking payments. Past orders are kept.`)) {
+        await api('DELETE', `/api/products/${pr.id}`); toast('Product deleted'); viewProducts();
+      }
+    };
+    if (await pending) { toast('Saved'); viewProducts(); }
+  }; });
+}
+
+const productsHtml = (items) => (items.length ? `<div class="card table-wrap"><table>
+  <tr><th>Product</th><th>Price</th><th>Billing</th><th>Buyer tag</th><th>Sales</th></tr>
+  ${items.map((pr) => `<tr class="click" data-edit="${pr.id}"><td><strong>${esc(pr.name)}</strong><div class="muted small">${esc(pr.description.slice(0, 70))}</div></td>
+    <td>${esc(pr.priceLabel)}</td><td>${BILLING_LABEL[pr.billing]}</td><td>${pr.tag ? tagsHtml(pr.tag.split(',')) : ''}</td><td>${pr.sales}</td></tr>`).join('')}
+  </table></div>` : `<div class="card empty"><div class="big">🛒</div><h2>No products yet</h2>
+  <p>Create a product, then sell it with a Pricing card on any funnel page.</p></div>`);
+
+const ordersHtml = (items) => (items.length ? `<div class="card table-wrap"><table>
+  <tr><th>Order</th><th>Product</th><th>Buyer</th><th>Amount</th><th>Status</th><th>Date</th></tr>
+  ${items.map((o) => `<tr><td>#${o.id}${o.mode === 'test' ? ' <span class="pill">test</span>' : ''}</td><td>${esc(o.product_name)}<div class="muted small">${esc(o.funnel_name || '')}</div></td>
+    <td>${esc(o.email) || '<span class="muted">—</span>'}</td><td>${esc(o.amountLabel)}</td>
+    <td><span class="pill ${o.status === 'paid' ? 'ok' : ''}">${o.status === 'pending' ? 'abandoned / pending' : esc(o.status)}</span></td>
+    <td class="muted small">${fmtDate(o.paid_at || o.created_at)}</td></tr>`).join('')}
+  </table></div>` : '<div class="card empty"><div class="big">🧾</div><h2>No orders yet</h2><p>Orders appear here when someone clicks buy on a pricing card.</p></div>');
+
 // ---------------- Email ----------------
 async function viewEmail(tab) {
   const outbox = tab === 'outbox';
@@ -535,7 +619,32 @@ function viewSettings() {
       <label class="f">From email <span class="hint">must be allowed by your SMTP provider</span><input name="from_email" type="email" value="${esc(a.from_email || '')}"></label>
       <p class="muted small">Email delivery: <b>${state.me.emailLive ? 'connected (SMTP)' : 'dev mode (Outbox only)'}</b></p>
       <div class="err"></div><button class="btn primary">Save settings</button>
+    </form>
+    <form class="card" style="max-width:560px;margin-top:16px" data-stripe>
+      <h2>Payments (Stripe)</h2>
+      <p class="small">Status: ${state.me.payments.connected ? `<span class="pill ok">connected${state.me.payments.testKey ? ' · test key' : ''}</span> key ${esc(state.me.payments.keyHint)}`
+        : '<span class="pill warn">not connected</span> checkouts run in test mode'}</p>
+      <label class="f">Secret key <span class="hint">Stripe Dashboard → Developers → API keys</span>
+        <input name="secretKey" type="password" autocomplete="off" placeholder="${state.me.payments.connected ? 'Saved. Paste a new key to replace it' : 'sk_live_… or sk_test_…'}"></label>
+      <label class="f">Webhook signing secret <span class="hint">recommended</span>
+        <input name="webhookSecret" type="password" autocomplete="off" placeholder="${state.me.payments.webhookSecretSet ? 'Saved. Paste a new one to replace it' : 'whsec_…'}"></label>
+      <p class="hint">In Stripe, add a webhook endpoint for <b>checkout.session.completed</b> pointing to:</p>
+      <div class="copy" style="margin-bottom:12px"><input readonly value="${esc(state.me.payments.webhookUrl)}"><button type="button" class="btn" data-copy="${esc(state.me.payments.webhookUrl)}">Copy</button></div>
+      <div class="err"></div>
+      <div class="row"><button class="btn primary">Save payment settings</button>
+        ${state.me.payments.connected ? '<button type="button" class="btn danger" data-disconnect>Disconnect</button>' : ''}</div>
     </form>`);
+  bindCopy();
+  const saveStripe = async (body, form) => {
+    try {
+      await api('PUT', '/api/account/stripe', body);
+      state.me = await api('GET', '/api/me');
+      toast('Payment settings saved'); viewSettings();
+    } catch (err) { $('.err', form).textContent = err.message; }
+  };
+  $('[data-stripe]').onsubmit = (e) => { e.preventDefault(); saveStripe(Object.fromEntries(new FormData(e.target)), e.target); };
+  const dc = $('[data-disconnect]');
+  if (dc) dc.onclick = async () => { if (await confirmBox('Disconnect Stripe?', 'Checkouts will switch to test mode until you connect again.', 'Disconnect')) saveStripe({ disconnect: true }, $('[data-stripe]')); };
   $('[data-form]').onsubmit = async (e) => {
     e.preventDefault();
     try {
@@ -559,6 +668,7 @@ async function route() {
     else if (section === 'funnels') await viewFunnels();
     else if (section === 'editor') await viewEditor(id);
     else if (section === 'contacts') await viewContacts();
+    else if (section === 'products') await viewProducts(id);
     else if (section === 'email') await viewEmail(id);
     else if (section === 'settings') viewSettings();
     else await viewDashboard();
