@@ -196,3 +196,30 @@ pre.mail { white-space: pre-wrap; font: .85rem/1.5 ui-monospace, monospace; back
 .map-empty { position: absolute; left: 260px; top: 120px; width: 300px; text-align: center; color: var(--muted); cursor: default; }
 .map-empty .big { font-size: 2.6rem; }
 @media (max-width: 900px) { .map { height: 70vh; } .map-help { display: none; } }
+
+/* Pipelines */
+[hidden] { display: none !important; }
+.main { min-width: 0; }
+.pipe-switch { font-size: 1.3rem; font-weight: 700; border-color: transparent; padding: 2px 6px; margin-left: -6px; width: auto; max-width: 100%; background: transparent; }
+.pipe-switch:hover { border-color: var(--line); }
+.board { display: flex; gap: 14px; overflow-x: auto; padding-bottom: 8px; align-items: flex-start; min-height: 320px; }
+.col { flex: 0 0 272px; background: #eef0f5; border-radius: var(--radius); padding: 10px; display: flex; flex-direction: column; max-height: calc(100vh - 230px); border: 2px solid transparent; }
+.col.over { border-color: var(--brand); background: var(--brand-soft); }
+.col header { padding: 2px 4px 10px; }
+.col header .name { font-weight: 600; display: flex; align-items: center; gap: 6px; }
+.col .count { background: #fff; color: var(--muted); border-radius: 99px; padding: 0 8px; font-size: .78rem; font-weight: 600; }
+.col .cards { display: flex; flex-direction: column; gap: 8px; overflow-y: auto; min-height: 40px; }
+.col .add { margin-top: 8px; background: none; border: 1px dashed #c7cad6; border-radius: 8px; padding: 7px; color: var(--muted); cursor: pointer; font: inherit; font-size: .85rem; }
+.col .add:hover { border-color: var(--brand); color: var(--brand); background: #fff; }
+.deal { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; box-shadow: var(--shadow); cursor: grab; }
+.deal:hover { border-color: #c7d2fe; }
+.deal .title { font-weight: 600; font-size: .92rem; margin-bottom: 2px; overflow-wrap: anywhere; }
+.deal .foot { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; font-size: .88rem; }
+.deal.dragging { opacity: .35; }
+.deal-gap { border: 2px dashed var(--brand); border-radius: 10px; background: #fff; opacity: .7; }
+.btn.won { color: var(--ok); }
+.stage-row { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; }
+.stage-row input { flex: 1; }
+.cdeal { display: flex; justify-content: space-between; gap: 10px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; margin-bottom: 6px; text-decoration: none; color: var(--text); }
+.cdeal:hover { border-color: var(--brand); }
+.stage-row .n { width: 52px; text-align: right; flex: none; }

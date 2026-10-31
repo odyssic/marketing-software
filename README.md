@@ -13,6 +13,7 @@ A simple, all-in-one marketing platform for small businesses. It starts with the
 | **Page builder** | Block editor with live desktop/mobile preview and autosave. Blocks: hero banner, pricing card, heading, text, image, YouTube video, button (`#next` → next page), opt-in form, spacer, divider. Also page colors, width and SEO title/description. |
 | **Products & checkout** | Products with one-time, monthly or yearly pricing. A pricing card block sells a product through Stripe Checkout. Payment is confirmed server-side (on the success redirect and via a signed webhook), and buyers become contacts tagged `customer` plus a product tag. There's an orders list and a revenue stat. Without Stripe connected, a **test-mode checkout** lets you run the whole flow without charging anyone. |
 | **Contacts (CRM)** | Opt-in forms create or merge contacts and apply tags. Search, tag filter, add/edit/delete, CSV import (dedupes by email) and CSV export, plus a bot honeypot on forms. |
+| **Pipelines** | Kanban boards of deal stages (default: New lead → Contacted → Proposal sent → Negotiation). Drag deals between stages and up/down to prioritise; each column shows its count and total value. Deals have a value, currency, contact (pick one, or type a new email to add them to contacts), and notes, and are marked won or lost (with Won/Lost lists and Reopen). Rename, reorder, add or remove stages; run several pipelines. A contact's deals show on their record, and the dashboard shows open pipeline value. |
 | **Email** | Broadcasts to everyone or to a tag, `{{first_name}}` merge fields, an automatic signed unsubscribe link, and an Outbox log. SMTP delivery, or a dev mode that logs without sending. |
 | **Dashboard** | Contacts, views, opt-ins, conversion, a 14-day signup chart, a get-started checklist and recent contacts. |
 | **Accounts** | Email and password sign-up (scrypt hashing), cookie sessions and workspace-scoped data. |
@@ -93,7 +94,7 @@ test/                node:test end-to-end tests
 - Password reset, team members, login rate limiting, background job queue for large sends
 
 **Phase 3: GoHighLevel territory**
-- Opportunity pipelines (Kanban deal stages)
+- ~~Opportunity pipelines (Kanban deal stages)~~ ✅. Next: automations that create or move deals (e.g. form submitted → new deal), deal activity history, touch drag on phones
 - Visual workflow builder (triggers, waits, if/else, actions)
 - SMS and two-way conversations inbox (Twilio)
 - Calendars and booking pages

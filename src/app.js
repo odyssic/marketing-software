@@ -104,6 +104,9 @@ function createApp({ dbPath } = {}) {
     return { id: r.id, created: true };
   }
 
+  // Totals per currency, e.g. [{ currency: 'usd', cents: 120000, label: '$1,200' }].
+  const moneyTotals = (rows) => Object.entries(rows.reduce((acc, r) => ({ ...acc, [r.currency]: (acc[r.currency] || 0) + r.value_cents }), {}))
+    .sort((x, y) => y[1] - x[1]).map(([currency, cents]) => ({ currency, cents, label: formatMoney(cents, currency) }));
   const productsMap = async (accountId) => Object.fromEntries(
     (await db.all('SELECT * FROM products WHERE account_id = ?', accountId)).map((p) => [p.id, p]),
   );
@@ -241,7 +244,7 @@ function createApp({ dbPath } = {}) {
   api.get('/dashboard', async (req, res) => {
     const a = req.accountId;
     const one = async (sql) => (await db.get(sql, a)).n;
-    const [views, optins, daily, contacts, newContacts7d, funnels, revenue, emailsSent, recent] = await Promise.all([
+    const [views, optins, daily, contacts, newContacts7d, funnels, revenue, emailsSent, recent, openDeals, wonDeals] = await Promise.all([
       one("SELECT COUNT(*)::int AS n FROM page_events WHERE account_id = ? AND type = 'view' AND created_at >= now() - interval '30 days'"),
       one("SELECT COUNT(*)::int AS n FROM page_events WHERE account_id = ? AND type = 'optin' AND created_at >= now() - interval '30 days'"),
       db.all(`SELECT to_char(created_at, 'YYYY-MM-DD') AS day, COUNT(*)::int AS n FROM contacts
@@ -253,6 +256,8 @@ function createApp({ dbPath } = {}) {
         WHERE account_id = ? AND status = 'paid' AND paid_at >= now() - interval '30 days' GROUP BY currency ORDER BY cents DESC`, a),
       one("SELECT COUNT(*)::int AS n FROM email_log WHERE account_id = ? AND status IN ('sent', 'logged')"),
       db.all('SELECT * FROM contacts WHERE account_id = ? ORDER BY id DESC LIMIT 6', a),
+      db.all("SELECT value_cents, currency FROM deals WHERE account_id = ? AND status = 'open'", a),
+      db.all("SELECT value_cents, currency FROM deals WHERE account_id = ? AND status = 'won' AND closed_at >= now() - interval '30 days'", a),
     ]);
     res.json({
       contacts, newContacts7d, views30d: views, optins30d: optins,
@@ -260,6 +265,7 @@ function createApp({ dbPath } = {}) {
       funnels, emailsSent, daily,
       revenue30d: revenue.map((r) => ({ ...r, label: formatMoney(r.cents, r.currency) })),
       recent: recent.map(contactOut),
+      pipeline: { open: openDeals.length, openValue: moneyTotals(openDeals), won30d: wonDeals.length, wonValue30d: moneyTotals(wonDeals) },
     });
   });
 
@@ -516,6 +522,209 @@ function createApp({ dbPath } = {}) {
   api.post('/preview', async (req, res) => {
     const { blocks, settings, name } = req.body || {};
     res.json({ html: renderPage({ title: name || 'Preview', blocks, settings, products: await productsMap(req.accountId), preview: true }) });
+  });
+
+  // Pipelines & deals
+  const getPipeline = async (q, accountId, pipelineId) => {
+    const p = await q.get('SELECT * FROM pipelines WHERE id = ? AND account_id = ?', id(pipelineId), accountId);
+    if (!p) throw new HttpError(404, 'Pipeline not found');
+    return p;
+  };
+  const getDeal = async (q, accountId, dealId) => {
+    const d = await q.get('SELECT * FROM deals WHERE id = ? AND account_id = ?', id(dealId), accountId);
+    if (!d) throw new HttpError(404, 'Deal not found');
+    return d;
+  };
+  const stageInPipeline = async (q, pipelineId, stageId) => {
+    const st = await q.get('SELECT * FROM pipeline_stages WHERE id = ? AND pipeline_id = ?', id(stageId), pipelineId);
+    if (!st) throw new HttpError(400, 'That stage isn’t part of this pipeline');
+    return st;
+  };
+  const stageNames = (stages) => (Array.isArray(stages) ? stages : [])
+    .map((s) => ({ id: s?.id ?? null, name: String((typeof s === 'string' ? s : s?.name) || '').trim().slice(0, 60) }))
+    .filter((s) => s.name);
+  const dealOut = (d) => ({
+    ...d, value: d.value_cents / 100, valueLabel: formatMoney(d.value_cents, d.currency),
+    contact_name: [d.first_name, d.last_name].filter(Boolean).join(' '),
+  });
+  const DEAL_SELECT = `SELECT d.*, c.email AS contact_email, c.first_name, c.last_name FROM deals d
+    LEFT JOIN contacts c ON c.id = d.contact_id`;
+  const nextPosition = async (q, stageId) => (await q.get(
+    "SELECT COALESCE(MAX(position), -1) + 1 AS p FROM deals WHERE stage_id = ? AND status = 'open'", stageId)).p;
+
+  // Shared by create and update. A deal's contact is picked by id, or by email
+  // (which adds the person to contacts if they're new, like a form opt-in would).
+  async function dealInput(q, accountId, b, cur = {}) {
+    const title = String(b.title ?? cur.title ?? '').trim().slice(0, 200);
+    if (!title) throw new HttpError(400, 'Give the deal a name');
+    let cents = cur.value_cents ?? 0;
+    if (b.value !== undefined) {
+      cents = b.value === '' || b.value === null ? 0 : Math.round(Number(b.value) * 100);
+      if (!Number.isFinite(cents) || cents < 0 || cents > 2e9) throw new HttpError(400, 'Value must be a positive amount');
+    }
+    const currency = b.currency !== undefined ? (CURRENCIES.includes(b.currency) ? b.currency : 'usd') : cur.currency ?? 'usd';
+    let contactId = cur.contact_id ?? null;
+    if (b.contact_email !== undefined && String(b.contact_email).trim()) {
+      const [first = '', ...rest] = String(b.contact_name || '').trim().split(/\s+/);
+      contactId = (await upsertContact(q, accountId, {
+        email: b.contact_email, first_name: first, last_name: rest.join(' '), source: 'deal',
+      })).id;
+    } else if (b.contact_id !== undefined || b.contact_email !== undefined) {
+      contactId = null;
+      if (b.contact_id) {
+        const c = await q.get('SELECT id FROM contacts WHERE id = ? AND account_id = ?', id(b.contact_id), accountId);
+        if (!c) throw new HttpError(400, 'Contact not found');
+        contactId = c.id;
+      }
+    }
+    const notes = String(b.notes ?? cur.notes ?? '').slice(0, 5000);
+    return { title, cents, currency, contactId, notes };
+  }
+
+  api.get('/pipelines', async (req, res) => {
+    const [pipelines, stages, deals] = await Promise.all([
+      db.all('SELECT * FROM pipelines WHERE account_id = ? ORDER BY id', req.accountId),
+      db.all(`SELECT s.* FROM pipeline_stages s JOIN pipelines p ON p.id = s.pipeline_id
+        WHERE p.account_id = ? ORDER BY s.position`, req.accountId),
+      db.all('SELECT pipeline_id, status, value_cents, currency FROM deals WHERE account_id = ?', req.accountId),
+    ]);
+    res.json(pipelines.map((p) => {
+      const mine = deals.filter((d) => d.pipeline_id === p.id);
+      const open = mine.filter((d) => d.status === 'open');
+      return {
+        ...p, stages: stages.filter((s) => s.pipeline_id === p.id),
+        open: open.length, won: mine.filter((d) => d.status === 'won').length,
+        lost: mine.filter((d) => d.status === 'lost').length, openValue: moneyTotals(open),
+      };
+    }));
+  });
+
+  api.post('/pipelines', async (req, res) => {
+    const name = String(req.body?.name || '').trim().slice(0, 80);
+    if (!name) throw new HttpError(400, 'Give the pipeline a name');
+    const stages = stageNames(req.body?.stages);
+    if (!stages.length) throw new HttpError(400, 'Add at least one stage');
+    const pipelineId = await db.tx(async (t) => {
+      const p = await t.get('INSERT INTO pipelines (account_id, name) VALUES (?, ?) RETURNING id', req.accountId, name);
+      for (const [i, s] of stages.entries()) {
+        await t.run('INSERT INTO pipeline_stages (pipeline_id, name, position) VALUES (?, ?, ?)', p.id, s.name, i);
+      }
+      return p.id;
+    });
+    res.status(201).json({ id: pipelineId });
+  });
+
+  api.get('/pipelines/:id', async (req, res) => {
+    const p = await getPipeline(db, req.accountId, req.params.id);
+    const [stages, deals] = await Promise.all([
+      db.all('SELECT * FROM pipeline_stages WHERE pipeline_id = ? ORDER BY position', p.id),
+      db.all(`${DEAL_SELECT} WHERE d.pipeline_id = ? ORDER BY d.position, d.id`, p.id),
+    ]);
+    res.json({ ...p, stages, deals: deals.map(dealOut) });
+  });
+
+  // Renames the pipeline and replaces its stage list (in order). Stages sent
+  // with an id are kept and renamed; ones left out are removed, and any deals
+  // still in them move to the first stage.
+  api.put('/pipelines/:id', async (req, res) => {
+    const p = await getPipeline(db, req.accountId, req.params.id);
+    const name = String(req.body?.name ?? p.name).trim().slice(0, 80) || p.name;
+    await db.tx(async (t) => {
+      await t.run('UPDATE pipelines SET name = ? WHERE id = ?', name, p.id);
+      if (req.body?.stages === undefined) return;
+      const stages = stageNames(req.body.stages);
+      if (!stages.length) throw new HttpError(400, 'A pipeline needs at least one stage');
+      const existing = await t.all('SELECT id FROM pipeline_stages WHERE pipeline_id = ?', p.id);
+      const ids = [];
+      for (const [i, s] of stages.entries()) {
+        if (s.id !== null && s.id !== undefined) {
+          const st = await stageInPipeline(t, p.id, s.id);
+          if (ids.includes(st.id)) throw new HttpError(400, 'A stage is listed twice');
+          await t.run('UPDATE pipeline_stages SET name = ?, position = ? WHERE id = ?', s.name, i, st.id);
+          ids.push(st.id);
+        } else {
+          ids.push((await t.get('INSERT INTO pipeline_stages (pipeline_id, name, position) VALUES (?, ?, ?) RETURNING id', p.id, s.name, i)).id);
+        }
+      }
+      for (const { id: gone } of existing.filter((s) => !ids.includes(s.id))) {
+        const start = await nextPosition(t, ids[0]);
+        await t.run(`UPDATE deals SET stage_id = ?, position = position + ? WHERE stage_id = ?`, ids[0], start, gone);
+        await t.run('DELETE FROM pipeline_stages WHERE id = ?', gone);
+      }
+    });
+    res.json({ ok: true });
+  });
+
+  api.delete('/pipelines/:id', async (req, res) => {
+    const p = await getPipeline(db, req.accountId, req.params.id);
+    await db.run('DELETE FROM pipelines WHERE id = ?', p.id);
+    res.json({ ok: true });
+  });
+
+  api.post('/deals', async (req, res) => {
+    const b = req.body || {};
+    const dealId = await db.tx(async (t) => {
+      const p = await getPipeline(t, req.accountId, b.pipeline_id);
+      const stage = b.stage_id
+        ? await stageInPipeline(t, p.id, b.stage_id)
+        : await t.get('SELECT * FROM pipeline_stages WHERE pipeline_id = ? ORDER BY position LIMIT 1', p.id);
+      if (!stage) throw new HttpError(400, 'This pipeline has no stages');
+      const d = await dealInput(t, req.accountId, b);
+      return (await t.get(`INSERT INTO deals (account_id, pipeline_id, stage_id, contact_id, title, value_cents, currency, notes, position)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`, req.accountId, p.id, stage.id, d.contactId, d.title, d.cents,
+      d.currency, d.notes, await nextPosition(t, stage.id))).id;
+    });
+    res.status(201).json(dealOut(await db.get(`${DEAL_SELECT} WHERE d.id = ?`, dealId)));
+  });
+
+  // Edits a deal's details, stage or status (open / won / lost).
+  api.put('/deals/:id', async (req, res) => {
+    const b = req.body || {};
+    await db.tx(async (t) => {
+      const cur = await getDeal(t, req.accountId, req.params.id);
+      const d = await dealInput(t, req.accountId, b, cur);
+      const stageId = b.stage_id !== undefined ? (await stageInPipeline(t, cur.pipeline_id, b.stage_id)).id : cur.stage_id;
+      const status = b.status !== undefined ? String(b.status) : cur.status;
+      if (!['open', 'won', 'lost'].includes(status)) throw new HttpError(400, 'Status must be open, won or lost');
+      // A deal that's reopened or changes stage goes to the bottom of its column.
+      const moved = stageId !== cur.stage_id || (status === 'open' && cur.status !== 'open');
+      await t.run(`UPDATE deals SET title = ?, value_cents = ?, currency = ?, contact_id = ?, notes = ?, stage_id = ?, status = ?,
+        position = ?, closed_at = ${status === cur.status ? 'closed_at' : status === 'open' ? 'NULL' : 'now()'}, updated_at = now()
+        WHERE id = ?`, d.title, d.cents, d.currency, d.contactId, d.notes, stageId, status,
+      moved ? await nextPosition(t, stageId) : cur.position, cur.id);
+    });
+    res.json(dealOut(await db.get(`${DEAL_SELECT} WHERE d.id = ?`, id(req.params.id))));
+  });
+
+  // Drag and drop on the board: puts the deal in a stage, and `order` (the ids
+  // of that stage's open deals, top to bottom) sets where it lands.
+  api.put('/deals/:id/move', async (req, res) => {
+    const { stage_id, order } = req.body || {};
+    await db.tx(async (t) => {
+      const deal = await getDeal(t, req.accountId, req.params.id);
+      const stage = await stageInPipeline(t, deal.pipeline_id, stage_id);
+      await t.run(`UPDATE deals SET stage_id = ?, position = ?, updated_at = now() WHERE id = ?`,
+        stage.id, stage.id === deal.stage_id ? deal.position : await nextPosition(t, stage.id), deal.id);
+      if (Array.isArray(order)) {
+        for (const [i, dealId] of order.entries()) {
+          await t.run('UPDATE deals SET position = ? WHERE id = ? AND stage_id = ? AND account_id = ?', i, id(dealId), stage.id, req.accountId);
+        }
+      }
+    });
+    res.json({ ok: true });
+  });
+
+  api.delete('/deals/:id', async (req, res) => {
+    await db.run('DELETE FROM deals WHERE id = ? AND account_id = ?', id(req.params.id), req.accountId);
+    res.json({ ok: true });
+  });
+
+  api.get('/contacts/:id/deals', async (req, res) => {
+    const c = await db.get('SELECT id FROM contacts WHERE id = ? AND account_id = ?', id(req.params.id), req.accountId);
+    if (!c) throw new HttpError(404, 'Contact not found');
+    res.json((await db.all(`SELECT d.*, p.name AS pipeline_name, s.name AS stage_name FROM deals d
+      JOIN pipelines p ON p.id = d.pipeline_id JOIN pipeline_stages s ON s.id = d.stage_id
+      WHERE d.contact_id = ? ORDER BY d.id DESC`, c.id)).map(dealOut));
   });
 
   // Email broadcasts
