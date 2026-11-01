@@ -176,6 +176,22 @@ function createPeople({ getDb, HttpError, parseTags, id, formatMoney }) {
     return { created, existing, skipped };
   }
 
+  // Podcast hosts (e.g. Buzzsprout) export listens per episode per day or
+  // month; each row becomes one anonymous listen event carrying its count.
+  async function importListens(accountId, rows) {
+    let created = 0, skipped = 0;
+    await getDb().tx(async (t) => {
+      for (const row of rows.slice(0, 5000)) {
+        const count = Math.round(Number(String(row.listens ?? row.count ?? '').replace(/[^0-9.]/g, '')));
+        const when = toDate(row.date);
+        if (!count || !when) { skipped++; continue; }
+        await logEvent(t, accountId, { type: 'listen', source: 'podcast', occurred_at: when, meta: { count, episode: String(row.episode || '').slice(0, 200) } }, { recompute: false });
+        created++;
+      }
+    });
+    return { created, skipped };
+  }
+
   // ---------- Export ----------
   const EXPORT_TABLES = {
     people: 'SELECT * FROM contacts WHERE account_id = ? ORDER BY id',
@@ -288,6 +304,10 @@ function createPeople({ getDb, HttpError, parseTags, id, formatMoney }) {
       res.json(await importSubscribers(req.accountId, rows, { product: req.body?.product, format: req.body?.format === 'print' ? 'print' : 'email' }));
     });
 
+    api.post('/import/listens', async (req, res) => {
+      res.json(await importListens(req.accountId, Array.isArray(req.body?.rows) ? req.body.rows : []));
+    });
+
     api.get('/export.json', async (req, res) => {
       const data = await exportAll(req.accountId);
       res.attachment(`export-${new Date().toISOString().slice(0, 10)}.json`).type('application/json')
@@ -301,7 +321,7 @@ function createPeople({ getDb, HttpError, parseTags, id, formatMoney }) {
     });
   }
 
-  return { upsertContact, logEvent, recomputeStages, personOut, register, importPeople, importOrders, importSubscribers, exportAll, toCsv };
+  return { upsertContact, logEvent, recomputeStages, personOut, register, importPeople, importOrders, importSubscribers, importListens, exportAll, toCsv };
 }
 
 module.exports = { createPeople, STAGES, EVENT_TYPES, SOURCES, ADDRESS, toCents, toDate, splitName, iso };

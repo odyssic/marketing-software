@@ -8,6 +8,8 @@ const { TEMPLATES } = require('./templates');
 const mailer = require('./mailer');
 const stripe = require('./stripe');
 const { createPeople, ADDRESS } = require('./people');
+const { createLevers } = require('./levers');
+const { registerDashboard } = require('./dashboard');
 
 const slugify = (s) => String(s || '').toLowerCase().normalize('NFKD').replace(/[^\w\s-]/g, '')
   .trim().replace(/[\s_]+/g, '-').replace(/-+/g, '-').slice(0, 60) || 'page';
@@ -26,7 +28,7 @@ class HttpError extends Error {
 // dbPath: ':memory:' for a throwaway in-process database (tests), a directory
 // for a local PGlite database, or omitted to use DATABASE_URL when set.
 function createApp({ dbPath } = {}) {
-  let db, secret, ready;
+  let db, secret, ready, moves;
   const dbOptions = dbPath === ':memory:' ? {} : dbPath ? { dir: dbPath }
     : process.env.DATABASE_URL ? { url: process.env.DATABASE_URL } : { dir: defaultDir() };
   // Connect lazily on the first request, and retry on the next one if it failed
@@ -89,6 +91,14 @@ function createApp({ dbPath } = {}) {
 
   const people = createPeople({ getDb: () => db, HttpError, parseTags, id, formatMoney });
   const { upsertContact, logEvent } = people;
+  const levers = createLevers({ getDb: () => db, formatMoney });
+  const getAccount = (accountId) => db.get('SELECT * FROM accounts WHERE id = ?', accountId);
+  // Lever metrics plus which lever to focus on (pinned, or the weakest).
+  const leversFor = async (accountId) => {
+    const all = await levers.compute(accountId);
+    const account = await getAccount(accountId);
+    return Object.assign(all, { focus: levers.focusOf(all, account.pinned_lever) });
+  };
 
   // Totals per currency, e.g. [{ currency: 'usd', cents: 120000, label: '$1,200' }].
   const moneyTotals = (rows) => Object.entries(rows.reduce((acc, r) => ({ ...acc, [r.currency]: (acc[r.currency] || 0) + r.value_cents }), {}))
@@ -808,6 +818,7 @@ function createApp({ dbPath } = {}) {
   });
 
   people.register(api);
+  registerDashboard(api, { getDb: () => db, HttpError, leversFor, formatMoney, getAccount, weeklyMove: (...a) => moves?.weeklyMove(...a) });
 
   api.use((req, res) => res.status(404).json({ error: 'Not found' }));
   app.use('/api', api);
