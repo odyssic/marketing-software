@@ -9,6 +9,7 @@ function hashPassword(password) {
 }
 
 function verifyPassword(password, stored) {
+  if (!stored || !stored.includes(':')) return false; // signed up with email links only
   const [salt, hash] = stored.split(':');
   const candidate = crypto.scryptSync(password, Buffer.from(salt, 'hex'), 64);
   return crypto.timingSafeEqual(candidate, Buffer.from(hash, 'hex'));

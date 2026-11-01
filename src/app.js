@@ -7,6 +7,7 @@ const { renderPage, esc, formatMoney } = require('./render');
 const { TEMPLATES } = require('./templates');
 const mailer = require('./mailer');
 const stripe = require('./stripe');
+const { createPeople, ADDRESS } = require('./people');
 
 const slugify = (s) => String(s || '').toLowerCase().normalize('NFKD').replace(/[^\w\s-]/g, '')
   .trim().replace(/[\s_]+/g, '-').replace(/-+/g, '-').slice(0, 60) || 'page';
@@ -65,7 +66,7 @@ function createApp({ dbPath } = {}) {
     return st;
   };
   const stepOut = (s) => ({ ...s, blocks: JSON.parse(s.blocks), settings: JSON.parse(s.settings) });
-  const contactOut = (c) => ({ ...c, tags: JSON.parse(c.tags), unsubscribed: Boolean(c.unsubscribed) });
+  const contactOut = (c) => people.personOut(c);
   const uniqueFunnelSlug = async (q, name) => {
     let slug = slugify(name);
     while (await q.get('SELECT 1 FROM funnels WHERE slug = ?', slug)) {
@@ -86,23 +87,8 @@ function createApp({ dbPath } = {}) {
   funnelId, step.name, await uniqueStepSlug(q, funnelId, step.slug || step.name), position,
   JSON.stringify(step.blocks || []), JSON.stringify(step.settings || {}))).id;
 
-  // Creates the contact or merges into an existing one (same email = same person).
-  async function upsertContact(q, accountId, { email, first_name = '', last_name = '', phone = '', tags = [], source = 'manual' }) {
-    email = String(email || '').trim().toLowerCase();
-    if (!EMAIL_RE.test(email)) throw new HttpError(400, 'A valid email is required');
-    const existing = await q.get('SELECT * FROM contacts WHERE account_id = ? AND email = ?', accountId, email);
-    if (existing) {
-      const merged = parseTags([...JSON.parse(existing.tags), ...parseTags(tags)]);
-      await q.run(`UPDATE contacts SET tags = ?, first_name = COALESCE(NULLIF(?, ''), first_name),
-        last_name = COALESCE(NULLIF(?, ''), last_name), phone = COALESCE(NULLIF(?, ''), phone) WHERE id = ?`,
-      JSON.stringify(merged), String(first_name).trim(), String(last_name).trim(), String(phone).trim(), existing.id);
-      return { id: existing.id, created: false };
-    }
-    const r = await q.get(`INSERT INTO contacts (account_id, email, first_name, last_name, phone, tags, source)
-      VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id`, accountId, email, String(first_name).trim(), String(last_name).trim(),
-    String(phone).trim(), JSON.stringify(parseTags(tags)), source);
-    return { id: r.id, created: true };
-  }
+  const people = createPeople({ getDb: () => db, HttpError, parseTags, id, formatMoney });
+  const { upsertContact, logEvent } = people;
 
   // Totals per currency, e.g. [{ currency: 'usd', cents: 120000, label: '$1,200' }].
   const moneyTotals = (rows) => Object.entries(rows.reduce((acc, r) => ({ ...acc, [r.currency]: (acc[r.currency] || 0) + r.value_cents }), {}))
@@ -128,11 +114,15 @@ function createApp({ dbPath } = {}) {
       const contact = await upsertContact(t, order.account_id, {
         email: email || order.email, first_name: name.split(' ')[0] || '',
         last_name: name.split(' ').slice(1).join(' '),
-        tags: ['customer', ...parseTags(product?.tag)], source: `order: ${order.product_name}`,
+        tags: ['customer', ...parseTags(product?.tag)], source: 'funnel',
       });
       await t.run(`UPDATE orders SET status = 'paid', paid_at = now(), contact_id = ?, email = ?,
         stripe_session_id = COALESCE(?, stripe_session_id) WHERE id = ?`,
       contact.id, String(email || order.email).toLowerCase(), sessionId ?? null, order.id);
+      await logEvent(t, order.account_id, {
+        person_id: contact.id, type: 'purchase', source: order.source || 'funnel', value_cents: order.amount_cents,
+        meta: { order_id: order.id, product: order.product_name, funnel_id: order.funnel_id },
+      });
       if (order.funnel_id && order.step_id) {
         await t.run("INSERT INTO page_events (account_id, funnel_id, step_id, type, contact_id) VALUES (?, ?, ?, 'sale', ?)",
           order.account_id, order.funnel_id, order.step_id, contact.id);
@@ -158,17 +148,25 @@ function createApp({ dbPath } = {}) {
     res.json({ ok: true, database: dbOptions.url ? 'postgres' : 'pglite' });
   });
 
+  // Single owner: the first person to sign up owns the app; after that,
+  // sign-up is closed (set ALLOW_SIGNUPS=1 to run it multi-tenant).
+  const signupOpen = async () => process.env.ALLOW_SIGNUPS === '1' || !(await db.get('SELECT 1 FROM users LIMIT 1'));
+  api.get('/auth/status', async (req, res) => {
+    res.json({ hasOwner: Boolean(await db.get('SELECT 1 FROM users LIMIT 1')), signupOpen: await signupOpen(), emailLive: mailer.isLive() });
+  });
+
   api.post('/auth/signup', async (req, res) => {
     const { name, password, workspace } = req.body || {};
     const email = String(req.body?.email || '').trim().toLowerCase();
+    if (!await signupOpen()) throw new HttpError(403, 'This app already has an owner. Sign in instead.');
     if (!name?.trim() || !EMAIL_RE.test(email)) throw new HttpError(400, 'Name and a valid email are required');
-    if (!password || password.length < 8) throw new HttpError(400, 'Password must be at least 8 characters');
+    if (password && password.length < 8) throw new HttpError(400, 'Password must be at least 8 characters');
     if (await db.get('SELECT 1 FROM users WHERE email = ?', email)) throw new HttpError(409, 'An account with this email already exists');
     let ids;
     try {
       ids = await db.tx(async (t) => {
         const u = await t.get('INSERT INTO users (email, name, password_hash) VALUES (?, ?, ?) RETURNING id',
-          email, name.trim(), auth.hashPassword(password));
+          email, name.trim(), password ? auth.hashPassword(password) : '');
         const a = await t.get('INSERT INTO accounts (name, from_name, from_email) VALUES (?, ?, ?) RETURNING id',
           workspace?.trim() || `${name.trim()}'s business`, name.trim(), email);
         await t.run('INSERT INTO memberships (user_id, account_id) VALUES (?, ?)', u.id, a.id);
@@ -191,6 +189,29 @@ function createApp({ dbPath } = {}) {
     const m = await db.get('SELECT account_id FROM memberships WHERE user_id = ? ORDER BY account_id LIMIT 1', user.id);
     await auth.createSession(db, req, res, user.id, m.account_id);
     res.json({ ok: true });
+  });
+
+  // Email sign-in link: always answers the same way, so it can't be used to
+  // find out who has an account. Links last 15 minutes and work once.
+  api.post('/auth/magic', async (req, res) => {
+    const email = String(req.body?.email || '').trim().toLowerCase();
+    if (!EMAIL_RE.test(email)) throw new HttpError(400, 'Enter a valid email');
+    const user = await db.get('SELECT * FROM users WHERE email = ?', email);
+    const out = { ok: true };
+    if (user) {
+      const token = crypto.randomBytes(32).toString('base64url');
+      await db.run("DELETE FROM magic_links WHERE expires_at < now() - interval '1 day'");
+      await db.run("INSERT INTO magic_links (token_hash, user_id, expires_at) VALUES (?, ?, now() + interval '15 minutes')",
+        crypto.createHash('sha256').update(token).digest('hex'), user.id);
+      const link = `${baseUrl(req)}/auth/magic/${token}`;
+      await mailer.sendEmail({
+        from: process.env.SMTP_FROM || 'no-reply@localhost', to: email, subject: 'Your sign-in link',
+        text: `Hi ${user.name.split(' ')[0]},\n\nClick to sign in (the link works once, for 15 minutes):\n${link}\n\nIf you didn’t ask for this, ignore this email.`,
+      });
+      // With no email provider (local development) the link is shown on screen instead.
+      if (!mailer.isLive() && process.env.NODE_ENV !== 'production') out.devLink = link;
+    }
+    res.json(out);
   });
 
   api.post('/auth/logout', async (req, res) => {
@@ -273,9 +294,11 @@ function createApp({ dbPath } = {}) {
   api.get('/contacts', async (req, res) => {
     const q = `%${String(req.query.q || '').trim()}%`;
     const tag = String(req.query.tag || '').trim().toLowerCase();
+    const stage = String(req.query.stage || '').trim();
     const rows = (await db.all(`SELECT * FROM contacts WHERE account_id = ?
-      AND (email ILIKE ? OR first_name ILIKE ? OR last_name ILIKE ? OR phone ILIKE ?)
-      ORDER BY id DESC LIMIT 1000`, req.accountId, q, q, q, q)).map(contactOut);
+      AND (email ILIKE ? OR first_name ILIKE ? OR last_name ILIKE ? OR phone ILIKE ? OR city ILIKE ?)
+      AND (? = '' OR stage = ?)
+      ORDER BY id DESC LIMIT 1000`, req.accountId, q, q, q, q, q, stage, stage)).map(contactOut);
     res.json(tag ? rows.filter((c) => c.tags.includes(tag)) : rows);
   });
 
@@ -290,8 +313,8 @@ function createApp({ dbPath } = {}) {
   });
 
   api.post('/contacts', async (req, res) => {
-    const r = await upsertContact(db, req.accountId, { ...req.body, source: 'manual' });
-    if (!r.created) throw new HttpError(409, 'A contact with this email already exists');
+    const r = await upsertContact(db, req.accountId, { ...req.body, source: req.body?.source || 'manual' });
+    if (!r.created) throw new HttpError(409, 'A person with this email already exists');
     res.status(201).json(contactOut(await db.get('SELECT * FROM contacts WHERE id = ?', r.id)));
   });
 
@@ -310,17 +333,19 @@ function createApp({ dbPath } = {}) {
 
   api.put('/contacts/:id', async (req, res) => {
     const c = await db.get('SELECT * FROM contacts WHERE id = ? AND account_id = ?', id(req.params.id), req.accountId);
-    if (!c) throw new HttpError(404, 'Contact not found');
+    if (!c) throw new HttpError(404, 'Person not found');
     const b = req.body || {};
     const email = String(b.email ?? c.email).trim().toLowerCase();
-    if (!EMAIL_RE.test(email)) throw new HttpError(400, 'A valid email is required');
+    if (email && !EMAIL_RE.test(email)) throw new HttpError(400, 'That email doesn’t look right');
+    const val = (k) => String(b[k] ?? c[k] ?? '').trim();
+    if (!email && !val('first_name') && !val('last_name')) throw new HttpError(400, 'A person needs an email or a name');
     try {
-      await db.run(`UPDATE contacts SET email = ?, first_name = ?, last_name = ?, phone = ?, tags = ?, unsubscribed = ?
-        WHERE id = ?`, email, String(b.first_name ?? c.first_name).trim(), String(b.last_name ?? c.last_name).trim(),
-      String(b.phone ?? c.phone).trim(), JSON.stringify(b.tags !== undefined ? parseTags(b.tags) : JSON.parse(c.tags)),
-      b.unsubscribed !== undefined ? Number(Boolean(b.unsubscribed)) : c.unsubscribed, c.id);
+      await db.run(`UPDATE contacts SET email = ?, first_name = ?, last_name = ?, phone = ?, tags = ?, unsubscribed = ?,
+        ${ADDRESS.map((k) => `${k} = ?`).join(', ')} WHERE id = ?`, email, val('first_name'), val('last_name'),
+      val('phone'), JSON.stringify(b.tags !== undefined ? parseTags(b.tags) : JSON.parse(c.tags)),
+      b.unsubscribed !== undefined ? Number(Boolean(b.unsubscribed)) : c.unsubscribed, ...ADDRESS.map(val), c.id);
     } catch (e) {
-      if (isUniqueViolation(e)) throw new HttpError(409, 'Another contact already uses this email');
+      if (isUniqueViolation(e)) throw new HttpError(409, 'Another person already uses this email');
       throw e;
     }
     res.json(contactOut(await db.get('SELECT * FROM contacts WHERE id = ?', c.id)));
@@ -756,7 +781,7 @@ function createApp({ dbPath } = {}) {
     const account = await db.get('SELECT * FROM accounts WHERE id = ?', req.accountId);
     const from = account.from_email ? `"${(account.from_name || account.name).replace(/"/g, '')}" <${account.from_email}>`
       : process.env.SMTP_FROM || 'no-reply@localhost';
-    const recipients = (await db.all('SELECT * FROM contacts WHERE account_id = ? AND unsubscribed = 0', req.accountId))
+    const recipients = (await db.all('SELECT * FROM contacts WHERE account_id = ? AND unsubscribed = 0 AND email <> \'\'', req.accountId))
       .map(contactOut).filter((c) => !b.tag || c.tags.includes(b.tag));
     const log = (c, subject, text, status, error) => db.run(`INSERT INTO email_log
       (account_id, broadcast_id, contact_id, to_email, subject, body, status, error) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -782,8 +807,20 @@ function createApp({ dbPath } = {}) {
     res.json(await db.all('SELECT * FROM email_log WHERE account_id = ? ORDER BY id DESC LIMIT 200', req.accountId));
   });
 
+  people.register(api);
+
   api.use((req, res) => res.status(404).json({ error: 'Not found' }));
   app.use('/api', api);
+
+  app.get('/auth/magic/:token', async (req, res) => {
+    const hash = crypto.createHash('sha256').update(String(req.params.token)).digest('hex');
+    const link = await db.get(`UPDATE magic_links SET used_at = now() WHERE token_hash = ? AND used_at IS NULL
+      AND expires_at > now() RETURNING user_id`, hash);
+    if (!link) return messagePage(res, 400, 'This sign-in link has expired or was already used. Request a new one.', '/');
+    const m = await db.get('SELECT account_id FROM memberships WHERE user_id = ? ORDER BY account_id LIMIT 1', link.user_id);
+    await auth.createSession(db, req, res, link.user_id, m.account_id);
+    res.redirect(303, '/#/');
+  });
 
   // ---------- Public funnel pages ----------
   const findPublicStep = async (funnelSlug, stepSlug) => {
@@ -827,8 +864,9 @@ function createApp({ dbPath } = {}) {
     try {
       contact = await upsertContact(db, funnel.account_id, {
         email: req.body.email, first_name: String(req.body.first_name || ''), phone: String(req.body.phone || ''),
-        tags: parseTags(block.tag), source: `funnel: ${funnel.name}`,
+        tags: parseTags(block.tag), source: 'funnel',
       });
+      await logEvent(db, funnel.account_id, { person_id: contact.id, type: 'signup', source: 'funnel', meta: { funnel: funnel.name, funnel_id: funnel.id, step_id: step.id } });
     } catch (e) {
       if (e.status === 400) return res.status(400).type('html').send(`<!doctype html><p style="font:18px system-ui;text-align:center;margin-top:20vh">Please enter a valid email. <a href="${esc(back)}">Go back</a></p>`);
       throw e;
@@ -954,7 +992,10 @@ ${order.status === 'paid' ? '<p>This order is already paid.</p>' : `<label>Name<
     const expected = /^\d{1,9}$/.test(contactId) ? unsubToken(contactId) : '';
     const valid = Boolean(expected) && token.length === expected.length
       && crypto.timingSafeEqual(Buffer.from(token), Buffer.from(expected));
-    if (valid) await db.run('UPDATE contacts SET unsubscribed = 1 WHERE id = ?', Number(contactId));
+    if (valid) {
+      const c = await db.get('UPDATE contacts SET unsubscribed = 1 WHERE id = ? AND unsubscribed = 0 RETURNING id, account_id', Number(contactId));
+      if (c) await logEvent(db, c.account_id, { person_id: c.id, type: 'unsubscribe', source: 'email' });
+    }
     res.type('html').send(`<!doctype html><meta name="viewport" content="width=device-width"><p style="font:20px system-ui;text-align:center;margin-top:20vh">${
       valid ? 'You have been unsubscribed.' : 'This unsubscribe link is invalid.'}</p>`);
   });

@@ -1,3 +1,5 @@
+// Tests create several workspaces; the app is single-owner by default.
+process.env.ALLOW_SIGNUPS = '1';
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const http = require('node:http');
