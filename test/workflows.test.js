@@ -166,7 +166,7 @@ test('win-back finds quiet customers; no click → personal follow-up reminder; 
 
   await run(c, inDays(14.1));
   mail = await outbox(c);
-  const reminders = mail.filter((m) => !m.contact_id);
+  const reminders = mail.filter((m) => !m.contact_id && m.subject.startsWith('Follow up'));
   assert.equal(reminders.length, 1);
   assert.match(reminders[0].subject, /Quinn Q/);
   const people = (await c('GET', '/api/contacts')).body;

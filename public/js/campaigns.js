@@ -83,7 +83,7 @@ async function viewPrint() {
   const [lists, links, camps] = await Promise.all([api('GET', '/api/print/lists'), api('GET', '/api/links'), api('GET', '/api/campaigns')]);
   shell('email', `
     <div class="head"><div><h1>Email</h1><div class="muted">Send newsletters and announcements to your contacts.</div></div></div>
-    <div class="tabs"><a href="#/email">Broadcasts</a><a href="#/email/campaigns">Weekly moves</a><a href="#/email/print" class="active">Print &amp; QR</a><a href="#/email/outbox">Outbox</a></div>
+    <div class="tabs"><a href="#/email">Broadcasts</a><a href="#/email/campaigns">Weekly moves</a><a href="#/email/repurpose">Repurpose</a><a href="#/email/print" class="active">Print &amp; QR</a><a href="#/email/outbox">Outbox</a></div>
     <div class="grid two">
       <div class="card"><h2>Print newsletter mailing list</h2>
         ${lists.length ? lists.map((l) => `<div class="li"><span><b>${esc(l.product)}</b><br><span class="muted small">${l.subscribers} print subscriber${l.subscribers === 1 ? '' : 's'}${l.missing_address ? ` · <span style="color:#a16207">${l.missing_address} missing an address (left off labels)</span>` : ''}</span></span>
@@ -114,4 +114,44 @@ async function viewPrint() {
   $$('[data-dellink]').forEach((b) => { b.onclick = async () => {
     if (await confirmBox('Delete this link?', 'Printed QR codes pointing to it will stop working.')) { await api('DELETE', `/api/links/${b.dataset.dellink}`); viewPrint(); }
   }; });
+}
+
+// ---------------- Repurpose ----------------
+// One essay or episode → an email, a product listing, two social posts and show notes.
+function viewRepurpose() {
+  shell('email', `
+    <div class="head"><div><h1>Email</h1><div class="muted">Send newsletters and announcements to your contacts.</div></div></div>
+    <div class="tabs"><a href="#/email">Broadcasts</a><a href="#/email/campaigns">Weekly moves</a><a href="#/email/repurpose" class="active">Repurpose</a><a href="#/email/print">Print &amp; QR</a><a href="#/email/outbox">Outbox</a></div>
+    <form class="card" data-rp>
+      <h2>Turn one piece into five</h2>
+      <p class="muted small">Paste an essay, a blog post or a podcast transcript. You’ll get drafts for an email, a product listing, two social posts and show notes, in your voice. ${state.me.aiLive ? '' : '<b>AI drafting isn’t connected</b>, so these will be templates built from your first lines.'}</p>
+      <div class="row" style="margin-bottom:8px"><label class="check" style="margin:0"><input type="radio" name="kind" value="essay" checked> Essay or post</label>
+        <label class="check" style="margin:0"><input type="radio" name="kind" value="episode"> Episode transcript</label></div>
+      <textarea name="text" rows="10" required minlength="200" placeholder="Paste the full text here…"></textarea>
+      <div class="err" data-rperr></div>
+      <button class="btn primary">✍️ Make the drafts</button>
+    </form>
+    <div data-rpout></div>`);
+  $('[data-rp]').onsubmit = async (e) => {
+    e.preventDefault();
+    const btn = $('button.primary', e.target);
+    btn.disabled = true; btn.textContent = 'Writing…'; $('[data-rperr]').textContent = '';
+    try {
+      const r = await api('POST', '/api/repurpose', Object.fromEntries(new FormData(e.target)));
+      const card = (title, body, extra = '') => `<div class="card rpcard"><div class="row" style="justify-content:space-between"><h2 style="margin:0">${title}</h2>
+        <span class="row">${extra}<button class="btn sm" data-copytext>Copy</button></span></div><pre class="mail" style="max-height:none">${esc(body)}</pre></div>`;
+      $('[data-rpout]').innerHTML = `${r.template ? '<div class="banner" style="margin-top:14px">These are templates. Fill in the [bracketed] parts, or connect AI drafting to write them in your voice.</div>' : ''}
+        <div class="grid two" style="margin-top:14px">
+        ${card('✉️ Email to subscribers', `Subject: ${r.email.subject}\n\n${r.email.body}`, '<button class="btn sm primary" data-tobroadcast>Make it a broadcast draft</button>')}
+        ${card('🛍️ Product listing', `${r.product_listing.title}\n\n${r.product_listing.description}`)}
+        ${r.social_posts.map((p, i) => card(`💬 Social post ${i + 1}`, p)).join('')}
+        ${card('🎧 Show notes', r.show_notes)}</div>`;
+      $$('[data-copytext]').forEach((b) => { b.onclick = async () => { await navigator.clipboard.writeText(b.closest('.card').querySelector('pre').textContent); toast('Copied'); }; });
+      $('[data-tobroadcast]').onclick = async () => {
+        await api('POST', '/api/broadcasts', { subject: r.email.subject, body: r.email.body, tag: '' });
+        toast('Saved as a broadcast draft'); location.hash = '#/email';
+      };
+    } catch (err) { $('[data-rperr]').textContent = err.message; }
+    btn.disabled = false; btn.textContent = '✍️ Make the drafts';
+  };
 }

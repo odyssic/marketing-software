@@ -15,6 +15,7 @@ const { createMessaging } = require('./messaging');
 const { createWorkflows } = require('./workflows');
 const { createMoves } = require('./moves');
 const { registerPrint } = require('./print');
+const { createDigest } = require('./digest');
 
 const slugify = (s) => String(s || '').toLowerCase().normalize('NFKD').replace(/[^\w\s-]/g, '')
   .trim().replace(/[\s_]+/g, '-').replace(/-+/g, '-').slice(0, 60) || 'page';
@@ -104,6 +105,7 @@ function createApp({ dbPath } = {}) {
   const workflows = createWorkflows({ getDb: () => db, HttpError, id, people, messaging, getAccount: (a) => getAccount(a) });
   people.hooks.onEvent = workflows.onEvent;
   people.hooks.onTagsAdded = workflows.onTagsAdded;
+  let digest;
   moves = createMoves({ getDb: () => db, HttpError, id, leversFor: (a) => leversFor(a), getAccount: (a) => getAccount(a), messaging, formatMoney });
   const getAccount = (accountId) => db.get('SELECT * FROM accounts WHERE id = ?', accountId);
   // Lever metrics plus which lever to focus on (pinned, or the weakest).
@@ -834,6 +836,13 @@ function createApp({ dbPath } = {}) {
   people.register(api);
   workflows.register(api);
   moves.register(api);
+  digest = createDigest({ getDb: () => db, leversFor: (a) => leversFor(a), moves, publicBase });
+  digest.register(api, { HttpError });
+  // Runs background jobs now (same as the timer). Tests may pass a future `now` to skip waits.
+  api.post('/jobs/run', async (req, res) => {
+    const now = process.env.ALLOW_TIME_TRAVEL === '1' && req.body?.now ? new Date(req.body.now) : new Date();
+    res.json(await app.runJobs(now));
+  });
   registerPrint(api, app, { getDb: () => db, HttpError, id, logEvent, publicBase, toCsv: people.toCsv });
   registerAccounts(api, { getDb: () => db, HttpError, id });
   registerDashboard(api, { getDb: () => db, HttpError, leversFor, formatMoney, getAccount, weeklyMove: (accountId) => moves.current(accountId) });
@@ -1058,7 +1067,10 @@ ${order.status === 'paid' ? '<p>This order is already paid.</p>' : `<label>Name<
 
   // Background jobs (workflow runner). Called by server.js every minute and by
   // the scheduled Netlify function.
-  app.runJobs = async () => { await init(); return workflows.processDue(); };
+  app.runJobs = async (now = new Date()) => {
+    await init();
+    return { ...(await workflows.processDue({ now })), ...(await digest.sendDue(now)) };
+  };
   app.messaging = messaging; // for tests (signing tracking links)
 
   app.close = async () => { if (ready) { await ready; await db.close(); } };

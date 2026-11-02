@@ -21,6 +21,12 @@ function viewSettings() {
       <label class="f">Tone notes <span class="hint">e.g. “warm, a bit dry, never salesy, short sentences”</span><input name="notes" value="${esc(a.voice_notes || '')}"></label>
       <button class="btn primary">Save voice</button>
     </form>
+    <div class="card" style="max-width:560px;margin-top:16px">
+      <h2>Weekly digest</h2>
+      <p class="muted small">The only alert ${BRAND} sends: one email a week with lever health, this week’s move and any inquiries older than 14 days. No push notifications.</p>
+      <div class="row"><label class="f" style="margin:0">Send it on<select data-digestday>${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map((d, i) => `<option value="${i}" ${a.digest_day === i ? 'selected' : ''}>${d}</option>`).join('')}</select></label>
+        <button class="btn" data-digestpreview type="button">Preview</button><button class="btn" data-digestsend type="button">Send me one now</button></div>
+    </div>
     <div class="card" style="max-width:560px;margin-top:16px" data-subs>
       <div class="row" style="justify-content:space-between"><h2 style="margin:0">Sub-accounts</h2><button class="btn sm primary" data-newsub>＋ New sub-account</button></div>
       <p class="muted small">One workspace per business. Each has its own people, funnels, emails and dashboard.</p>
@@ -47,6 +53,9 @@ function viewSettings() {
     </form>`);
   bindCopy();
   $('[data-newsub]').onclick = newSubAccount;
+  $('[data-digestday]').onchange = async (e) => { const r = await api('PUT', '/api/account/digest', { day: Number(e.target.value) }); state.me = await api('GET', '/api/me'); toast(`Digest moves to ${r.day}s`); };
+  $('[data-digestpreview]').onclick = async () => { const d = await api('GET', '/api/digest/preview'); modal(d.subject, `<pre class="mail" style="max-height:60vh">${esc(d.text)}</pre>`, { submit: 'Close' }); };
+  $('[data-digestsend]').onclick = async () => { const r = await api('POST', '/api/digest/send'); toast(`Sent to ${r.to}${r.status === 'logged' ? ' (dev mode: see Email → Outbox)' : ''}`); };
   $('[data-voice]').onsubmit = async (e) => {
     e.preventDefault();
     const v = Object.fromEntries(new FormData(e.target));

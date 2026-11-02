@@ -477,11 +477,6 @@ function createWorkflows({ getDb, HttpError, id, people, messaging, getAccount }
       res.json({ ok: true });
     });
 
-    // Runs the job queue now. Tests may pass a future `now` to skip waits.
-    api.post('/jobs/run', async (req, res) => {
-      const now = process.env.ALLOW_TIME_TRAVEL === '1' && req.body?.now ? new Date(req.body.now) : new Date();
-      res.json(await processDue({ now }));
-    });
   }
 
   return { register, processDue, onEvent, onTagsAdded, enroll, create, seedDefaults, TEMPLATES, getWorkflow };
