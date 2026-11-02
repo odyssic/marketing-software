@@ -103,7 +103,9 @@ function renderBlock(b, ctx, index) {
     case 'image':
       return b.url ? `<div style="text-align:${a}"><img src="${esc(safeUrl(b.url))}" alt="${esc(b.alt)}"></div>` : '';
     case 'button': {
-      const href = b.url === '#next' || !b.url ? ctx.nextUrl : b.url === '#no' ? ctx.noUrl : safeUrl(b.url);
+      // "page:<slug>" links to another page of the same website or funnel.
+      const href = String(b.url || '').startsWith('page:') ? ctx.pageHref(String(b.url).slice(5))
+        : b.url === '#next' || !b.url ? ctx.nextUrl : b.url === '#no' ? ctx.noUrl : safeUrl(b.url);
       return `<div style="text-align:${a}"><a class="btn" href="${esc(href)}"${f('label')}>${esc(b.label || 'Continue')}</a></div>`;
     }
     case 'video': {
@@ -123,6 +125,15 @@ function renderBlock(b, ctx, index) {
         <input name="website" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true">
         ${fields}<button class="btn" type="submit"${ctx.preview ? ' data-f="buttonLabel"' : ''}>${esc(b.buttonLabel || 'Get access')}</button></form>`;
     }
+    case 'cards': {
+      const items = String(b.items || '').split('\n').map((l) => l.split('|').map((x) => x.trim())).filter(([t]) => t);
+      return `<div class="cards">${items.map(([t, d]) => `<div class="card"><h3>${esc(t)}</h3>${d ? `<p>${esc(d)}</p>` : ''}</div>`).join('')}</div>`;
+    }
+    case 'info': {
+      const rows = [['🕘', 'Hours', b.hours], ['📍', 'Address', b.address], ['📞', 'Phone', b.phone && `<a href="tel:${esc(String(b.phone).replace(/[^+\d]/g, ''))}">${esc(b.phone)}</a>`], ['✉️', 'Email', b.email && `<a href="mailto:${esc(b.email)}">${esc(b.email)}</a>`]]
+        .filter(([, , v]) => v);
+      return rows.length ? `<div class="info">${rows.map(([i, l, v]) => `<div><span>${i}</span><b>${l}</b><div>${l === 'Phone' || l === 'Email' ? v : esc(v)}</div></div>`).join('')}</div>` : '';
+    }
     case 'testimonial':
       return `<figure class="testimonial">${b.photo && /^https?:/i.test(b.photo) ? `<img src="${esc(b.photo)}" alt="" loading="lazy">` : ''}
         <blockquote${ctx.preview ? ' data-f="quote"' : ''}>“${esc(b.quote || '')}”</blockquote><figcaption>${esc(b.name || '')}${b.detail ? ` · <span>${esc(b.detail)}</span>` : ''}</figcaption></figure>`;
@@ -135,12 +146,18 @@ function renderBlock(b, ctx, index) {
   }
 }
 
-function renderPage({ title, blocks, settings = {}, nextUrl = '#', noUrl = '#', formAction = '#', buyAction = '#', products = {}, preview = false, oneClick = null }) {
+function renderPage({ title, blocks, settings = {}, nextUrl = '#', noUrl = '#', formAction = '#', buyAction = '#', products = {}, preview = false, oneClick = null, site = null, pageHref = (slug) => `#${slug}` }) {
   const bg = color(settings.background, '#ffffff');
   const fg = color(settings.textColor, '#1f2937');
   const accent = color(settings.accent, '#4f46e5');
   const width = Math.min(Math.max(Number(settings.width) || 720, 360), 1200);
-  const ctx = { nextUrl, noUrl, formAction, buyAction, products, preview, accent, background: bg, oneClick };
+  const ctx = { nextUrl, noUrl, formAction, buyAction, products, preview, accent, background: bg, oneClick, pageHref };
+  // Websites get a menu across the top and a footer.
+  const nav = site ? `<header class="site"><div class="in"><a class="brand" href="${esc(site.home)}">${esc(site.name)}</a>
+    <input type="checkbox" id="mnu" hidden><label for="mnu" class="burger" aria-label="Menu">☰</label>
+    <nav>${site.links.map((l) => `<a href="${esc(l.href)}"${l.active ? ' aria-current="page"' : ''}>${esc(l.label)}</a>`).join('')}</nav></div></header>` : '';
+  const foot = site ? `<footer class="site"><div class="in"><b>${esc(site.name)}</b><nav>${site.links.map((l) => `<a href="${esc(l.href)}">${esc(l.label)}</a>`).join('')}</nav>
+    <small>© ${new Date().getFullYear()} ${esc(site.name)}</small></div></footer>` : '';
   const body = (blocks || []).map((b, i) => (preview ? `<div data-bi="${i}">${renderBlock(b, ctx, i)}</div>` : renderBlock(b, ctx, i))).join('\n');
   return `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -178,9 +195,22 @@ body{overflow-x:hidden}
 .cta small{display:block;font-size:.8rem;font-weight:400;margin-top:6px;opacity:.95}
 .warn{color:#b45309;font-size:.85rem}.oneclick{font-size:.85rem;opacity:.75;margin:10px 0 0}
 @media(max-width:560px){.features{grid-template-columns:1fr}.price{font-size:4.2rem}.cta{font-size:1.25rem}}
-</style></head><body><main>
+header.site{position:sticky;top:0;z-index:5;background:color-mix(in srgb,${bg} 92%,transparent);backdrop-filter:blur(8px);border-bottom:1px solid color-mix(in srgb,${fg} 10%,transparent)}
+header.site .in,footer.site .in{max-width:${width}px;margin:0 auto;padding:14px 20px;display:flex;align-items:center;gap:20px;flex-wrap:wrap}
+header.site .brand{font-weight:800;font-size:1.15rem;color:${fg};text-decoration:none;margin-right:auto}
+header.site nav{display:flex;gap:18px;flex-wrap:wrap}header.site nav a,footer.site nav a{color:${fg};text-decoration:none;opacity:.8;font-weight:500}
+header.site nav a[aria-current]{opacity:1;color:${accent};border-bottom:2px solid ${accent}}
+.burger{display:none;cursor:pointer;font-size:1.4rem}
+footer.site{border-top:1px solid color-mix(in srgb,${fg} 10%,transparent);margin-top:40px;font-size:.9rem}footer.site nav{display:flex;gap:14px;flex-wrap:wrap;margin-right:auto}footer.site small{opacity:.6}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin:28px 0}
+.cards .card{border:1px solid color-mix(in srgb,${fg} 12%,transparent);border-radius:12px;padding:18px 20px;background:color-mix(in srgb,${accent} 4%,${bg})}
+.cards h3{margin:0 0 6px;font-size:1.1rem}.cards p{margin:0;opacity:.8}
+.info{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin:24px 0;padding:18px;border-radius:12px;background:color-mix(in srgb,${accent} 6%,${bg})}
+.info>div{display:grid;grid-template-columns:auto 1fr;gap:2px 8px;align-items:start}.info>div>div{grid-column:2}.info a{color:${accent}}
+@media(max-width:640px){.burger{display:block}header.site nav{display:none;width:100%;flex-direction:column;gap:10px;padding-top:6px}#mnu:checked~nav{display:flex}}
+</style></head><body>${nav}<main>
 ${body || '<p style="text-align:center;opacity:.5">This page is empty. Add blocks in the editor.</p>'}
-</main>${preview ? PREVIEW_EDIT_SCRIPT : ''}</body></html>`;
+</main>${foot}${preview ? PREVIEW_EDIT_SCRIPT : ''}</body></html>`;
 }
 
 // Click-to-edit in the editor preview: click any text to type over it; the

@@ -36,7 +36,7 @@ function preflight({ funnel, steps, products, account }) {
       }
       if (b.type === 'button') {
         const url = String(b.url || '');
-        if (url === '#next' && !s.next_step_id) add('block', s, `The “${b.label || 'button'}” button on “${s.name}” leads nowhere. Connect its ✓ exit to a page.`, map);
+        if (url.startsWith('page:')) { if (!steps.some((x) => x.slug === url.slice(5))) add('block', s, `The “${b.label || 'button'}” button on “${s.name}” links to a page that doesn’t exist.`, edit(s)); } else if (url === '#next' && !s.next_step_id) add('block', s, `The “${b.label || 'button'}” button on “${s.name}” leads nowhere. Connect its ✓ exit to a page.`, map);
         else if (url === '#no' && !s.no_step_id) add('block', s, `The “${b.label || 'button'}” button on “${s.name}” leads nowhere. Connect its ✕ exit to a page.`, map);
         else if (!url.startsWith('#') && !/^https?:\/\/\S+\.\S+/i.test(url)) add('block', s, `The “${b.label || 'button'}” button on “${s.name}” has a broken link.`, edit(s));
         if (String(b.label || '').length > 40) add('warn', s, `The “${String(b.label).slice(0, 30)}…” button text is long and may wrap awkwardly on phones.`, edit(s));

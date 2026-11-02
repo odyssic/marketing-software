@@ -17,6 +17,7 @@ const { createMoves } = require('./moves');
 const { registerPrint } = require('./print');
 const { createDigest } = require('./digest');
 const { registerFunnelKit } = require('./funnelkit');
+const { SITE_TEMPLATES } = require('./sites');
 
 const slugify = (s) => String(s || '').toLowerCase().normalize('NFKD').replace(/[^\w\s-]/g, '')
   .trim().replace(/[\s_]+/g, '-').replace(/-+/g, '-').slice(0, 60) || 'page';
@@ -75,6 +76,7 @@ function createApp({ dbPath } = {}) {
     if (!slug) return res.status(404).type('text').send('No funnel is published at this address.');
     const q = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
     req.url = `/f/${slug}${path === '/' ? '' : path}${q}`;
+    req.viaDomain = true;
     next();
   });
 
@@ -480,17 +482,45 @@ function createApp({ dbPath } = {}) {
         (SELECT COUNT(*)::int FROM funnel_steps s WHERE s.funnel_id = f.id) AS steps,
         (SELECT COUNT(*)::int FROM page_events e WHERE e.funnel_id = f.id AND e.type = 'view') AS views,
         (SELECT COUNT(*)::int FROM page_events e WHERE e.funnel_id = f.id AND e.type = 'optin') AS optins
-      FROM funnels f WHERE f.account_id = ? ORDER BY f.id DESC`, req.accountId));
+      FROM funnels f WHERE f.account_id = ? AND f.kind = 'funnel' ORDER BY f.id DESC`, req.accountId));
+  });
+
+  // ---------- Websites: multi-page sites with a menu, from templates ----------
+  api.get('/website-templates', (req, res) => {
+    res.json(Object.entries(SITE_TEMPLATES).map(([key, t]) => ({ key, label: t.label, description: t.description, accent: t.accent,
+      pages: t.steps().map((s) => s.name), workflows: (t.workflows || []).map((w) => workflows.TEMPLATES[w]?.name).filter(Boolean) })));
+  });
+  api.get('/websites', async (req, res) => {
+    res.json(await db.all(`SELECT f.*, (SELECT COUNT(*)::int FROM funnel_steps s WHERE s.funnel_id = f.id) AS pages,
+        (SELECT COUNT(*)::int FROM page_events e WHERE e.funnel_id = f.id AND e.type = 'view' AND e.created_at > now() - interval '30 days') AS views,
+        (SELECT COUNT(*)::int FROM page_events e WHERE e.funnel_id = f.id AND e.type = 'optin' AND e.created_at > now() - interval '30 days') AS leads
+      FROM funnels f WHERE f.account_id = ? AND f.kind = 'website' ORDER BY f.id DESC`, req.accountId));
+  });
+  api.post('/websites', async (req, res) => {
+    const name = String(req.body?.name || '').trim().slice(0, 80);
+    if (!name) throw new HttpError(400, 'Name the website, usually your business name');
+    const key = SITE_TEMPLATES[req.body?.template] ? req.body.template : 'services';
+    res.status(201).json(await createFunnel(req.accountId, name, key, null, { kind: 'website', templates: SITE_TEMPLATES }));
+  });
+  // Menu order = page order.
+  api.put('/websites/:id/order', async (req, res) => {
+    const f = await getFunnel(req.accountId, req.params.id);
+    const ids = (Array.isArray(req.body?.ids) ? req.body.ids : []).map(Number);
+    await db.tx(async (t) => {
+      for (const [i, sid] of ids.entries()) await t.run('UPDATE funnel_steps SET position = ? WHERE id = ? AND funnel_id = ?', i, sid, f.id);
+      if (ids[0]) await t.run('UPDATE funnels SET entry_step_id = (SELECT id FROM funnel_steps WHERE funnel_id = ? ORDER BY position LIMIT 1) WHERE id = ?', f.id, f.id);
+    });
+    res.json({ ok: true });
   });
 
   // Builds a funnel from a template (pages, links, start page) plus its
   // follow-up workflows. `copy` optionally rewrites the main page's words.
-  async function createFunnel(accountId, name, templateKey, copy = null) {
-    const template = TEMPLATES[templateKey] || TEMPLATES.optin;
+  async function createFunnel(accountId, name, templateKey, copy = null, { kind = 'funnel', templates = TEMPLATES } = {}) {
+    const template = templates[templateKey] || TEMPLATES.optin;
     const funnelId = await db.tx(async (t) => {
       // New funnels start as drafts; publishing runs the pre-flight check.
-      const f = await t.get("INSERT INTO funnels (account_id, name, slug, status) VALUES (?, ?, ?, 'draft') RETURNING id",
-        accountId, name, await uniqueFunnelSlug(t, name));
+      const f = await t.get("INSERT INTO funnels (account_id, name, slug, status, kind) VALUES (?, ?, ?, 'draft', ?) RETURNING id",
+        accountId, name, await uniqueFunnelSlug(t, name), kind);
       const newest = await t.get('SELECT id FROM products WHERE account_id = ? ORDER BY id DESC LIMIT 1', accountId);
       const steps = template.steps();
       if (copy) applyCopy(steps, copy);
@@ -501,7 +531,8 @@ function createApp({ dbPath } = {}) {
       }
       const idOf = (key) => (key == null ? null : ids[steps.findIndex((st) => st.key === key)] ?? null);
       for (const [i, st] of steps.entries()) {
-        const next = 'next' in st ? idOf(st.next) : ids[i + 1] ?? null;
+        // Website pages are reached from the menu, not by "next" exits.
+        const next = kind === 'website' ? null : 'next' in st ? idOf(st.next) : ids[i + 1] ?? null;
         await t.run('UPDATE funnel_steps SET next_step_id = ?, no_step_id = ? WHERE id = ?', next, idOf(st.no), ids[i]);
       }
       await t.run('UPDATE funnels SET entry_step_id = ? WHERE id = ?', ids[0], f.id);
@@ -633,7 +664,7 @@ function createApp({ dbPath } = {}) {
 
   api.get('/steps/:id', async (req, res) => {
     const s = await getStep(req.accountId, req.params.id);
-    const funnel = await db.get('SELECT id, name, slug FROM funnels WHERE id = ?', s.funnel_id);
+    const funnel = await db.get('SELECT id, name, slug, kind FROM funnels WHERE id = ?', s.funnel_id);
     res.json({ ...stepOut(s), funnel });
   });
 
@@ -994,6 +1025,21 @@ function createApp({ dbPath } = {}) {
     return o && (o.mode === 'test' || o.stripe_payment_method) ? o : null;
   };
 
+  // Links between pages, and for websites the menu (pages in order) and footer.
+  // On the site's own domain, links are /page instead of /f/<site>/page.
+  const siteChrome = async (req, funnel, step) => {
+    const base = req.viaDomain ? '' : `/f/${funnel.slug}`;
+    const pageHref = (slug) => `${base}/${slug}`;
+    if (funnel.kind !== 'website') return { pageHref };
+    const pages = await db.all('SELECT id, name, slug, settings FROM funnel_steps WHERE funnel_id = ? ORDER BY position, id', funnel.id);
+    const home = base || '/';
+    return {
+      pageHref,
+      site: { name: funnel.name, home, links: pages.filter((pg) => !JSON.parse(pg.settings || '{}').hideInMenu)
+        .map((pg) => ({ label: pg.name, href: pg.id === funnel.entry_step_id ? home : pageHref(pg.slug), active: pg.id === step.id })) },
+    };
+  };
+
   // Draft funnels are visible only to the signed-in owner.
   const ownerViewing = async (req, funnel) => {
     const token = auth.parseCookies(req.headers.cookie).sid;
@@ -1021,6 +1067,7 @@ function createApp({ dbPath } = {}) {
     if (draft) res.set('X-Robots-Tag', 'noindex');
     res.type('html').send((draft ? '<div style="position:sticky;top:0;z-index:9;background:#fef3c7;color:#92400e;font:600 14px system-ui;text-align:center;padding:8px">Draft preview: only you can see this page until the funnel is published.</div>' : '') + renderPage({
       title: step.name, blocks: page.blocks, settings: page.settings,
+      ...(await siteChrome(req, funnel, step)),
       nextUrl, noUrl, formAction: `/f/${funnel.slug}/${step.slug}/optin`, buyAction: `/f/${funnel.slug}/${step.slug}/buy`,
       products, oneClick: buyer ? `/f/${funnel.slug}/${step.slug}/oneclick` : null,
     }));

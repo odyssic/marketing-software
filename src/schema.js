@@ -378,6 +378,7 @@ ALTER TABLE orders ADD COLUMN IF NOT EXISTS variant TEXT NOT NULL DEFAULT 'a';
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS stripe_customer TEXT;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS stripe_payment_method TEXT;
 ALTER TABLE funnels ADD COLUMN IF NOT EXISTS domain TEXT;
+ALTER TABLE funnels ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'funnel';
 CREATE UNIQUE INDEX IF NOT EXISTS idx_funnels_domain ON funnels(domain) WHERE domain IS NOT NULL;
 
 -- Short links for printed pieces (QR codes); scans and visits are events.

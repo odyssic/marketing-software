@@ -26,12 +26,16 @@ const BLOCKS = {
   video: { label: 'Video', icon: '▶', defaults: { url: '' },
     fields: [['url', 'text', 'YouTube link', null, 'e.g. https://youtu.be/…']] },
   button: { label: 'Button', icon: '⬭', defaults: { label: 'Continue', url: '#next', align: 'center' },
-    fields: [['label', 'text', 'Button text'], ['url', 'text', 'Link', null, '#next = the page this one’s ✓ Yes exit leads to · #no = its ✕ No thanks exit'], ALIGN] },
+    fields: [['label', 'text', 'Button text'], ['url', 'text', 'Link', null, 'page:contact = another page of this site · #next = this page’s ✓ Yes exit · #no = its ✕ No thanks exit · or a full https:// link'], ALIGN] },
   form: { label: 'Form', icon: '✉', defaults: { buttonLabel: 'Get instant access', collectName: true, collectPhone: false, purpose: 'Sign up', tag: 'lead' },
     fields: [['purpose', 'select', 'What happens', ['Sign up', 'Newsletter', 'Inquiry'], 'Sign up: a lead. Newsletter: also subscribes them. Inquiry: logs a request you should answer.'],
       ['newsletter', 'text', 'Newsletter name (for Newsletter forms)'],
       ['buttonLabel', 'text', 'Button text'], ['collectName', 'check', 'Ask for first name'], ['collectPhone', 'check', 'Ask for phone number'], ['collectMessage', 'check', 'Ask for a message'],
       ['tag', 'text', 'Tag new contacts with', null, 'Use tags to email this group later. Comma-separate for several.']] },
+  cards: { label: 'Cards', icon: '▦', defaults: { items: 'Service one | A short description\nService two | A short description\nService three | A short description' },
+    fields: [['items', 'textarea', 'Cards (one per line: Title | description)']] },
+  info: { label: 'Business info', icon: 'ℹ', defaults: { hours: 'Mon–Fri 9am–5pm', address: '', phone: '', email: '' },
+    fields: [['hours', 'text', 'Hours'], ['address', 'text', 'Address'], ['phone', 'text', 'Phone'], ['email', 'text', 'Email']] },
   spacer: { label: 'Spacer', icon: '↕', defaults: { height: 40 }, fields: [['height', 'number', 'Height (px)']] },
   divider: { label: 'Divider', icon: '—', defaults: {}, fields: [] },
 };
@@ -45,7 +49,7 @@ async function viewEditor(stepId) {
     settings: { background: '#ffffff', textColor: '#1f2937', accent: '#4f46e5', width: 720, ...(editingB ? step.variant_settings || step.settings : step.settings) }, open: null };
   const link = publicUrl(`/f/${step.funnel.slug}/${step.slug}`);
   app.innerHTML = `<div class="editor">
-    <div class="bar"><a class="btn sm" href="#/funnels/${step.funnel.id}">← ${esc(step.funnel.name)}</a>
+    <div class="bar"><a class="btn sm" href="#/${step.funnel.kind === 'website' ? 'websites' : 'funnels'}/${step.funnel.id}">← ${esc(step.funnel.name)}</a>
       <div class="title"><input data-name value="${esc(step.name)}" aria-label="Page name"></div>
       ${step.variant_blocks ? `<span class="seg"><a href="#/editor/${step.id}" class="btn sm ${editingB ? '' : 'primary'}">Version A</a><a href="#/editor/${step.id}?v=b" class="btn sm ${editingB ? 'primary' : ''}">Version B</a></span>` : ''}
       <button class="btn sm" data-abtest>${step.variant_blocks ? '🧪 Test results' : '🧪 Split test'}</button>

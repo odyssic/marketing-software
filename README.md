@@ -23,6 +23,7 @@ A simple, all-in-one marketing platform for small businesses. It starts with the
 | **One-click upsells** | The first checkout saves the card (Stripe `setup_future_usage`); on a later upsell page in the same workspace, "Yes" charges that card off-session with no second checkout. If the bank asks the buyer to confirm, it falls back to the normal checkout. Test mode works the same way without charging. |
 | **Own domains** | A funnel can live at its own domain (e.g. shop.yourbusiness.com): add a CNAME, add the domain as an alias in Netlify (HTTPS is automatic), set it in the funnel's Settings. An edge function (`netlify/edge-functions/custom-domains.js`) routes those requests; set `APP_HOSTS` to the app's own host names. |
 | **Click-to-edit** | In the page editor, click any headline, paragraph, button or quote in the preview and type over it; clicking a block opens its settings. |
+| **Websites** | Multi-page business websites with a menu and footer, from templates: coach/consultant, local service, restaurant/café, maker shop, and salon/wellness. Each comes with its pages, Cards and Business info blocks, buttons that link between pages (`page:contact`), a contact or booking form that logs inquiries, and the matching follow-up workflow. Reorder, rename, hide or add pages; edit with click-to-edit; publish with the pre-flight check; use your own domain. |
 | **Workflows** | One drag-and-drop map per workflow: a trigger (signs up, buys, gets a tag, subscribes, sends an inquiry, goes quiet, or added by hand), then waits, emails, yes/no splits, tags, newsletter subscriptions, owner reminders and pipeline deals. Email sequences are just steps on the map. Live counts on every step, plain-language checks before going live, test emails, and templates (welcome series, care tips, review request, referral ask, win-back, inquiry follow-up, newsletter welcome). Every workspace starts with care tips, review request, referral ask and win-back switched off. Events older than 2 days (e.g. imported history) never start a workflow. Opens and clicks are tracked. |
 | **Email** | Broadcasts to everyone or to a tag, `{{first_name}}` merge fields, an automatic signed unsubscribe link, and an Outbox log. SMTP delivery, or a dev mode that logs without sending. |
 | **Dashboard** | Contacts, views, opt-ins, conversion, a 14-day signup chart, a get-started checklist and recent contacts. |
@@ -100,6 +101,7 @@ src/messaging.js     email to a person: merge fields, unsubscribe link, open/cli
 src/moves.js         the weekly move and campaign approve/send/results
 src/print.js         print mailing list, label PDF writer, short links and QR codes
 src/digest.js        weekly digest and the repurpose endpoint
+src/sites.js         website templates
 src/funnelkit.js     pre-flight checks, publish/draft, version history, map metrics and leak flag
 src/ai.js            drafting with Claude in the owner's voice (template fallback without a key)
 public/js/           dashboard single-page app, one file per feature (vanilla JS, no build step):
