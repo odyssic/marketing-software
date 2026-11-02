@@ -124,13 +124,56 @@ const NAV = [
 ];
 
 function shell(section, html) {
+  const initials = (n) => n.split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase();
   app.innerHTML = `<div class="shell">
     <aside class="sidebar">
       <div class="logo">${LOGO}${BRAND}</div>
+      <div class="acct-wrap"><button class="acct" data-acct aria-haspopup="menu" aria-expanded="false" title="Switch sub-account">
+        <span class="av">${esc(initials(state.me.account.name))}</span><span class="nm">${esc(state.me.account.name)}</span><span class="car">▾</span></button></div>
       <nav class="nav">${NAV.map(([k, i, l]) => `<a href="#/${k}" class="${section === k ? 'active' : ''}"><span class="ico">${i}</span>${l}</a>`).join('')}</nav>
-      <div class="foot"><div style="color:#fff">${esc(state.me.account.name)}</div>
-        <div class="muted">${esc(state.me.user.email)}</div><button data-logout>Sign out</button></div>
+      <div class="foot"><div class="muted">${esc(state.me.user.email)}</div><button data-logout>Sign out</button></div>
     </aside>
     <main class="main">${html}</main></div>`;
-  $('[data-logout]').onclick = async () => { await api('POST', '/api/auth/logout'); state.me = null; renderAuth(); };
+  $('[data-logout]').onclick = logout;
+  $('[data-acct]').onclick = (e) => { e.stopPropagation(); accountMenu(e.currentTarget); };
+}
+async function logout() { await api('POST', '/api/auth/logout'); state.me = null; renderAuth(); }
+
+// Sub-account switcher: every business you run, plus quick create.
+function accountMenu(btn) {
+  const open = $('.acct-menu');
+  if (open) { open.remove(); btn.setAttribute('aria-expanded', 'false'); return; }
+  const menu = document.createElement('div');
+  menu.className = 'acct-menu';
+  menu.setAttribute('role', 'menu');
+  menu.innerHTML = `<div class="muted small" style="padding:6px 10px">Sub-accounts</div>
+    ${state.me.accounts.map((a) => `<button role="menuitem" data-switch-to="${a.id}" class="${a.id === state.me.account.id ? 'on' : ''}">
+      <span>${esc(a.name)}</span>${a.id === state.me.account.id ? '<span>✓</span>' : ''}</button>`).join('')}
+    <hr><button role="menuitem" data-new-acct>＋ New sub-account</button><button role="menuitem" data-manage>Manage sub-accounts</button>
+    <button role="menuitem" class="mobile-only" data-logout2>Sign out</button>`;
+  btn.parentNode.append(menu);
+  btn.setAttribute('aria-expanded', 'true');
+  const close = () => { menu.remove(); btn.setAttribute('aria-expanded', 'false'); document.removeEventListener('click', close); };
+  setTimeout(() => document.addEventListener('click', close));
+  menu.addEventListener('keydown', (e) => { if (e.key === 'Escape') { close(); btn.focus(); } });
+  $$('[data-switch-to]', menu).forEach((b) => { b.onclick = () => switchAccount(Number(b.dataset.switchTo)); });
+  $('[data-new-acct]', menu).onclick = () => newSubAccount();
+  $('[data-manage]', menu).onclick = () => { location.hash = '#/settings'; };
+  $('[data-logout2]', menu).onclick = logout;
+  $('button', menu)?.focus();
+}
+async function switchAccount(accountId) {
+  if (accountId === state.me.account.id) return;
+  await api('POST', `/api/accounts/${accountId}/switch`);
+  state.me = await api('GET', '/api/me');
+  if (typeof dash !== 'undefined') dash.data = {};
+  toast(`Switched to ${state.me.account.name}`);
+  location.hash = '#/';
+  route();
+}
+async function newSubAccount() {
+  const r = await modal('New sub-account', `<p class="muted small">A separate workspace for another business: its own people, funnels, emails and dashboard. No limit on how many.</p>
+    <label class="f">Business name<input name="name" required placeholder="e.g. Corner Bakery"></label>`,
+  { submit: 'Create and switch', onSubmit: (v) => api('POST', '/api/accounts', { ...v, switch: true }) });
+  if (r) { state.me = await api('GET', '/api/me'); toast(`Created ${state.me.account.name}`); location.hash = '#/'; route(); }
 }

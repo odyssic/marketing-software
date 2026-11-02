@@ -6,7 +6,7 @@ function viewSettings() {
   shell('settings', `
     <div class="head"><h1>Settings</h1></div>
     <form class="card" style="max-width:560px" data-form>
-      <h2>Workspace</h2>
+      <h2>This business</h2>
       <label class="f">Business name<input name="name" required value="${esc(a.name)}"></label>
       <h2 style="margin-top:20px">Email sender</h2>
       <label class="f">From name<input name="from_name" value="${esc(a.from_name || '')}"></label>
@@ -14,6 +14,11 @@ function viewSettings() {
       <p class="muted small">Email delivery: <b>${state.me.emailLive ? 'connected (SMTP)' : 'dev mode (Outbox only)'}</b></p>
       <div class="err"></div><button class="btn primary">Save settings</button>
     </form>
+    <div class="card" style="max-width:560px;margin-top:16px" data-subs>
+      <div class="row" style="justify-content:space-between"><h2 style="margin:0">Sub-accounts</h2><button class="btn sm primary" data-newsub>＋ New sub-account</button></div>
+      <p class="muted small">One workspace per business. Each has its own people, funnels, emails and dashboard.</p>
+      <div data-sublist class="muted small">Loading…</div>
+    </div>
     <div class="card" style="max-width:560px;margin-top:16px">
       <h2>Your data</h2>
       <p class="muted small">Download everything (people, events, orders, subscriptions, campaigns, funnels, deals) at any time.</p>
@@ -34,6 +39,22 @@ function viewSettings() {
         ${state.me.payments.connected ? '<button type="button" class="btn danger" data-disconnect>Disconnect</button>' : ''}</div>
     </form>`);
   bindCopy();
+  $('[data-newsub]').onclick = newSubAccount;
+  api('GET', '/api/accounts').then(({ accounts, current }) => {
+    $('[data-sublist]').innerHTML = accounts.map((a) => `<div class="li"><span><b style="color:var(--text)">${esc(a.name)}</b>
+      ${a.id === current ? ' <span class="pill ok">current</span>' : ''}<br>${a.people} people · ${a.funnels} funnels</span>
+      <span class="row">${a.id === current ? '' : `<button class="btn sm" data-sw="${a.id}">Switch</button>`}
+      ${accounts.length > 1 ? `<button class="btn sm danger" data-delacct="${a.id}">Delete</button>` : ''}</span></div>`).join('');
+    $$('[data-sw]').forEach((b) => { b.onclick = () => switchAccount(Number(b.dataset.sw)); });
+    $$('[data-delacct]').forEach((b) => { b.onclick = async () => {
+      const a = accounts.find((x) => x.id === Number(b.dataset.delacct));
+      const r = await modal(`Delete ${a.name}?`, `<p>This permanently deletes <b>${esc(a.name)}</b> and everything in it: ${a.people} people, ${a.funnels} funnels, emails, orders and deals. It can’t be undone.</p>
+        <p class="small">Export its data first from “Your data” while it’s the current sub-account.</p>
+        <label class="f">Type <b>${esc(a.name)}</b> to confirm<input name="confirm" autocomplete="off" required></label>`,
+      { submit: 'Delete forever', danger: true, onSubmit: (v) => api('DELETE', `/api/accounts/${a.id}`, v) });
+      if (r) { state.me = await api('GET', '/api/me'); toast(`Deleted ${a.name}`); viewSettings(); }
+    }; });
+  });
   const saveStripe = async (body, form) => {
     try {
       await api('PUT', '/api/account/stripe', body);

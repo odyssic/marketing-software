@@ -37,6 +37,12 @@ async function createSession(db, req, res, userId, accountId) {
   });
 }
 
+// Points the current session at another workspace (the caller checks membership).
+async function switchAccount(db, req, accountId) {
+  const token = parseCookies(req.headers.cookie).sid;
+  await db.run('UPDATE sessions SET account_id = ? WHERE token = ?', accountId, token);
+}
+
 async function destroySession(db, req, res) {
   const token = parseCookies(req.headers.cookie).sid;
   if (token) await db.run('DELETE FROM sessions WHERE token = ?', token);
@@ -60,4 +66,4 @@ function requireAuth(getDb) {
   };
 }
 
-module.exports = { hashPassword, verifyPassword, createSession, destroySession, requireAuth, parseCookies };
+module.exports = { hashPassword, verifyPassword, createSession, destroySession, switchAccount, requireAuth, parseCookies };

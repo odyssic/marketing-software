@@ -10,6 +10,7 @@ const stripe = require('./stripe');
 const { createPeople, ADDRESS } = require('./people');
 const { createLevers } = require('./levers');
 const { registerDashboard } = require('./dashboard');
+const { registerAccounts } = require('./accounts');
 
 const slugify = (s) => String(s || '').toLowerCase().normalize('NFKD').replace(/[^\w\s-]/g, '')
   .trim().replace(/[\s_]+/g, '-').replace(/-+/g, '-').slice(0, 60) || 'page';
@@ -235,6 +236,8 @@ function createApp({ dbPath } = {}) {
     const { stripe_secret_key: key, stripe_webhook_secret: whsec, ...account } = await db.get('SELECT * FROM accounts WHERE id = ?', req.accountId);
     res.json({
       user: req.user, account, emailLive: mailer.isLive(), baseUrl: baseUrl(req),
+      accounts: await db.all(`SELECT a.id, a.name FROM memberships m JOIN accounts a ON a.id = m.account_id
+        WHERE m.user_id = ? ORDER BY a.name, a.id`, req.user.id),
       payments: {
         connected: Boolean(key), testKey: key.startsWith('sk_test_') || key.startsWith('rk_test_'),
         keyHint: key ? `…${key.slice(-4)}` : '', webhookSecretSet: Boolean(whsec),
@@ -818,6 +821,7 @@ function createApp({ dbPath } = {}) {
   });
 
   people.register(api);
+  registerAccounts(api, { getDb: () => db, HttpError, id });
   registerDashboard(api, { getDb: () => db, HttpError, leversFor, formatMoney, getAccount, weeklyMove: (...a) => moves?.weeklyMove(...a) });
 
   api.use((req, res) => res.status(404).json({ error: 'Not found' }));
