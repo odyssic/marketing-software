@@ -1,4 +1,4 @@
-# FunnelFlow
+# Fourfold
 
 A simple, all-in-one marketing platform for small businesses. It starts with the core of
 **systeme.io** (funnels, contacts, email) and is built to grow toward **GoHighLevel**
@@ -77,7 +77,13 @@ src/render.js        block → HTML renderer (shared by live pages and the previ
 src/templates.js     starter funnels
 src/mailer.js        SMTP / dev-mode email
 src/stripe.js        Stripe Checkout client + webhook signature check
-public/              dashboard single-page app (vanilla JS, no build step)
+src/people.js        people, events, stages, CSV import (people/orders/subscribers/listens), export
+src/levers.js        growth-lever metrics and health scores, computed from events
+src/dashboard.js     dashboard tiles (one contract per tile) and per-lever layouts
+src/brand.js         product name (server side)
+public/js/           dashboard single-page app, one file per feature (vanilla JS, no build step):
+                     core (helpers, auth, shell), dashboard, funnels, editor, people,
+                     pipelines, products, email, settings, router
 netlify/functions/   Netlify Function that hosts the server
 netlify.toml         Netlify build + function settings
 test/                node:test end-to-end tests
