@@ -387,15 +387,15 @@ a.li { text-decoration: none; color: var(--text); }
 .pchip b { display: block; font-size: .88rem; } .pchip small { display: block; color: var(--muted); font-size: .74rem; line-height: 1.3; }
 .canvas { overflow: auto; padding: 24px 24px 80px; background: radial-gradient(#e5e7eb 1px, transparent 1px) 0 0 / 18px 18px, var(--bg); }
 .tree { display: flex; flex-direction: column; align-items: center; min-width: min-content; }
-.node { width: 290px; display: flex; gap: 10px; align-items: flex-start; background: #fff; border: 1px solid var(--line); border-top: 4px solid var(--c); border-radius: 12px; padding: 10px 12px; box-shadow: var(--shadow); cursor: pointer; position: relative; }
-.node:hover { border-color: #c7d2fe; border-top-color: var(--c); }
-.node.sel { outline: 2px solid var(--brand); outline-offset: 2px; }
-.node:focus-visible { outline: 3px solid #a5b4fc; outline-offset: 2px; }
-.node.t-trigger { background: #eef2ff; }
-.node .ni { font-size: 1.2rem; line-height: 1.4; }
-.node .nbody { display: flex; flex-direction: column; min-width: 0; flex: 1; }
-.node .nt { font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--c); }
-.node .ns { font-size: .9rem; overflow-wrap: anywhere; }
+.wnode { width: 290px; display: flex; gap: 10px; align-items: flex-start; background: #fff; border: 1px solid var(--line); border-top: 4px solid var(--c); border-radius: 12px; padding: 10px 12px; box-shadow: var(--shadow); cursor: pointer; position: relative; }
+.wnode:hover { border-color: #c7d2fe; border-top-color: var(--c); }
+.wnode.sel { outline: 2px solid var(--brand); outline-offset: 2px; }
+.wnode:focus-visible { outline: 3px solid #a5b4fc; outline-offset: 2px; }
+.wnode.t-trigger { background: #eef2ff; }
+.wnode .ni { font-size: 1.2rem; line-height: 1.4; }
+.wnode .nbody { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.wnode .nt { font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--c); }
+.wnode .ns { font-size: .9rem; overflow-wrap: anywhere; }
 .nstat { margin-top: 4px; font-size: .75rem; color: #047857; background: #ecfdf5; border-radius: 6px; padding: 1px 7px; align-self: flex-start; }
 .slot { height: 44px; width: 2px; background: #cbd5e1; position: relative; display: flex; align-items: center; justify-content: center; }
 .slot .plus { position: absolute; width: 24px; height: 24px; border-radius: 50%; border: 1px solid #cbd5e1; background: #fff; color: var(--muted); cursor: pointer; font-size: .9rem; line-height: 1; padding: 0; display: grid; place-items: center; }
@@ -420,6 +420,12 @@ a.li { text-decoration: none; color: var(--text); }
   .palette-col h3, .palette-col .hint { display: none; }
   .pchip { flex: none; margin: 0; } .pchip small { display: none; }
   .canvas { min-height: 60vh; padding: 16px 8px 40px; }
-  .node, .branch { width: 260px; min-width: 260px; }
+  .wnode, .branch { width: 260px; min-width: 260px; }
   .inspector { border-left: 0; border-top: 1px solid var(--line); }
 }
+.tpl.on { border-color: var(--brand); background: var(--brand-soft); box-shadow: 0 0 0 1px var(--brand); }
+.sr { position: absolute; opacity: 0; width: 1px; height: 1px; }
+label.tpl { position: relative; }
+label.tpl:focus-within { outline: 3px solid #a5b4fc; outline-offset: 2px; }
+.wf-strip { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; margin: -6px 0 14px; }
+.wf-strip .chip { text-decoration: none; color: var(--text); display: inline-flex; gap: 6px; align-items: center; }

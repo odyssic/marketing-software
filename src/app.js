@@ -431,7 +431,10 @@ function createApp({ dbPath } = {}) {
 
   // Funnels
   api.get('/templates', (req, res) => {
-    res.json(Object.entries(TEMPLATES).map(([key, t]) => ({ key, label: t.label })));
+    res.json(Object.entries(TEMPLATES).map(([key, t]) => ({
+      key, label: t.label, description: t.description || '', pages: t.steps().length,
+      workflows: (t.workflows || []).map((w) => workflows.TEMPLATES[w]?.name).filter(Boolean),
+    })));
   });
 
   api.get('/funnels', async (req, res) => {
@@ -464,7 +467,13 @@ function createApp({ dbPath } = {}) {
       await t.run('UPDATE funnels SET entry_step_id = ? WHERE id = ?', ids[0], f.id);
       return f.id;
     });
-    res.status(201).json({ id: funnelId });
+    // Templates come with their follow-up workflows, tied to this funnel and
+    // switched off until the owner has reviewed the emails.
+    const wfIds = [];
+    for (const key of template.workflows || []) {
+      wfIds.push(await workflows.create(req.accountId, { template: key, funnel_id: funnelId, name: `${name}: ${workflows.TEMPLATES[key].name}` }));
+    }
+    res.status(201).json({ id: funnelId, workflows: wfIds });
   });
 
   api.get('/funnels/:id', async (req, res) => {
@@ -474,7 +483,8 @@ function createApp({ dbPath } = {}) {
         (SELECT COUNT(*)::int FROM page_events e WHERE e.step_id = s.id AND e.type = 'optin') AS optins,
         (SELECT COUNT(*)::int FROM page_events e WHERE e.step_id = s.id AND e.type = 'sale') AS sales
       FROM funnel_steps s WHERE s.funnel_id = ? ORDER BY position`, f.id)).map(stepOut);
-    res.json({ ...f, steps });
+    const linked = await db.all('SELECT id, name, status FROM workflows WHERE funnel_id = ? AND account_id = ? ORDER BY id', f.id, req.accountId);
+    res.json({ ...f, steps, workflows: linked });
   });
 
   api.put('/funnels/:id', async (req, res) => {
@@ -894,10 +904,23 @@ function createApp({ dbPath } = {}) {
         email: req.body.email, first_name: String(req.body.first_name || ''), phone: String(req.body.phone || ''),
         tags: parseTags(block.tag), source: 'funnel',
       });
-      await logEvent(db, funnel.account_id, { person_id: contact.id, type: 'signup', source: 'funnel', meta: { funnel: funnel.name, funnel_id: funnel.id, step_id: step.id } });
     } catch (e) {
       if (e.status === 400) return res.status(400).type('html').send(`<!doctype html><p style="font:18px system-ui;text-align:center;margin-top:20vh">Please enter a valid email. <a href="${esc(back)}">Go back</a></p>`);
       throw e;
+    }
+    // What the form is for: a signup (lead), a newsletter subscription, or an inquiry to answer.
+    const purpose = String(block.purpose || 'Sign up').toLowerCase();
+    const meta = { funnel: funnel.name, funnel_id: funnel.id, step_id: step.id };
+    if (purpose === 'newsletter') {
+      const product = String(block.newsletter || 'Newsletter').trim().slice(0, 100) || 'Newsletter';
+      if (!await db.get("SELECT 1 FROM subscriptions WHERE person_id = ? AND product = ? AND status = 'active'", contact.id, product)) {
+        await db.run("INSERT INTO subscriptions (account_id, person_id, product, format) VALUES (?, ?, ?, 'email')", funnel.account_id, contact.id, product);
+        await logEvent(db, funnel.account_id, { person_id: contact.id, type: 'subscribe', source: 'funnel', meta: { ...meta, product, format: 'email' } });
+      }
+    } else if (purpose === 'inquiry') {
+      await logEvent(db, funnel.account_id, { person_id: contact.id, type: 'inquiry', source: 'funnel', meta: { ...meta, note: String(req.body.message || '').slice(0, 2000) } });
+    } else {
+      await logEvent(db, funnel.account_id, { person_id: contact.id, type: 'signup', source: 'funnel', meta });
     }
     await db.run("INSERT INTO page_events (account_id, funnel_id, step_id, type, contact_id) VALUES (?, ?, ?, 'optin', ?)",
       funnel.account_id, funnel.id, step.id, contact.id);

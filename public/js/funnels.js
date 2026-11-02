@@ -18,11 +18,31 @@ async function viewFunnels() {
 
 async function newFunnel() {
   const templates = await api('GET', '/api/templates');
-  const r = await modal('New funnel', `
-    <label class="f">Funnel name<input name="name" required placeholder="e.g. Free guide"></label>
-    <label class="f">Start from<select name="template">${templates.map((t) => `<option value="${t.key}">${esc(t.label)}</option>`).join('')}</select></label>`,
-  { submit: 'Create funnel', onSubmit: (v) => api('POST', '/api/funnels', v) });
-  if (r) { toast('Funnel created'); location.hash = `#/funnels/${r.id}`; } else if (location.hash === '#/funnels/new') location.hash = '#/funnels';
+  const bg = document.createElement('div');
+  bg.className = 'modal-bg';
+  bg.innerHTML = `<form class="modal wide"><h2>New funnel</h2>
+    <label class="f">Funnel name<input name="name" required placeholder="e.g. Free glaze guide"></label>
+    <div class="f" style="margin-bottom:6px;font-size:.85rem;font-weight:500">Start from</div>
+    <div class="tpl-grid" role="radiogroup">${templates.map((t, i) => `<label class="tpl ${i === 0 ? 'on' : ''}"><input type="radio" name="template" value="${t.key}" ${i === 0 ? 'checked' : ''} class="sr">
+      <b>${esc(t.label)}</b><span class="muted small">${esc(t.description)}</span>
+      <span class="small">${t.pages} page${t.pages === 1 ? '' : 's'}${t.workflows.length ? ` · ⚡ ${t.workflows.map(esc).join(', ')}` : ''}</span></label>`).join('')}</div>
+    <p class="hint">Follow-up workflows are created switched off, so you can review the emails first.</p>
+    <div class="err"></div><div class="actions"><button type="button" class="btn" data-x>Cancel</button><button class="btn primary">Create funnel</button></div></form>`;
+  document.body.append(bg);
+  const close = () => { bg.remove(); if (location.hash === '#/funnels/new') location.hash = '#/funnels'; };
+  bg.addEventListener('mousedown', (e) => { if (e.target === bg) close(); });
+  $('[data-x]', bg).onclick = close;
+  $$('input[name=template]', bg).forEach((r) => { r.onchange = () => $$('.tpl', bg).forEach((l) => l.classList.toggle('on', l.contains(r) && r.checked)); });
+  $('[name=name]', bg).focus();
+  $('form', bg).onsubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const r = await api('POST', '/api/funnels', Object.fromEntries(new FormData(e.target)));
+      bg.remove();
+      toast(r.workflows?.length ? `Funnel created with ${r.workflows.length} follow-up workflow${r.workflows.length === 1 ? '' : 's'}` : 'Funnel created');
+      location.hash = `#/funnels/${r.id}`;
+    } catch (err) { $('.err', bg).textContent = err.message; }
+  };
 }
 
 // ---------------- Funnel map (visual tree) ----------------
@@ -94,6 +114,9 @@ async function viewFunnel(id) {
       <div class="row"><div class="copy" style="min-width:320px"><input readonly value="${esc(link)}" aria-label="Funnel link">
         <button class="btn" data-copy="${esc(link)}">Copy</button><a class="btn" href="${esc(link)}" target="_blank" rel="noopener">Open ↗</a></div>
         <button class="btn" data-rename>Settings</button><button class="btn danger" data-del>Delete</button></div></div>
+    ${f.workflows?.length ? `<div class="wf-strip"><span class="muted small">⚡ Follow-ups for this funnel:</span>
+      ${f.workflows.map((w) => `<a class="chip" href="#/workflows/${w.id}">${esc(w.name.replace(`${f.name}: `, ''))} <span class="pill ${w.status === 'active' ? 'ok' : ''}">${w.status === 'active' ? 'Live' : 'Off'}</span></a>`).join('')}
+      ${f.workflows.some((w) => w.status !== 'active') ? '<span class="muted small">Review the emails, then turn them on.</span>' : ''}</div>` : ''}
     <div class="map" tabindex="0">
       <div class="map-tools">
         <button class="btn primary sm" data-addpage>+ Add page</button>

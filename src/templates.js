@@ -6,7 +6,9 @@ const id = () => Math.random().toString(36).slice(2, 10);
 
 const TEMPLATES = {
   optin: {
-    label: 'Lead magnet (opt-in + thank you)',
+    label: 'Lead magnet',
+    description: 'Trade a free guide or sample for an email, then welcome them with a 3-email series.',
+    workflows: ['welcome'],
     steps: () => [
       {
         name: 'Opt-in page',
@@ -31,7 +33,9 @@ const TEMPLATES = {
     ],
   },
   sales: {
-    label: 'Sales page (video + call to action)',
+    label: 'Product sale',
+    description: 'A sales page with video and a call to action, then care tips after they buy.',
+    workflows: ['care'],
     steps: () => [
       {
         name: 'Sales page',
@@ -53,7 +57,9 @@ const TEMPLATES = {
     ],
   },
   pricing: {
-    label: 'Pricing page (offer card + checkout)',
+    label: 'Pricing page + checkout',
+    description: 'One offer card with Stripe checkout and a thank-you page, then care tips after they buy.',
+    workflows: ['care'],
     steps: () => [
       {
         name: 'Pricing',
@@ -83,7 +89,9 @@ const TEMPLATES = {
     ],
   },
   upsell: {
-    label: 'Sales + upsell / downsell (branching)',
+    label: 'Sale with upsell / downsell',
+    description: 'Sales page, a one-time upgrade offer, a lighter fallback offer, and care tips after.',
+    workflows: ['care'],
     steps: () => [
       {
         key: 'sales', name: 'Sales page', slug: 'offer', next: 'upsell',
@@ -123,8 +131,49 @@ const TEMPLATES = {
       },
     ],
   },
+  newsletter: {
+    label: 'Newsletter signup',
+    description: 'A simple page that subscribes people to your newsletter and sends a welcome email.',
+    workflows: ['newsletter'],
+    steps: () => [
+      {
+        name: 'Subscribe', slug: 'subscribe', settings: { accent: '#10b981' },
+        blocks: [
+          { id: id(), type: 'heading', text: 'A short letter worth opening', align: 'center' },
+          { id: id(), type: 'text', text: 'Stories, new work and the occasional subscriber-only offer. About twice a month.', align: 'center' },
+          { id: id(), type: 'form', buttonLabel: 'Subscribe', collectName: true, collectPhone: false, purpose: 'Newsletter', newsletter: 'Newsletter', tag: 'newsletter' },
+          { id: id(), type: 'text', text: 'Unsubscribe anytime with one click.', align: 'center' },
+        ],
+      },
+      {
+        name: 'Welcome', slug: 'welcome', settings: { accent: '#10b981' },
+        blocks: [{ id: id(), type: 'heading', text: 'You’re on the list! 📬', align: 'center' }, { id: id(), type: 'text', text: 'Your first letter is on its way.', align: 'center' }],
+      },
+    ],
+  },
+  consult: {
+    label: 'Consultation request',
+    description: 'A request form for services. Sends an instant reply, tells you right away, and nudges you if there’s no sale in 2 days.',
+    workflows: ['inquiry'],
+    steps: () => [
+      {
+        name: 'Request', slug: 'request', settings: { accent: '#0f766e' },
+        blocks: [
+          { id: id(), type: 'heading', text: 'Book a free 20-minute consultation', align: 'center' },
+          { id: id(), type: 'text', text: 'Tell us a little about what you need and we’ll get back to you within one business day.', align: 'center' },
+          { id: id(), type: 'form', buttonLabel: 'Request my consultation', collectName: true, collectPhone: true, collectMessage: true, purpose: 'Inquiry', tag: 'consult-request' },
+        ],
+      },
+      {
+        name: 'Thanks', slug: 'thanks', settings: { accent: '#0f766e' },
+        blocks: [{ id: id(), type: 'heading', text: 'Thanks! We’ll be in touch soon.', align: 'center' }, { id: id(), type: 'text', text: 'Check your inbox for a confirmation.', align: 'center' }],
+      },
+    ],
+  },
   blank: {
-    label: 'Blank (one empty page)',
+    label: 'Blank',
+    description: 'One empty page to build from scratch.',
+    workflows: [],
     steps: () => [{ name: 'Page 1', slug: 'page-1', settings: {}, blocks: [] }],
   },
 };

@@ -130,7 +130,7 @@ const TEMPLATES = {
   },
   care: {
     name: 'Post-purchase care tips', lever: 'continuity', description: '7 days after an order, send care tips so the purchase keeps delighting.',
-    graph: () => chain({ event: 'purchase', repeat: true }, [wait(7), email('Getting the most from your {{business}} order', 'Hi {{first_name|there}},\n\nYour order should have settled in by now. A few tips to keep it at its best:\n\n• [Tip one]\n• [Tip two]\n• [Tip three]\n\nAny questions, just reply.\n\n{{business}}')]),
+    graph: (o = {}) => chain({ event: 'purchase', repeat: true, funnel_id: o.funnel_id || null }, [wait(7), email('Getting the most from your {{business}} order', 'Hi {{first_name|there}},\n\nYour order should have settled in by now. A few tips to keep it at its best:\n\n• [Tip one]\n• [Tip two]\n• [Tip three]\n\nAny questions, just reply.\n\n{{business}}')]),
   },
   review: {
     name: 'Review request', lever: 'lead', description: '21 days after an order, ask for a review (reviews bring new leads).',
@@ -150,13 +150,18 @@ const TEMPLATES = {
     ]),
   },
   inquiry: {
-    name: 'Inquiry follow-up', lever: 'conversion', description: 'If someone asks a question and hasn’t bought within 2 days, remind you to follow up.',
-    graph: () => chain({ event: 'inquiry', repeat: true }, [wait(2), { type: 'condition', config: { check: 'purchased_since' }, yes: [],
-      no: [{ type: 'notify', config: { message: 'This inquiry is 2 days old with no purchase yet. A quick personal reply usually wins it.' } }] }]),
+    name: 'Inquiry follow-up', lever: 'conversion', description: 'Reply instantly, tell you right away, and nudge you if there’s no sale after 2 days.',
+    graph: (o = {}) => chain({ event: 'inquiry', repeat: true, funnel_id: o.funnel_id || null }, [
+      email('We got your request, {{first_name|there}}', 'Hi {{first_name|there}},\n\nThanks for reaching out to {{business}}. We’ve got your request and will reply within one business day.\n\nIf it’s urgent, just reply to this email.\n\n{{business}}'),
+      { type: 'notify', config: { message: 'New request. Reply while it’s fresh.' } },
+      wait(2),
+      { type: 'condition', config: { check: 'purchased_since' }, yes: [],
+        no: [{ type: 'notify', config: { message: 'This request is 2 days old with no purchase yet. A quick personal reply usually wins it.' } }] },
+    ]),
   },
   newsletter: {
     name: 'Newsletter welcome', lever: 'continuity', description: 'Welcome new newsletter subscribers and invite them to buy after a week.',
-    graph: () => chain({ event: 'subscribe' }, [
+    graph: (o = {}) => chain({ event: 'subscribe', funnel_id: o.funnel_id || null }, [
       email('You’re on the list!', 'Hi {{first_name|there}},\n\nWelcome to the {{business}} newsletter. Here’s what to expect: [how often, what’s inside].\n\nHit reply and tell me what you’d like to hear about.'),
       wait(7),
       { type: 'condition', config: { check: 'purchased' }, yes: [], no: [email('A favorite to start with', 'Hi {{first_name|there}},\n\nIf you’re curious where to start, here’s our most loved piece:\n\n[Product and link]')] },
@@ -209,7 +214,7 @@ function createWorkflows({ getDb, HttpError, id, people, messaging, getAccount }
     if (e.occurred_at && Date.now() - new Date(e.occurred_at).getTime() > FRESH_MS) return;
     for (const w of await activeWithTrigger(accountId, e.type)) {
       const t = w.graph.nodes[w.graph.root].config;
-      if (e.type === 'signup' && t.funnel_id && Number(e.meta?.funnel_id) !== t.funnel_id) continue;
+      if (t.funnel_id && Number(e.meta?.funnel_id) !== t.funnel_id) continue;
       if (e.type === 'purchase' && t.product && !`${e.meta?.product || ''} ${e.meta?.items || ''}`.toLowerCase().includes(t.product.toLowerCase())) continue;
       await enroll(w, e.person_id, t.repeat ? `${e.type}:${e.id}` : '');
     }

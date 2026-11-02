@@ -120,7 +120,7 @@ function stepSummary(key) {
   switch (n.type) {
     case 'trigger': {
       let s = `When someone ${(TRIGGER_UI[c.event] || '').toLowerCase()}`;
-      if (c.event === 'signup' && c.funnel_id) s += ` via “${wf.funnels.find((f) => f.id === c.funnel_id)?.name || 'a funnel'}”`;
+      if (c.funnel_id) s += ` via “${wf.funnels.find((f) => f.id === c.funnel_id)?.name || 'a funnel'}”`;
       if (c.event === 'purchase' && c.product) s += ` matching “${c.product}”`;
       if (c.event === 'tag_added') s += c.tag ? ` “${c.tag}”` : ' (pick a tag)';
       if (c.event === 'silent') s += ` for ${c.days} days`;
@@ -154,7 +154,7 @@ function renderTree() {
   const slot = (parent, port) => `<div class="slot" data-slot="${parent}:${port}"><button class="plus" data-plus="${parent}:${port}" aria-label="Add a step here">＋</button></div>`;
   const card = (key) => {
     const n = nodes()[key], ui = STEP_UI[n.type];
-    return `<div class="node t-${n.type} ${wf.selected === key ? 'sel' : ''}" data-node="${key}" ${n.type === 'trigger' ? '' : 'draggable="true"'} tabindex="0" style="--c:${ui.color}">
+    return `<div class="wnode t-${n.type} ${wf.selected === key ? 'sel' : ''}" data-node="${key}" ${n.type === 'trigger' ? '' : 'draggable="true"'} tabindex="0" style="--c:${ui.color}">
       <span class="ni">${ui.icon}</span><span class="nbody"><span class="nt">${esc(ui.label)}</span><span class="ns">${esc(stepSummary(key))}</span>${statBadge(key)}</span></div>`;
   };
   const chain = (parent, port) => {
@@ -314,7 +314,7 @@ function renderInspector() {
   switch (n.type) {
     case 'trigger':
       body = field('Start when someone…', `<select data-c="event">${Object.entries(TRIGGER_UI).map(([k, l]) => `<option value="${k}" ${c.event === k ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>`)
-        + (c.event === 'signup' ? field('From', `<select data-c="funnel_id" data-num><option value="">Any form or funnel</option>${wf.funnels.map((f) => `<option value="${f.id}" ${c.funnel_id === f.id ? 'selected' : ''}>${esc(f.name)}</option>`).join('')}</select>`) : '')
+        + (['signup', 'subscribe', 'inquiry', 'purchase'].includes(c.event) ? field('From', `<select data-c="funnel_id" data-num><option value="">Anywhere (any form, funnel or import)</option>${wf.funnels.map((f) => `<option value="${f.id}" ${c.funnel_id === f.id ? 'selected' : ''}>${esc(f.name)}</option>`).join('')}</select>`) : '')
         + (c.event === 'purchase' ? field('Product name contains', `<input data-c="product" value="${esc(c.product)}" placeholder="Any product">`, 'optional') : '')
         + (c.event === 'tag_added' ? field('Tag', `<input data-c="tag" value="${esc(c.tag)}" placeholder="e.g. vip">`) : '')
         + (c.event === 'silent' ? field('Quiet for (days)', `<input type="number" min="1" data-c="days" data-num value="${c.days}">`, 'only past customers') : '')

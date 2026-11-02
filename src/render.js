@@ -96,6 +96,7 @@ function renderBlock(b, ctx, index) {
         b.collectName ? '<input name="first_name" placeholder="First name" autocomplete="given-name">' : '',
         '<input name="email" type="email" placeholder="Your email address" required autocomplete="email">',
         b.collectPhone ? '<input name="phone" type="tel" placeholder="Phone number" autocomplete="tel">' : '',
+        b.collectMessage ? '<textarea name="message" rows="4" placeholder="How can we help?" maxlength="2000"></textarea>' : '',
       ].join('');
       const disabled = ctx.preview ? ' onsubmit="event.preventDefault();alert(\'Forms are disabled in preview\')"' : '';
       return `<form class="optin" method="post" action="${esc(ctx.formAction)}"${disabled}>
