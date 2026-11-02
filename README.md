@@ -14,6 +14,7 @@ A simple, all-in-one marketing platform for small businesses. It starts with the
 | **Products & checkout** | Products with one-time, monthly or yearly pricing. A pricing card block sells a product through Stripe Checkout. Payment is confirmed server-side (on the success redirect and via a signed webhook), and buyers become contacts tagged `customer` plus a product tag. There's an orders list and a revenue stat. Without Stripe connected, a **test-mode checkout** lets you run the whole flow without charging anyone. |
 | **Contacts (CRM)** | Opt-in forms create or merge contacts and apply tags. Search, tag filter, add/edit/delete, CSV import (dedupes by email) and CSV export, plus a bot honeypot on forms. |
 | **Pipelines** | Kanban boards of deal stages (default: New lead → Contacted → Proposal sent → Negotiation). Drag deals between stages and up/down to prioritise; each column shows its count and total value. Deals have a value, currency, contact (pick one, or type a new email to add them to contacts), and notes, and are marked won or lost (with Won/Lost lists and Reopen). Rename, reorder, add or remove stages; run several pipelines. A contact's deals show on their record, and the dashboard shows open pipeline value. |
+| **Weekly move** | Each week the dashboard proposes one move for the focus lever (pinned, or the lowest health score): it checks that lever's candidates (stale inquiries, new leads who haven't bought, recent buyers to ask for referrals or add-ons, one-time buyers, quiet customers, buyers not on the newsletter), and picks the one with the most people × average order value. People emailed in the last 14 days are left out. "Draft it" writes the email in the owner's voice (voice profile in Settings: 3-5 writing samples plus tone notes); nothing is sent until Approve & send. Results show sent, opened, clicked and purchases within 14 days. |
 | **Workflows** | One drag-and-drop map per workflow: a trigger (signs up, buys, gets a tag, subscribes, sends an inquiry, goes quiet, or added by hand), then waits, emails, yes/no splits, tags, newsletter subscriptions, owner reminders and pipeline deals. Email sequences are just steps on the map. Live counts on every step, plain-language checks before going live, test emails, and templates (welcome series, care tips, review request, referral ask, win-back, inquiry follow-up, newsletter welcome). Every workspace starts with care tips, review request, referral ask and win-back switched off. Events older than 2 days (e.g. imported history) never start a workflow. Opens and clicks are tracked. |
 | **Email** | Broadcasts to everyone or to a tag, `{{first_name}}` merge fields, an automatic signed unsubscribe link, and an Outbox log. SMTP delivery, or a dev mode that logs without sending. |
 | **Dashboard** | Contacts, views, opt-ins, conversion, a 14-day signup chart, a get-started checklist and recent contacts. |
@@ -56,6 +57,9 @@ To run the tests through the production Postgres driver, point `DATABASE_URL` at
 | `DATABASE_URL` | Postgres connection string (production). Without it, local PGlite is used |
 | `DB_PATH` | Local PGlite data directory (default `data/pglite`) |
 | `NODE_ENV=production` | Marks session cookies `Secure` (use behind HTTPS) |
+| `ANTHROPIC_API_KEY` | Turns on AI drafting (weekly moves, repurposing) in the owner's voice, using Claude. Without it, drafts are fill-in-the-blank templates |
+| `AI_MODEL` | Claude model for drafts (default `claude-opus-5-5`) |
+| `ALLOW_SIGNUPS` | `1` lets anyone create a workspace. By default the first sign-up owns the app and sign-up closes |
 | `STRIPE_API_BASE` | Override the Stripe API URL (tests only) |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_SECURE`, `SMTP_FROM` | Real email delivery (Postmark, SES, Mailgun, Brevo, etc.). Without `SMTP_HOST`, emails only go to the Outbox. |
 
@@ -85,6 +89,8 @@ src/brand.js         product name (server side)
 src/accounts.js      sub-accounts: create, switch, delete
 src/workflows.js     workflow maps, templates, enrolment and the runner
 src/messaging.js     email to a person: merge fields, unsubscribe link, open/click tracking
+src/moves.js         the weekly move and campaign approve/send/results
+src/ai.js            drafting with Claude in the owner's voice (template fallback without a key)
 public/js/           dashboard single-page app, one file per feature (vanilla JS, no build step):
                      core (helpers, auth, shell), dashboard, funnels, editor, people,
                      pipelines, products, email, settings, router

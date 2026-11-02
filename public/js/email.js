@@ -2,14 +2,15 @@
 
 // ---------------- Email ----------------
 async function viewEmail(tab) {
-  const outbox = tab === 'outbox';
-  const [items, tags] = await Promise.all([api('GET', outbox ? '/api/outbox' : '/api/broadcasts'), api('GET', '/api/tags')]);
+  const outbox = tab === 'outbox', camps = tab === 'campaigns';
+  const [items, tags] = await Promise.all([api('GET', outbox ? '/api/outbox' : camps ? '/api/campaigns' : '/api/broadcasts'), api('GET', '/api/tags')]);
   shell('email', `
     <div class="head"><div><h1>Email</h1><div class="muted">Send newsletters and announcements to your contacts.</div></div>
       <button class="btn primary" data-compose>+ New broadcast</button></div>
     ${state.me.emailLive ? '' : '<div class="banner"><b>Dev mode:</b> no email provider is connected, so emails are saved to the Outbox instead of being delivered. Add SMTP settings on the server to send for real.</div>'}
-    <div class="tabs"><a href="#/email" class="${outbox ? '' : 'active'}">Broadcasts</a><a href="#/email/outbox" class="${outbox ? 'active' : ''}">Outbox</a></div>
-    ${outbox ? outboxHtml(items) : broadcastsHtml(items)}`);
+    <div class="tabs"><a href="#/email" class="${outbox || camps ? '' : 'active'}">Broadcasts</a><a href="#/email/campaigns" class="${camps ? 'active' : ''}">Weekly moves</a><a href="#/email/outbox" class="${outbox ? 'active' : ''}">Outbox</a></div>
+    ${outbox ? outboxHtml(items) : camps ? campaignsHtml(items) : broadcastsHtml(items)}`);
+  bindRowLinks();
 
   $('[data-compose]').onclick = async () => {
     const r = await modal('New broadcast', `

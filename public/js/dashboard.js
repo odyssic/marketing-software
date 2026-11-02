@@ -145,8 +145,10 @@ function moveTile(m) {
     <div class="ml"><span class="lever-tag">${esc(LEVER_UI[m.lever]?.label || m.lever)}</span>
       <h3>${esc(m.title)}</h3><p class="muted">${esc(m.reason)}</p>
       ${m.count ? `<p class="small"><b>${m.count}</b> ${m.count === 1 ? 'person' : 'people'}: ${m.people.slice(0, 5).map((p) => `<a href="#/people/${p.id}">${esc(p.name)}</a>`).join(', ')}${m.count > 5 ? ` and ${m.count - 5} more` : ''}</p>` : ''}</div>
-    <div class="mr">${m.campaign_id ? `<a class="btn primary" href="#/campaigns/${m.campaign_id}">${m.status === 'sent' ? 'View results' : 'Open draft'}</a>` : `<button class="btn primary" data-draft>✍️ Draft it</button>`}
-      <button class="btn sm" data-skipmove>Skip this week</button></div></div>`;
+    <div class="mr">${m.status === 'proposed' ? '<button class="btn primary" data-draft>✍️ Draft it</button><button class="btn sm" data-skipmove>Skip this week</button>'
+      : m.status === 'draft' ? `<a class="btn primary" href="#/campaigns/${m.campaign_id}">Review draft</a><button class="btn sm" data-skipmove>Skip this week</button>`
+        : m.status === 'sent' ? `<a class="btn" href="#/campaigns/${m.campaign_id}">✓ Sent · view results</a>`
+          : m.status === 'skipped' ? '<span class="muted small">Skipped this week. A new move comes Monday.</span>' : ''}</div></div>`;
 }
 
 function bindTile(id, el) {

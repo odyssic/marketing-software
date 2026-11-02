@@ -11,7 +11,10 @@ const weeksBack = 8;
 const TILES = [
   { id: 'move', title: 'This week’s move', levers: ['all', ...LEVER_KEYS], default_width: 'full',
     empty_state: 'Your first move appears once there’s some activity to learn from.',
-    query: async (ctx) => ctx.weeklyMove?.(ctx.lever) ?? null },
+    query: async (ctx) => {
+      const m = await ctx.weeklyMove?.(ctx.lever);
+      return m && m.status !== 'empty' ? m : null;
+    } },
   { id: 'health', title: 'Lever health', levers: ['all'], default_width: 'full',
     empty_state: 'Health scores appear once you have a few weeks of activity.',
     query: async (ctx) => ({ levers: await ctx.levers(), focus: await ctx.focus() }) },

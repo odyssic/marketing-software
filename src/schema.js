@@ -258,6 +258,8 @@ CREATE TABLE IF NOT EXISTS campaigns (
   sent_at TIMESTAMPTZ
 );
 CREATE INDEX IF NOT EXISTS idx_campaigns_account ON campaigns(account_id, created_at);
+-- One weekly move per workspace per week.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_campaigns_week_move ON campaigns(account_id, week) WHERE move <> '{}';
 
 -- Simple follow-ups: when <trigger> happened <delay_days> ago, send this.
 CREATE TABLE IF NOT EXISTS automations (

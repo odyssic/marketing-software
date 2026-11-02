@@ -13,6 +13,7 @@ const { registerDashboard } = require('./dashboard');
 const { registerAccounts } = require('./accounts');
 const { createMessaging } = require('./messaging');
 const { createWorkflows } = require('./workflows');
+const { createMoves } = require('./moves');
 
 const slugify = (s) => String(s || '').toLowerCase().normalize('NFKD').replace(/[^\w\s-]/g, '')
   .trim().replace(/[\s_]+/g, '-').replace(/-+/g, '-').slice(0, 60) || 'page';
@@ -102,6 +103,7 @@ function createApp({ dbPath } = {}) {
   const workflows = createWorkflows({ getDb: () => db, HttpError, id, people, messaging, getAccount: (a) => getAccount(a) });
   people.hooks.onEvent = workflows.onEvent;
   people.hooks.onTagsAdded = workflows.onTagsAdded;
+  moves = createMoves({ getDb: () => db, HttpError, id, leversFor: (a) => leversFor(a), getAccount: (a) => getAccount(a), messaging, formatMoney });
   const getAccount = (accountId) => db.get('SELECT * FROM accounts WHERE id = ?', accountId);
   // Lever metrics plus which lever to focus on (pinned, or the weakest).
   const leversFor = async (accountId) => {
@@ -244,7 +246,7 @@ function createApp({ dbPath } = {}) {
   api.get('/me', async (req, res) => {
     const { stripe_secret_key: key, stripe_webhook_secret: whsec, ...account } = await db.get('SELECT * FROM accounts WHERE id = ?', req.accountId);
     res.json({
-      user: req.user, account, emailLive: mailer.isLive(), baseUrl: baseUrl(req),
+      user: req.user, account, emailLive: mailer.isLive(), aiLive: require('./ai').isLive(), baseUrl: baseUrl(req),
       accounts: await db.all(`SELECT a.id, a.name FROM memberships m JOIN accounts a ON a.id = m.account_id
         WHERE m.user_id = ? ORDER BY a.name, a.id`, req.user.id),
       payments: {
@@ -842,8 +844,9 @@ function createApp({ dbPath } = {}) {
 
   people.register(api);
   workflows.register(api);
+  moves.register(api);
   registerAccounts(api, { getDb: () => db, HttpError, id });
-  registerDashboard(api, { getDb: () => db, HttpError, leversFor, formatMoney, getAccount, weeklyMove: (...a) => moves?.weeklyMove(...a) });
+  registerDashboard(api, { getDb: () => db, HttpError, leversFor, formatMoney, getAccount, weeklyMove: (accountId) => moves.current(accountId) });
 
   api.use((req, res) => res.status(404).json({ error: 'Not found' }));
   app.use('/api', api);

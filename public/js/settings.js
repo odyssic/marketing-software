@@ -14,6 +14,13 @@ function viewSettings() {
       <p class="muted small">Email delivery: <b>${state.me.emailLive ? 'connected (SMTP)' : 'dev mode (Outbox only)'}</b></p>
       <div class="err"></div><button class="btn primary">Save settings</button>
     </form>
+    <form class="card" style="max-width:560px;margin-top:16px" data-voice>
+      <h2>Your voice</h2>
+      <p class="muted small">Paste 3 to 5 things you’ve written (an email, a product description, a post). Drafts copy your tone, not your words. ${state.me.aiLive ? '' : '<b>AI drafting isn’t connected</b> (set ANTHROPIC_API_KEY on the server), so drafts are templates for now.'}</p>
+      ${[0, 1, 2, 3, 4].map((i) => `<label class="f">Sample ${i + 1}${i >= 3 ? ' <span class="hint">optional</span>' : ''}<textarea name="s${i}" rows="3">${esc(JSON.parse(a.voice_samples || '[]')[i] || '')}</textarea></label>`).join('')}
+      <label class="f">Tone notes <span class="hint">e.g. “warm, a bit dry, never salesy, short sentences”</span><input name="notes" value="${esc(a.voice_notes || '')}"></label>
+      <button class="btn primary">Save voice</button>
+    </form>
     <div class="card" style="max-width:560px;margin-top:16px" data-subs>
       <div class="row" style="justify-content:space-between"><h2 style="margin:0">Sub-accounts</h2><button class="btn sm primary" data-newsub>＋ New sub-account</button></div>
       <p class="muted small">One workspace per business. Each has its own people, funnels, emails and dashboard.</p>
@@ -40,6 +47,13 @@ function viewSettings() {
     </form>`);
   bindCopy();
   $('[data-newsub]').onclick = newSubAccount;
+  $('[data-voice]').onsubmit = async (e) => {
+    e.preventDefault();
+    const v = Object.fromEntries(new FormData(e.target));
+    const r = await api('PUT', '/api/account/voice', { samples: [0, 1, 2, 3, 4].map((i) => v[`s${i}`]), notes: v.notes });
+    state.me = await api('GET', '/api/me');
+    toast(r.samples >= 3 ? 'Voice saved' : `Voice saved. Add ${3 - r.samples} more sample${3 - r.samples === 1 ? '' : 's'} for the best match`);
+  };
   api('GET', '/api/accounts').then(({ accounts, current }) => {
     $('[data-sublist]').innerHTML = accounts.map((a) => `<div class="li"><span><b style="color:var(--text)">${esc(a.name)}</b>
       ${a.id === current ? ' <span class="pill ok">current</span>' : ''}<br>${a.people} people · ${a.funnels} funnels</span>
