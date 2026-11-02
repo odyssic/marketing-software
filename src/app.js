@@ -14,6 +14,7 @@ const { registerAccounts } = require('./accounts');
 const { createMessaging } = require('./messaging');
 const { createWorkflows } = require('./workflows');
 const { createMoves } = require('./moves');
+const { registerPrint } = require('./print');
 
 const slugify = (s) => String(s || '').toLowerCase().normalize('NFKD').replace(/[^\w\s-]/g, '')
   .trim().replace(/[\s_]+/g, '-').replace(/-+/g, '-').slice(0, 60) || 'page';
@@ -814,25 +815,13 @@ function createApp({ dbPath } = {}) {
       throw exists ? new HttpError(409, 'This broadcast was already sent') : new HttpError(404, 'Broadcast not found');
     }
     const account = await db.get('SELECT * FROM accounts WHERE id = ?', req.accountId);
-    const from = account.from_email ? `"${(account.from_name || account.name).replace(/"/g, '')}" <${account.from_email}>`
-      : process.env.SMTP_FROM || 'no-reply@localhost';
-    const recipients = (await db.all('SELECT * FROM contacts WHERE account_id = ? AND unsubscribed = 0 AND email <> \'\'', req.accountId))
-      .map(contactOut).filter((c) => !b.tag || c.tags.includes(b.tag));
-    const log = (c, subject, text, status, error) => db.run(`INSERT INTO email_log
-      (account_id, broadcast_id, contact_id, to_email, subject, body, status, error) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    req.accountId, b.id, c.id, c.email, subject, text, status, error);
+    const recipients = (await db.all("SELECT * FROM contacts WHERE account_id = ? AND unsubscribed = 0 AND email <> ''", req.accountId))
+      .filter((c) => !b.tag || JSON.parse(c.tags).includes(b.tag));
     let sent = 0;
+    // Same sender as workflows and campaigns: merge fields, unsubscribe link, open/click tracking.
     for (const c of recipients) {
-      const merge = (s) => s.replace(/\{\{\s*(first_name|last_name|email)\s*\}\}/g, (_, k) => c[k] || '');
-      const subject = merge(b.subject);
-      const text = `${merge(b.body)}\n\n--\nUnsubscribe: ${baseUrl(req)}/unsubscribe/${unsubToken(c.id)}`;
-      try {
-        const r = await mailer.sendEmail({ from, to: c.email, subject, text });
-        await log(c, subject, text, r.status, null);
-        sent++;
-      } catch (e) {
-        await log(c, subject, text, 'failed', e.message);
-      }
+      const r = await messaging.sendToPerson({ account, person: c, subject: b.subject, body: b.body, broadcastId: b.id });
+      if (r.status === 'sent' || r.status === 'logged') sent++;
     }
     await db.run("UPDATE broadcasts SET status = 'sent', sent_count = ?, sent_at = now() WHERE id = ?", sent, b.id);
     res.json({ sent, total: recipients.length });
@@ -845,6 +834,7 @@ function createApp({ dbPath } = {}) {
   people.register(api);
   workflows.register(api);
   moves.register(api);
+  registerPrint(api, app, { getDb: () => db, HttpError, id, logEvent, publicBase, toCsv: people.toCsv });
   registerAccounts(api, { getDb: () => db, HttpError, id });
   registerDashboard(api, { getDb: () => db, HttpError, leversFor, formatMoney, getAccount, weeklyMove: (accountId) => moves.current(accountId) });
 

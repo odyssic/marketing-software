@@ -77,3 +77,41 @@ function bindMoveTile(el, m) {
     renderDashboard();
   };
 }
+
+// ---------------- Print & QR (the analog bridge) ----------------
+async function viewPrint() {
+  const [lists, links, camps] = await Promise.all([api('GET', '/api/print/lists'), api('GET', '/api/links'), api('GET', '/api/campaigns')]);
+  shell('email', `
+    <div class="head"><div><h1>Email</h1><div class="muted">Send newsletters and announcements to your contacts.</div></div></div>
+    <div class="tabs"><a href="#/email">Broadcasts</a><a href="#/email/campaigns">Weekly moves</a><a href="#/email/print" class="active">Print &amp; QR</a><a href="#/email/outbox">Outbox</a></div>
+    <div class="grid two">
+      <div class="card"><h2>Print newsletter mailing list</h2>
+        ${lists.length ? lists.map((l) => `<div class="li"><span><b>${esc(l.product)}</b><br><span class="muted small">${l.subscribers} print subscriber${l.subscribers === 1 ? '' : 's'}${l.missing_address ? ` · <span style="color:#a16207">${l.missing_address} missing an address (left off labels)</span>` : ''}</span></span>
+          <span class="row"><a class="btn sm" href="/api/print/subscribers.csv?product=${encodeURIComponent(l.product)}">CSV</a>
+          <a class="btn sm primary" href="/api/print/labels.pdf?product=${encodeURIComponent(l.product)}">Mailing labels (PDF)</a></span></div>`).join('')
+          : '<p class="muted">No print subscribers yet. Import your mailing list (People → Import CSV → Newsletter subscribers, format Print) or add a print subscription on a person.</p>'}
+        <p class="hint" style="margin-top:10px">Labels fit standard 30-per-sheet US Letter label paper (Avery 5160 and compatible). Print at 100% scale.</p></div>
+      <div class="card"><h2>Short links &amp; QR codes</h2>
+        <p class="muted small">Put a QR code or short link on a postcard, insert or flyer. Every scan and visit is counted${camps.length ? ', and can be tied to a campaign' : ''}.</p>
+        <form class="row" data-newlink style="align-items:flex-end">
+          <label class="f" style="flex:1;min-width:140px;margin:0">Name<input name="label" placeholder="e.g. Spring postcard"></label>
+          <label class="f" style="flex:2;min-width:200px;margin:0">Goes to<input name="url" required placeholder="https://yourshop.com/page"></label>
+          ${camps.length ? `<label class="f" style="margin:0">Campaign<select name="campaign_id"><option value="">None</option>${camps.map((c) => `<option value="${c.id}">${esc((c.move.title || c.title || c.subject).slice(0, 40))}</option>`).join('')}</select></label>` : ''}
+          <button class="btn primary">Create</button></form>
+        <div class="err" data-linkerr></div>
+        ${links.map((l) => `<div class="qrrow"><img src="/api/links/${l.id}/qr.svg" alt="QR code for ${esc(l.label)}" width="76" height="76">
+          <div style="flex:1;min-width:0"><b>${esc(l.label)}</b><div class="muted small" style="overflow-wrap:anywhere">${esc(l.short_url)} → ${esc(l.url)}</div>
+            <div class="small">${l.scans} scan${l.scans === 1 ? '' : 's'} · ${l.visits} visit${l.visits === 1 ? '' : 's'}${l.campaign_title ? ` · ${esc(l.campaign_title)}` : ''}</div></div>
+          <div class="row" style="flex-direction:column;align-items:stretch;gap:4px"><a class="btn sm" href="/api/links/${l.id}/qr.svg?download=1">Download QR</a>
+            <button class="btn sm" data-copy="${esc(l.short_url)}">Copy link</button><button class="btn sm danger" data-dellink="${l.id}">Delete</button></div></div>`).join('')}
+      </div>
+    </div>`);
+  bindCopy();
+  $('[data-newlink]').onsubmit = async (e) => {
+    e.preventDefault();
+    try { await api('POST', '/api/links', Object.fromEntries(new FormData(e.target))); toast('Link created'); viewPrint(); } catch (err) { $('[data-linkerr]').textContent = err.message; }
+  };
+  $$('[data-dellink]').forEach((b) => { b.onclick = async () => {
+    if (await confirmBox('Delete this link?', 'Printed QR codes pointing to it will stop working.')) { await api('DELETE', `/api/links/${b.dataset.dellink}`); viewPrint(); }
+  }; });
+}

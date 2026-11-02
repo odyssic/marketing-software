@@ -18,6 +18,7 @@ async function route() {
     else if (section === 'people' || section === 'contacts') await viewPeople();
     else if (section === 'pipelines') await viewPipeline(id);
     else if (section === 'products') await viewProducts(id);
+    else if (section === 'email' && id === 'print') await viewPrint();
     else if (section === 'email') await viewEmail(id);
     else if (section === 'campaigns' && id) await viewCampaign(id);
     else if (section === 'settings') viewSettings();
