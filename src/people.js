@@ -30,6 +30,10 @@ const splitName = (full) => {
 };
 
 function createPeople({ getDb, HttpError, parseTags, id, formatMoney }) {
+  // Set later by the workflow engine: onEvent(accountId, event), onTagsAdded(accountId, personId, tags).
+  const hooks = {};
+  // Inside a transaction, hooks wait for the commit; otherwise they run now.
+  const later = async (q, fn) => (q.inTx ? q.afterCommit(fn) : fn());
   // Stage rule (explainable, recomputed after every event):
   //   regular  = 2+ purchases, or an active subscription plus a purchase
   //   customer = 1 purchase
@@ -56,7 +60,15 @@ function createPeople({ getDb, HttpError, parseTags, id, formatMoney }) {
       VALUES (?, ?, ?, ?, ?, ?, COALESCE(?::timestamptz, now()), ?) RETURNING id`,
     accountId, person_id, type, cleanSource(source, ''), Math.max(0, Math.round(value_cents || 0)), campaign_id, occurred_at, JSON.stringify(meta || {}));
     if (recompute && person_id) await recomputeStages(q, [person_id]);
+    if (person_id && hooks.onEvent) {
+      const ev = { id: r.id, person_id, type, source, occurred_at, meta };
+      await later(q, () => hooks.onEvent(accountId, ev).catch((e) => console.error('workflow trigger:', e.message)));
+    }
     return r.id;
+  }
+
+  async function tagsAdded(q, accountId, personId, tags) {
+    if (tags.length && hooks.onTagsAdded) await later(q, () => hooks.onTagsAdded(accountId, personId, tags).catch((e) => console.error('workflow tag trigger:', e.message)));
   }
 
   // Creates the person or merges into an existing one (same email = same person).
@@ -79,12 +91,14 @@ function createPeople({ getDb, HttpError, parseTags, id, formatMoney }) {
       // Newer non-empty values win; blanks never erase what we know.
       await q.run(`UPDATE contacts SET tags = ?, ${cols.map((k) => `${k} = COALESCE(NULLIF(?, ''), ${k})`).join(', ')} WHERE id = ?`,
         JSON.stringify(merged), ...cols.map((k) => fields[k]), existing.id);
+      await tagsAdded(q, accountId, existing.id, merged.filter((t) => !JSON.parse(existing.tags).includes(t)));
       return { id: existing.id, created: false };
     }
     const cols = Object.keys(fields);
     const r = await q.get(`INSERT INTO contacts (account_id, email, tags, source, ${cols.join(', ')})
       VALUES (?, ?, ?, ?, ${cols.map(() => '?').join(', ')}) RETURNING id`,
     accountId, email, JSON.stringify(parseTags(p.tags)), cleanSource(p.source), ...cols.map((k) => fields[k]));
+    await tagsAdded(q, accountId, r.id, parseTags(p.tags));
     return { id: r.id, created: true };
   }
 
@@ -321,7 +335,7 @@ function createPeople({ getDb, HttpError, parseTags, id, formatMoney }) {
     });
   }
 
-  return { upsertContact, logEvent, recomputeStages, personOut, register, importPeople, importOrders, importSubscribers, importListens, exportAll, toCsv };
+  return { hooks, tagsAdded, upsertContact, logEvent, recomputeStages, personOut, register, importPeople, importOrders, importSubscribers, importListens, exportAll, toCsv };
 }
 
 module.exports = { createPeople, STAGES, EVENT_TYPES, SOURCES, ADDRESS, toCents, toDate, splitName, iso };

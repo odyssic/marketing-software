@@ -19,10 +19,10 @@ function getTransport() {
 
 const isLive = () => Boolean(process.env.SMTP_HOST);
 
-async function sendEmail({ from, to, subject, text }) {
+async function sendEmail({ from, to, subject, text, html }) {
   const t = getTransport();
   if (!t) return { status: 'logged' };
-  await t.sendMail({ from, to, subject, text });
+  await t.sendMail({ from, to, subject, text, ...(html ? { html } : {}) });
   return { status: 'sent' };
 }
 

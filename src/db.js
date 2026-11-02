@@ -22,6 +22,19 @@ function wrap(exec) {
   };
 }
 
+// Runs fn in a transaction. Work that must see committed data (e.g. starting
+// workflows for new events) is queued with q.afterCommit(fn) and runs after.
+async function runTx(begin, fn) {
+  const after = [];
+  const result = await begin((t) => {
+    t.inTx = true;
+    t.afterCommit = (f) => after.push(f);
+    return fn(t);
+  });
+  for (const f of after) await f();
+  return result;
+}
+
 function openPostgres(url) {
   const postgres = require('postgres');
   // prepare: false is required by the pooler's transaction mode.
@@ -37,7 +50,7 @@ function openPostgres(url) {
     return { rows, count: rows.count };
   };
   const db = wrap(exec(sql));
-  db.tx = (fn) => sql.begin((t) => fn(wrap(exec(t))));
+  db.tx = (fn) => runTx((cb) => sql.begin((t) => cb(wrap(exec(t)))), fn);
   db.close = () => sql.end();
   return db;
 }
@@ -51,7 +64,7 @@ async function openPGlite(dir) {
     return { rows: r.rows, count: r.affectedRows ?? 0 };
   };
   const db = wrap(exec(pg));
-  db.tx = (fn) => pg.transaction((t) => fn(wrap(exec(t))));
+  db.tx = (fn) => runTx((cb) => pg.transaction((t) => cb(wrap(exec(t)))), fn);
   db.close = () => pg.close();
   return db;
 }

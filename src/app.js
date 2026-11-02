@@ -11,6 +11,8 @@ const { createPeople, ADDRESS } = require('./people');
 const { createLevers } = require('./levers');
 const { registerDashboard } = require('./dashboard');
 const { registerAccounts } = require('./accounts');
+const { createMessaging } = require('./messaging');
+const { createWorkflows } = require('./workflows');
 
 const slugify = (s) => String(s || '').toLowerCase().normalize('NFKD').replace(/[^\w\s-]/g, '')
   .trim().replace(/[\s_]+/g, '-').replace(/-+/g, '-').slice(0, 60) || 'page';
@@ -42,7 +44,7 @@ function createApp({ dbPath } = {}) {
   const app = express();
   app.set('trust proxy', true);
   app.disable('x-powered-by');
-  app.use(async (req, res, next) => { try { await init(); next(); } catch (e) { next(e); } });
+  app.use(async (req, res, next) => { try { await init(); lastBase = `${req.protocol}://${req.host}`; next(); } catch (e) { next(e); } });
 
   const baseUrl = (req) => process.env.PUBLIC_URL || `${req.protocol}://${req.host}`; // req.host honours X-Forwarded-Host
   const unsubToken = (contactId) => `${contactId}.${crypto.createHmac('sha256', secret).update(`unsub:${contactId}`).digest('hex').slice(0, 24)}`;
@@ -93,6 +95,13 @@ function createApp({ dbPath } = {}) {
   const people = createPeople({ getDb: () => db, HttpError, parseTags, id, formatMoney });
   const { upsertContact, logEvent } = people;
   const levers = createLevers({ getDb: () => db, formatMoney });
+  // Links in emails sent by background jobs need an absolute base URL.
+  let lastBase = null;
+  const publicBase = () => process.env.PUBLIC_URL || lastBase || `http://localhost:${process.env.PORT || 3000}`;
+  const messaging = createMessaging({ getDb: () => db, getSecret: () => secret, publicBase, logEvent });
+  const workflows = createWorkflows({ getDb: () => db, HttpError, id, people, messaging, getAccount: (a) => getAccount(a) });
+  people.hooks.onEvent = workflows.onEvent;
+  people.hooks.onTagsAdded = workflows.onTagsAdded;
   const getAccount = (accountId) => db.get('SELECT * FROM accounts WHERE id = ?', accountId);
   // Lever metrics plus which lever to focus on (pinned, or the weakest).
   const leversFor = async (accountId) => {
@@ -361,6 +370,7 @@ function createApp({ dbPath } = {}) {
       if (isUniqueViolation(e)) throw new HttpError(409, 'Another person already uses this email');
       throw e;
     }
+    if (b.tags !== undefined) await people.tagsAdded(db, req.accountId, c.id, parseTags(b.tags).filter((t) => !JSON.parse(c.tags).includes(t)));
     res.json(contactOut(await db.get('SELECT * FROM contacts WHERE id = ?', c.id)));
   });
 
@@ -821,6 +831,7 @@ function createApp({ dbPath } = {}) {
   });
 
   people.register(api);
+  workflows.register(api);
   registerAccounts(api, { getDb: () => db, HttpError, id });
   registerDashboard(api, { getDb: () => db, HttpError, leversFor, formatMoney, getAccount, weeklyMove: (...a) => moves?.weeklyMove(...a) });
 
@@ -836,6 +847,8 @@ function createApp({ dbPath } = {}) {
     await auth.createSession(db, req, res, link.user_id, m.account_id);
     res.redirect(303, '/#/');
   });
+
+  messaging.registerTracking(app);
 
   // ---------- Public funnel pages ----------
   const findPublicStep = async (funnelSlug, stepSlug) => {
@@ -1026,6 +1039,11 @@ ${order.status === 'paid' ? '<p>This order is already paid.</p>' : `<label>Name<
     if (req.path.startsWith('/api')) return res.status(status).json({ error: status === 500 ? 'Something went wrong' : err.message });
     res.status(status).send(status === 500 ? 'Something went wrong' : esc(err.message));
   });
+
+  // Background jobs (workflow runner). Called by server.js every minute and by
+  // the scheduled Netlify function.
+  app.runJobs = async () => { await init(); return workflows.processDue(); };
+  app.messaging = messaging; // for tests (signing tracking links)
 
   app.close = async () => { if (ready) { await ready; await db.close(); } };
   return app;

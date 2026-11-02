@@ -12,6 +12,8 @@ async function route() {
     else if (section === 'funnels' && id) await viewFunnel(id);
     else if (section === 'funnels') await viewFunnels();
     else if (section === 'editor') await viewEditor(id);
+    else if (section === 'workflows' && id) await viewWorkflow(id);
+    else if (section === 'workflows') await viewWorkflows();
     else if ((section === 'people' || section === 'contacts') && id) await viewPerson(id);
     else if (section === 'people' || section === 'contacts') await viewPeople();
     else if (section === 'pipelines') await viewPipeline(id);

@@ -116,6 +116,7 @@ const LOGO = '<svg viewBox="0 0 32 32" aria-hidden="true"><rect x="3" y="3" widt
 const NAV = [
   ['', '📊', 'Dashboard'],
   ['funnels', '🧲', 'Funnels'],
+  ['workflows', '⚡', 'Workflows'],
   ['people', '👥', 'People'],
   ['pipelines', '📈', 'Pipelines'],
   ['products', '🛒', 'Products'],
