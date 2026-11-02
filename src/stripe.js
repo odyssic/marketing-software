@@ -44,6 +44,8 @@ function createCheckoutSession(secretKey, { product, extra = null, orderId, emai
     },
     // Order bump: a second one-time item in the same payment.
     ...(extra ? { 1: { quantity: 1, price_data: { currency: extra.currency, unit_amount: extra.price_cents, product_data: { name: extra.name } } } } : {}) },
+    // One-time payments save the card so a later upsell can be one click.
+    ...(recurring ? {} : { payment_intent_data: { setup_future_usage: 'off_session' }, customer_creation: 'always' }),
     client_reference_id: orderId,
     customer_email: email || undefined,
     metadata: { order_id: orderId },
@@ -52,7 +54,12 @@ function createCheckoutSession(secretKey, { product, extra = null, orderId, emai
   });
 }
 
-const retrieveCheckoutSession = (secretKey, id) => call(secretKey, 'GET', `/checkout/sessions/${encodeURIComponent(id)}`);
+const retrieveCheckoutSession = (secretKey, id) => call(secretKey, 'GET', `/checkout/sessions/${encodeURIComponent(id)}?expand[]=payment_intent`);
+
+// One-click upsell: charge the card saved at the first checkout, without the buyer present.
+const chargeSaved = (secretKey, { amount, currency, customer, paymentMethod, description, orderId }) => call(secretKey, 'POST', '/payment_intents', {
+  amount, currency, customer, payment_method: paymentMethod, off_session: 'true', confirm: 'true', description, metadata: { order_id: orderId },
+});
 
 // Verifies a Stripe-Signature header (scheme v1) and returns the parsed event.
 function verifyWebhook(rawBody, header, secret, toleranceSec = 300) {
@@ -71,4 +78,4 @@ function verifyWebhook(rawBody, header, secret, toleranceSec = 300) {
 // no_payment_required).
 const isPaid = (session) => ['paid', 'no_payment_required'].includes(session.payment_status);
 
-module.exports = { createCheckoutSession, retrieveCheckoutSession, verifyWebhook, isPaid };
+module.exports = { createCheckoutSession, retrieveCheckoutSession, chargeSaved, verifyWebhook, isPaid };

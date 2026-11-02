@@ -155,7 +155,81 @@ function registerFunnelKit(api, { getDb, HttpError, id, getFunnel, getStep }) {
     res.json({ ok: true });
   });
 
+  // ---------- Split tests ----------
+  // Results since the test started: visitors and conversions (signups + sales) per version.
+  async function testResults(step) {
+    const rows = await db().all(`SELECT variant, COUNT(*) FILTER (WHERE type = 'view')::int AS views,
+        COUNT(*) FILTER (WHERE type IN ('optin', 'sale'))::int AS conversions
+      FROM page_events WHERE step_id = ? AND created_at >= ? GROUP BY variant`, step.id, step.test_started_at);
+    const get = (v) => { const r = rows.find((x) => x.variant === v) || { views: 0, conversions: 0 }; return { ...r, rate: r.views ? r.conversions / r.views : 0 }; };
+    return { a: get('a'), b: get('b') };
+  }
+  const MIN_VISITS = () => Number(process.env.TEST_MIN_VISITS || 100);
+  const plainRate = (r) => (r.views ? `${Math.round(r.rate * 100)} of every 100 visitors converted (${r.conversions} of ${r.views})` : 'No visitors yet');
+
+  // Picks a winner once both versions have enough visitors and one converts better.
+  async function decideWinner(stepId) {
+    const step = await db().get('SELECT * FROM funnel_steps WHERE id = ?', stepId);
+    if (!step?.variant_blocks || step.test_winner) return step?.test_winner || null;
+    const r = await testResults(step);
+    if (r.a.views < MIN_VISITS() || r.b.views < MIN_VISITS() || r.a.rate === r.b.rate) return null;
+    const winner = r.b.rate > r.a.rate ? 'b' : 'a';
+    await db().run('UPDATE funnel_steps SET test_winner = ? WHERE id = ? AND test_winner IS NULL', winner, step.id);
+    return winner;
+  }
+
+  // Version B: a copy of the page, or the suggested fix already applied.
+  function withSuggestion(step) {
+    const blocks = JSON.parse(step.blocks).map((b) => ({ ...b, id: b.id }));
+    const lever = LEVER_OF_PAGE(step);
+    if (lever === 'lead') blocks.forEach((b) => { if (b.type === 'form') { b.collectName = false; b.collectPhone = false; } });
+    if (lever === 'conversion') {
+      const i = blocks.findIndex((b) => b.type === 'pricing');
+      if (i > 0) blocks.unshift(...blocks.splice(i, 1));
+      if (!blocks.some((b) => b.type === 'testimonial')) blocks.splice(1, 0, { id: `t${Date.now().toString(36)}`, type: 'testimonial', quote: 'Add a short quote from a happy customer here.', name: 'Customer name', detail: '' });
+    }
+    if (lever === 'upsell') blocks.forEach((b) => { if (b.type === 'pricing') { b.features = String(b.features || '').split('\n').slice(0, 3).join('\n'); } if (b.type === 'button' && b.url === '#no') b.label = 'No thanks'; });
+    if (lever === 'continuity' && !blocks.some((b) => b.type === 'button')) blocks.push({ id: `b${Date.now().toString(36)}`, type: 'button', label: 'Visit the shop', url: 'https://example.com', align: 'center' });
+    return blocks;
+  }
+
+  api.post('/steps/:id/variant', async (req, res) => {
+    const s = await getStep(req.accountId, req.params.id);
+    if (s.variant_blocks) throw new HttpError(409, 'A test is already running on this page');
+    const blocks = req.body?.mode === 'suggestion' ? withSuggestion(s) : JSON.parse(s.blocks);
+    await db().run('UPDATE funnel_steps SET variant_blocks = ?, variant_settings = ?, test_started_at = now(), test_winner = NULL WHERE id = ?',
+      JSON.stringify(blocks), s.settings, s.id);
+    res.status(201).json({ ok: true });
+  });
+
+  api.get('/steps/:id/test', async (req, res) => {
+    const s = await getStep(req.accountId, req.params.id);
+    if (!s.variant_blocks) return res.json({ running: false });
+    const winner = await decideWinner(s.id);
+    const r = await testResults(s);
+    res.json({ running: !winner, winner, started_at: s.test_started_at, min_visits: MIN_VISITS(),
+      a: { ...r.a, plain: plainRate(r.a) }, b: { ...r.b, plain: plainRate(r.b) } });
+  });
+
+  // B becomes the page (the old A is kept in version history).
+  api.post('/steps/:id/variant/promote', async (req, res) => {
+    const s = await getStep(req.accountId, req.params.id);
+    if (!s.variant_blocks) throw new HttpError(400, 'No B version to keep');
+    await db().tx(async (t) => {
+      await snapshot(t, s, 'before keeping version B');
+      await t.run('UPDATE funnel_steps SET blocks = variant_blocks, settings = COALESCE(variant_settings, settings), variant_blocks = NULL, variant_settings = NULL, test_winner = NULL, test_started_at = NULL WHERE id = ?', s.id);
+    });
+    res.json({ ok: true });
+  });
+
+  api.delete('/steps/:id/variant', async (req, res) => {
+    const s = await getStep(req.accountId, req.params.id);
+    await db().run('UPDATE funnel_steps SET variant_blocks = NULL, variant_settings = NULL, test_winner = NULL, test_started_at = NULL WHERE id = ?', s.id);
+    res.json({ ok: true });
+  });
+
   return {
+    decideWinner,
     // Called after each page save: keeps a checkpoint at most every 5 minutes.
     async autosaveCheckpoint(step) {
       const last = await db().get('SELECT created_at FROM step_versions WHERE step_id = ? ORDER BY id DESC LIMIT 1', step.id);

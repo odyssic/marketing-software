@@ -20,7 +20,7 @@ const fakeStripe = http.createServer((req, res) => {
         customer_details: { email: 'buyer@example.com', name: 'Bea Buyer' } };
       return res.end(JSON.stringify(sessions[id]));
     }
-    const m = req.url.match(/^\/v1\/checkout\/sessions\/(.+)$/);
+    const m = req.url.match(/^\/v1\/checkout\/sessions\/([^?]+)/);
     if (m && sessions[m[1]]) return res.end(JSON.stringify(sessions[m[1]]));
     res.statusCode = 404; res.end(JSON.stringify({ error: { message: 'No such session' } }));
   });

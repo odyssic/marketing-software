@@ -35,6 +35,18 @@ function renderPricing(b, ctx) {
   const btnStyle = `background:${color(b.buttonColor, ctx.accent)}`;
   const label = `${esc(b.buttonLabel || 'Buy now')}&nbsp;&rarr;${b.buttonSubtext ? `<small>${esc(b.buttonSubtext)}</small>` : ''}`;
   let cta;
+  // One-click upsell: the buyer just paid, so "Yes" charges the same card.
+  if (product && ctx.oneClick && product.billing === 'one_time') {
+    return `<div class="pricing">
+    ${product.image_url ? `<img class="pimg" src="${esc(product.image_url)}" alt="${esc(product.name)}" loading="lazy">` : ''}
+    ${b.badge ? `<span class="badge">${esc(b.badge)}</span>` : ''}
+    <div class="price">${price ? `<sup>${esc(price.symbol)}</sup>${esc(price.amount)}` : ''}</div>
+    ${b.featuresTitle ? `<h3>${esc(b.featuresTitle)}</h3>` : ''}
+    ${features.length ? `<ul class="features">${features.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
+    <form method="post" action="${esc(ctx.oneClick)}"><input type="hidden" name="block" value="${esc(b.id)}">
+      <button class="btn cta" style="${btnStyle}">${label}</button></form>
+    <p class="oneclick">One click: added to the card you just used. No need to enter it again.</p></div>`;
+  }
   if (product) {
     const blocked = ctx.preview ? ' onsubmit="event.preventDefault();alert(\'Checkout is disabled in preview\')"' : '';
     // Order bump: one checkbox that adds a second item to the same payment.
@@ -49,12 +61,12 @@ function renderPricing(b, ctx) {
   }
   return `<div class="pricing">
     ${product?.image_url ? `<img class="pimg" src="${esc(product.image_url)}" alt="${esc(product.name)}" loading="lazy">` : ''}
-    ${b.badge ? `<span class="badge">${esc(b.badge)}</span>` : ''}
+    ${b.badge ? `<span class="badge"${ctx.preview ? ' data-f="badge"' : ''}>${esc(b.badge)}</span>` : ''}
     ${b.compareText ? `<div class="was">${esc(b.compareText)}</div>` : ''}
     <div class="price">${price ? `<sup>${esc(price.symbol)}</sup>${esc(price.amount)}` : esc(b.priceText || '$0')}</div>
     ${billing ? `<div class="billing">${esc(billing)}</div>` : ''}
     ${b.note ? `<div class="note">${esc(b.note)}</div>` : ''}
-    ${b.featuresTitle ? `<h3>${esc(b.featuresTitle)}</h3>` : ''}
+    ${b.featuresTitle ? `<h3${ctx.preview ? ' data-f="featuresTitle"' : ''}>${esc(b.featuresTitle)}</h3>` : ''}
     ${features.length ? `<ul class="features">${features.map((f) => `<li>${esc(f)}</li>`).join('')}</ul>` : ''}
     ${cta}</div>`;
 }
@@ -66,14 +78,16 @@ function youtubeEmbed(url) {
 
 function renderBlock(b, ctx, index) {
   const a = align(b.align);
+  // In the editor preview, text marked with data-f can be clicked and typed into.
+  const f = (field) => (ctx.preview ? ` data-f="${field}"` : '');
   switch (b.type) {
     case 'hero': {
       const bg = color(b.background, '#0f766e');
       const fg = color(b.textColor, '#ffffff');
       // The wave is filled with the page background so the band blends into the page below it.
       return `<section class="hero${index === 0 ? ' first' : ''}" style="background:linear-gradient(180deg,color-mix(in srgb,${bg} 75%,#000) 0%,${bg} 100%);color:${fg}">
-        ${b.eyebrow ? `<div class="eyebrow">${esc(b.eyebrow)}</div>` : ''}
-        <h1>${multiline(b.text)}</h1>${b.subtext ? `<p>${multiline(b.subtext)}</p>` : ''}
+        ${b.eyebrow ? `<div class="eyebrow"${f('eyebrow')}>${esc(b.eyebrow)}</div>` : ''}
+        <h1${f('text')}>${multiline(b.text)}</h1>${b.subtext ? `<p${f('subtext')}>${multiline(b.subtext)}</p>` : ''}
         <svg class="wave" viewBox="0 0 1440 90" preserveAspectRatio="none" aria-hidden="true">
           <path d="M0 40 C 300 0 500 70 800 45 S 1200 10 1440 40 V90 H0Z" fill="${ctx.background}" opacity=".45"/>
           <path d="M0 60 C 350 25 600 85 900 60 S 1250 40 1440 55 V90 H0Z" fill="${ctx.background}"/></svg></section>`;
@@ -82,15 +96,15 @@ function renderBlock(b, ctx, index) {
       return renderPricing(b, ctx);
     case 'heading': {
       const tag = b.size === 'small' ? 'h3' : b.size === 'medium' ? 'h2' : 'h1';
-      return `<${tag} style="text-align:${a}">${multiline(b.text)}</${tag}>`;
+      return `<${tag} style="text-align:${a}"${f('text')}>${multiline(b.text)}</${tag}>`;
     }
     case 'text':
-      return `<p class="txt" style="text-align:${a}">${multiline(b.text)}</p>`;
+      return `<p class="txt" style="text-align:${a}"${f('text')}>${multiline(b.text)}</p>`;
     case 'image':
       return b.url ? `<div style="text-align:${a}"><img src="${esc(safeUrl(b.url))}" alt="${esc(b.alt)}"></div>` : '';
     case 'button': {
       const href = b.url === '#next' || !b.url ? ctx.nextUrl : b.url === '#no' ? ctx.noUrl : safeUrl(b.url);
-      return `<div style="text-align:${a}"><a class="btn" href="${esc(href)}">${esc(b.label || 'Continue')}</a></div>`;
+      return `<div style="text-align:${a}"><a class="btn" href="${esc(href)}"${f('label')}>${esc(b.label || 'Continue')}</a></div>`;
     }
     case 'video': {
       const src = youtubeEmbed(b.url);
@@ -107,11 +121,11 @@ function renderBlock(b, ctx, index) {
       return `<form class="optin" method="post" action="${esc(ctx.formAction)}"${disabled}>
         <input type="hidden" name="block" value="${esc(b.id)}">
         <input name="website" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true">
-        ${fields}<button class="btn" type="submit">${esc(b.buttonLabel || 'Get access')}</button></form>`;
+        ${fields}<button class="btn" type="submit"${ctx.preview ? ' data-f="buttonLabel"' : ''}>${esc(b.buttonLabel || 'Get access')}</button></form>`;
     }
     case 'testimonial':
       return `<figure class="testimonial">${b.photo && /^https?:/i.test(b.photo) ? `<img src="${esc(b.photo)}" alt="" loading="lazy">` : ''}
-        <blockquote>“${esc(b.quote || '')}”</blockquote><figcaption>${esc(b.name || '')}${b.detail ? ` · <span>${esc(b.detail)}</span>` : ''}</figcaption></figure>`;
+        <blockquote${ctx.preview ? ' data-f="quote"' : ''}>“${esc(b.quote || '')}”</blockquote><figcaption>${esc(b.name || '')}${b.detail ? ` · <span>${esc(b.detail)}</span>` : ''}</figcaption></figure>`;
     case 'spacer':
       return `<div style="height:${Math.min(Math.max(Number(b.height) || 40, 0), 400)}px"></div>`;
     case 'divider':
@@ -121,13 +135,13 @@ function renderBlock(b, ctx, index) {
   }
 }
 
-function renderPage({ title, blocks, settings = {}, nextUrl = '#', noUrl = '#', formAction = '#', buyAction = '#', products = {}, preview = false }) {
+function renderPage({ title, blocks, settings = {}, nextUrl = '#', noUrl = '#', formAction = '#', buyAction = '#', products = {}, preview = false, oneClick = null }) {
   const bg = color(settings.background, '#ffffff');
   const fg = color(settings.textColor, '#1f2937');
   const accent = color(settings.accent, '#4f46e5');
   const width = Math.min(Math.max(Number(settings.width) || 720, 360), 1200);
-  const ctx = { nextUrl, noUrl, formAction, buyAction, products, preview, accent, background: bg };
-  const body = (blocks || []).map((b, i) => renderBlock(b, ctx, i)).join('\n');
+  const ctx = { nextUrl, noUrl, formAction, buyAction, products, preview, accent, background: bg, oneClick };
+  const body = (blocks || []).map((b, i) => (preview ? `<div data-bi="${i}">${renderBlock(b, ctx, i)}</div>` : renderBlock(b, ctx, i))).join('\n');
   return `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${esc(settings.seoTitle || title)}</title>
@@ -162,11 +176,16 @@ body{overflow-x:hidden}
 .features li::before{content:"✓";position:absolute;left:0;top:-1px;width:22px;height:22px;border:2px solid ${accent};color:${accent};border-radius:4px;display:grid;place-items:center;font-weight:800;font-size:.85rem}
 .testimonial{margin:28px auto;max-width:560px;text-align:center}.testimonial img{width:64px;height:64px;border-radius:50%;object-fit:cover}.testimonial blockquote{font-size:1.15rem;font-style:italic;margin:10px 0}.testimonial figcaption{font-weight:600}.testimonial figcaption span{font-weight:400;opacity:.7}.pimg{width:100%;max-height:320px;object-fit:cover;border-radius:10px;margin-bottom:14px}.bump{display:flex;gap:10px;align-items:flex-start;text-align:left;border:2px dashed #f59e0b;background:#fffbeb;border-radius:8px;padding:12px;margin:0 0 14px;cursor:pointer;font-size:.95rem}.bump input{margin-top:4px;width:18px;height:18px}.pricing form{margin:0}.cta{display:block;width:100%;font-size:1.6rem;padding:16px 20px;border-radius:6px;font-weight:700}
 .cta small{display:block;font-size:.8rem;font-weight:400;margin-top:6px;opacity:.95}
-.warn{color:#b45309;font-size:.85rem}
+.warn{color:#b45309;font-size:.85rem}.oneclick{font-size:.85rem;opacity:.75;margin:10px 0 0}
 @media(max-width:560px){.features{grid-template-columns:1fr}.price{font-size:4.2rem}.cta{font-size:1.25rem}}
 </style></head><body><main>
 ${body || '<p style="text-align:center;opacity:.5">This page is empty. Add blocks in the editor.</p>'}
-</main></body></html>`;
+</main>${preview ? PREVIEW_EDIT_SCRIPT : ''}</body></html>`;
 }
+
+// Click-to-edit in the editor preview: click any text to type over it; the
+// change goes to the editor (postMessage), which saves it to the block.
+const PREVIEW_EDIT_SCRIPT = `<style>[data-f]{outline:1px dashed transparent;outline-offset:3px;cursor:text}[data-f]:hover{outline-color:#818cf8}[data-f][contenteditable]{outline:2px solid #4f46e5}[data-bi]:hover{box-shadow:inset 0 0 0 1px #c7d2fe}</style>
+<script>document.addEventListener('click',function(e){var blk=e.target.closest('[data-bi]');var el=e.target.closest('[data-f]');if(e.target.closest('a,button'))e.preventDefault();if(blk)parent.postMessage({ff:'open',i:+blk.dataset.bi},'*');if(!el||el.isContentEditable)return;e.preventDefault();el.contentEditable='true';el.focus();el.oninput=function(){parent.postMessage({ff:'edit',i:+blk.dataset.bi,f:el.dataset.f,v:el.innerText.replace(/^\\u201c|\\u201d$/g,'').trim()},'*');};el.onkeydown=function(k){if(k.key==='Escape'||(k.key==='Enter'&&el.dataset.f!=='text'&&el.dataset.f!=='quote'&&el.dataset.f!=='subtext')){k.preventDefault();el.blur();}};el.onblur=function(){el.removeAttribute('contenteditable');};},true);<\/script>`;
 
 module.exports = { renderPage, esc, formatMoney };

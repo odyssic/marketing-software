@@ -158,7 +158,10 @@ async function viewFunnel(id) {
     if (flow.leak) {
       const st = byId()[flow.leak.step_id];
       $('[data-leak]').innerHTML = `<div class="banner leak"><b>🚩 Leakiest step: “${esc(st?.name || '')}”</b> (${esc(flow.leak.plain)}).
-        <br>Try this: ${esc(flow.leak.suggestion)} <a class="btn sm" href="#/editor/${flow.leak.step_id}" style="margin-left:6px">Edit page</a></div>`;
+        <br>Try this: ${esc(flow.leak.suggestion)} <a class="btn sm" href="#/editor/${flow.leak.step_id}" style="margin-left:6px">Edit page</a>
+        ${st?.variant_blocks ? '<span class="pill">A/B test running</span>' : '<button class="btn sm primary" data-testfix>🧪 Test the fix</button>'}</div>`;
+      const tf = $('[data-testfix]');
+      if (tf) tf.onclick = async () => { await api('POST', `/api/steps/${flow.leak.step_id}/variant`, { mode: 'suggestion' }); toast('Split test started with the fix as version B'); location.hash = `#/editor/${flow.leak.step_id}?v=b`; };
     }
   }).catch(() => {});
   const pub = $('[data-publish]');
@@ -193,6 +196,7 @@ async function viewFunnel(id) {
     nodesEl.innerHTML = m.steps.map((s) => `
       <div class="node ${s.id === m.entry ? 'start' : ''} ${m.flow?.leak?.step_id === s.id ? 'leaky' : ''}" data-node="${s.id}" style="left:${s.x}px;top:${s.y}px;width:${NODE_W}px;${m.flow ? `border-top:4px solid ${LEVER_UI[m.flow.levers[s.id]]?.color || 'var(--line)'}` : ''}">
         ${m.flow?.leak?.step_id === s.id ? '<span class="leakpill" title="Fewest people go on from here">🚩 Leakiest step</span>' : ''}
+        ${s.variant_blocks ? '<span class="abpill" title="Split test running on this page">A/B</span>' : ''}
         <div class="node-in" title="Visitors arrive here"></div>
         ${s.id === m.entry ? '<span class="startpill">▶ START</span>' : ''}
         <div class="nhead"><span class="nicon">${pageIcon(s)}</span><div style="min-width:0"><div class="nname">${esc(s.name)}</div>
@@ -398,7 +402,12 @@ async function viewFunnel(id) {
 
   $('[data-rename]').onclick = async () => {
     const r = await modal('Funnel settings', `<label class="f">Name<input name="name" required value="${esc(f.name)}"></label>
-      <label class="f">URL <span class="hint">${esc(state.me.baseUrl)}/f/<b>this-part</b></span><input name="slug" required value="${esc(f.slug)}"></label>`,
+      <label class="f">URL <span class="hint">${esc(state.me.baseUrl)}/f/<b>this-part</b></span><input name="slug" required value="${esc(f.slug)}"></label>
+      <label class="f">Your own domain <span class="hint">optional, e.g. shop.yourbusiness.com</span><input name="domain" value="${esc(f.domain || '')}" placeholder="shop.yourbusiness.com"></label>
+      <details class="hint"><summary>How to connect a domain</summary><ol style="padding-left:18px;margin:6px 0">
+        <li>At your domain registrar, add a <b>CNAME</b> record for <b>shop</b> pointing to <b>${esc(new URL(state.me.baseUrl).hostname)}</b>.</li>
+        <li>In Netlify → Domain management, add <b>shop.yourbusiness.com</b> as a domain alias. Netlify issues the HTTPS certificate automatically.</li>
+        <li>Publish the funnel. Its start page opens at the domain, and every page at /page-name.</li></ol></details>`,
     { onSubmit: (v) => api('PUT', `/api/funnels/${id}`, v) });
     if (r) { toast('Saved'); reload(); }
   };

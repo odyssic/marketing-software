@@ -48,7 +48,35 @@ function createApp({ dbPath } = {}) {
   const app = express();
   app.set('trust proxy', true);
   app.disable('x-powered-by');
-  app.use(async (req, res, next) => { try { await init(); lastBase = `${req.protocol}://${req.host}`; next(); } catch (e) { next(e); } });
+  app.use(async (req, res, next) => { try { await init(); next(); } catch (e) { next(e); } });
+
+  // Custom domains: a funnel can live at its own domain (e.g. shop.example.com).
+  // Requests for that domain are served from the funnel's pages. On Netlify an
+  // edge function forwards them as /d/<host>/<path>; locally the Host header is used.
+  const ownHost = (h) => !h || h === 'localhost' || /^127\.|^\[?::1/.test(h) || h.endsWith('.netlify.app')
+    || (process.env.APP_HOSTS || '').split(',').map((x) => x.trim().toLowerCase()).includes(h)
+    || (process.env.PUBLIC_URL && new URL(process.env.PUBLIC_URL).hostname === h);
+  const domainCache = new Map();
+  const funnelForDomain = async (host) => {
+    const hit = domainCache.get(host);
+    if (hit && hit.at > Date.now() - 30e3) return hit.slug;
+    const f = await db.get("SELECT slug FROM funnels WHERE domain = ? AND status = 'live'", host);
+    if (f) domainCache.set(host, { slug: f.slug, at: Date.now() }); // only remember hits, so a fresh publish shows up at once
+    return f?.slug || null;
+  };
+  const PASS = /^\/(t|s|checkout|stripe|unsubscribe|f)\//;
+  app.use(async (req, res, next) => {
+    let host = String(req.hostname || '').toLowerCase();
+    let path = req.path;
+    const viaEdge = req.path.match(/^\/d\/([a-z0-9.-]+)(\/.*)?$/i);
+    if (viaEdge) { host = viaEdge[1].toLowerCase(); path = viaEdge[2] || '/'; } else if (ownHost(host)) { lastBase = `${req.protocol}://${req.host}`; return next(); }
+    if (PASS.test(path)) { req.url = path + (req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : ''); return next(); }
+    const slug = await funnelForDomain(host).catch(() => null);
+    if (!slug) return res.status(404).type('text').send('No funnel is published at this address.');
+    const q = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
+    req.url = `/f/${slug}${path === '/' ? '' : path}${q}`;
+    next();
+  });
 
   const baseUrl = (req) => process.env.PUBLIC_URL || `${req.protocol}://${req.host}`; // req.host honours X-Forwarded-Host
   const unsubToken = (contactId) => `${contactId}.${crypto.createHmac('sha256', secret).update(`unsub:${contactId}`).digest('hex').slice(0, 24)}`;
@@ -74,7 +102,8 @@ function createApp({ dbPath } = {}) {
     if (!st) throw new HttpError(400, 'That page isn’t part of this funnel');
     return st;
   };
-  const stepOut = (s) => ({ ...s, blocks: JSON.parse(s.blocks), settings: JSON.parse(s.settings) });
+  const stepOut = (s) => ({ ...s, blocks: JSON.parse(s.blocks), settings: JSON.parse(s.settings),
+    variant_blocks: s.variant_blocks ? JSON.parse(s.variant_blocks) : null, variant_settings: s.variant_settings ? JSON.parse(s.variant_settings) : null });
   const contactOut = (c) => people.personOut(c);
   const uniqueFunnelSlug = async (q, name) => {
     let slug = slugify(name);
@@ -132,7 +161,7 @@ function createApp({ dbPath } = {}) {
 
   // Marks an order paid and adds the buyer to contacts, tagged as a customer.
   // Idempotent: the success redirect and the Stripe webhook can both call it.
-  async function fulfilOrder(order, { email, name = '', sessionId } = {}) {
+  async function fulfilOrder(order, { email, name = '', sessionId, customer = null, paymentMethod = null } = {}) {
     await db.tx(async (t) => {
       const cur = await t.get('SELECT status FROM orders WHERE id = ? FOR UPDATE', order.id);
       if (cur.status === 'paid') return;
@@ -143,15 +172,16 @@ function createApp({ dbPath } = {}) {
         tags: ['customer', ...parseTags(product?.tag)], source: 'funnel',
       });
       await t.run(`UPDATE orders SET status = 'paid', paid_at = now(), contact_id = ?, email = ?,
-        stripe_session_id = COALESCE(?, stripe_session_id) WHERE id = ?`,
-      contact.id, String(email || order.email).toLowerCase(), sessionId ?? null, order.id);
+        stripe_session_id = COALESCE(?, stripe_session_id), stripe_customer = COALESCE(?, stripe_customer),
+        stripe_payment_method = COALESCE(?, stripe_payment_method) WHERE id = ?`,
+      contact.id, String(email || order.email).toLowerCase(), sessionId ?? null, customer, paymentMethod, order.id);
       await logEvent(t, order.account_id, {
         person_id: contact.id, type: 'purchase', source: order.source || 'funnel', value_cents: order.amount_cents,
         meta: { order_id: order.id, product: order.product_name, funnel_id: order.funnel_id },
       });
       if (order.funnel_id && order.step_id) {
-        await t.run("INSERT INTO page_events (account_id, funnel_id, step_id, type, contact_id) VALUES (?, ?, ?, 'sale', ?)",
-          order.account_id, order.funnel_id, order.step_id, contact.id);
+        await t.run("INSERT INTO page_events (account_id, funnel_id, step_id, type, contact_id, variant) VALUES (?, ?, ?, 'sale', ?, ?)",
+          order.account_id, order.funnel_id, order.step_id, contact.id, order.variant || 'a');
       }
     });
   }
@@ -541,8 +571,16 @@ function createApp({ dbPath } = {}) {
     if (slug !== f.slug && await db.get('SELECT 1 FROM funnels WHERE slug = ?', slug)) {
       throw new HttpError(409, 'That URL is already taken, try another');
     }
-    await db.run('UPDATE funnels SET name = ?, slug = ? WHERE id = ?', name, slug, f.id);
-    res.json({ ok: true, slug });
+    let domain = f.domain;
+    if (req.body?.domain !== undefined) {
+      domain = String(req.body.domain || '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '') || null;
+      if (domain && !/^(?=.{4,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$/.test(domain)) throw new HttpError(400, 'Enter a domain like shop.yourbusiness.com');
+      if (domain && ownHost(domain)) throw new HttpError(400, 'That’s the app’s own address; use a domain of your own');
+      if (domain && await db.get('SELECT 1 FROM funnels WHERE domain = ? AND id <> ?', domain, f.id)) throw new HttpError(409, 'Another funnel already uses that domain');
+    }
+    await db.run('UPDATE funnels SET name = ?, slug = ?, domain = ? WHERE id = ?', name, slug, domain, f.id);
+    domainCache.clear();
+    res.json({ ok: true, slug, domain });
   });
 
   api.delete('/funnels/:id', async (req, res) => {
@@ -602,6 +640,13 @@ function createApp({ dbPath } = {}) {
   api.put('/steps/:id', async (req, res) => {
     const s = await getStep(req.accountId, req.params.id);
     const b = req.body || {};
+    if (b.variant === 'b') {
+      if (!s.variant_blocks) throw new HttpError(400, 'This page has no B version');
+      await db.run('UPDATE funnel_steps SET variant_blocks = ?, variant_settings = ?, updated_at = now() WHERE id = ?',
+        JSON.stringify(Array.isArray(b.blocks) ? b.blocks : JSON.parse(s.variant_blocks)),
+        JSON.stringify(b.settings && typeof b.settings === 'object' ? b.settings : JSON.parse(s.variant_settings || s.settings)), s.id);
+      return res.json({ ok: true, slug: s.slug });
+    }
     const name = String(b.name ?? s.name).trim() || s.name;
     const slug = b.slug !== undefined ? await uniqueStepSlug(db, s.funnel_id, b.slug, s.id) : s.slug;
     const blocks = Array.isArray(b.blocks) ? b.blocks : JSON.parse(s.blocks);
@@ -919,6 +964,36 @@ function createApp({ dbPath } = {}) {
     return { funnel, step, nextUrl: nextUrl || '#', noUrl: noUrl || '#' };
   };
 
+  // ---- Split tests: each visitor keeps seeing the same version (cookie). ----
+  const cookieVal = (req, name) => auth.parseCookies(req.headers.cookie)[name];
+  const variantFor = (req, res, step) => {
+    if (!step.variant_blocks) return 'a';
+    if (step.test_winner) return step.test_winner;
+    let v = cookieVal(req, `ab${step.id}`);
+    if (v !== 'a' && v !== 'b') {
+      v = crypto.randomInt(2) ? 'b' : 'a';
+      res?.cookie(`ab${step.id}`, v, { httpOnly: true, sameSite: 'lax', secure: req.secure, maxAge: 30 * 864e5 });
+    }
+    return v;
+  };
+  const pageOf = (step, v) => ({
+    blocks: JSON.parse(v === 'b' && step.variant_blocks ? step.variant_blocks : step.blocks),
+    settings: JSON.parse(v === 'b' && step.variant_settings ? step.variant_settings : step.settings),
+  });
+  const findBlock = (step, type, blockId) => [...JSON.parse(step.blocks), ...JSON.parse(step.variant_blocks || '[]')]
+    .find((x) => x.type === type && (!blockId || x.id === blockId));
+
+  // ---- One-click upsells: a signed cookie remembers the order just paid. ----
+  const buyerToken = (orderId) => `${orderId}.${crypto.createHmac('sha256', secret).update(`buyer:${orderId}`).digest('hex').slice(0, 20)}`;
+  const rememberBuyer = (req, res, order) => res.cookie('ffbuyer', buyerToken(order.id), { httpOnly: true, sameSite: 'lax', secure: req.secure, maxAge: 2 * 3600e3 });
+  const buyerOrder = async (req, funnel) => {
+    const t = String(cookieVal(req, 'ffbuyer') || '');
+    const [oid] = t.split('.');
+    if (!/^\d{1,9}$/.test(oid) || t !== buyerToken(Number(oid))) return null;
+    const o = await db.get("SELECT * FROM orders WHERE id = ? AND status = 'paid' AND account_id = ?", Number(oid), funnel.account_id);
+    return o && (o.mode === 'test' || o.stripe_payment_method) ? o : null;
+  };
+
   // Draft funnels are visible only to the signed-in owner.
   const ownerViewing = async (req, funnel) => {
     const token = auth.parseCookies(req.headers.cookie).sid;
@@ -935,15 +1010,19 @@ function createApp({ dbPath } = {}) {
     const { funnel, step, nextUrl, noUrl } = found;
     const draft = funnel.status !== 'live';
     if (draft && !await ownerViewing(req, funnel)) return notPublished(res);
+    const v = req.query.v === 'b' && draft ? 'b' : variantFor(req, res, step);
+    const page = pageOf(step, v);
+    const buyer = page.blocks.some((x) => x.type === 'pricing') ? await buyerOrder(req, funnel) : null;
     const [products] = await Promise.all([
       productsMap(funnel.account_id),
-      draft ? null : db.run("INSERT INTO page_events (account_id, funnel_id, step_id, type) VALUES (?, ?, ?, 'view')", funnel.account_id, funnel.id, step.id),
+      draft ? null : db.run("INSERT INTO page_events (account_id, funnel_id, step_id, type, variant) VALUES (?, ?, ?, 'view', ?)", funnel.account_id, funnel.id, step.id, v),
     ]);
+    if (!draft) await funnelKit.decideWinner(step.id);
     if (draft) res.set('X-Robots-Tag', 'noindex');
     res.type('html').send((draft ? '<div style="position:sticky;top:0;z-index:9;background:#fef3c7;color:#92400e;font:600 14px system-ui;text-align:center;padding:8px">Draft preview: only you can see this page until the funnel is published.</div>' : '') + renderPage({
-      title: step.name, blocks: JSON.parse(step.blocks), settings: JSON.parse(step.settings),
+      title: step.name, blocks: page.blocks, settings: page.settings,
       nextUrl, noUrl, formAction: `/f/${funnel.slug}/${step.slug}/optin`, buyAction: `/f/${funnel.slug}/${step.slug}/buy`,
-      products,
+      products, oneClick: buyer ? `/f/${funnel.slug}/${step.slug}/oneclick` : null,
     }));
   });
 
@@ -954,8 +1033,7 @@ function createApp({ dbPath } = {}) {
     if (funnel.status !== 'live' && !await ownerViewing(req, funnel)) return notPublished(res);
     const back = `/f/${funnel.slug}/${step.slug}`;
     if (req.body.website) return res.redirect(303, nextUrl === '#' ? back : nextUrl); // honeypot: bots fill hidden field
-    const block = JSON.parse(step.blocks).find((b) => b.type === 'form' && b.id === req.body.block)
-      || JSON.parse(step.blocks).find((b) => b.type === 'form') || {};
+    const block = findBlock(step, 'form', req.body.block) || findBlock(step, 'form') || {};
     let contact;
     try {
       contact = await upsertContact(db, funnel.account_id, {
@@ -980,8 +1058,9 @@ function createApp({ dbPath } = {}) {
     } else {
       await logEvent(db, funnel.account_id, { person_id: contact.id, type: 'signup', source: 'funnel', meta });
     }
-    await db.run("INSERT INTO page_events (account_id, funnel_id, step_id, type, contact_id) VALUES (?, ?, ?, 'optin', ?)",
-      funnel.account_id, funnel.id, step.id, contact.id);
+    await db.run("INSERT INTO page_events (account_id, funnel_id, step_id, type, contact_id, variant) VALUES (?, ?, ?, 'optin', ?, ?)",
+      funnel.account_id, funnel.id, step.id, contact.id, variantFor(req, null, step));
+    await funnelKit.decideWinner(step.id);
     if (nextUrl !== '#') return res.redirect(303, nextUrl);
     res.type('html').send('<!doctype html><meta name="viewport" content="width=device-width"><p style="font:20px system-ui;text-align:center;margin-top:20vh">Thanks! You are subscribed.</p>');
   });
@@ -997,7 +1076,7 @@ function createApp({ dbPath } = {}) {
     const { funnel, step } = found;
     if (funnel.status !== 'live' && !await ownerViewing(req, funnel)) return notPublished(res);
     const back = `/f/${funnel.slug}/${step.slug}`;
-    const block = JSON.parse(step.blocks).find((b) => b.type === 'pricing' && b.id === req.body.block);
+    const block = findBlock(step, 'pricing', req.body.block);
     const product = block?.productId && await db.get('SELECT * FROM products WHERE id = ? AND account_id = ?',
       id(block.productId), funnel.account_id);
     if (!product) return messagePage(res, 404, 'This offer is no longer available.', back);
@@ -1006,9 +1085,9 @@ function createApp({ dbPath } = {}) {
     const bump = bumpProduct && bumpProduct.billing === 'one_time' && bumpProduct.currency === product.currency ? bumpProduct : null;
     const items = [{ name: product.name, qty: 1, price_cents: product.price_cents }, ...(bump ? [{ name: bump.name, qty: 1, price_cents: bump.price_cents, bump: true }] : [])];
     const account = await db.get('SELECT stripe_secret_key FROM accounts WHERE id = ?', funnel.account_id);
-    const { id: orderId } = await db.get(`INSERT INTO orders (account_id, product_id, product_name, amount_cents, currency, mode, funnel_id, step_id, items)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`, funnel.account_id, product.id, bump ? `${product.name} + ${bump.name}` : product.name,
-    product.price_cents + (bump ? bump.price_cents : 0), product.currency, account.stripe_secret_key ? 'stripe' : 'test', funnel.id, step.id, JSON.stringify(items));
+    const { id: orderId } = await db.get(`INSERT INTO orders (account_id, product_id, product_name, amount_cents, currency, mode, funnel_id, step_id, items, variant)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`, funnel.account_id, product.id, bump ? `${product.name} + ${bump.name}` : product.name,
+    product.price_cents + (bump ? bump.price_cents : 0), product.currency, account.stripe_secret_key ? 'stripe' : 'test', funnel.id, step.id, JSON.stringify(items), variantFor(req, null, step));
     if (!account.stripe_secret_key) return res.redirect(303, `/checkout/test/${orderId}/${orderToken(orderId)}`);
     try {
       const session = await stripe.createCheckoutSession(account.stripe_secret_key, {
@@ -1036,15 +1115,54 @@ function createApp({ dbPath } = {}) {
         if (String(session.client_reference_id) !== String(order.id) || !stripe.isPaid(session)) {
           return messagePage(res, 402, 'We couldn’t confirm your payment. If you were charged, please contact us.');
         }
-        await fulfilOrder(order, { email: session.customer_details?.email, name: session.customer_details?.name || '', sessionId: session.id });
+        await fulfilOrder(order, { email: session.customer_details?.email, name: session.customer_details?.name || '', sessionId: session.id,
+          customer: typeof session.customer === 'string' ? session.customer : session.customer?.id || null,
+          paymentMethod: typeof session.payment_intent === 'object' ? (session.payment_intent?.payment_method?.id || session.payment_intent?.payment_method || null) : null });
       } catch (e) {
         console.error('Stripe confirmation failed:', e.message);
         return messagePage(res, 502, 'We couldn’t confirm your payment yet. Please refresh this page in a moment.');
       }
     }
+    rememberBuyer(req, res, order);
     const next = order.step_id && await stepAfter(order.step_id);
     if (next) return res.redirect(303, next);
     messagePage(res, 200, `Thank you! Your purchase of ${order.product_name} is confirmed.`);
+  });
+
+  // One-click upsell: charge the card from the order just paid (test mode: no
+  // charge). If the bank wants the buyer to confirm, fall back to normal checkout.
+  app.post('/f/:funnel/:step/oneclick', express.urlencoded({ extended: false, limit: '5kb' }), async (req, res) => {
+    const found = await findPublicStep(req.params.funnel, req.params.step);
+    if (!found) return notFound(res);
+    const { funnel, step } = found;
+    const buyAt = `/f/${funnel.slug}/${step.slug}/buy`;
+    const prev = await buyerOrder(req, funnel);
+    const block = findBlock(step, 'pricing', req.body.block);
+    const product = block?.productId && await db.get('SELECT * FROM products WHERE id = ? AND account_id = ?', id(block.productId), funnel.account_id);
+    if (!product) return messagePage(res, 404, 'This offer is no longer available.', `/f/${funnel.slug}/${step.slug}`);
+    if (!prev || product.billing !== 'one_time') return res.redirect(307, buyAt);
+    const { id: orderId } = await db.get(`INSERT INTO orders (account_id, product_id, product_name, amount_cents, currency, mode, funnel_id, step_id, email, items, variant)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`, funnel.account_id, product.id, product.name, product.price_cents, product.currency,
+    prev.mode, funnel.id, step.id, prev.email, JSON.stringify([{ name: product.name, qty: 1, price_cents: product.price_cents, one_click: true }]), variantFor(req, null, step));
+    const order = await db.get('SELECT * FROM orders WHERE id = ?', orderId);
+    if (prev.mode === 'stripe') {
+      const account = await db.get('SELECT stripe_secret_key FROM accounts WHERE id = ?', funnel.account_id);
+      try {
+        const pi = await stripe.chargeSaved(account.stripe_secret_key, { amount: product.price_cents, currency: product.currency,
+          customer: prev.stripe_customer, paymentMethod: prev.stripe_payment_method, description: product.name, orderId });
+        if (pi.status !== 'succeeded') throw new Error(`payment ${pi.status}`);
+        await fulfilOrder(order, { email: prev.email, sessionId: pi.id, customer: prev.stripe_customer, paymentMethod: prev.stripe_payment_method });
+      } catch (e) {
+        console.error('One-click charge failed:', e.message);
+        await db.run("UPDATE orders SET status = 'failed' WHERE id = ?", orderId);
+        return res.redirect(307, buyAt); // the buyer confirms with their card the usual way
+      }
+    } else {
+      await fulfilOrder(order, { email: prev.email });
+    }
+    const next = await stepAfter(step.id);
+    if (next) return res.redirect(303, next);
+    messagePage(res, 200, `Thank you! ${product.name} was added to your order.`);
   });
 
   // Test-mode checkout, used while a workspace hasn't connected Stripe. No
@@ -1074,6 +1192,7 @@ ${order.status === 'paid' ? '<p>This order is already paid.</p>' : `<label>Name<
     if (!order) return notFound(res);
     if (!EMAIL_RE.test(String(req.body.email || '').trim())) return messagePage(res, 400, 'Please enter a valid email.', req.originalUrl);
     await fulfilOrder(order, { email: String(req.body.email).trim(), name: String(req.body.name || '').trim() });
+    rememberBuyer(req, res, order);
     const next = order.step_id && await stepAfter(order.step_id);
     if (next) return res.redirect(303, next);
     messagePage(res, 200, `Thank you! Your purchase of ${order.product_name} is confirmed.`);

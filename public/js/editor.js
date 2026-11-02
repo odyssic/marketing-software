@@ -39,11 +39,16 @@ const uid = () => Math.random().toString(36).slice(2, 10);
 
 async function viewEditor(stepId) {
   const [step, products] = await Promise.all([api('GET', `/api/steps/${stepId}`), api('GET', '/api/products')]);
-  const ed = { step, blocks: step.blocks, settings: { background: '#ffffff', textColor: '#1f2937', accent: '#4f46e5', width: 720, ...step.settings }, open: null };
+  // Split test: ?v=b edits version B of this page.
+  const editingB = Boolean(step.variant_blocks) && new URLSearchParams(location.hash.split('?')[1] || '').get('v') === 'b';
+  const ed = { step, blocks: editingB ? step.variant_blocks : step.blocks,
+    settings: { background: '#ffffff', textColor: '#1f2937', accent: '#4f46e5', width: 720, ...(editingB ? step.variant_settings || step.settings : step.settings) }, open: null };
   const link = publicUrl(`/f/${step.funnel.slug}/${step.slug}`);
   app.innerHTML = `<div class="editor">
     <div class="bar"><a class="btn sm" href="#/funnels/${step.funnel.id}">← ${esc(step.funnel.name)}</a>
       <div class="title"><input data-name value="${esc(step.name)}" aria-label="Page name"></div>
+      ${step.variant_blocks ? `<span class="seg"><a href="#/editor/${step.id}" class="btn sm ${editingB ? '' : 'primary'}">Version A</a><a href="#/editor/${step.id}?v=b" class="btn sm ${editingB ? 'primary' : ''}">Version B</a></span>` : ''}
+      <button class="btn sm" data-abtest>${step.variant_blocks ? '🧪 Test results' : '🧪 Split test'}</button>
       <span class="saved" data-saved>All changes saved</span>
       <button class="btn sm" data-undo title="Undo (Ctrl+Z)" disabled>↶ Undo</button><button class="btn sm" data-redo title="Redo (Ctrl+Shift+Z)" disabled>↷ Redo</button>
       <button class="btn sm" data-history title="Earlier versions of this page">🕘 History</button>
@@ -89,11 +94,13 @@ async function viewEditor(stepId) {
   const changed = (extra = {}, fromUndo = false) => {
     if (!fromUndo) setTimeout(remember);
     saved.textContent = 'Saving…';
-    clearTimeout(previewTimer); previewTimer = setTimeout(preview, 250);
+    // Typing straight into the preview already shows the change; don't reload it under the cursor.
+    if (!ed.typing) { clearTimeout(previewTimer); previewTimer = setTimeout(preview, 250); }
+    ed.typing = false;
     clearTimeout(saveTimer);
     saveTimer = setTimeout(async () => {
       try {
-        const r = await api('PUT', `/api/steps/${stepId}`, { name: $('[data-name]').value, blocks: ed.blocks, settings: ed.settings, ...extra });
+        const r = await api('PUT', `/api/steps/${stepId}`, { name: $('[data-name]').value, blocks: ed.blocks, settings: ed.settings, ...(editingB ? { variant: 'b' } : {}), ...extra });
         saved.textContent = 'All changes saved';
         if (extra.slug !== undefined) { $('[data-slug]').value = r.slug; $('[data-live]').href = publicUrl(`/f/${step.funnel.slug}/${r.slug}`); }
       } catch (err) { saved.textContent = 'Not saved'; toast(err.message, true); }
@@ -178,6 +185,37 @@ async function viewEditor(stepId) {
   $('[data-name]').addEventListener('input', () => changed());
   $('[data-device]').onclick = () => $('.stage').classList.toggle('mobile');
 
+  // Click-to-edit: the preview sends what was typed, or which block was clicked.
+  window.onmessage = (e) => {
+    const d = e.data;
+    if (!d?.ff || !$('.editor') || !ed.blocks[d.i]) return;
+    if (d.ff === 'open' && ed.open !== ed.blocks[d.i].id) { ed.open = ed.blocks[d.i].id; renderBlocks(); }
+    if (d.ff === 'edit') {
+      ed.blocks[d.i][d.f] = d.v;
+      const input = $(`[data-i="${d.i}"][data-k="${d.f}"]`);
+      if (input) input.value = d.v;
+      ed.typing = true;
+      changed();
+    }
+  };
+  $('[data-abtest]').onclick = async () => {
+    if (!step.variant_blocks) {
+      const r = await modal('Start a split test', `<p class="muted small">Half your visitors see version A (this page), half see version B. After ${'enough'} visitors on each, the one that gets more signups or sales is marked the winner and everyone sees it.</p>
+        <label class="check"><input type="radio" name="mode" value="suggestion" checked> Start B with the suggested fix for this kind of page</label>
+        <label class="check"><input type="radio" name="mode" value="copy"> Start B as a copy, then change it myself</label>`, { submit: 'Start test', onSubmit: (v) => api('POST', `/api/steps/${stepId}/variant`, { mode: v.mode }) });
+      if (r) { toast('Test started. You’re now editing version B'); location.hash = `#/editor/${stepId}?v=b`; }
+      return;
+    }
+    const t = await api('GET', `/api/steps/${stepId}/test`);
+    const pending = modal(t.winner ? `Version ${t.winner.toUpperCase()} won` : 'Split test running', `
+      <div class="li"><span><b>Version A</b><br><span class="muted small">${esc(t.a.plain)}</span></span>${t.winner === 'a' ? '<span class="pill ok">winner</span>' : ''}</div>
+      <div class="li"><span><b>Version B</b><br><span class="muted small">${esc(t.b.plain)}</span></span>${t.winner === 'b' ? '<span class="pill ok">winner</span>' : ''}</div>
+      <p class="hint">${t.winner ? 'Everyone now sees the winner. Keep B to make it the page, or end the test to keep A.' : `A winner is picked once each version has ${t.min_visits} visitors.`}</p>
+      <div class="row"><button type="button" class="btn sm primary" data-keepb>Keep B as the page</button><button type="button" class="btn sm" data-endtest>End test, keep A</button></div>`, { submit: 'Close' });
+    $('[data-keepb]').onclick = async () => { await api('POST', `/api/steps/${stepId}/variant/promote`); $('.modal-bg [data-x]').click(); toast('Version B is now the page'); location.hash = `#/editor/${stepId}`; viewEditor(stepId); };
+    $('[data-endtest]').onclick = async () => { await api('DELETE', `/api/steps/${stepId}/variant`); $('.modal-bg [data-x]').click(); toast('Test ended'); location.hash = `#/editor/${stepId}`; viewEditor(stepId); };
+    await pending;
+  };
   $('[data-undo]').onclick = () => travel(undo.past, undo.future);
   $('[data-redo]').onclick = () => travel(undo.future, undo.past);
   document.onkeydown = (e) => {
