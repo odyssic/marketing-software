@@ -84,6 +84,33 @@ async function repurpose({ account, text, kind = 'essay' }) {
   return { ...out, social_posts: out.social_posts.slice(0, 2), template: false };
 }
 
+// Describe-to-build: picks a funnel template and writes the main page's words.
+async function describeFunnel({ account, sentence, options }) {
+  const keys = options.map((o) => o.key);
+  if (!isLive()) return { ...guessTemplate(sentence, keys), template_only: true };
+  const Plan = z.object({
+    template: z.string().describe(`One of: ${keys.join(', ')}`), name: z.string(), headline: z.string(), subheadline: z.string(), button: z.string(), thank_you: z.string(),
+  });
+  const out = await structured({
+    account,
+    prompt: `The owner described a funnel they want: "${sentence}"\n\nPick the best starting template:\n${options.map((o) => `- ${o.key}: ${o.label}. ${o.description}`).join('\n')}\n\nThen write: a short funnel name (under 40 characters); the main page's headline (under 12 words, promising one specific result); a one- or two-sentence subheadline; the button text (2-5 words); and the thank-you page headline (under 10 words). No prices or claims that aren't in the description.`,
+    schema: Plan,
+  });
+  // The schema can't force the choice, so an unknown template falls back to a keyword guess.
+  const template = keys.includes(out.template) ? out.template : guessTemplate(sentence, keys).template;
+  return { ...out, template, name: out.name.slice(0, 60) };
+}
+const guessTemplate = (sentence, keys) => {
+  const s = sentence.toLowerCase();
+  const pick = /newsletter|letter|subscribe/.test(s) ? 'newsletter' : /consult|book|call|appointment|quote|session/.test(s) ? 'consult'
+    : /upsell|upgrade|one-time offer|downsell/.test(s) ? 'upsell' : /free|guide|download|checklist|sample|lead magnet|ebook/.test(s) ? 'optin'
+      : /sell|buy|launch|course|product|kit|\$\d/.test(s) ? 'sales' : 'optin';
+  // A short name from the sentence, cut at a whole word.
+  const first = sentence.replace(/[.!?].*$/, '').trim();
+  const name = first.length <= 40 ? first : first.slice(0, 41).replace(/\s+\S*$/, '');
+  return { template: keys.includes(pick) ? pick : keys[0], name: name || 'New funnel' };
+};
+
 // ---------- Template fallbacks (no AI key) ----------
 const TEMPLATE_EMAILS = {
   stale_inquiries: ['Following up on your question', 'Hi {{first_name|there}},\n\nYou asked me about [what they asked about] a little while ago and I wanted to make sure you got what you needed.\n\n[A helpful, specific answer]\n\nIf you’d like to go ahead, just reply and I’ll take care of it.\n\n'],
@@ -109,4 +136,4 @@ function templateRepurpose(text) {
   };
 }
 
-module.exports = { isLive, draftEmail, repurpose, voiceSystem, AIError, MODEL };
+module.exports = { isLive, draftEmail, repurpose, describeFunnel, guessTemplate, voiceSystem, AIError, MODEL };

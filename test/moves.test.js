@@ -149,3 +149,33 @@ test('AI drafting: Claude Opus 5.5, the owner\'s voice, structured JSON; refusal
   assert.equal(r.status, 422);
   assert.match(r.body.error, /declined/);
 });
+
+test('describe-to-build: one sentence picks a template, writes the copy, and adds its workflows', async () => {
+  // AI on (stand-in server from above).
+  const c = await setup('describe@example.com');
+  fakeReply = { json: { template: 'optin', name: 'Glaze guide', headline: 'Glaze like a pro in one weekend', subheadline: 'A free 12-page guide for beginners.', button: 'Send my guide', thank_you: 'Check your inbox!' } };
+  const r = (await c('POST', '/api/funnels/describe', { sentence: 'A free glaze guide for beginner potters that leads to my kit' })).body;
+  assert.equal(r.drafted, true);
+  assert.equal(r.workflows.length, 1);
+  const f = (await c('GET', `/api/funnels/${r.id}`)).body;
+  assert.equal(f.name, 'Glaze guide');
+  assert.equal(f.status, 'draft');
+  const [first, last] = f.steps;
+  assert.equal(first.blocks.find((b) => b.type === 'heading').text, 'Glaze like a pro in one weekend');
+  assert.equal(first.blocks.find((b) => b.type === 'text').text, 'A free 12-page guide for beginners.');
+  assert.equal(first.blocks.find((b) => b.type === 'form').buttonLabel, 'Send my guide');
+  assert.equal(last.blocks.find((b) => b.type === 'heading').text, 'Check your inbox!');
+  assert.match(seen.at(-1).body.output_config.format.schema.properties.template.description, /optin, sales, pricing, upsell, newsletter, consult/);
+  // An unknown template name from the model falls back to a keyword guess.
+  fakeReply = { json: { template: 'webinar', name: 'News', headline: 'h', subheadline: 's', button: 'b', thank_you: 't' } };
+  assert.equal((await c('POST', '/api/funnels/describe', { sentence: 'A monthly newsletter about pottery' })).body.template, 'newsletter');
+  assert.equal((await c('POST', '/api/funnels/describe', { sentence: 'short' })).status, 400);
+
+  // AI off: keyword guess, template copy kept.
+  delete process.env.ANTHROPIC_API_KEY;
+  const g = (await c('POST', '/api/funnels/describe', { sentence: 'Book a free consultation call for kitchen remodels.' })).body;
+  assert.equal(g.template, 'consult');
+  assert.equal(g.drafted, false);
+  assert.equal(g.name, 'Book a free consultation call for'); // up to 40 characters, whole words
+});
+

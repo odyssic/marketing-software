@@ -21,7 +21,11 @@ async function newFunnel() {
   const bg = document.createElement('div');
   bg.className = 'modal-bg';
   bg.innerHTML = `<form class="modal wide"><h2>New funnel</h2>
-    <label class="f">Funnel name<input name="name" required placeholder="e.g. Free glaze guide"></label>
+    <div class="describe"><label class="f" style="margin:0">Describe it in one sentence <span class="hint">we’ll pick the pages and write the words${state.me.aiLive ? ' in your voice' : ''}</span>
+      <textarea data-sentence rows="2" placeholder="e.g. A free glaze guide for beginner potters that leads to my $49 starter kit"></textarea></label>
+      <div class="row" style="margin-top:8px"><button type="button" class="btn primary" data-describe>✨ Build it for me</button><span class="err" data-derr style="margin:0"></span></div></div>
+    <div class="or"><span>or pick a template</span></div>
+    <label class="f">Funnel name<input name="name" placeholder="e.g. Free glaze guide"></label>
     <div class="f" style="margin-bottom:6px;font-size:.85rem;font-weight:500">Start from</div>
     <div class="tpl-grid" role="radiogroup">${templates.map((t, i) => `<label class="tpl ${i === 0 ? 'on' : ''}"><input type="radio" name="template" value="${t.key}" ${i === 0 ? 'checked' : ''} class="sr">
       <b>${esc(t.label)}</b><span class="muted small">${esc(t.description)}</span>
@@ -33,9 +37,20 @@ async function newFunnel() {
   bg.addEventListener('mousedown', (e) => { if (e.target === bg) close(); });
   $('[data-x]', bg).onclick = close;
   $$('input[name=template]', bg).forEach((r) => { r.onchange = () => $$('.tpl', bg).forEach((l) => l.classList.toggle('on', l.contains(r) && r.checked)); });
-  $('[name=name]', bg).focus();
+  $('[data-sentence]', bg).focus();
+  $('[data-describe]', bg).onclick = async (e) => {
+    const b = e.currentTarget;
+    b.disabled = true; b.textContent = 'Building…'; $('[data-derr]', bg).textContent = '';
+    try {
+      const r = await api('POST', '/api/funnels/describe', { sentence: $('[data-sentence]', bg).value });
+      bg.remove();
+      toast(`Built “${r.name}”${r.workflows.length ? ` with ${r.workflows.length} follow-up workflow${r.workflows.length === 1 ? '' : 's'}` : ''}. Review it, then publish`);
+      location.hash = `#/funnels/${r.id}`;
+    } catch (err) { $('[data-derr]', bg).textContent = err.message; b.disabled = false; b.textContent = '✨ Build it for me'; }
+  };
   $('form', bg).onsubmit = async (e) => {
     e.preventDefault();
+    if (!$('[name=name]', bg).value.trim()) { $('.err:not([data-derr])', bg).textContent = 'Name the funnel, or describe it above'; $('[name=name]', bg).focus(); return; }
     try {
       const r = await api('POST', '/api/funnels', Object.fromEntries(new FormData(e.target)));
       bg.remove();

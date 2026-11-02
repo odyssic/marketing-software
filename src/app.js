@@ -453,25 +453,26 @@ function createApp({ dbPath } = {}) {
       FROM funnels f WHERE f.account_id = ? ORDER BY f.id DESC`, req.accountId));
   });
 
-  api.post('/funnels', async (req, res) => {
-    const name = String(req.body?.name || '').trim();
-    if (!name) throw new HttpError(400, 'Give your funnel a name');
-    const template = TEMPLATES[req.body?.template] || TEMPLATES.optin;
+  // Builds a funnel from a template (pages, links, start page) plus its
+  // follow-up workflows. `copy` optionally rewrites the main page's words.
+  async function createFunnel(accountId, name, templateKey, copy = null) {
+    const template = TEMPLATES[templateKey] || TEMPLATES.optin;
     const funnelId = await db.tx(async (t) => {
       // New funnels start as drafts; publishing runs the pre-flight check.
       const f = await t.get("INSERT INTO funnels (account_id, name, slug, status) VALUES (?, ?, ?, 'draft') RETURNING id",
-        req.accountId, name, await uniqueFunnelSlug(t, name));
-      const newest = await t.get('SELECT id FROM products WHERE account_id = ? ORDER BY id DESC LIMIT 1', req.accountId);
+        accountId, name, await uniqueFunnelSlug(t, name));
+      const newest = await t.get('SELECT id FROM products WHERE account_id = ? ORDER BY id DESC LIMIT 1', accountId);
       const steps = template.steps();
+      if (copy) applyCopy(steps, copy);
       const ids = [];
-      for (const [i, s] of steps.entries()) {
-        for (const b of s.blocks) if (b.type === 'pricing' && newest) b.productId = newest.id;
-        ids.push(await insertStep(t, f.id, s, i));
+      for (const [i, st] of steps.entries()) {
+        for (const blk of st.blocks) if (blk.type === 'pricing' && newest) blk.productId = newest.id;
+        ids.push(await insertStep(t, f.id, st, i));
       }
-      const idOf = (key) => (key == null ? null : ids[steps.findIndex((s) => s.key === key)] ?? null);
-      for (const [i, s] of steps.entries()) {
-        const next = 'next' in s ? idOf(s.next) : ids[i + 1] ?? null;
-        await t.run('UPDATE funnel_steps SET next_step_id = ?, no_step_id = ? WHERE id = ?', next, idOf(s.no), ids[i]);
+      const idOf = (key) => (key == null ? null : ids[steps.findIndex((st) => st.key === key)] ?? null);
+      for (const [i, st] of steps.entries()) {
+        const next = 'next' in st ? idOf(st.next) : ids[i + 1] ?? null;
+        await t.run('UPDATE funnel_steps SET next_step_id = ?, no_step_id = ? WHERE id = ?', next, idOf(st.no), ids[i]);
       }
       await t.run('UPDATE funnels SET entry_step_id = ? WHERE id = ?', ids[0], f.id);
       return f.id;
@@ -480,9 +481,46 @@ function createApp({ dbPath } = {}) {
     // switched off until the owner has reviewed the emails.
     const wfIds = [];
     for (const key of template.workflows || []) {
-      wfIds.push(await workflows.create(req.accountId, { template: key, funnel_id: funnelId, name: `${name}: ${workflows.TEMPLATES[key].name}` }));
+      wfIds.push(await workflows.create(accountId, { template: key, funnel_id: funnelId, name: `${name}: ${workflows.TEMPLATES[key].name}` }));
     }
-    res.status(201).json({ id: funnelId, workflows: wfIds });
+    return { id: funnelId, workflows: wfIds };
+  }
+  // Puts drafted words into the first page (headline, text, button) and the last (thank-you).
+  function applyCopy(steps, copy) {
+    const first = steps[0].blocks, last = steps.at(-1).blocks;
+    const head = first.find((x) => x.type === 'heading' || x.type === 'hero');
+    if (head && copy.headline) head.text = copy.headline;
+    if (head?.type === 'hero' && copy.subheadline) head.subtext = copy.subheadline;
+    const text = first.find((x) => x.type === 'text');
+    if (text && copy.subheadline && head?.type !== 'hero') text.text = copy.subheadline;
+    const cta = first.find((x) => ['form', 'pricing'].includes(x.type)) || first.find((x) => x.type === 'button');
+    if (cta && copy.button) cta[cta.type === 'button' ? 'label' : 'buttonLabel'] = copy.button;
+    if (steps.length > 1 && copy.thank_you) {
+      const th = last.find((x) => x.type === 'heading');
+      if (th) th.text = copy.thank_you;
+    }
+  }
+
+  api.post('/funnels', async (req, res) => {
+    const name = String(req.body?.name || '').trim();
+    if (!name) throw new HttpError(400, 'Give your funnel a name');
+    res.status(201).json(await createFunnel(req.accountId, name, req.body?.template));
+  });
+
+  // Describe-to-build: one sentence → the right template, a name, and copy in the owner's voice.
+  api.post('/funnels/describe', async (req, res) => {
+    const sentence = String(req.body?.sentence || '').trim();
+    if (sentence.length < 10) throw new HttpError(400, 'Describe the funnel in a sentence, e.g. “A free glaze guide that leads to my $49 starter kit”');
+    const account = await getAccount(req.accountId);
+    const options = Object.entries(TEMPLATES).filter(([k]) => k !== 'blank').map(([key, t]) => ({ key, label: t.label, description: t.description }));
+    let plan;
+    try { plan = await require('./ai').describeFunnel({ account, sentence: sentence.slice(0, 600), options }); } catch (e) {
+      const ai = require('./ai');
+      if (e instanceof ai.AIError) throw new HttpError(e.status, e.message);
+      throw e;
+    }
+    const out = await createFunnel(req.accountId, plan.name, plan.template, plan.template_only ? null : plan);
+    res.status(201).json({ ...out, template: plan.template, name: plan.name, drafted: !plan.template_only });
   });
 
   api.get('/funnels/:id', async (req, res) => {

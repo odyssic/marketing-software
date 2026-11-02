@@ -438,3 +438,6 @@ label.tpl:focus-within { outline: 3px solid #a5b4fc; outline-offset: 2px; }
 .node.leaky { box-shadow: 0 0 0 3px #fecaca, var(--shadow); }
 .leakpill { position: absolute; top: -12px; right: 10px; background: #fee2e2; color: #b91c1c; font-size: .7rem; font-weight: 700; border-radius: 99px; padding: 2px 8px; }
 .banner.leak { background: #fef2f2; border-color: #fecaca; color: #7f1d1d; }
+.describe { background: var(--brand-soft); border-radius: 10px; padding: 12px; margin-bottom: 4px; }
+.or { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: .8rem; margin: 12px 0; }
+.or::before, .or::after { content: ''; flex: 1; border-top: 1px solid var(--line); }
