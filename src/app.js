@@ -16,6 +16,7 @@ const { createWorkflows } = require('./workflows');
 const { createMoves } = require('./moves');
 const { registerPrint } = require('./print');
 const { createDigest } = require('./digest');
+const { registerFunnelKit } = require('./funnelkit');
 
 const slugify = (s) => String(s || '').toLowerCase().normalize('NFKD').replace(/[^\w\s-]/g, '')
   .trim().replace(/[\s_]+/g, '-').replace(/-+/g, '-').slice(0, 60) || 'page';
@@ -105,7 +106,7 @@ function createApp({ dbPath } = {}) {
   const workflows = createWorkflows({ getDb: () => db, HttpError, id, people, messaging, getAccount: (a) => getAccount(a) });
   people.hooks.onEvent = workflows.onEvent;
   people.hooks.onTagsAdded = workflows.onTagsAdded;
-  let digest;
+  let digest, funnelKit;
   moves = createMoves({ getDb: () => db, HttpError, id, leversFor: (a) => leversFor(a), getAccount: (a) => getAccount(a), messaging, formatMoney });
   const getAccount = (accountId) => db.get('SELECT * FROM accounts WHERE id = ?', accountId);
   // Lever metrics plus which lever to focus on (pinned, or the weakest).
@@ -400,7 +401,9 @@ function createApp({ dbPath } = {}) {
     if (!Number.isFinite(price) || price < 50) throw new HttpError(400, 'Price must be at least 0.50');
     const currency = CURRENCIES.includes(b.currency) ? b.currency : 'usd';
     const billing = BILLING.includes(b.billing) ? b.billing : 'one_time';
-    return [name, String(b.description || '').trim(), price, currency, billing, parseTags(b.tag).join(',')];
+    const image = String(b.image_url || '').trim();
+    if (image && !/^https?:\/\/\S+$/i.test(image)) throw new HttpError(400, 'The photo must be a link starting with https://');
+    return [name, String(b.description || '').trim(), price, currency, billing, parseTags(b.tag).join(','), image];
   };
   const productOut = (p) => ({ ...p, price: p.price_cents / 100, priceLabel: formatMoney(p.price_cents, p.currency) });
 
@@ -411,13 +414,13 @@ function createApp({ dbPath } = {}) {
   });
 
   api.post('/products', async (req, res) => {
-    const r = await db.get(`INSERT INTO products (account_id, name, description, price_cents, currency, billing, tag)
-      VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id`, req.accountId, ...productInput(req.body || {}));
+    const r = await db.get(`INSERT INTO products (account_id, name, description, price_cents, currency, billing, tag, image_url)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`, req.accountId, ...productInput(req.body || {}));
     res.status(201).json({ id: r.id });
   });
 
   api.put('/products/:id', async (req, res) => {
-    const r = await db.run(`UPDATE products SET name = ?, description = ?, price_cents = ?, currency = ?, billing = ?, tag = ?
+    const r = await db.run(`UPDATE products SET name = ?, description = ?, price_cents = ?, currency = ?, billing = ?, tag = ?, image_url = ?
       WHERE id = ? AND account_id = ?`, ...productInput(req.body || {}), id(req.params.id), req.accountId);
     if (!r.changes) throw new HttpError(404, 'Product not found');
     res.json({ ok: true });
@@ -455,7 +458,8 @@ function createApp({ dbPath } = {}) {
     if (!name) throw new HttpError(400, 'Give your funnel a name');
     const template = TEMPLATES[req.body?.template] || TEMPLATES.optin;
     const funnelId = await db.tx(async (t) => {
-      const f = await t.get('INSERT INTO funnels (account_id, name, slug) VALUES (?, ?, ?) RETURNING id',
+      // New funnels start as drafts; publishing runs the pre-flight check.
+      const f = await t.get("INSERT INTO funnels (account_id, name, slug, status) VALUES (?, ?, ?, 'draft') RETURNING id",
         req.accountId, name, await uniqueFunnelSlug(t, name));
       const newest = await t.get('SELECT id FROM products WHERE account_id = ? ORDER BY id DESC LIMIT 1', req.accountId);
       const steps = template.steps();
@@ -564,6 +568,7 @@ function createApp({ dbPath } = {}) {
     const slug = b.slug !== undefined ? await uniqueStepSlug(db, s.funnel_id, b.slug, s.id) : s.slug;
     const blocks = Array.isArray(b.blocks) ? b.blocks : JSON.parse(s.blocks);
     const settings = b.settings && typeof b.settings === 'object' ? b.settings : JSON.parse(s.settings);
+    await funnelKit.autosaveCheckpoint(s);
     await db.run(`UPDATE funnel_steps SET name = ?, slug = ?, blocks = ?, settings = ?, updated_at = now()
       WHERE id = ?`, name, slug, JSON.stringify(blocks), JSON.stringify(settings), s.id);
     res.json({ ok: true, slug });
@@ -836,6 +841,7 @@ function createApp({ dbPath } = {}) {
   people.register(api);
   workflows.register(api);
   moves.register(api);
+  funnelKit = registerFunnelKit(api, { getDb: () => db, HttpError, id, getFunnel, getStep });
   digest = createDigest({ getDb: () => db, leversFor: (a) => leversFor(a), moves, publicBase });
   digest.register(api, { HttpError });
   // Runs background jobs now (same as the timer). Tests may pass a future `now` to skip waits.
@@ -875,17 +881,28 @@ function createApp({ dbPath } = {}) {
     return { funnel, step, nextUrl: nextUrl || '#', noUrl: noUrl || '#' };
   };
 
+  // Draft funnels are visible only to the signed-in owner.
+  const ownerViewing = async (req, funnel) => {
+    const token = auth.parseCookies(req.headers.cookie).sid;
+    if (!token) return false;
+    const sess = await db.get('SELECT account_id FROM sessions WHERE token = ? AND expires_at > now()', token);
+    return sess?.account_id === funnel.account_id;
+  };
+  const notPublished = (res) => res.status(404).type('html').send('<!doctype html><meta name="viewport" content="width=device-width"><title>Not published yet</title><p style="font:18px system-ui;text-align:center;margin-top:20vh;padding:0 20px">This page isn’t published yet.</p>');
   const notFound = (res) => res.status(404).type('html').send('<!doctype html><title>Not found</title><p style="font:18px system-ui;text-align:center;margin-top:20vh">Page not found.</p>');
 
   app.get('/f/:funnel{/:step}', async (req, res) => {
     const found = await findPublicStep(req.params.funnel, req.params.step);
     if (!found) return notFound(res);
     const { funnel, step, nextUrl, noUrl } = found;
+    const draft = funnel.status !== 'live';
+    if (draft && !await ownerViewing(req, funnel)) return notPublished(res);
     const [products] = await Promise.all([
       productsMap(funnel.account_id),
-      db.run("INSERT INTO page_events (account_id, funnel_id, step_id, type) VALUES (?, ?, ?, 'view')", funnel.account_id, funnel.id, step.id),
+      draft ? null : db.run("INSERT INTO page_events (account_id, funnel_id, step_id, type) VALUES (?, ?, ?, 'view')", funnel.account_id, funnel.id, step.id),
     ]);
-    res.type('html').send(renderPage({
+    if (draft) res.set('X-Robots-Tag', 'noindex');
+    res.type('html').send((draft ? '<div style="position:sticky;top:0;z-index:9;background:#fef3c7;color:#92400e;font:600 14px system-ui;text-align:center;padding:8px">Draft preview: only you can see this page until the funnel is published.</div>' : '') + renderPage({
       title: step.name, blocks: JSON.parse(step.blocks), settings: JSON.parse(step.settings),
       nextUrl, noUrl, formAction: `/f/${funnel.slug}/${step.slug}/optin`, buyAction: `/f/${funnel.slug}/${step.slug}/buy`,
       products,
@@ -896,6 +913,7 @@ function createApp({ dbPath } = {}) {
     const found = await findPublicStep(req.params.funnel, req.params.step);
     if (!found) return notFound(res);
     const { funnel, step, nextUrl } = found;
+    if (funnel.status !== 'live' && !await ownerViewing(req, funnel)) return notPublished(res);
     const back = `/f/${funnel.slug}/${step.slug}`;
     if (req.body.website) return res.redirect(303, nextUrl === '#' ? back : nextUrl); // honeypot: bots fill hidden field
     const block = JSON.parse(step.blocks).find((b) => b.type === 'form' && b.id === req.body.block)
@@ -939,19 +957,24 @@ function createApp({ dbPath } = {}) {
     const found = await findPublicStep(req.params.funnel, req.params.step);
     if (!found) return notFound(res);
     const { funnel, step } = found;
+    if (funnel.status !== 'live' && !await ownerViewing(req, funnel)) return notPublished(res);
     const back = `/f/${funnel.slug}/${step.slug}`;
     const block = JSON.parse(step.blocks).find((b) => b.type === 'pricing' && b.id === req.body.block);
     const product = block?.productId && await db.get('SELECT * FROM products WHERE id = ? AND account_id = ?',
       id(block.productId), funnel.account_id);
     if (!product) return messagePage(res, 404, 'This offer is no longer available.', back);
+    // Order bump: only a one-time item in the same currency joins the payment.
+    const bumpProduct = req.body.bump === '1' && block.bumpProductId && await db.get('SELECT * FROM products WHERE id = ? AND account_id = ?', id(block.bumpProductId), funnel.account_id);
+    const bump = bumpProduct && bumpProduct.billing === 'one_time' && bumpProduct.currency === product.currency ? bumpProduct : null;
+    const items = [{ name: product.name, qty: 1, price_cents: product.price_cents }, ...(bump ? [{ name: bump.name, qty: 1, price_cents: bump.price_cents, bump: true }] : [])];
     const account = await db.get('SELECT stripe_secret_key FROM accounts WHERE id = ?', funnel.account_id);
-    const { id: orderId } = await db.get(`INSERT INTO orders (account_id, product_id, product_name, amount_cents, currency, mode, funnel_id, step_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`, funnel.account_id, product.id, product.name, product.price_cents, product.currency,
-    account.stripe_secret_key ? 'stripe' : 'test', funnel.id, step.id);
+    const { id: orderId } = await db.get(`INSERT INTO orders (account_id, product_id, product_name, amount_cents, currency, mode, funnel_id, step_id, items)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`, funnel.account_id, product.id, bump ? `${product.name} + ${bump.name}` : product.name,
+    product.price_cents + (bump ? bump.price_cents : 0), product.currency, account.stripe_secret_key ? 'stripe' : 'test', funnel.id, step.id, JSON.stringify(items));
     if (!account.stripe_secret_key) return res.redirect(303, `/checkout/test/${orderId}/${orderToken(orderId)}`);
     try {
       const session = await stripe.createCheckoutSession(account.stripe_secret_key, {
-        product, orderId,
+        product, extra: bump, orderId,
         successUrl: `${baseUrl(req)}/checkout/success/${orderId}?session_id={CHECKOUT_SESSION_ID}`,
         cancelUrl: `${baseUrl(req)}${back}`,
       });

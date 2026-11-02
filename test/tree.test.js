@@ -36,7 +36,9 @@ async function seller(email) {
 
 test('upsell template builds a branching tree and pages route by it', async () => {
   const c = await seller('tree@example.com');
+  await c('POST', '/api/products', { name: 'Main offer', price: 49 }); // buy buttons need a product to publish
   const { body: { id } } = await c('POST', '/api/funnels', { name: 'Branchy', template: 'upsell' });
+  assert.equal((await c('POST', `/api/funnels/${id}/publish`)).status, 200);
   const f = (await c('GET', `/api/funnels/${id}`)).body;
   const by = Object.fromEntries(f.steps.map((s) => [s.name, s]));
   assert.equal(f.entry_step_id, by['Sales page'].id);
@@ -65,6 +67,11 @@ test('map API: reconnect, move, change start page, reject bad links', async () =
   f = (await c('GET', `/api/funnels/${id}`)).body;
   assert.equal(f.entry_step_id, thanks.id);
   assert.equal(f.steps.find((s) => s.id === thanks.id).next_step_id, newId);
+  // Drafts aren't public; an empty page blocks publishing until it has content.
+  assert.equal((await client()('GET', '/f/mapped')).status, 404);
+  assert.equal((await c('POST', `/api/funnels/${id}/publish`)).status, 400);
+  await c('PUT', `/api/steps/${newId}`, { blocks: [{ id: 'b1', type: 'heading', text: 'Bonus' }] });
+  assert.equal((await c('POST', `/api/funnels/${id}/publish`)).status, 200);
   assert.match((await client()('GET', '/f/mapped')).body, /You are in!/, 'funnel link opens the start page');
 
   assert.equal((await c('PUT', `/api/funnels/${id}/map`, { steps: [{ id: optin.id, next_step_id: optin.id }] })).status, 400, 'no self-links');

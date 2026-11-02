@@ -28,7 +28,7 @@ async function call(secretKey, method, path, params) {
   return data;
 }
 
-function createCheckoutSession(secretKey, { product, orderId, email, successUrl, cancelUrl }) {
+function createCheckoutSession(secretKey, { product, extra = null, orderId, email, successUrl, cancelUrl }) {
   const recurring = product.billing === 'monthly' ? { interval: 'month' }
     : product.billing === 'yearly' ? { interval: 'year' } : undefined;
   return call(secretKey, 'POST', '/checkout/sessions', {
@@ -41,7 +41,9 @@ function createCheckoutSession(secretKey, { product, orderId, email, successUrl,
         product_data: { name: product.name, description: product.description || undefined },
         recurring,
       },
-    } },
+    },
+    // Order bump: a second one-time item in the same payment.
+    ...(extra ? { 1: { quantity: 1, price_data: { currency: extra.currency, unit_amount: extra.price_cents, product_data: { name: extra.name } } } } : {}) },
     client_reference_id: orderId,
     customer_email: email || undefined,
     metadata: { order_id: orderId },

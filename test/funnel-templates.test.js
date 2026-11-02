@@ -54,6 +54,7 @@ test('templates list their pages and bundled follow-ups', async () => {
 test('consultation funnel: the request is logged with its message, the person gets a reply, the owner is told', async () => {
   const c = await setup('tpl-consult@example.com');
   const r = (await c('POST', '/api/funnels', { name: 'Free consult', template: 'consult' })).body;
+  assert.equal((await c('POST', `/api/funnels/${r.id}/publish`)).status, 200);
   assert.equal(r.workflows.length, 1);
   const f = (await c('GET', `/api/funnels/${r.id}`)).body;
   assert.deepEqual(f.workflows.map((w) => [w.name, w.status]), [['Free consult: Inquiry follow-up', 'draft']]);
@@ -83,6 +84,7 @@ test('newsletter funnel subscribes people; a lead magnet workflow only fires for
   const news = (await c('POST', '/api/funnels', { name: 'Letter', template: 'newsletter' })).body;
   const guide = (await c('POST', '/api/funnels', { name: 'Guide', template: 'optin' })).body;
   const other = (await c('POST', '/api/funnels', { name: 'Other', template: 'blank' })).body;
+  for (const f of [news, guide]) assert.equal((await c('POST', `/api/funnels/${f.id}/publish`)).status, 200);
   assert.equal(other.workflows.length, 0);
   await turnOn(c, [...news.workflows]);
   // The welcome series has placeholder copy but no blocking problems, so it can go live too.

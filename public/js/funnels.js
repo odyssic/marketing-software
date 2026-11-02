@@ -110,10 +110,13 @@ async function viewFunnel(id) {
   const f = await api('GET', `/api/funnels/${id}`);
   const link = publicUrl(`/f/${f.slug}`);
   shell('funnels', `
-    <div class="head" style="margin-bottom:14px"><div><a href="#/funnels" class="small">← All funnels</a><h1>${esc(f.name)}</h1></div>
+    <div class="head" style="margin-bottom:14px"><div><a href="#/funnels" class="small">← All funnels</a>
+      <h1 style="display:flex;gap:10px;align-items:center">${esc(f.name)} ${f.status === 'live' ? '<span class="pill ok">Live</span>' : '<span class="pill warn">Draft</span>'}</h1></div>
       <div class="row"><div class="copy" style="min-width:320px"><input readonly value="${esc(link)}" aria-label="Funnel link">
         <button class="btn" data-copy="${esc(link)}">Copy</button><a class="btn" href="${esc(link)}" target="_blank" rel="noopener">Open ↗</a></div>
-        <button class="btn" data-rename>Settings</button><button class="btn danger" data-del>Delete</button></div></div>
+        <button class="btn" data-rename>Settings</button><button class="btn danger" data-del>Delete</button>
+        ${f.status === 'live' ? '<button class="btn" data-unpublish>Unpublish</button>' : '<button class="btn primary" data-publish>Publish</button>'}</div></div>
+    <div data-leak></div>
     ${f.workflows?.length ? `<div class="wf-strip"><span class="muted small">⚡ Follow-ups for this funnel:</span>
       ${f.workflows.map((w) => `<a class="chip" href="#/workflows/${w.id}">${esc(w.name.replace(`${f.name}: `, ''))} <span class="pill ${w.status === 'active' ? 'ok' : ''}">${w.status === 'active' ? 'Live' : 'Off'}</span></a>`).join('')}
       ${f.workflows.some((w) => w.status !== 'active') ? '<span class="muted small">Review the emails, then turn them on.</span>' : ''}</div>` : ''}
@@ -133,6 +136,31 @@ async function viewFunnel(id) {
   const m = { steps: f.steps, entry: f.entry_step_id, zoom: 1, panX: 40, panY: 40 };
   const mapEl = $('.map'), world = $('.world'), svg = $('.edges'), nodesEl = $('.nodes');
   const byId = () => Object.fromEntries(m.steps.map((s) => [s.id, s]));
+  // Lever colors, plain-language step metrics and the leakiest step.
+  api('GET', `/api/funnels/${id}/flow`).then((flow) => {
+    m.flow = flow;
+    renderNodes();
+    if (flow.leak) {
+      const st = byId()[flow.leak.step_id];
+      $('[data-leak]').innerHTML = `<div class="banner leak"><b>🚩 Leakiest step: “${esc(st?.name || '')}”</b> (${esc(flow.leak.plain)}).
+        <br>Try this: ${esc(flow.leak.suggestion)} <a class="btn sm" href="#/editor/${flow.leak.step_id}" style="margin-left:6px">Edit page</a></div>`;
+    }
+  }).catch(() => {});
+  const pub = $('[data-publish]');
+  if (pub) pub.onclick = async () => {
+    const pre = await api('GET', `/api/funnels/${id}/preflight`);
+    const list = (ps) => ps.map((p) => `<div class="li"><span>${p.severity === 'block' ? '⛔' : '⚠️'} ${esc(p.text)}</span>${p.fix ? `<a class="btn sm" href="${esc(p.fix.href)}">${esc(p.fix.label)}</a>` : ''}</div>`).join('');
+    if (!pre.ready) {
+      modal('Fix these before publishing', `<p class="muted small">Checked before going live so customers never hit a broken page.</p>${list(pre.problems)}`, { submit: 'OK' });
+      return;
+    }
+    if (!await modal('Publish this funnel?', `<p>Everything checks out${pre.problems.length ? ', with a note or two:' : '.'}</p>${list(pre.problems)}<p class="muted small">Your pages go live at the funnel link. You can unpublish any time.</p>`, { submit: 'Publish' })) return;
+    try { await api('POST', `/api/funnels/${id}/publish`); toast('Published! Your funnel is live'); viewFunnel(id); } catch (err) { toast(err.message, true); }
+  };
+  const unpub = $('[data-unpublish]');
+  if (unpub) unpub.onclick = async () => {
+    if (await confirmBox('Unpublish this funnel?', 'Visitors will see “not published yet” until you publish again.', 'Unpublish')) { await api('POST', `/api/funnels/${id}/unpublish`); toast('Unpublished'); viewFunnel(id); }
+  };
   const save = (body) => api('PUT', `/api/funnels/${id}/map`, body).catch((err) => toast(err.message, true));
   const reload = () => viewFunnel(id);
 
@@ -148,7 +176,8 @@ async function viewFunnel(id) {
 
   function renderNodes() {
     nodesEl.innerHTML = m.steps.map((s) => `
-      <div class="node ${s.id === m.entry ? 'start' : ''}" data-node="${s.id}" style="left:${s.x}px;top:${s.y}px;width:${NODE_W}px">
+      <div class="node ${s.id === m.entry ? 'start' : ''} ${m.flow?.leak?.step_id === s.id ? 'leaky' : ''}" data-node="${s.id}" style="left:${s.x}px;top:${s.y}px;width:${NODE_W}px;${m.flow ? `border-top:4px solid ${LEVER_UI[m.flow.levers[s.id]]?.color || 'var(--line)'}` : ''}">
+        ${m.flow?.leak?.step_id === s.id ? '<span class="leakpill" title="Fewest people go on from here">🚩 Leakiest step</span>' : ''}
         <div class="node-in" title="Visitors arrive here"></div>
         ${s.id === m.entry ? '<span class="startpill">▶ START</span>' : ''}
         <div class="nhead"><span class="nicon">${pageIcon(s)}</span><div style="min-width:0"><div class="nname">${esc(s.name)}</div>
@@ -186,12 +215,14 @@ async function viewFunnel(id) {
         html += `<path class="edge ${p}" d="${curve(a, b)}" marker-end="url(#arrow-${p})"/>`;
         const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
         buttons += `<button class="edge-x" style="left:${mid.x}px;top:${mid.y}px" data-unlink="${s.id}:${p}" title="Remove this link">✕</button>`;
+        const metric = m.flow?.edges.find((e) => e.from === s.id && e.port === p);
+        if (metric && metric.visitors) buttons += `<span class="edge-lbl ${p}" style="left:${mid.x}px;top:${mid.y + 18}px">${esc(metric.plain)}</span>`;
       }
     }
     if (temp) html += `<path class="edge temp ${temp.port}" d="${curve(temp.a, temp.b)}"/>`;
     svg.innerHTML = `<defs>${['yes', 'no'].map((p) => `<marker id="arrow-${p}" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M0,0 L10,5 L0,10z" class="arrow ${p}"/></marker>`).join('')}</defs>${html}`;
-    $$('.edge-x', world).forEach((b) => b.remove());
+    $$('.edge-x, .edge-lbl', world).forEach((b) => b.remove());
     world.insertAdjacentHTML('beforeend', buttons);
   }
 

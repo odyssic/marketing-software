@@ -58,6 +58,7 @@ async function setupSeller(email) {
   await c('POST', '/api/auth/signup', { name: 'Seller', email, password: 'password123' });
   const { body: { id: productId } } = await c('POST', '/api/products', { name: 'Lifetime Pass', price: '47', currency: 'usd', billing: 'one_time', tag: 'vip' });
   const { body: { id: funnelId } } = await c('POST', '/api/funnels', { name: `Shop ${email}`, template: 'pricing' });
+  assert.equal((await c('POST', `/api/funnels/${funnelId}/publish`)).status, 200);
   const funnel = (await c('GET', `/api/funnels/${funnelId}`)).body;
   const block = funnel.steps[0].blocks.find((b) => b.type === 'pricing');
   assert.equal(block.productId, productId, 'pricing template picks the newest product');

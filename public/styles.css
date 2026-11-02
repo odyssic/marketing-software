@@ -433,3 +433,8 @@ label.tpl:focus-within { outline: 3px solid #a5b4fc; outline-offset: 2px; }
 .qrrow { display: flex; gap: 12px; align-items: center; padding: 10px 0; border-top: 1px solid var(--line); margin-top: 10px; flex-wrap: wrap; }
 .qrrow img { border: 1px solid var(--line); border-radius: 6px; background: #fff; }
 .rpcard pre.mail { white-space: pre-wrap; margin: 10px 0 0; }
+.edge-lbl { position: absolute; transform: translate(-50%, -50%); background: #fff; border: 1px solid var(--line); border-radius: 99px; padding: 1px 8px; font-size: .72rem; color: #15803d; white-space: nowrap; pointer-events: none; }
+.edge-lbl.no { color: #b91c1c; }
+.node.leaky { box-shadow: 0 0 0 3px #fecaca, var(--shadow); }
+.leakpill { position: absolute; top: -12px; right: 10px; background: #fee2e2; color: #b91c1c; font-size: .7rem; font-weight: 700; border-radius: 99px; padding: 2px 8px; }
+.banner.leak { background: #fef2f2; border-color: #fecaca; color: #7f1d1d; }

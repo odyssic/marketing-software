@@ -46,6 +46,7 @@ test('full funnel → contact → broadcast → unsubscribe flow', async () => {
   assert.equal((await c('GET', '/api/me')).body.account.name, 'Acme');
 
   const { body: { id: funnelId } } = await c('POST', '/api/funnels', { name: 'Free Guide', template: 'optin' });
+  assert.equal((await c('POST', `/api/funnels/${funnelId}/publish`)).status, 200);
   const funnel = (await c('GET', `/api/funnels/${funnelId}`)).body;
   assert.equal(funnel.slug, 'free-guide');
   assert.equal(funnel.steps.length, 2);

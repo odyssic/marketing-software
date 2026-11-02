@@ -37,13 +37,18 @@ function renderPricing(b, ctx) {
   let cta;
   if (product) {
     const blocked = ctx.preview ? ' onsubmit="event.preventDefault();alert(\'Checkout is disabled in preview\')"' : '';
+    // Order bump: one checkbox that adds a second item to the same payment.
+    const bump = b.bumpProductId && ctx.products?.[b.bumpProductId];
+    const bumpHtml = bump ? `<label class="bump"><input type="checkbox" name="bump" value="1">
+      <span><b>${esc(b.bumpLabel || `Yes, add ${bump.name}`)}</b> for ${esc(formatMoney(bump.price_cents, bump.currency))}${bump.description ? `<br><small>${esc(bump.description)}</small>` : ''}</span></label>` : '';
     cta = `<form method="post" action="${esc(ctx.buyAction)}"${blocked}><input type="hidden" name="block" value="${esc(b.id)}">
-      <button class="btn cta" style="${btnStyle}">${label}</button></form>`;
+      ${bumpHtml}<button class="btn cta" style="${btnStyle}">${label}</button></form>`;
   } else {
     cta = `<a class="btn cta" style="${btnStyle}" href="${esc(ctx.nextUrl)}">${label}</a>`
       + (ctx.preview ? '<p class="warn">Choose a product for this pricing card so the button takes payment.</p>' : '');
   }
   return `<div class="pricing">
+    ${product?.image_url ? `<img class="pimg" src="${esc(product.image_url)}" alt="${esc(product.name)}" loading="lazy">` : ''}
     ${b.badge ? `<span class="badge">${esc(b.badge)}</span>` : ''}
     ${b.compareText ? `<div class="was">${esc(b.compareText)}</div>` : ''}
     <div class="price">${price ? `<sup>${esc(price.symbol)}</sup>${esc(price.amount)}` : esc(b.priceText || '$0')}</div>
@@ -104,6 +109,9 @@ function renderBlock(b, ctx, index) {
         <input name="website" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true">
         ${fields}<button class="btn" type="submit">${esc(b.buttonLabel || 'Get access')}</button></form>`;
     }
+    case 'testimonial':
+      return `<figure class="testimonial">${b.photo && /^https?:/i.test(b.photo) ? `<img src="${esc(b.photo)}" alt="" loading="lazy">` : ''}
+        <blockquote>“${esc(b.quote || '')}”</blockquote><figcaption>${esc(b.name || '')}${b.detail ? ` · <span>${esc(b.detail)}</span>` : ''}</figcaption></figure>`;
     case 'spacer':
       return `<div style="height:${Math.min(Math.max(Number(b.height) || 40, 0), 400)}px"></div>`;
     case 'divider':
@@ -152,7 +160,7 @@ body{overflow-x:hidden}
 .features{list-style:none;padding:0;margin:0 0 28px;display:grid;grid-template-columns:1fr 1fr;gap:10px 28px;text-align:left}
 .features li{position:relative;padding-left:40px;line-height:1.35}
 .features li::before{content:"✓";position:absolute;left:0;top:-1px;width:22px;height:22px;border:2px solid ${accent};color:${accent};border-radius:4px;display:grid;place-items:center;font-weight:800;font-size:.85rem}
-.pricing form{margin:0}.cta{display:block;width:100%;font-size:1.6rem;padding:16px 20px;border-radius:6px;font-weight:700}
+.testimonial{margin:28px auto;max-width:560px;text-align:center}.testimonial img{width:64px;height:64px;border-radius:50%;object-fit:cover}.testimonial blockquote{font-size:1.15rem;font-style:italic;margin:10px 0}.testimonial figcaption{font-weight:600}.testimonial figcaption span{font-weight:400;opacity:.7}.pimg{width:100%;max-height:320px;object-fit:cover;border-radius:10px;margin-bottom:14px}.bump{display:flex;gap:10px;align-items:flex-start;text-align:left;border:2px dashed #f59e0b;background:#fffbeb;border-radius:8px;padding:12px;margin:0 0 14px;cursor:pointer;font-size:.95rem}.bump input{margin-top:4px;width:18px;height:18px}.pricing form{margin:0}.cta{display:block;width:100%;font-size:1.6rem;padding:16px 20px;border-radius:6px;font-weight:700}
 .cta small{display:block;font-size:.8rem;font-weight:400;margin-top:6px;opacity:.95}
 .warn{color:#b45309;font-size:.85rem}
 @media(max-width:560px){.features{grid-template-columns:1fr}.price{font-size:4.2rem}.cta{font-size:1.25rem}}

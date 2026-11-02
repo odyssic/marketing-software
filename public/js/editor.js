@@ -13,7 +13,10 @@ const BLOCKS = {
     ['compareText', 'text', 'Crossed-out “was” price', null, 'e.g. $190 per year'],
     ['billingText', 'text', 'Text under the price', null, 'Leave empty to use the product’s billing (e.g. one-time payment)'],
     ['note', 'text', 'Highlight line'], ['featuresTitle', 'text', 'Features heading'], ['features', 'textarea', 'Features (one per line)'],
-    ['buttonLabel', 'text', 'Button text'], ['buttonSubtext', 'text', 'Small text in button'], ['buttonColor', 'color', 'Button color']] },
+    ['buttonLabel', 'text', 'Button text'], ['buttonSubtext', 'text', 'Small text in button'], ['buttonColor', 'color', 'Button color'],
+    ['bumpProductId', 'product', 'Order bump (a one-time add-on ticked at checkout)'], ['bumpLabel', 'text', 'Order bump checkbox text', null, 'e.g. Yes, add the matching coasters']] },
+  testimonial: { label: 'Testimonial', icon: '❝', defaults: { quote: 'Write what a happy customer said.', name: 'Customer name', detail: '', photo: '' },
+    fields: [['quote', 'textarea', 'Quote'], ['name', 'text', 'Name'], ['detail', 'text', 'Detail', null, 'e.g. city or what they bought'], ['photo', 'text', 'Photo link (optional)']] },
   heading: { label: 'Heading', icon: 'H', defaults: { text: 'Your big headline', size: 'large', align: 'center' },
     fields: [['text', 'textarea', 'Text'], ['size', 'select', 'Size', ['large', 'medium', 'small']], ALIGN] },
   text: { label: 'Text', icon: '¶', defaults: { text: 'Write something persuasive here.', align: 'center' },
@@ -42,6 +45,8 @@ async function viewEditor(stepId) {
     <div class="bar"><a class="btn sm" href="#/funnels/${step.funnel.id}">← ${esc(step.funnel.name)}</a>
       <div class="title"><input data-name value="${esc(step.name)}" aria-label="Page name"></div>
       <span class="saved" data-saved>All changes saved</span>
+      <button class="btn sm" data-undo title="Undo (Ctrl+Z)" disabled>↶ Undo</button><button class="btn sm" data-redo title="Redo (Ctrl+Shift+Z)" disabled>↷ Redo</button>
+      <button class="btn sm" data-history title="Earlier versions of this page">🕘 History</button>
       <button class="btn sm" data-device title="Toggle mobile preview">📱 Mobile</button>
       <a class="btn sm primary" href="${esc(link)}" target="_blank" rel="noopener" data-live>View live ↗</a></div>
     <div class="side">
@@ -66,7 +71,23 @@ async function viewEditor(stepId) {
     const { html } = await api('POST', '/api/preview', { blocks: ed.blocks, settings: ed.settings, name: $('[data-name]').value });
     $('iframe').srcdoc = html;
   };
-  const changed = (extra = {}) => {
+  // Undo / redo: snapshots of the page as it changes.
+  const undo = { past: [JSON.stringify({ b: ed.blocks, s: ed.settings })], future: [] };
+  const syncUndo = () => { $('[data-undo]').disabled = undo.past.length < 2; $('[data-redo]').disabled = !undo.future.length; };
+  const remember = () => {
+    const snap = JSON.stringify({ b: ed.blocks, s: ed.settings });
+    if (snap !== undo.past.at(-1)) { undo.past.push(snap); undo.future = []; if (undo.past.length > 100) undo.past.shift(); }
+    syncUndo();
+  };
+  const travel = (from, to) => {
+    if (from === undo.past ? undo.past.length < 2 : !undo.future.length) return;
+    if (from === undo.past) undo.future.push(undo.past.pop()); else undo.past.push(undo.future.pop());
+    const { b, s } = JSON.parse(undo.past.at(-1));
+    ed.blocks = b; ed.settings = s;
+    renderBlocks(); changed({}, true); syncUndo();
+  };
+  const changed = (extra = {}, fromUndo = false) => {
+    if (!fromUndo) setTimeout(remember);
     saved.textContent = 'Saving…';
     clearTimeout(previewTimer); previewTimer = setTimeout(preview, 250);
     clearTimeout(saveTimer);
@@ -87,7 +108,7 @@ async function viewEditor(stepId) {
     if (kind === 'color') return `<label class="f">${label}<input type="color" ${attrs} value="${esc(v || '#000000')}"></label>`;
     if (kind === 'product') {
       return `<label class="f">${label}${products.length ? `<select ${attrs} data-num>
-        <option value="">— None (button just goes to next page) —</option>
+        <option value="">${key === 'bumpProductId' ? '— No order bump —' : '— None (button just goes to next page) —'}</option>
         ${products.map((pr) => `<option value="${pr.id}" ${pr.id === v ? 'selected' : ''}>${esc(pr.name)} · ${esc(pr.priceLabel)}</option>`).join('')}</select>`
         : '<div class="hint" style="margin-top:4px">No products yet. <a href="#/products" target="_blank">Create one</a>, then reload this page.</div>'}</label>`;
     }
@@ -157,6 +178,26 @@ async function viewEditor(stepId) {
   $('[data-name]').addEventListener('input', () => changed());
   $('[data-device]').onclick = () => $('.stage').classList.toggle('mobile');
 
+  $('[data-undo]').onclick = () => travel(undo.past, undo.future);
+  $('[data-redo]').onclick = () => travel(undo.future, undo.past);
+  document.onkeydown = (e) => {
+    if (!$('.editor') || !(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== 'z' || e.target.closest('input, textarea')) return;
+    e.preventDefault(); e.shiftKey ? travel(undo.future, undo.past) : travel(undo.past, undo.future);
+  };
+  $('[data-history]').onclick = async () => {
+    const versions = await api('GET', `/api/steps/${stepId}/versions`);
+    const label = { autosave: 'Saved while editing', published: 'Published', 'before restore': 'Before a restore' };
+    const bg = document.createElement('div');
+    bg.className = 'modal-bg';
+    bg.innerHTML = `<div class="modal"><h2>Earlier versions</h2>
+      ${versions.length ? versions.map((v) => `<div class="li"><span>${esc(label[v.reason] || v.reason)}<br><span class="muted small">${new Date(v.created_at).toLocaleString()}</span></span>
+        <button class="btn sm" data-restore="${v.id}">Restore</button></div>`).join('') : '<p class="muted">No earlier versions yet. One is kept every few minutes while you edit, and every time you publish.</p>'}
+      <p class="hint">Restoring keeps the current page as a version too, so you can always go back.</p>
+      <div class="actions"><button class="btn" data-x>Close</button></div></div>`;
+    document.body.append(bg);
+    $('[data-x]', bg).onclick = () => bg.remove();
+    $$('[data-restore]', bg).forEach((b) => { b.onclick = async () => { await api('POST', `/api/steps/${stepId}/versions/${b.dataset.restore}/restore`); bg.remove(); toast('Version restored'); viewEditor(stepId); }; });
+  };
   renderBlocks();
   preview();
 }
