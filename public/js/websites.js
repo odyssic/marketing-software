@@ -57,7 +57,8 @@ async function viewWebsite(id) {
       <div class="muted small">${esc(link)}</div></div>
       <div class="row"><a class="btn" href="${esc(publicUrl(`/f/${f.slug}`))}" target="_blank" rel="noopener">View site ↗</a><button class="btn" data-settings>Settings</button>
         ${f.status === 'live' ? '<button class="btn" data-unpublish>Unpublish</button>' : '<button class="btn primary" data-publish>Publish</button>'}</div></div>
-    ${f.workflows?.length ? `<div class="wf-strip"><span class="muted small">⚡ Follow-ups:</span>${f.workflows.map((w) => `<a class="chip" href="#/workflows/${w.id}">${esc(w.name.replace(`${f.name}: `, ''))} <span class="pill ${w.status === 'active' ? 'ok' : ''}">${w.status === 'active' ? 'Live' : 'Off'}</span></a>`).join('')}</div>` : ''}
+    ${f.workflows?.length ? `<div class="wf-strip"><span class="muted small">⚡ Email follow-up:</span>${f.workflows.map((w) => `<a class="chip" href="#/workflows/${w.id}">${esc(w.name.replace(`${f.name}: `, ''))} <span class="pill ${w.status === 'active' ? 'ok' : ''}">${w.status === 'active' ? 'Live' : 'Off'}</span></a>`).join('')}
+      <span class="muted small">${f.status === 'live' ? 'Replies to every contact form instantly and checks in after 2 days.' : 'Turns on when you publish: an instant reply to every contact form, and a check-in after 2 days.'}</span></div>` : ''}
     <div class="card table-wrap"><table>
       <tr><th>Menu order</th><th>Page</th><th>Address</th><th>Visits</th><th>Leads</th><th></th></tr>
       ${pages.map((p, i) => `<tr><td style="white-space:nowrap"><button class="btn sm icon" data-mv="${i}:-1" ${i ? '' : 'disabled'} aria-label="Move up">↑</button>
@@ -109,7 +110,8 @@ async function viewWebsite(id) {
     const list = pre.problems.map((p) => `<div class="li"><span>${p.severity === 'block' ? '⛔' : '⚠️'} ${esc(p.text)}</span>${p.fix ? `<a class="btn sm" href="${esc(p.fix.href.replace('#/funnels/', '#/websites/'))}">${esc(p.fix.label)}</a>` : ''}</div>`).join('');
     if (!pre.ready) { modal('Fix these before publishing', list, { submit: 'OK' }); return; }
     if (!await modal('Publish this website?', `${list}<p class="muted small">Your pages go live now. You can unpublish any time.</p>`, { submit: 'Publish' })) return;
-    await api('POST', `/api/funnels/${id}/publish`); toast('Your website is live!'); viewWebsite(id);
+    const r = await api('POST', `/api/funnels/${id}/publish`);
+    toast(r.followups ? 'Your website is live, and its email follow-up is on' : 'Your website is live!'); viewWebsite(id);
   };
   const un = $('[data-unpublish]');
   if (un) un.onclick = async () => { if (await confirmBox('Unpublish this website?', 'Visitors will see “not published yet”.', 'Unpublish')) { await api('POST', `/api/funnels/${id}/unpublish`); viewWebsite(id); } };

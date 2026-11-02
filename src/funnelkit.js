@@ -95,7 +95,17 @@ function registerFunnelKit(api, { getDb, HttpError, id, getFunnel, getStep }) {
       for (const s of all.steps) await snapshot(t, s, 'published');
       await t.run("UPDATE funnels SET status = 'live', published_at = now() WHERE id = ?", all.funnel.id);
     });
-    res.json({ ok: true, status: 'live', warnings: problems });
+    // Websites: follow-up workflows with complete emails go live with the site.
+    let followups = 0;
+    if (all.funnel.kind === 'website') {
+      const { problems: wfProblems } = require('./workflows');
+      for (const w of await db().all("SELECT id, graph, template FROM workflows WHERE funnel_id = ? AND status = 'draft'", all.funnel.id)) {
+        const g = JSON.parse(w.graph);
+        const placeholders = Object.values(g.nodes || {}).some((n) => n.type === 'email' && /\[[^\]]+\]/.test(`${n.config.subject} ${n.config.body}`));
+        if (!wfProblems(g).length && !placeholders) { await db().run("UPDATE workflows SET status = 'active' WHERE id = ?", w.id); followups++; }
+      }
+    }
+    res.json({ ok: true, status: 'live', warnings: problems, followups });
   });
 
   api.post('/funnels/:id/unpublish', async (req, res) => {

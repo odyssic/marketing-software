@@ -168,6 +168,25 @@ const TEMPLATES = {
     ]),
   },
 };
+// Website contact forms: an instant reply, a check-in 2 days later if they
+// haven't bought, and reminders to the owner. Copy comes from the site template.
+TEMPLATES.site_followup = {
+  name: 'Website inquiry follow-up', lever: 'conversion', description: 'Instant reply to website inquiries, a friendly check-in after 2 days, and reminders to you.',
+  graph: (o = {}) => {
+    const c = o.copy || {};
+    return chain({ event: 'inquiry', repeat: true, funnel_id: o.funnel_id || null }, [
+      email(c.reply_subject || 'Thanks, {{first_name|there}}! We got your message', c.reply_body || 'Hi {{first_name|there}},\n\nThanks for reaching out to {{business}}. We’ve got your message and will get back to you within one business day.\n\nIf it’s urgent, just reply to this email.\n\n{{business}}'),
+      { type: 'notify', config: { message: c.notify || 'New inquiry from your website. Reply while it’s fresh.' } },
+      wait(2),
+      { type: 'condition', config: { check: 'purchased_since' }, yes: [],
+        no: [email(c.checkin_subject || 'Just checking in, {{first_name|there}}', c.checkin_body || 'Hi {{first_name|there}},\n\nI wanted to make sure you got everything you needed from us. If you have any questions, or you’d like to go ahead, just reply to this email and I’ll take care of it.\n\n{{business}}'),
+          wait(5),
+          { type: 'condition', config: { check: 'purchased_since' }, yes: [],
+            no: [{ type: 'notify', config: { message: 'This website inquiry is a week old with no booking or purchase yet. A personal call or note often wins it.' } }] }] },
+    ]);
+  },
+};
+
 const DEFAULT_SET = ['care', 'review', 'referral', 'winback']; // seeded (off) in every new workspace
 
 function createWorkflows({ getDb, HttpError, id, people, messaging, getAccount }) {
@@ -178,9 +197,9 @@ function createWorkflows({ getDb, HttpError, id, people, messaging, getAccount }
     return parse(w);
   };
 
-  async function create(accountId, { template = 'blank', name, funnel_id = null, status = 'draft' } = {}) {
+  async function create(accountId, { template = 'blank', name, funnel_id = null, status = 'draft', options = {} } = {}) {
     const t = TEMPLATES[template] || TEMPLATES.blank;
-    const graph = normalizeGraph(t.graph({ funnel_id }), HttpError);
+    const graph = normalizeGraph(t.graph({ funnel_id, ...options }), HttpError);
     const r = await getDb().get(`INSERT INTO workflows (account_id, name, lever, status, template, funnel_id, graph)
       VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id`, accountId, str(name || t.name, 120), t.lever, status, template, funnel_id, JSON.stringify(graph));
     return r.id;

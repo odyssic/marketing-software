@@ -16,7 +16,14 @@ const page = (name, slug, blocks, accent) => ({ name, slug, blocks, settings: { 
 
 const SITE_TEMPLATES = {
   coach: {
-    label: 'Coach or consultant', description: 'Home, About, Services, Results and a booking request page.', accent: '#4f46e5', workflows: ['inquiry'],
+    followup: {
+      reply_subject: 'Thanks, {{first_name|there}}! Let’s find a time to talk',
+      reply_body: 'Hi {{first_name|there}},\n\nThanks for reaching out. I read every request myself and I’ll reply within one business day with a few times for your free call.\n\nIn the meantime, think about one thing you’d most like to change in the next 90 days. That’s where we’ll start.\n\nTalk soon,\n{{business}}',
+      checkin_subject: 'Still up for a quick call, {{first_name|there}}?',
+      checkin_body: 'Hi {{first_name|there}},\n\nJust checking in on your call request. If the timing isn’t right, no problem at all. If it is, reply with two or three times that suit you and I’ll send an invite.\n\n{{business}}',
+      notify: 'New coaching call request from your website. Offer a few times today.',
+    },
+    label: 'Coach or consultant', description: 'Home, About, Services, Results and a booking request page.', accent: '#4f46e5', workflows: ['site_followup'],
     steps: () => {
       const a = '#4f46e5';
       return [
@@ -31,7 +38,14 @@ const SITE_TEMPLATES = {
     },
   },
   services: {
-    label: 'Local service business', description: 'For trades and home services: Home, Services, About, Reviews and a quote request.', accent: '#0f766e', workflows: ['inquiry'],
+    followup: {
+      reply_subject: 'Got your quote request, {{first_name|there}}',
+      reply_body: 'Hi {{first_name|there}},\n\nThanks for contacting {{business}}. We’ve got your request and will get back to you with a quote within one business day. If it helps, reply with a photo or two of the job.\n\nFor anything urgent, just call us.\n\n{{business}}',
+      checkin_subject: 'Any questions about your quote?',
+      checkin_body: 'Hi {{first_name|there}},\n\nJust following up on your quote. Happy to answer any questions or adjust anything. When you’re ready, reply and we’ll get you on the schedule.\n\nThanks,\n{{business}}',
+      notify: 'New quote request from your website. Quick replies win most jobs.',
+    },
+    label: 'Local service business', description: 'For trades and home services: Home, Services, About, Reviews and a quote request.', accent: '#0f766e', workflows: ['site_followup'],
     steps: () => {
       const a = '#0f766e';
       return [
@@ -46,7 +60,14 @@ const SITE_TEMPLATES = {
     },
   },
   restaurant: {
-    label: 'Restaurant or café', description: 'Home, Menu, About, and Visit us with hours, address and a private events form.', accent: '#b45309', workflows: ['inquiry'],
+    followup: {
+      reply_subject: 'Thanks for getting in touch, {{first_name|there}}',
+      reply_body: 'Hi {{first_name|there}},\n\nThanks for your message about an event at {{business}}. We’ll get back to you within one business day with availability and options.\n\nSee you soon,\n{{business}}',
+      checkin_subject: 'Still planning your event?',
+      checkin_body: 'Hi {{first_name|there}},\n\nJust checking in on your event. Dates fill up, so reply whenever you’re ready and we’ll hold a spot for you.\n\n{{business}}',
+      notify: 'New private event or catering request from your website.',
+    },
+    label: 'Restaurant or café', description: 'Home, Menu, About, and Visit us with hours, address and a private events form.', accent: '#b45309', workflows: ['site_followup'],
     steps: () => {
       const a = '#b45309';
       return [
@@ -61,7 +82,14 @@ const SITE_TEMPLATES = {
     },
   },
   shop: {
-    label: 'Maker or online shop', description: 'Home, Shop, About, Journal and Contact, with a newsletter signup.', accent: '#be185d', workflows: ['newsletter', 'inquiry'],
+    followup: {
+      reply_subject: 'Thanks for your message, {{first_name|there}}',
+      reply_body: 'Hi {{first_name|there}},\n\nThanks for getting in touch with {{business}}. I’ll reply personally within a day or two.\n\nWith thanks,\n{{business}}',
+      checkin_subject: 'Following up on your message',
+      checkin_body: 'Hi {{first_name|there}},\n\nJust making sure my reply reached you. If you have any other questions about a custom order or anything else, reply here.\n\n{{business}}',
+      notify: 'New message from your shop website.',
+    },
+    label: 'Maker or online shop', description: 'Home, Shop, About, Journal and Contact, with a newsletter signup.', accent: '#be185d', workflows: ['newsletter', 'site_followup'],
     steps: () => {
       const a = '#be185d';
       return [
@@ -78,7 +106,14 @@ const SITE_TEMPLATES = {
     },
   },
   wellness: {
-    label: 'Salon, studio or wellness', description: 'Home, Services & prices, Team, and Book with hours and a booking request.', accent: '#0e7490', workflows: ['inquiry'],
+    followup: {
+      reply_subject: 'We got your booking request, {{first_name|there}}',
+      reply_body: 'Hi {{first_name|there}},\n\nThanks for your booking request at {{business}}. We’ll confirm your appointment by email or text within one business day.\n\nSee you soon,\n{{business}}',
+      checkin_subject: 'Still want to book, {{first_name|there}}?',
+      checkin_body: 'Hi {{first_name|there}},\n\nJust checking in on your booking. Reply with a couple of times that work and we’ll get you in.\n\n{{business}}',
+      notify: 'New booking request from your website. Confirm a time today.',
+    },
+    label: 'Salon, studio or wellness', description: 'Home, Services & prices, Team, and Book with hours and a booking request.', accent: '#0e7490', workflows: ['site_followup'],
     steps: () => {
       const a = '#0e7490';
       return [

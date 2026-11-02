@@ -1,4 +1,5 @@
 process.env.ALLOW_SIGNUPS = '1';
+process.env.ALLOW_TIME_TRAVEL = '1';
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const { createApp } = require('../src/app');
@@ -25,7 +26,7 @@ function client() {
 
 test('website templates: menu, footer, page links, contact inquiries, menu order, bundled workflow', async () => {
   const c = client();
-  await c('POST', '/api/auth/signup', { name: 'Web', email: 'web@example.com', password: 'password123' });
+  await c('POST', '/api/auth/signup', { name: 'Web', email: 'web@example.com', password: 'password123', workspace: 'Green Lawn Co' });
   const t = (await c('GET', '/api/website-templates')).body;
   assert.deepEqual(t.map((x) => x.key), ['coach', 'services', 'restaurant', 'shop', 'wellness']);
   assert.deepEqual(t.find((x) => x.key === 'services').pages, ['Home', 'Services', 'About', 'Reviews', 'Get a quote']);
@@ -37,8 +38,10 @@ test('website templates: menu, footer, page links, contact inquiries, menu order
   assert.deepEqual((await c('GET', '/api/funnels')).body, []); // websites aren't listed as funnels
   const pre = (await c('GET', `/api/funnels/${site.id}/preflight`)).body;
   assert.equal(pre.ready, true, JSON.stringify(pre.problems));
-  await c('POST', `/api/funnels/${site.id}/publish`);
+  const pub = (await c('POST', `/api/funnels/${site.id}/publish`)).body;
+  assert.equal(pub.followups, 1); // the email follow-up goes live with the site
   const f = (await c('GET', `/api/funnels/${site.id}`)).body;
+  assert.deepEqual(f.workflows.map((w) => [w.name, w.status]), [['Green Lawn Co: Website inquiry follow-up', 'active']]);
 
   const home = (await fetch(`${base}/f/${f.slug}`)).text ? await (await fetch(`${base}/f/${f.slug}`)).text() : '';
   assert.match(home, /<header class="site">[\s\S]*Green Lawn Co[\s\S]*href="\/f\/green-lawn-co\/services">Services<\/a>/);
@@ -55,6 +58,22 @@ test('website templates: menu, footer, page links, contact inquiries, menu order
   assert.ok([200, 303].includes(r.status));
   const ned = (await c('GET', '/api/contacts')).body[0];
   assert.equal((await c('GET', `/api/people/${ned.id}`)).body.events[0].meta.note, 'Weekly mowing, half acre');
+
+  // Built-in follow-up: instant reply + owner alert, then a check-in after 2 days if they haven't bought.
+  await c('POST', '/api/jobs/run');
+  let mail = (await c('GET', '/api/outbox')).body;
+  assert.deepEqual(mail.map((m) => `${m.to_email}: ${m.subject}`).sort(), [
+    'neighbor@example.com: Got your quote request, Ned',
+    'web@example.com: Follow up with Ned (Green Lawn Co: Website inquiry follow-up)',
+  ]);
+  assert.match(mail.find((m) => m.to_email === 'neighbor@example.com').body, /Thanks for contacting Green Lawn Co/);
+  await c('POST', '/api/jobs/run', { now: new Date(Date.now() + 2.1 * 864e5).toISOString() });
+  mail = (await c('GET', '/api/outbox')).body;
+  assert.equal(mail[0].subject, 'Any questions about your quote?');
+  // Once they buy, nothing more goes to them.
+  await c('POST', '/api/import/orders', { orders: [{ order_id: 'g1', email: 'neighbor@example.com', total: 120, date: new Date().toISOString() }] });
+  await c('POST', '/api/jobs/run', { now: new Date(Date.now() + 8 * 864e5).toISOString() });
+  assert.equal((await c('GET', '/api/outbox')).body.filter((m) => m.to_email === 'neighbor@example.com').length, 2);
 
   // Reorder the menu: Reviews first becomes the home page.
   const ids = f.steps.map((s) => s.id);

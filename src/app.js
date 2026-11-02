@@ -542,7 +542,7 @@ function createApp({ dbPath } = {}) {
     // switched off until the owner has reviewed the emails.
     const wfIds = [];
     for (const key of template.workflows || []) {
-      wfIds.push(await workflows.create(accountId, { template: key, funnel_id: funnelId, name: `${name}: ${workflows.TEMPLATES[key].name}` }));
+      wfIds.push(await workflows.create(accountId, { template: key, funnel_id: funnelId, name: `${name}: ${workflows.TEMPLATES[key].name}`, options: { copy: template.followup } }));
     }
     return { id: funnelId, workflows: wfIds };
   }
