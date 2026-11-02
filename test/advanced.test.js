@@ -182,23 +182,31 @@ test('one-click upsell with Stripe: the saved card is charged off-session; a dec
   chargeStatus = 'succeeded';
 });
 
-test('custom domains: a published funnel answers on its own domain; drafts and unknown domains don\'t', async () => {
+test('one domain per account: the home website at the root, every other site or funnel at /its-name', async () => {
   const c = await owner('domain@example.com');
-  const { id } = (await c('POST', '/api/funnels', { name: 'Shop', template: 'optin' })).body;
-  assert.equal((await c('PUT', `/api/funnels/${id}`, { domain: 'not a domain' })).status, 400);
-  assert.equal((await c('PUT', `/api/funnels/${id}`, { domain: 'https://Shop.Example.com/' })).body.domain, 'shop.example.com');
-  assert.equal((await hostGet('shop.example.com', '/')).status, 404); // still a draft
-  await c('POST', `/api/funnels/${id}/publish`);
-  const home = await hostGet('shop.example.com', '/');
+  const site = (await c('POST', '/api/websites', { name: 'Green Lawn', template: 'services' })).body;
+  const fun = (await c('POST', '/api/funnels', { name: 'Spring offer', template: 'optin' })).body;
+  assert.equal((await c('PUT', '/api/account/domain', { domain: 'not a domain' })).status, 400);
+  assert.equal((await c('PUT', '/api/account/domain', { domain: 'https://WWW.Example.com/', home_funnel_id: site.id })).body.domain, 'www.example.com');
+  assert.equal((await hostGet('www.example.com', '/')).status, 404); // nothing published yet
+  await c('POST', `/api/funnels/${site.id}/publish`);
+  await c('POST', `/api/funnels/${fun.id}/publish`);
+  const home = await hostGet('www.example.com', '/');
   assert.equal(home.status, 200);
-  assert.match(home.body, /free guide/i);
-  assert.match((await hostGet('shop.example.com', '/thank-you')).body, /You are in!/);
-  assert.match((await hostGet('localhost', '/d/shop.example.com/thank-you')).body, /You are in!/); // via the Netlify edge rewrite
+  assert.match(home.body, /href="\/services">Services<\/a>/); // menu links are relative to the domain
+  assert.match((await hostGet('www.example.com', '/quote')).body, /Get a free quote/);
+  assert.match((await hostGet('www.example.com', '/spring-offer')).body, /free guide/i); // a funnel at /its-name
+  assert.match((await hostGet('www.example.com', '/spring-offer/thank-you')).body, /You are in!/);
+  assert.match((await hostGet('localhost', '/d/www.example.com/about')).body, /About/); // via the Netlify edge rewrite
+  assert.equal((await hostGet('www.example.com', '/nope')).status, 404);
   assert.equal((await hostGet('nobody.example.org', '/')).status, 404);
   assert.equal((await hostGet(`localhost:${port}`, '/')).status, 200); // the app itself is unaffected
+  const pages = (await c('GET', '/api/pages')).body;
+  assert.ok(pages.some((p) => p.address === 'https://www.example.com/'));
+  assert.ok(pages.some((p) => p.address === 'https://www.example.com/spring-offer/thank-you'));
   const other = await owner('domain-other@example.com');
-  const o = (await other('POST', '/api/funnels', { name: 'Other', template: 'blank' })).body;
-  assert.equal((await other('PUT', `/api/funnels/${o.id}`, { domain: 'shop.example.com' })).status, 409);
+  assert.equal((await other('PUT', '/api/account/domain', { domain: 'www.example.com' })).status, 409);
+  assert.equal((await other('PUT', '/api/account/domain', { home_funnel_id: site.id })).status, 400); // not their site
 });
 
 test('click-to-edit: the editor preview marks text as editable; live pages do not', async () => {

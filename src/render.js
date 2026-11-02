@@ -76,6 +76,9 @@ function youtubeEmbed(url) {
   return m ? `https://www.youtube-nocookie.com/embed/${m[1]}` : null;
 }
 
+const testimonialHtml = (t) => `<figure class="testimonial"><blockquote>“${esc(t.quote)}”</blockquote>
+  <figcaption>${esc(t.name)}${t.detail ? ` · <span>${esc(t.detail)}</span>` : ''}</figcaption></figure>`;
+
 function renderBlock(b, ctx, index) {
   const a = align(b.align);
   // In the editor preview, text marked with data-f can be clicked and typed into.
@@ -116,8 +119,12 @@ function renderBlock(b, ctx, index) {
       const fields = [
         b.collectName ? '<input name="first_name" placeholder="First name" autocomplete="given-name">' : '',
         '<input name="email" type="email" placeholder="Your email address" required autocomplete="email">',
-        b.collectPhone ? '<input name="phone" type="tel" placeholder="Phone number" autocomplete="tel">' : '',
-        b.collectMessage ? '<textarea name="message" rows="4" placeholder="How can we help?" maxlength="2000"></textarea>' : '',
+        b.collectPhone && !b.smsOptIn ? '<input name="phone" type="tel" placeholder="Phone number" autocomplete="tel">' : '',
+        b.collectMessage || String(b.purpose || '').toLowerCase() === 'review' ? `<textarea name="message" rows="4" placeholder="${String(b.purpose || '').toLowerCase() === 'review' ? 'What was it like?' : 'How can we help?'}" maxlength="2000"${String(b.purpose || '').toLowerCase() === 'review' ? ' required' : ''}></textarea>` : '',
+        String(b.purpose || '').toLowerCase() === 'review' ? `<label class="consent"><input type="checkbox" name="share" value="1"> You may show my words and first name on your website.</label>` : '',
+        // SMS compliance wording appears only when the form asks for text messages.
+        b.smsOptIn ? `<input name="phone" type="tel" placeholder="Mobile number" autocomplete="tel" required>
+          <label class="consent"><input type="checkbox" name="sms_consent" value="1"> Yes, text me updates from ${esc(ctx.business || 'us')}. Msg &amp; data rates may apply. Msg frequency varies. Reply STOP to opt out, HELP for help. Consent is not a condition of purchase.</label>` : '',
       ].join('');
       const disabled = ctx.preview ? ' onsubmit="event.preventDefault();alert(\'Forms are disabled in preview\')"' : '';
       return `<form class="optin" method="post" action="${esc(ctx.formAction)}"${disabled}>
@@ -134,9 +141,17 @@ function renderBlock(b, ctx, index) {
         .filter(([, , v]) => v);
       return rows.length ? `<div class="info">${rows.map(([i, l, v]) => `<div><span>${i}</span><b>${l}</b><div>${l === 'Phone' || l === 'Email' ? v : esc(v)}</div></div>`).join('')}</div>` : '';
     }
-    case 'testimonial':
-      return `<figure class="testimonial">${b.photo && /^https?:/i.test(b.photo) ? `<img src="${esc(b.photo)}" alt="" loading="lazy">` : ''}
-        <blockquote${ctx.preview ? ' data-f="quote"' : ''}>“${esc(b.quote || '')}”</blockquote><figcaption>${esc(b.name || '')}${b.detail ? ` · <span>${esc(b.detail)}</span>` : ''}</figcaption></figure>`;
+    // Testimonials come only from the account's approved records.
+    case 'testimonial': {
+      const t = ctx.testimonials?.[b.testimonialId];
+      if (!t) return ctx.preview ? '<p class="warn" style="text-align:center">Pick a testimonial from your records (People → Testimonials).</p>' : '';
+      return testimonialHtml(t, ctx);
+    }
+    case 'reviews': {
+      const list = Object.values(ctx.testimonials || {}).sort((x, y) => y.id - x.id).slice(0, Math.max(1, Number(b.limit) || 3));
+      if (!list.length) return ctx.preview ? '<p class="warn" style="text-align:center">Your approved testimonials appear here. This section stays hidden until you have one.</p>' : '';
+      return list.map((t) => testimonialHtml(t, ctx)).join('');
+    }
     case 'spacer':
       return `<div style="height:${Math.min(Math.max(Number(b.height) || 40, 0), 400)}px"></div>`;
     case 'divider':
@@ -146,12 +161,12 @@ function renderBlock(b, ctx, index) {
   }
 }
 
-function renderPage({ title, blocks, settings = {}, nextUrl = '#', noUrl = '#', formAction = '#', buyAction = '#', products = {}, preview = false, oneClick = null, site = null, pageHref = (slug) => `#${slug}` }) {
+function renderPage({ title, blocks, settings = {}, nextUrl = '#', noUrl = '#', formAction = '#', buyAction = '#', products = {}, preview = false, oneClick = null, site = null, pageHref = (slug) => `#${slug}`, testimonials = {}, business = '' }) {
   const bg = color(settings.background, '#ffffff');
   const fg = color(settings.textColor, '#1f2937');
   const accent = color(settings.accent, '#4f46e5');
   const width = Math.min(Math.max(Number(settings.width) || 720, 360), 1200);
-  const ctx = { nextUrl, noUrl, formAction, buyAction, products, preview, accent, background: bg, oneClick, pageHref };
+  const ctx = { nextUrl, noUrl, formAction, buyAction, products, preview, accent, background: bg, oneClick, pageHref, testimonials, business };
   // Websites get a menu across the top and a footer.
   const nav = site ? `<header class="site"><div class="in"><a class="brand" href="${esc(site.home)}">${esc(site.name)}</a>
     <input type="checkbox" id="mnu" hidden><label for="mnu" class="burger" aria-label="Menu">☰</label>
@@ -191,7 +206,7 @@ body{overflow-x:hidden}
 .features{list-style:none;padding:0;margin:0 0 28px;display:grid;grid-template-columns:1fr 1fr;gap:10px 28px;text-align:left}
 .features li{position:relative;padding-left:40px;line-height:1.35}
 .features li::before{content:"✓";position:absolute;left:0;top:-1px;width:22px;height:22px;border:2px solid ${accent};color:${accent};border-radius:4px;display:grid;place-items:center;font-weight:800;font-size:.85rem}
-.testimonial{margin:28px auto;max-width:560px;text-align:center}.testimonial img{width:64px;height:64px;border-radius:50%;object-fit:cover}.testimonial blockquote{font-size:1.15rem;font-style:italic;margin:10px 0}.testimonial figcaption{font-weight:600}.testimonial figcaption span{font-weight:400;opacity:.7}.pimg{width:100%;max-height:320px;object-fit:cover;border-radius:10px;margin-bottom:14px}.bump{display:flex;gap:10px;align-items:flex-start;text-align:left;border:2px dashed #f59e0b;background:#fffbeb;border-radius:8px;padding:12px;margin:0 0 14px;cursor:pointer;font-size:.95rem}.bump input{margin-top:4px;width:18px;height:18px}.pricing form{margin:0}.cta{display:block;width:100%;font-size:1.6rem;padding:16px 20px;border-radius:6px;font-weight:700}
+.consent{display:flex;gap:8px;align-items:flex-start;text-align:left;font-size:.8rem;opacity:.85;margin:4px 0 10px}.consent input{width:auto;margin-top:3px}.testimonial{margin:28px auto;max-width:560px;text-align:center}.testimonial img{width:64px;height:64px;border-radius:50%;object-fit:cover}.testimonial blockquote{font-size:1.15rem;font-style:italic;margin:10px 0}.testimonial figcaption{font-weight:600}.testimonial figcaption span{font-weight:400;opacity:.7}.pimg{width:100%;max-height:320px;object-fit:cover;border-radius:10px;margin-bottom:14px}.bump{display:flex;gap:10px;align-items:flex-start;text-align:left;border:2px dashed #f59e0b;background:#fffbeb;border-radius:8px;padding:12px;margin:0 0 14px;cursor:pointer;font-size:.95rem}.bump input{margin-top:4px;width:18px;height:18px}.pricing form{margin:0}.cta{display:block;width:100%;font-size:1.6rem;padding:16px 20px;border-radius:6px;font-weight:700}
 .cta small{display:block;font-size:.8rem;font-weight:400;margin-top:6px;opacity:.95}
 .warn{color:#b45309;font-size:.85rem}.oneclick{font-size:.85rem;opacity:.75;margin:10px 0 0}
 @media(max-width:560px){.features{grid-template-columns:1fr}.price{font-size:4.2rem}.cta{font-size:1.25rem}}

@@ -9,9 +9,12 @@ const h = (text, size = 'medium', align = 'center') => ({ id: id(), type: 'headi
 const p = (text, align = 'center') => ({ id: id(), type: 'text', text, align });
 const btn = (label, url, align = 'center') => ({ id: id(), type: 'button', label, url, align });
 const cards = (items) => ({ id: id(), type: 'cards', items: items.map(([t, d]) => `${t} | ${d}`).join('\n') });
-const quote = (q, name, detail = '') => ({ id: id(), type: 'testimonial', quote: q, name, detail, photo: '' });
+// Social proof comes only from real, approved testimonials (hidden until there are some).
+const reviews = (limit = 3) => ({ id: id(), type: 'reviews', limit });
+// Asks happy customers for a review; it becomes a testimonial only with their permission and your approval.
+const reviewForm = () => ({ id: id(), type: 'form', buttonLabel: 'Share my review', collectName: true, purpose: 'Review', tag: 'reviewer' });
 const info = (o) => ({ id: id(), type: 'info', ...o });
-const contactForm = (label = 'Send message') => ({ id: id(), type: 'form', buttonLabel: label, collectName: true, collectPhone: true, collectMessage: true, purpose: 'Inquiry', tag: 'website-inquiry' });
+const contactForm = (label = 'Send message') => ({ id: id(), type: 'form', buttonLabel: label, collectName: true, collectPhone: false, collectMessage: true, purpose: 'Inquiry', tag: 'website-inquiry' });
 const page = (name, slug, blocks, accent) => ({ name, slug, blocks, settings: { accent, width: 960 } });
 
 const SITE_TEMPLATES = {
@@ -29,10 +32,10 @@ const SITE_TEMPLATES = {
       return [
         page('Home', 'home', [hero('Clarity for your next big move', 'One-to-one coaching for founders who are ready to grow without burning out.', '#4338ca', 'Coaching'),
           cards([['1:1 coaching', 'Weekly sessions focused on your goals.'], ['Strategy days', 'A full day to map the next 12 months.'], ['Group program', 'Six weeks with a small cohort.']]),
-          quote('I finally have a plan I believe in.', 'Client name', 'Founder'), btn('Book a free call', 'page:contact')], a),
+          reviews(1), btn('Book a free call', 'page:contact')], a),
         page('About', 'about', [h('Hi, I’m [your name]', 'large'), p('Tell your story: who you help, why you do this work, and what makes your approach different.'), btn('Work with me', 'page:services')], a),
         page('Services', 'services', [h('How we can work together', 'large'), cards([['1:1 coaching', '[Price] per month. Weekly calls, messages between sessions.'], ['Strategy day', '[Price]. Leave with a written plan.'], ['Group program', '[Price]. Next cohort starts [date].']]), btn('Ask a question', 'page:contact')], a),
-        page('Results', 'results', [h('What clients say', 'large'), quote('Replace with a real client quote.', 'Client name', 'Role'), quote('Another short, specific result.', 'Client name', 'Role')], a),
+        page('Results', 'results', [h('What clients say', 'large'), reviews(6), h('Worked with us?', 'small'), p('We’d love to hear how it went.'), reviewForm()], a),
         page('Contact', 'contact', [h('Book a free 20-minute call', 'large'), p('Tell me a little about where you are and where you want to be.'), contactForm('Request my call'), info({ email: 'you@yourbusiness.com', phone: '', address: '', hours: 'Mon–Thu, 9am–5pm' })], a),
       ];
     },
@@ -51,10 +54,10 @@ const SITE_TEMPLATES = {
       return [
         page('Home', 'home', [hero('Reliable [service] in [your town]', 'Licensed, insured and on time. Free quotes within one business day.', '#0f766e', 'Family owned since [year]'),
           cards([['[Service one]', 'Short description of what you do.'], ['[Service two]', 'Short description of what you do.'], ['[Service three]', 'Short description of what you do.']]),
-          quote('They showed up when they said they would and did beautiful work.', 'Customer name', '[Town]'), btn('Get a free quote', 'page:quote')], a),
+          reviews(1), btn('Get a free quote', 'page:quote')], a),
         page('Services', 'services', [h('What we do', 'large'), cards([['[Service one]', 'What’s included, typical timeline, starting price.'], ['[Service two]', 'What’s included, typical timeline, starting price.'], ['[Service three]', 'What’s included, typical timeline, starting price.'], ['Emergencies', 'Call [phone] for same-day help.']]), btn('Request a quote', 'page:quote')], a),
         page('About', 'about', [h('About [business name]', 'large'), p('Who you are, how long you’ve served the area, licenses and guarantees.')], a),
-        page('Reviews', 'reviews', [h('What neighbors say', 'large'), quote('Replace with a real review.', 'Customer name', '[Town]'), quote('Replace with a real review.', 'Customer name', '[Town]'), quote('Replace with a real review.', 'Customer name', '[Town]')], a),
+        page('Reviews', 'reviews', [h('What neighbors say', 'large'), reviews(6), h('Worked with us?', 'small'), p('We’d love to hear how it went.'), reviewForm()], a),
         page('Get a quote', 'quote', [h('Get a free quote', 'large'), p('Tell us what you need and we’ll get back to you within one business day.'), contactForm('Request my quote'), info({ phone: '(555) 555-0100', email: 'hello@yourbusiness.com', address: 'Serving [town] and nearby', hours: 'Mon–Fri 7am–6pm, Sat 8am–2pm' })], a),
       ];
     },
@@ -119,7 +122,7 @@ const SITE_TEMPLATES = {
       return [
         page('Home', 'home', [hero('Feel good in [town]', '[Massage / hair / yoga]: an hour that’s just for you.', '#155e75', 'Now booking'),
           cards([['[Service]', 'From $[price], [length] minutes.'], ['[Service]', 'From $[price], [length] minutes.'], ['[Service]', 'From $[price], [length] minutes.']]),
-          quote('The calmest hour of my week.', 'Client name'), btn('Request a booking', 'page:book')], a),
+          reviews(1), btn('Request a booking', 'page:book')], a),
         page('Services', 'services', [h('Services & prices', 'large'), cards([['[Service]', '$[price] · [length] min · what’s included'], ['[Service]', '$[price] · [length] min · what’s included'], ['[Service]', '$[price] · [length] min · what’s included'], ['Gift cards', 'Available in any amount.']]), btn('Book now', 'page:book')], a),
         page('Team', 'team', [h('Meet the team', 'large'), cards([['[Name]', 'Specialty and a line about them.'], ['[Name]', 'Specialty and a line about them.']])], a),
         page('Book', 'book', [h('Request a booking', 'large'), p('Tell us the service and a few times that work. We’ll confirm by email or text.'), contactForm('Request booking'), info({ hours: 'Tue–Sat 9am–7pm', address: '[Street], [Town]', phone: '(555) 555-0100', email: 'hello@yourstudio.com' })], a),

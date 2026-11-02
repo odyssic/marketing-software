@@ -27,6 +27,16 @@ function viewSettings() {
       <div class="row"><label class="f" style="margin:0">Send it on<select data-digestday>${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map((d, i) => `<option value="${i}" ${a.digest_day === i ? 'selected' : ''}>${d}</option>`).join('')}</select></label>
         <button class="btn" data-digestpreview type="button">Preview</button><button class="btn" data-digestsend type="button">Send me one now</button></div>
     </div>
+    <form class="card" style="max-width:560px;margin-top:16px" data-domain>
+      <h2>Your domain</h2>
+      <p class="muted small">Connect it once for the whole business. The home website opens at the domain; every other website or funnel lives at /its-name.</p>
+      <label class="f">Domain<input name="domain" value="${esc(a.domain || '')}" placeholder="www.yourbusiness.com"></label>
+      <label class="f">Home website<select name="home_funnel_id" data-homes><option value="">— Pick one —</option></select></label>
+      <details class="hint"><summary>How to connect it</summary><ol style="padding-left:18px;margin:6px 0">
+        <li>At your domain registrar, point a <b>CNAME</b> for <b>www</b> at <b>${esc(new URL(state.me.baseUrl).hostname)}</b>.</li>
+        <li>In Netlify → Domain management, add the domain as an alias (HTTPS is automatic).</li><li>Save here and publish your pages.</li></ol></details>
+      <div class="err"></div><button class="btn primary">Save domain</button>
+    </form>
     <div class="card" style="max-width:560px;margin-top:16px" data-subs>
       <div class="row" style="justify-content:space-between"><h2 style="margin:0">Sub-accounts</h2><button class="btn sm primary" data-newsub>＋ New sub-account</button></div>
       <p class="muted small">One workspace per business. Each has its own people, funnels, emails and dashboard.</p>
@@ -53,6 +63,13 @@ function viewSettings() {
     </form>`);
   bindCopy();
   $('[data-newsub]').onclick = newSubAccount;
+  Promise.all([api('GET', '/api/websites'), api('GET', '/api/funnels')]).then(([sites, funnels]) => {
+    $('[data-homes]').innerHTML += [...sites, ...funnels].map((x) => `<option value="${x.id}" ${a.home_funnel_id === x.id ? 'selected' : ''}>${esc(x.name)} (${x.kind === 'website' ? 'website' : 'funnel'})</option>`).join('');
+  });
+  $('[data-domain]').onsubmit = async (e) => {
+    e.preventDefault();
+    try { await api('PUT', '/api/account/domain', Object.fromEntries(new FormData(e.target))); state.me = await api('GET', '/api/me'); toast('Domain saved'); } catch (err) { $('.err', e.target).textContent = err.message; }
+  };
   $('[data-digestday]').onchange = async (e) => { const r = await api('PUT', '/api/account/digest', { day: Number(e.target.value) }); state.me = await api('GET', '/api/me'); toast(`Digest moves to ${r.day}s`); };
   $('[data-digestpreview]').onclick = async () => { const d = await api('GET', '/api/digest/preview'); modal(d.subject, `<pre class="mail" style="max-height:60vh">${esc(d.text)}</pre>`, { submit: 'Close' }); };
   $('[data-digestsend]').onclick = async () => { const r = await api('POST', '/api/digest/send'); toast(`Sent to ${r.to}${r.status === 'logged' ? ' (dev mode: see Email → Outbox)' : ''}`); };

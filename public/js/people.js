@@ -17,7 +17,7 @@ async function viewPeople() {
   const link = (over) => `#/people?${new URLSearchParams({ q, tag, stage, ...over })}`;
   shell('people', `
     <div class="head"><div><h1>People</h1><div class="muted">One record per person, across your store, newsletter, podcast and inquiries.</div></div>
-      <div class="row"><button class="btn" data-import>Import CSV</button><a class="btn" href="/api/export.zip">Export everything</a>
+      <div class="row"><a class="btn" href="#/people/testimonials">❝ Testimonials</a><button class="btn" data-import>Import CSV</button><a class="btn" href="/api/export.zip">Export everything</a>
       <button class="btn primary" data-add>+ Add person</button></div></div>
     <div class="stagebar">
       <a href="${link({ stage: '' })}" class="${stage ? '' : 'active'}"><b>${all.length}</b>Everyone</a>
@@ -72,7 +72,7 @@ async function viewPerson(personId) {
     <div class="head"><div><a href="#/people" class="small">← People</a>
       <h1 style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">${esc(personName(p))} ${stagePill(p.stage)}</h1>
       <div class="muted">${[p.email && esc(p.email), p.phone && esc(p.phone), `first came from <b>${esc(p.source)}</b>`, `added ${fmtDate(p.created_at)}`].filter(Boolean).join(' · ')}</div></div>
-      <div class="row"><button class="btn" data-log>+ Log activity</button><button class="btn" data-edit>Edit</button></div></div>
+      <div class="row"><button class="btn" data-log>+ Log activity</button><button class="btn" data-addt>❝ Add testimonial</button><button class="btn" data-edit>Edit</button></div></div>
     <div class="flowline">${STAGES.map(([k, l]) => `<div class="${k} ${STAGES.findIndex((s) => s[0] === k) <= STAGES.findIndex((s) => s[0] === p.stage) ? 'on' : ''}">${esc(l.replace(/s$/, ''))}</div>`).join('')}</div>
     <div class="grid two">
       <div class="card"><h2>Timeline</h2>
@@ -111,6 +111,16 @@ async function viewPerson(personId) {
       }
     };
     if (await pending) { toast('Saved'); viewPerson(p.id); }
+  };
+  $('[data-addt]').onclick = async () => {
+    const r = await modal(`Testimonial from ${personName(p)}`, `
+      <label class="f">What they said <span class="hint">their words, not a summary</span><textarea name="quote" rows="4" required></textarea></label>
+      <div class="colors" style="grid-template-columns:1fr 1fr"><label class="f">Show as<input name="name" value="${esc([p.first_name, p.last_name ? `${p.last_name[0]}.` : ''].filter(Boolean).join(' '))}" required></label>
+        <label class="f">Detail <span class="hint">optional</span><input name="detail" placeholder="e.g. ${esc(p.city || 'Austin')}"></label></div>
+      <label class="f">Where it came from<input name="source" placeholder="e.g. email, Google review, in person"></label>
+      <label class="check"><input type="checkbox" name="consent" required> These are ${esc(personName(p))}’s real words, and they agreed to share them.</label>`,
+    { submit: 'Save testimonial', onSubmit: (v) => api('POST', '/api/testimonials', { ...v, person_id: p.id }) });
+    if (r) toast('Saved. It can now be shown on your pages');
   };
   $('[data-log]').onclick = async () => {
     const r = await modal('Log activity', `

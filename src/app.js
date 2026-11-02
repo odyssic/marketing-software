@@ -18,6 +18,7 @@ const { registerPrint } = require('./print');
 const { createDigest } = require('./digest');
 const { registerFunnelKit } = require('./funnelkit');
 const { SITE_TEMPLATES } = require('./sites');
+const { registerLibrary, approvedTestimonials } = require('./library');
 
 const slugify = (s) => String(s || '').toLowerCase().normalize('NFKD').replace(/[^\w\s-]/g, '')
   .trim().replace(/[\s_]+/g, '-').replace(/-+/g, '-').slice(0, 60) || 'page';
@@ -58,12 +59,13 @@ function createApp({ dbPath } = {}) {
     || (process.env.APP_HOSTS || '').split(',').map((x) => x.trim().toLowerCase()).includes(h)
     || (process.env.PUBLIC_URL && new URL(process.env.PUBLIC_URL).hostname === h);
   const domainCache = new Map();
-  const funnelForDomain = async (host) => {
+  // The account that connected this domain (one domain per account).
+  const accountForDomain = async (host) => {
     const hit = domainCache.get(host);
-    if (hit && hit.at > Date.now() - 30e3) return hit.slug;
-    const f = await db.get("SELECT slug FROM funnels WHERE domain = ? AND status = 'live'", host);
-    if (f) domainCache.set(host, { slug: f.slug, at: Date.now() }); // only remember hits, so a fresh publish shows up at once
-    return f?.slug || null;
+    if (hit && hit.at > Date.now() - 30e3) return hit.account;
+    const a = await db.get('SELECT id, home_funnel_id FROM accounts WHERE domain = ?', host);
+    if (a) domainCache.set(host, { account: a, at: Date.now() });
+    return a || null;
   };
   const PASS = /^\/(t|s|checkout|stripe|unsubscribe|f)\//;
   app.use(async (req, res, next) => {
@@ -72,10 +74,18 @@ function createApp({ dbPath } = {}) {
     const viaEdge = req.path.match(/^\/d\/([a-z0-9.-]+)(\/.*)?$/i);
     if (viaEdge) { host = viaEdge[1].toLowerCase(); path = viaEdge[2] || '/'; } else if (ownHost(host)) { lastBase = `${req.protocol}://${req.host}`; return next(); }
     if (PASS.test(path)) { req.url = path + (req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : ''); return next(); }
-    const slug = await funnelForDomain(host).catch(() => null);
-    if (!slug) return res.status(404).type('text').send('No funnel is published at this address.');
+    const acct = await accountForDomain(host).catch(() => null);
+    const nothing = () => res.status(404).type('text').send('Nothing is published at this address yet.');
+    if (!acct) return nothing();
+    // "/" and "/<page>" are the home website; "/<name>/..." is any other live site or funnel.
+    const segs = path.split('/').filter(Boolean);
+    const home = acct.home_funnel_id && await db.get("SELECT slug FROM funnels WHERE id = ? AND status = 'live'", acct.home_funnel_id);
+    const homeHasPage = home && segs[0] && await db.get('SELECT 1 FROM funnel_steps WHERE funnel_id = ? AND slug = ?', acct.home_funnel_id, segs[0]);
+    const other = segs[0] && !homeHasPage && await db.get("SELECT slug FROM funnels WHERE account_id = ? AND slug = ? AND status = 'live'", acct.id, segs[0]);
+    let target, rest;
+    if (other) { target = other.slug; rest = segs.slice(1); req.domainBase = `/${other.slug}`; } else if (home) { target = home.slug; rest = segs; req.domainBase = ''; } else return nothing();
     const q = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
-    req.url = `/f/${slug}${path === '/' ? '' : path}${q}`;
+    req.url = `/f/${target}${rest.length ? `/${rest.join('/')}` : ''}${q}`;
     req.viaDomain = true;
     next();
   });
@@ -602,16 +612,10 @@ function createApp({ dbPath } = {}) {
     if (slug !== f.slug && await db.get('SELECT 1 FROM funnels WHERE slug = ?', slug)) {
       throw new HttpError(409, 'That URL is already taken, try another');
     }
-    let domain = f.domain;
-    if (req.body?.domain !== undefined) {
-      domain = String(req.body.domain || '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '') || null;
-      if (domain && !/^(?=.{4,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$/.test(domain)) throw new HttpError(400, 'Enter a domain like shop.yourbusiness.com');
-      if (domain && ownHost(domain)) throw new HttpError(400, 'That’s the app’s own address; use a domain of your own');
-      if (domain && await db.get('SELECT 1 FROM funnels WHERE domain = ? AND id <> ?', domain, f.id)) throw new HttpError(409, 'Another funnel already uses that domain');
-    }
-    await db.run('UPDATE funnels SET name = ?, slug = ?, domain = ? WHERE id = ?', name, slug, domain, f.id);
+    // Domains belong to the account (Settings), not to a single funnel.
+    await db.run('UPDATE funnels SET name = ?, slug = ? WHERE id = ?', name, slug, f.id);
     domainCache.clear();
-    res.json({ ok: true, slug, domain });
+    res.json({ ok: true, slug });
   });
 
   api.delete('/funnels/:id', async (req, res) => {
@@ -703,7 +707,8 @@ function createApp({ dbPath } = {}) {
 
   api.post('/preview', async (req, res) => {
     const { blocks, settings, name } = req.body || {};
-    res.json({ html: renderPage({ title: name || 'Preview', blocks, settings, products: await productsMap(req.accountId), preview: true }) });
+    res.json({ html: renderPage({ title: name || 'Preview', blocks, settings, products: await productsMap(req.accountId), preview: true,
+      testimonials: await approvedTestimonials(db, req.accountId), business: (await getAccount(req.accountId)).name }) });
   });
 
   // Pipelines & deals
@@ -963,6 +968,7 @@ function createApp({ dbPath } = {}) {
     const now = process.env.ALLOW_TIME_TRAVEL === '1' && req.body?.now ? new Date(req.body.now) : new Date();
     res.json(await app.runJobs(now));
   });
+  registerLibrary(api, { getDb: () => db, HttpError, id, ownHost, clearDomainCache: () => domainCache.clear() });
   registerPrint(api, app, { getDb: () => db, HttpError, id, logEvent, publicBase, toCsv: people.toCsv });
   registerAccounts(api, { getDb: () => db, HttpError, id });
   registerDashboard(api, { getDb: () => db, HttpError, leversFor, formatMoney, getAccount, weeklyMove: (accountId) => moves.current(accountId) });
@@ -1028,7 +1034,7 @@ function createApp({ dbPath } = {}) {
   // Links between pages, and for websites the menu (pages in order) and footer.
   // On the site's own domain, links are /page instead of /f/<site>/page.
   const siteChrome = async (req, funnel, step) => {
-    const base = req.viaDomain ? '' : `/f/${funnel.slug}`;
+    const base = req.viaDomain ? req.domainBase ?? '' : `/f/${funnel.slug}`;
     const pageHref = (slug) => `${base}/${slug}`;
     if (funnel.kind !== 'website') return { pageHref };
     const pages = await db.all('SELECT id, name, slug, settings FROM funnel_steps WHERE funnel_id = ? ORDER BY position, id', funnel.id);
@@ -1070,6 +1076,7 @@ function createApp({ dbPath } = {}) {
       ...(await siteChrome(req, funnel, step)),
       nextUrl, noUrl, formAction: `/f/${funnel.slug}/${step.slug}/optin`, buyAction: `/f/${funnel.slug}/${step.slug}/buy`,
       products, oneClick: buyer ? `/f/${funnel.slug}/${step.slug}/oneclick` : null,
+      testimonials: await approvedTestimonials(db, funnel.account_id), business: (await getAccount(funnel.account_id)).name,
     }));
   });
 
@@ -1100,10 +1107,23 @@ function createApp({ dbPath } = {}) {
         await db.run("INSERT INTO subscriptions (account_id, person_id, product, format) VALUES (?, ?, ?, 'email')", funnel.account_id, contact.id, product);
         await logEvent(db, funnel.account_id, { person_id: contact.id, type: 'subscribe', source: 'funnel', meta: { ...meta, product, format: 'email' } });
       }
+    } else if (purpose === 'review') {
+      // A review becomes a testimonial only with the person's permission, and only after the owner approves it.
+      const words = String(req.body.message || '').trim().slice(0, 1000);
+      if (words && req.body.share === '1') {
+        await db.run("INSERT INTO testimonials (account_id, person_id, quote, name, source, approved) VALUES (?, ?, ?, ?, 'review form', 0)",
+          funnel.account_id, contact.id, words, String(req.body.first_name || '').trim().slice(0, 40) || 'A customer');
+      }
+      await logEvent(db, funnel.account_id, { person_id: contact.id, type: 'note', source: 'funnel', meta: { ...meta, note: `Left a review${req.body.share === '1' ? ' (may be shown)' : ' (private)'}: ${words.slice(0, 300)}` } });
     } else if (purpose === 'inquiry') {
       await logEvent(db, funnel.account_id, { person_id: contact.id, type: 'inquiry', source: 'funnel', meta: { ...meta, note: String(req.body.message || '').slice(0, 2000) } });
     } else {
       await logEvent(db, funnel.account_id, { person_id: contact.id, type: 'signup', source: 'funnel', meta });
+    }
+    // SMS consent is recorded (with the exact wording shown) only when the form asked for it.
+    if (block.smsOptIn && req.body.sms_consent === '1') {
+      await db.run('UPDATE contacts SET sms_consent_at = COALESCE(sms_consent_at, now()) WHERE id = ?', contact.id);
+      await logEvent(db, funnel.account_id, { person_id: contact.id, type: 'subscribe', source: 'funnel', meta: { ...meta, format: 'sms', consent: 'Yes, text me updates. Msg & data rates may apply. Msg frequency varies. Reply STOP to opt out, HELP for help. Consent is not a condition of purchase.', ip: req.ip } });
     }
     await db.run("INSERT INTO page_events (account_id, funnel_id, step_id, type, contact_id, variant) VALUES (?, ?, ?, 'optin', ?, ?)",
       funnel.account_id, funnel.id, step.id, contact.id, variantFor(req, null, step));

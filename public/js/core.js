@@ -115,8 +115,7 @@ const BRAND = 'Fourfold';
 const LOGO = '<svg viewBox="0 0 32 32" aria-hidden="true"><rect x="3" y="3" width="12" height="12" rx="3.5" fill="#0ea5e9"/><rect x="17" y="3" width="12" height="12" rx="3.5" fill="#8b5cf6"/><rect x="3" y="17" width="12" height="12" rx="3.5" fill="#f59e0b"/><rect x="17" y="17" width="12" height="12" rx="3.5" fill="#10b981"/></svg>';
 const NAV = [
   ['', '📊', 'Dashboard'],
-  ['websites', '🌐', 'Websites'],
-  ['funnels', '🧲', 'Funnels'],
+  ['pages', '📄', 'Pages'],
   ['workflows', '⚡', 'Workflows'],
   ['people', '👥', 'People'],
   ['pipelines', '📈', 'Pipelines'],

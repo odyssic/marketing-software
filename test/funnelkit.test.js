@@ -123,12 +123,14 @@ test('order bump adds a second item to the same payment; testimonial block rende
   const f = (await c('GET', `/api/funnels/${id}`)).body;
   const [page] = f.steps;
   const pricing = page.blocks.find((b) => b.type === 'pricing');
+  const ann = (await c('POST', '/api/contacts', { email: 'ann@example.com', first_name: 'Ann' })).body;
+  const t = (await c('POST', '/api/testimonials', { person_id: ann.id, quote: 'Best mug I own.', name: 'Ann', detail: 'Austin', consent: true })).body;
   await c('PUT', `/api/steps/${page.id}`, { blocks: [{ ...pricing, productId: main.id, bumpProductId: bump.id, bumpLabel: 'Add matching coasters' },
-    { id: 't', type: 'testimonial', quote: 'Best mug I own.', name: 'Ann', detail: 'Austin' }] });
+    { id: 't', type: 'testimonial', testimonialId: t.id }] });
   await c('POST', `/api/funnels/${id}/publish`);
   const html = (await client()('GET', `/f/${f.slug}`)).body;
   assert.match(html, /class="bump"[\s\S]*Add matching coasters[\s\S]*\$12/);
-  assert.match(html, /<blockquote>“Best mug I own\.”<\/blockquote><figcaption>Ann · <span>Austin<\/span>/);
+  assert.match(html, /<blockquote>“Best mug I own\.”<\/blockquote>\s*<figcaption>Ann · <span>Austin<\/span>/);
 
   const buy = await fetch(`${base}/f/${f.slug}/${page.slug}/buy`, { method: 'POST', redirect: 'manual', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ block: pricing.id, bump: '1' }) });
   assert.equal(buy.status, 303);

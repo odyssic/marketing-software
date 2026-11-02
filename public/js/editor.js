@@ -15,8 +15,9 @@ const BLOCKS = {
     ['note', 'text', 'Highlight line'], ['featuresTitle', 'text', 'Features heading'], ['features', 'textarea', 'Features (one per line)'],
     ['buttonLabel', 'text', 'Button text'], ['buttonSubtext', 'text', 'Small text in button'], ['buttonColor', 'color', 'Button color'],
     ['bumpProductId', 'product', 'Order bump (a one-time add-on ticked at checkout)'], ['bumpLabel', 'text', 'Order bump checkbox text', null, 'e.g. Yes, add the matching coasters']] },
-  testimonial: { label: 'Testimonial', icon: '❝', defaults: { quote: 'Write what a happy customer said.', name: 'Customer name', detail: '', photo: '' },
-    fields: [['quote', 'textarea', 'Quote'], ['name', 'text', 'Name'], ['detail', 'text', 'Detail', null, 'e.g. city or what they bought'], ['photo', 'text', 'Photo link (optional)']] },
+  // Only real, approved testimonials (People → Testimonials) can be shown.
+  testimonial: { label: 'Testimonial', icon: '❝', defaults: { testimonialId: null }, fields: [['testimonialId', 'testimonial', 'Testimonial from your records']] },
+  reviews: { label: 'Reviews', icon: '★', defaults: { limit: 3 }, fields: [['limit', 'number', 'How many to show (newest approved first)']] },
   heading: { label: 'Heading', icon: 'H', defaults: { text: 'Your big headline', size: 'large', align: 'center' },
     fields: [['text', 'textarea', 'Text'], ['size', 'select', 'Size', ['large', 'medium', 'small']], ALIGN] },
   text: { label: 'Text', icon: '¶', defaults: { text: 'Write something persuasive here.', align: 'center' },
@@ -28,9 +29,9 @@ const BLOCKS = {
   button: { label: 'Button', icon: '⬭', defaults: { label: 'Continue', url: '#next', align: 'center' },
     fields: [['label', 'text', 'Button text'], ['url', 'text', 'Link', null, 'page:contact = another page of this site · #next = this page’s ✓ Yes exit · #no = its ✕ No thanks exit · or a full https:// link'], ALIGN] },
   form: { label: 'Form', icon: '✉', defaults: { buttonLabel: 'Get instant access', collectName: true, collectPhone: false, purpose: 'Sign up', tag: 'lead' },
-    fields: [['purpose', 'select', 'What happens', ['Sign up', 'Newsletter', 'Inquiry'], 'Sign up: a lead. Newsletter: also subscribes them. Inquiry: logs a request you should answer.'],
+    fields: [['purpose', 'select', 'What happens', ['Sign up', 'Newsletter', 'Inquiry', 'Review'], 'Sign up: a lead. Newsletter: also subscribes them. Inquiry: logs a request you should answer.'],
       ['newsletter', 'text', 'Newsletter name (for Newsletter forms)'],
-      ['buttonLabel', 'text', 'Button text'], ['collectName', 'check', 'Ask for first name'], ['collectPhone', 'check', 'Ask for phone number'], ['collectMessage', 'check', 'Ask for a message'],
+      ['buttonLabel', 'text', 'Button text'], ['collectName', 'check', 'Ask for first name'], ['collectPhone', 'check', 'Ask for phone number'], ['smsOptIn', 'check', 'SMS updates (adds a mobile number and the required text-message consent)'], ['collectMessage', 'check', 'Ask for a message'],
       ['tag', 'text', 'Tag new contacts with', null, 'Use tags to email this group later. Comma-separate for several.']] },
   cards: { label: 'Cards', icon: '▦', defaults: { items: 'Service one | A short description\nService two | A short description\nService three | A short description' },
     fields: [['items', 'textarea', 'Cards (one per line: Title | description)']] },
@@ -42,7 +43,8 @@ const BLOCKS = {
 const uid = () => Math.random().toString(36).slice(2, 10);
 
 async function viewEditor(stepId) {
-  const [step, products] = await Promise.all([api('GET', `/api/steps/${stepId}`), api('GET', '/api/products')]);
+  const [step, products, testimonials] = await Promise.all([api('GET', `/api/steps/${stepId}`), api('GET', '/api/products'), api('GET', '/api/testimonials')]);
+  const realTestimonials = testimonials.filter((t) => t.approved);
   // Split test: ?v=b edits version B of this page.
   const editingB = Boolean(step.variant_blocks) && new URLSearchParams(location.hash.split('?')[1] || '').get('v') === 'b';
   const ed = { step, blocks: editingB ? step.variant_blocks : step.blocks,
@@ -117,6 +119,11 @@ async function viewEditor(stepId) {
     if (kind === 'textarea') return `<label class="f">${label}<textarea ${attrs} rows="3">${esc(v)}</textarea></label>`;
     if (kind === 'select') return `<label class="f">${label}<select ${attrs}>${options.map((o) => `<option ${o === v ? 'selected' : ''}>${o}</option>`).join('')}</select></label>`;
     if (kind === 'color') return `<label class="f">${label}<input type="color" ${attrs} value="${esc(v || '#000000')}"></label>`;
+    if (kind === 'testimonial') {
+      return `<label class="f">${label}${realTestimonials.length ? `<select ${attrs} data-num><option value="">— Pick one —</option>
+        ${realTestimonials.map((t) => `<option value="${t.id}" ${t.id === v ? 'selected' : ''}>${esc(t.name)}: “${esc(t.quote.slice(0, 50))}${t.quote.length > 50 ? '…' : ''}”</option>`).join('')}</select>`
+        : '<div class="hint" style="margin-top:4px">No approved testimonials yet. Add real ones from a customer’s page in <a href="#/people/testimonials" target="_blank">People → Testimonials</a>, or collect them with a Review form.</div>'}</label>`;
+    }
     if (kind === 'product') {
       return `<label class="f">${label}${products.length ? `<select ${attrs} data-num>
         <option value="">${key === 'bumpProductId' ? '— No order bump —' : '— None (button just goes to next page) —'}</option>

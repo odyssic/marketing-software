@@ -20,7 +20,7 @@ const LEVER_OF_PAGE = (s) => {
 const YT = /^(https?:\/\/)?(www\.)?(youtube\.com\/(watch\?v=|embed\/|shorts\/)|youtu\.be\/)[\w-]{6,}/i;
 
 // Plain-language problems. "block" stops publishing; "warn" doesn't.
-function preflight({ funnel, steps, products, account }) {
+function preflight({ funnel, steps, products, account, testimonials = {} }) {
   const out = [];
   const add = (severity, step, text, fix) => out.push({ severity, step_id: step?.id ?? null, step_name: step?.name ?? '', text, fix });
   const edit = (s) => ({ label: 'Edit page', href: `#/editor/${s.id}` });
@@ -46,7 +46,8 @@ function preflight({ funnel, steps, products, account }) {
         else if (!String(b.alt || '').trim()) add('warn', s, `An image on “${s.name}” has no description (needed for screen readers).`, edit(s));
       }
       if (b.type === 'video' && b.url && !YT.test(b.url)) add('block', s, `The video link on “${s.name}” isn’t a YouTube link.`, edit(s));
-      if (b.type === 'testimonial' && !String(b.quote || '').trim()) add('block', s, `A testimonial on “${s.name}” has no quote.`, edit(s));
+      if (b.type === 'testimonial' && !testimonials[b.testimonialId]) add('block', s, `A testimonial on “${s.name}” isn’t linked to a real, approved testimonial.`, { label: 'Pick one', href: `#/editor/${s.id}` });
+      if (b.type === 'reviews' && !Object.keys(testimonials).length) add('warn', s, `The reviews section on “${s.name}” stays hidden until you approve a real testimonial.`, { label: 'Testimonials', href: '#/people/testimonials' });
       if ((b.type === 'heading' || b.type === 'hero') && String(b.text || '').length > 140) add('warn', s, `A headline on “${s.name}” is very long for a phone screen.`, edit(s));
     }
   }
@@ -61,7 +62,7 @@ function suggestion(step) {
   const lever = LEVER_OF_PAGE(step);
   return {
     lead: 'Ask only for an email (drop the name field) and make the headline promise one specific result.',
-    conversion: 'Move the buy button above the fold and add one short testimonial right next to it.',
+    conversion: 'Move the buy button above the fold and show one of your real, approved testimonials right next to it.',
     upsell: 'Make the offer smaller and clearer: one item, one price, and a plainly worded “No thanks”.',
     continuity: 'Add one clear next step here, such as a newsletter signup or a link back to the shop.',
   }[lever];
@@ -76,7 +77,8 @@ function registerFunnelKit(api, { getDb, HttpError, id, getFunnel, getStep }) {
       db().all('SELECT * FROM products WHERE account_id = ?', accountId),
       db().get('SELECT * FROM accounts WHERE id = ?', accountId),
     ]);
-    return { funnel, steps, products: Object.fromEntries(prods.map((p) => [p.id, p])), account };
+    const testimonials = await require('./library').approvedTestimonials(db(), accountId);
+    return { funnel, steps, products: Object.fromEntries(prods.map((p) => [p.id, p])), account, testimonials };
   };
   const snapshot = (q, step, reason) => q.run('INSERT INTO step_versions (step_id, name, blocks, settings, reason) VALUES (?, ?, ?, ?, ?)',
     step.id, step.name, step.blocks, step.settings, reason);
@@ -196,7 +198,8 @@ function registerFunnelKit(api, { getDb, HttpError, id, getFunnel, getStep }) {
     if (lever === 'conversion') {
       const i = blocks.findIndex((b) => b.type === 'pricing');
       if (i > 0) blocks.unshift(...blocks.splice(i, 1));
-      if (!blocks.some((b) => b.type === 'testimonial')) blocks.splice(1, 0, { id: `t${Date.now().toString(36)}`, type: 'testimonial', quote: 'Add a short quote from a happy customer here.', name: 'Customer name', detail: '' });
+      // Social proof only from real records: a reviews section shows approved testimonials (hidden if none).
+      if (!blocks.some((b) => b.type === 'testimonial' || b.type === 'reviews')) blocks.splice(1, 0, { id: `t${Date.now().toString(36)}`, type: 'reviews', limit: 1 });
     }
     if (lever === 'upsell') blocks.forEach((b) => { if (b.type === 'pricing') { b.features = String(b.features || '').split('\n').slice(0, 3).join('\n'); } if (b.type === 'button' && b.url === '#no') b.label = 'No thanks'; });
     if (lever === 'continuity' && !blocks.some((b) => b.type === 'button')) blocks.push({ id: `b${Date.now().toString(36)}`, type: 'button', label: 'Visit the shop', url: 'https://example.com', align: 'center' });

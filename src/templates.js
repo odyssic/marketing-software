@@ -161,7 +161,7 @@ const TEMPLATES = {
         blocks: [
           { id: id(), type: 'heading', text: 'Book a free 20-minute consultation', align: 'center' },
           { id: id(), type: 'text', text: 'Tell us a little about what you need and we’ll get back to you within one business day.', align: 'center' },
-          { id: id(), type: 'form', buttonLabel: 'Request my consultation', collectName: true, collectPhone: true, collectMessage: true, purpose: 'Inquiry', tag: 'consult-request' },
+          { id: id(), type: 'form', buttonLabel: 'Request my consultation', collectName: true, collectPhone: false, collectMessage: true, purpose: 'Inquiry', tag: 'consult-request' },
         ],
       },
       {

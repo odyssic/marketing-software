@@ -5,12 +5,12 @@
 // same page editor as funnels; publishing runs the same pre-flight check.
 async function viewWebsites() {
   const sites = await api('GET', '/api/websites');
-  shell('websites', `
+  shell('pages', `${PAGES_TABS('websites')}
     <div class="head"><div><h1>Websites</h1><div class="muted">Your business website: pages with a menu, ready-made for your kind of business.</div></div>
       <button class="btn primary" data-new>+ New website</button></div>
     ${sites.length ? `<div class="wf-grid">${sites.map((s) => `<article class="wf-card" data-go="#/websites/${s.id}" tabindex="0">
       <div class="row" style="justify-content:space-between"><h3>${esc(s.name)}</h3>${s.status === 'live' ? '<span class="pill ok">Live</span>' : '<span class="pill warn">Draft</span>'}</div>
-      <p class="muted small">${s.domain ? esc(s.domain) : esc(publicUrl(`/f/${s.slug}`))}</p>
+      <p class="muted small">${esc(publicUrl(`/f/${s.slug}`))}</p>
       <div class="wf-meta"><span>${s.pages} pages</span><span>${s.views} visits</span><span>${s.leads} inquiries & signups</span><span class="muted">last 30 days</span></div></article>`).join('')}</div>`
       : `<div class="card empty"><div class="big">🌐</div><h2>No website yet</h2><p>Pick a template for your kind of business and edit the words. It’s live in minutes.</p>
         <button class="btn primary" data-new>Choose a template</button></div>`}`);
@@ -49,9 +49,9 @@ async function newWebsite() {
 
 async function viewWebsite(id) {
   const f = await api('GET', `/api/funnels/${id}`);
-  const link = f.domain ? `https://${f.domain}` : publicUrl(`/f/${f.slug}`);
+  const link = state.me.account.domain ? `https://${state.me.account.domain}${state.me.account.home_funnel_id === f.id ? '' : `/${f.slug}`}` : publicUrl(`/f/${f.slug}`);
   const pages = [...f.steps].sort((a, b) => a.position - b.position || a.id - b.id);
-  shell('websites', `
+  shell('pages', `${PAGES_TABS('websites')}
     <div class="head"><div><a href="#/websites" class="small">← Websites</a>
       <h1 style="display:flex;gap:10px;align-items:center">${esc(f.name)} ${f.status === 'live' ? '<span class="pill ok">Live</span>' : '<span class="pill warn">Draft</span>'}</h1>
       <div class="muted small">${esc(link)}</div></div>
@@ -99,8 +99,7 @@ async function viewWebsite(id) {
   }; });
   $('[data-settings]').onclick = async () => {
     const r = await modal('Website settings', `<label class="f">Business name<input name="name" required value="${esc(f.name)}"></label>
-      <label class="f">Your own domain <span class="hint">e.g. www.yourbusiness.com</span><input name="domain" value="${esc(f.domain || '')}"></label>
-      <p class="hint">Point the domain’s CNAME at ${esc(new URL(state.me.baseUrl).hostname)} and add it as a domain alias in Netlify (HTTPS is automatic). Publish, and the site opens at your domain.</p>`,
+      <p class="hint">Your domain is connected once for the whole business in <a href="#/settings">Settings</a>, where you can also make this the home website.</p>`,
     { onSubmit: (v) => api('PUT', `/api/funnels/${id}`, v) });
     if (r) { toast('Saved'); viewWebsite(id); }
   };

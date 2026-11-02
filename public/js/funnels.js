@@ -3,7 +3,7 @@
 // ---------------- Funnels ----------------
 async function viewFunnels() {
   const funnels = await api('GET', '/api/funnels');
-  shell('funnels', `
+  shell('pages', `${PAGES_TABS('funnels')}
     <div class="head"><div><h1>Funnels</h1><div class="muted">Landing pages that turn visitors into contacts.</div></div>
       <button class="btn primary" data-new>+ New funnel</button></div>
     ${funnels.length ? `<div class="card table-wrap"><table>
@@ -124,7 +124,7 @@ function tidyLayout(steps, entryId) {
 async function viewFunnel(id) {
   const f = await api('GET', `/api/funnels/${id}`);
   const link = publicUrl(`/f/${f.slug}`);
-  shell('funnels', `
+  shell('pages', `${PAGES_TABS('funnels')}
     <div class="head" style="margin-bottom:14px"><div><a href="#/funnels" class="small">← All funnels</a>
       <h1 style="display:flex;gap:10px;align-items:center">${esc(f.name)} ${f.status === 'live' ? '<span class="pill ok">Live</span>' : '<span class="pill warn">Draft</span>'}</h1></div>
       <div class="row"><div class="copy" style="min-width:320px"><input readonly value="${esc(link)}" aria-label="Funnel link">
@@ -403,11 +403,7 @@ async function viewFunnel(id) {
   $('[data-rename]').onclick = async () => {
     const r = await modal('Funnel settings', `<label class="f">Name<input name="name" required value="${esc(f.name)}"></label>
       <label class="f">URL <span class="hint">${esc(state.me.baseUrl)}/f/<b>this-part</b></span><input name="slug" required value="${esc(f.slug)}"></label>
-      <label class="f">Your own domain <span class="hint">optional, e.g. shop.yourbusiness.com</span><input name="domain" value="${esc(f.domain || '')}" placeholder="shop.yourbusiness.com"></label>
-      <details class="hint"><summary>How to connect a domain</summary><ol style="padding-left:18px;margin:6px 0">
-        <li>At your domain registrar, add a <b>CNAME</b> record for <b>shop</b> pointing to <b>${esc(new URL(state.me.baseUrl).hostname)}</b>.</li>
-        <li>In Netlify → Domain management, add <b>shop.yourbusiness.com</b> as a domain alias. Netlify issues the HTTPS certificate automatically.</li>
-        <li>Publish the funnel. Its start page opens at the domain, and every page at /page-name.</li></ol></details>`,
+      <p class="hint">Your domain is connected once for the whole business in <a href="#/settings">Settings</a>; this funnel then lives at /<b>${esc(f.slug)}</b> on it.</p>`,
     { onSubmit: (v) => api('PUT', `/api/funnels/${id}`, v) });
     if (r) { toast('Saved'); reload(); }
   };

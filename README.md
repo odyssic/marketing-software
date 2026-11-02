@@ -29,6 +29,13 @@ A simple, all-in-one marketing platform for small businesses. It starts with the
 | **Dashboard** | Contacts, views, opt-ins, conversion, a 14-day signup chart, a get-started checklist and recent contacts. |
 | **Accounts** | Email and password sign-up (scrypt hashing), cookie sessions and workspace-scoped data. |
 
+## Product principles
+
+1. **One place for pages.** A page is a page, whoever built it (website, funnel, template or AI): all of them are listed, searched and edited under Pages.
+2. **Domains connect once, to the whole account.** Settings → Your domain. The home website answers at the root; every other website or funnel lives at `/its-name`.
+3. **Forms start with name and email.** Phone and message are added only when needed; text-message (SMS) consent wording appears, and consent is recorded, only when a form adds SMS updates.
+4. **AI never invents social proof.** Testimonials come only from real records: entered from a customer's page with their permission, or sent through a Review form and approved by the owner. Templates contain no made-up quotes, and the AI is told never to write testimonials, ratings or customer counts.
+
 ## Run it
 
 Requires Node.js 22+.
@@ -102,6 +109,7 @@ src/moves.js         the weekly move and campaign approve/send/results
 src/print.js         print mailing list, label PDF writer, short links and QR codes
 src/digest.js        weekly digest and the repurpose endpoint
 src/sites.js         website templates
+src/library.js       all pages, the account domain, testimonials
 src/funnelkit.js     pre-flight checks, publish/draft, version history, map metrics and leak flag
 src/ai.js            drafting with Claude in the owner's voice (template fallback without a key)
 public/js/           dashboard single-page app, one file per feature (vanilla JS, no build step):
