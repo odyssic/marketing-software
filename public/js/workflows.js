@@ -5,13 +5,13 @@
 // actions. Email sequences are just email + wait steps on the map.
 const STEP_UI = {
   trigger: { icon: icon('bolt'), label: 'Trigger', color: '#4f46e5' },
-  wait: { icon: icon('clock'), label: 'Wait', color: '#64748b', hint: 'Pause for days or hours' },
-  email: { icon: icon('mail'), label: 'Send email', color: '#0ea5e9', hint: 'An email in the sequence' },
-  condition: { icon: icon('branch'), label: 'Yes / no split', color: '#8b5cf6', hint: 'Branch on what they did' },
-  tag: { icon: icon('tag'), label: 'Tag', color: '#f59e0b', hint: 'Add or remove tags' },
-  subscribe: { icon: icon('inbox'), label: 'Subscribe', color: '#10b981', hint: 'Add to a newsletter' },
-  notify: { icon: icon('bell'), label: 'Notify me', color: '#ef4444', hint: 'Email you to follow up personally' },
-  deal: { icon: icon('briefcase'), label: 'Create deal', color: '#0f766e', hint: 'Add to a pipeline' },
+  wait: { icon: icon('clock'), label: 'Wait', color: '#475569', hint: 'Pause for days or hours' },
+  email: { icon: icon('mail'), label: 'Send email', color: '#475569', hint: 'An email in the sequence' },
+  condition: { icon: icon('branch'), label: 'Yes / no split', color: '#475569', hint: 'Branch on what they did' },
+  tag: { icon: icon('tag'), label: 'Tag', color: '#475569', hint: 'Add or remove tags' },
+  subscribe: { icon: icon('inbox'), label: 'Subscribe', color: '#475569', hint: 'Add to a newsletter' },
+  notify: { icon: icon('bell'), label: 'Notify me', color: '#475569', hint: 'Email you to follow up personally' },
+  deal: { icon: icon('briefcase'), label: 'Create deal', color: '#475569', hint: 'Add to a pipeline' },
 };
 const PALETTE = ['email', 'wait', 'condition', 'tag', 'subscribe', 'notify', 'deal'];
 const TRIGGER_UI = {
@@ -131,7 +131,7 @@ function stepSummary(key) {
     case 'condition': return `${CONDITION_UI[c.check] || ''}${c.value ? ` “${c.value}”` : ''}`;
     case 'tag': return [c.add && `Add ${c.add}`, c.remove && `Remove ${c.remove}`].filter(Boolean).join(' · ') || 'Pick tags';
     case 'subscribe': return `Subscribe to ${c.product || 'Newsletter'}`;
-    case 'notify': return c.message || 'Email me a reminder';
+    case 'notify': return `Email ${wf.w?.notifyTo || 'me'}${c.message ? `: ${c.message}` : ''}`;
     case 'deal': return c.pipeline_id ? `Add to ${wf.pipelines.find((p) => p.id === c.pipeline_id)?.name || 'pipeline'}` : 'Pick a pipeline';
     default: return '';
   }
@@ -344,7 +344,10 @@ function renderInspector() {
       body = field('Newsletter', `<input data-c="product" value="${esc(c.product)}">`);
       break;
     case 'notify':
-      body = field('Reminder for you', `<textarea data-c="message" rows="4" placeholder="e.g. Send a personal note">${esc(c.message)}</textarea>`, 'emailed to you with their name');
+      body = `<p class="notify-to">${icon('mail')} Sends an email to <b>${esc(wf.w?.notifyTo || 'you')}</b> <a href="#/settings" class="small">change</a></p>
+        <p class="hint" style="margin-top:-4px">Use it when a person needs your personal touch. The email names the person, links to their record, and includes your note.</p>`
+        + field('Your note to yourself', `<textarea data-c="message" rows="3" placeholder="e.g. Call to thank them and ask what they’re restoring">${esc(c.message)}</textarea>`);
+      break;
       break;
     case 'deal':
       body = field('Pipeline', `<select data-c="pipeline_id" data-num><option value="">Pick a pipeline</option>${wf.pipelines.map((pl) => `<option value="${pl.id}" ${c.pipeline_id === pl.id ? 'selected' : ''}>${esc(pl.name)}</option>`).join('')}</select>`)

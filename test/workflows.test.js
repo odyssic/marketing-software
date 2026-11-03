@@ -212,3 +212,58 @@ test('graph validation, activation checks, deal step and workspace isolation', a
   assert.equal((await other('DELETE', `/api/workflows/${id}`)).status, 404);
   assert.ok(!(await other('GET', '/api/workflows')).body.some((w) => w.id === id));
 });
+
+test('every step type does its job: the referral map plus tag, yes/no split and deal', async () => {
+  const c = await signup('wf-all@example.com');
+  const { id } = (await c('POST', '/api/workflows', { template: 'blank', name: 'Every step' })).body;
+  const pipe = (await c('POST', '/api/pipelines', { name: 'Sales', stages: ['New', 'Won'] })).body.id;
+  const g = (await c('GET', `/api/workflows/${id}`)).body.graph;
+  const N = (type, config, more = {}) => ({ type, config, ...more });
+  g.nodes[g.root] = N('trigger', { event: 'purchase' }, { next: 'w' });
+  Object.assign(g.nodes, {
+    w: N('wait', { days: 60 }, { next: 'e' }),
+    e: N('email', { subject: 'Know someone who’d love this?', body: 'Hi {{first_name|there}}, thanks again.' }, { next: 's' }),
+    s: N('subscribe', { product: 'Newsletter' }, { next: 'n' }),
+    n: N('notify', { message: 'Welcome. Ask how the typewriter is going.' }, { next: 't' }),
+    t: N('tag', { add: 'asked-referral', remove: 'new' }, { next: 'q' }),
+    q: N('condition', { check: 'has_tag', value: 'vip' }, { yes: 'd', no: 'n2' }),
+    d: N('deal', { pipeline_id: pipe, title: 'VIP: {{name}}', value: 500 }),
+    n2: N('notify', { message: 'Not a VIP yet.' }),
+  });
+  const saved = (await c('PUT', `/api/workflows/${id}`, { graph: g })).body;
+  assert.deepEqual(saved.problems, []);
+  assert.equal((await c('GET', `/api/workflows/${id}`)).body.notifyTo, 'wf-all@example.com'); // the editor shows who "Notify me" emails
+  assert.equal((await c('PUT', `/api/workflows/${id}/status`, { status: 'active' })).status, 200);
+
+  const vip = (await c('POST', '/api/contacts', { email: 'vip@example.com', first_name: 'Vera', last_name: 'Ip', tags: 'vip, new' })).body;
+  const reg = (await c('POST', '/api/contacts', { email: 'reg@example.com', first_name: 'Reg', tags: 'new' })).body;
+  await c('POST', '/api/import/orders', { orders: [vip, reg].map((p, i) => ({ order_id: `A${i}`, email: p.email, total: '45.00', date: new Date().toISOString() })) });
+
+  // Trigger: both enrolled and waiting; nothing sent yet.
+  await run(c);
+  assert.equal((await outbox(c)).length, 0);
+  assert.equal((await c('GET', `/api/workflows/${id}`)).body.stats.w.at, 2);
+  // Day 59: still waiting. Day 61: everything after the wait runs.
+  await run(c, inDays(59));
+  assert.equal((await outbox(c)).length, 0);
+  await run(c, inDays(61));
+
+  const mail = await outbox(c);
+  const toPeople = mail.filter((m) => m.contact_id).map((m) => [m.to_email, m.subject]).sort();
+  assert.deepEqual(toPeople, [['reg@example.com', 'Know someone who’d love this?'], ['vip@example.com', 'Know someone who’d love this?']]);
+  const toOwner = mail.filter((m) => !m.contact_id);
+  assert.ok(toOwner.every((m) => m.to_email === 'wf-all@example.com'));
+  assert.equal(toOwner.filter((m) => /Ask how the typewriter/.test(m.body)).length, 2); // notify for both
+  assert.equal(toOwner.filter((m) => /Not a VIP yet/.test(m.body)).length, 1); // "No" branch: Reg only
+  assert.match(toOwner[0].subject, /^Follow up with (Vera Ip|Reg) \(Every step\)$/);
+
+  const v = (await c('GET', `/api/people/${vip.id}`)).body, r = (await c('GET', `/api/people/${reg.id}`)).body;
+  assert.deepEqual([v.subscriptions.length, r.subscriptions.length], [1, 1]); // subscribe
+  assert.ok(v.tags.includes('asked-referral') && !v.tags.includes('new')); // tag add + remove
+  assert.ok(r.tags.includes('asked-referral') && !r.tags.includes('new'));
+  assert.deepEqual(v.deals.map((d) => [d.title, d.value_cents]), [['VIP: Vera Ip', 50000]]); // "Yes" branch → deal
+  assert.equal(r.deals.length, 0);
+
+  const st = (await c('GET', `/api/workflows/${id}`)).body.stats;
+  assert.equal(st.w.at || 0, 0); // nobody left waiting
+});

@@ -325,7 +325,7 @@ function createWorkflows({ getDb, HttpError, id, people, messaging, getAccount }
       }
       case 'notify': {
         const who = [person.first_name, person.last_name].filter(Boolean).join(' ') || person.email || `person #${person.id}`;
-        await messaging.sendToOwner({ account, subject: `Follow up with ${who} (${w.name})`, body: `${c.message || 'A workflow flagged this person for a personal follow-up.'}\n\n${who}${person.email ? ` <${person.email}>` : ''}\nWorkflow: ${w.name}` });
+        await messaging.sendToOwner({ account, subject: `Follow up with ${who} (${w.name})`, body: `${c.message || 'A workflow flagged this person for a personal follow-up.'}\n\n${who}${person.email ? ` <${person.email}>` : ''}${person.phone ? `\n${person.phone}` : ''}${process.env.PUBLIC_URL ? `\nOpen their record: ${process.env.PUBLIC_URL}/#/people/${person.id}` : ''}\nWorkflow: ${w.name}` });
         return { next: node.next, outcome: 'notified' };
       }
       case 'deal': {
@@ -421,7 +421,11 @@ function createWorkflows({ getDb, HttpError, id, people, messaging, getAccount }
       const stats = {};
       for (const r of at) (stats[r.node_id] ??= { at: 0, outcomes: {} }).at = r.n;
       for (const r of passed) ((stats[r.node_id] ??= { at: 0, outcomes: {} }).outcomes[r.outcome] = r.n);
-      res.json({ ...w, stats, problems: problems(w.graph), triggers: TRIGGERS, conditions: CONDITIONS });
+      // Who "Notify me" emails: the sender address in Settings, else the account owner.
+      const acct = await db().get('SELECT from_email FROM accounts WHERE id = ?', req.accountId);
+      const notifyTo = acct?.from_email || (await db().get(`SELECT u.email FROM memberships m JOIN users u ON u.id = m.user_id
+        WHERE m.account_id = ? ORDER BY m.user_id LIMIT 1`, req.accountId))?.email || '';
+      res.json({ ...w, stats, problems: problems(w.graph), triggers: TRIGGERS, conditions: CONDITIONS, notifyTo });
     });
 
     api.put('/workflows/:id', async (req, res) => {
