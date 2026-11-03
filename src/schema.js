@@ -350,6 +350,8 @@ ALTER TABLE accounts ADD COLUMN IF NOT EXISTS workflows_seeded INT NOT NULL DEFA
 -- What kind of business this is (src/business.js) and the sections it hides.
 ALTER TABLE accounts ADD COLUMN IF NOT EXISTS business_type TEXT NOT NULL DEFAULT '';
 ALTER TABLE accounts ADD COLUMN IF NOT EXISTS hidden_sections TEXT NOT NULL DEFAULT '';
+-- What a funnel or website is for (leads, sales, bookings...), set by tapping its tag.
+ALTER TABLE funnels ADD COLUMN IF NOT EXISTS purpose TEXT NOT NULL DEFAULT '';
 -- Email tracking: which workflow or campaign sent it, and when it was opened or clicked.
 ALTER TABLE email_log ADD COLUMN IF NOT EXISTS workflow_id INT;
 ALTER TABLE email_log ADD COLUMN IF NOT EXISTS campaign_id INT;

@@ -127,7 +127,7 @@ async function viewFunnel(id) {
   const link = publicUrl(`/f/${f.slug}`);
   shell('pages', `${PAGES_TABS('funnels')}
     <div class="head" style="margin-bottom:14px"><div><a href="#/funnels" class="small">← All funnels</a>
-      <h1 style="display:flex;gap:10px;align-items:center">${esc(f.name)} ${f.status === 'live' ? '<span class="pill ok">Live</span>' : '<span class="pill warn">Draft</span>'}</h1></div>
+      <h1 style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">${esc(f.name)} ${f.status === 'live' ? '<span class="pill ok">Live</span>' : '<span class="pill warn">Draft</span>'} ${purposeTag(f)}</h1></div>
       <div class="row"><div class="copy" style="min-width:320px"><input readonly value="${esc(link)}" aria-label="Funnel link">
         <button class="btn" data-copy="${esc(link)}">Copy</button><a class="btn" href="${esc(link)}" target="_blank" rel="noopener">Open ${icon('external')}</a></div>
         <button class="btn" data-rename>Settings</button><button class="btn danger" data-del>Delete</button>
@@ -151,6 +151,7 @@ async function viewFunnel(id) {
       <div class="world"><svg class="edges"></svg><div class="nodes"></div></div>
     </div>`);
   bindCopy();
+  bindPurposeTags([f], () => viewFunnel(id));
 
   const m = { steps: f.steps, entry: f.entry_step_id, zoom: 1, panX: 40, panY: 40 };
   const mapEl = $('.map'), world = $('.world'), svg = $('.edges'), nodesEl = $('.nodes');

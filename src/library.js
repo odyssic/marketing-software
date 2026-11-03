@@ -23,7 +23,7 @@ function registerLibrary(api, { getDb, HttpError, id, ownHost, clearDomainCache 
   // Funnels and websites as groups, each with its pages in the order visitors
   // move through them (start page, then each "Yes / Next"), plus 30-day numbers.
   api.get('/page-groups', async (req, res) => {
-    const funnels = await db().all(`SELECT f.id, f.name, f.slug, f.kind, f.status, f.entry_step_id, f.created_at,
+    const funnels = await db().all(`SELECT f.id, f.name, f.slug, f.kind, f.status, f.purpose, f.entry_step_id, f.created_at,
         (SELECT COUNT(*)::int FROM workflows w WHERE w.funnel_id = f.id) AS followups
       FROM funnels f WHERE f.account_id = ? ORDER BY f.id DESC`, req.accountId);
     const steps = await db().all(`SELECT s.id, s.funnel_id, s.name, s.slug, s.position, s.blocks, s.settings, s.next_step_id, s.no_step_id,

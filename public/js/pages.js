@@ -21,6 +21,7 @@ async function viewPages() {
       <header class="pg-head">
         <div><a class="pg-name" href="#/${g.kind === 'website' ? 'websites' : 'funnels'}/${g.id}">${esc(g.name)}</a>
           <span class="muted small">${g.kind === 'website' ? 'Website' : 'Funnel'} · ${g.pages.length} page${g.pages.length === 1 ? '' : 's'}${g.followups ? ` · ${g.followups} follow-up${g.followups === 1 ? '' : 's'}` : ''}</span></div>
+        ${purposeTag(g)}
         ${g.status === 'live' ? '<span class="pill ok">Live</span>' : '<span class="pill warn">Draft</span>'}
         <div class="pg-stats"><span><b>${g.views}</b> visitors</span><span><b>${g.leads}</b> leads &amp; sales</span><span><b>${g.rate === null ? '—' : `${g.rate}%`}</b> convert</span><span class="muted small">last 30 days</span></div>
         <a class="btn sm" href="#/${g.kind === 'website' ? 'websites' : 'funnels'}/${g.id}">${g.kind === 'website' ? 'Open site' : 'Open map'}</a>
@@ -38,6 +39,7 @@ async function viewPages() {
   if (q) { const el = $('[data-q]'); el.focus(); el.setSelectionRange(q.length, q.length); }
   $('[data-newsite]').onclick = newWebsite;
   $('[data-newfunnel]').onclick = newFunnel;
+  bindPurposeTags(groups, viewPages);
   // Page pictures, a few at a time.
   const queue = groups.flatMap((g) => g.pages);
   const next = async () => {

@@ -552,3 +552,9 @@ table.leads input:hover, table.leads input:focus { border-color: var(--line); ba
 .fu-add.end { width: auto; border-radius: 10px; padding: 0 12px; display: flex; gap: 4px; align-items: center; height: auto; align-self: stretch; }
 .choice input:checked ~ .ci { background: var(--brand); color: #fff; }
 label.choice:has(input:checked) { border-color: var(--brand); background: var(--brand-soft); }
+
+/* Purpose tag on funnels and websites: tap to change */
+.purpose { display: inline-flex; align-items: center; gap: 6px; padding: 4px 11px; border-radius: 99px; border: 1px solid #a9dcd6; background: var(--brand-soft); color: var(--brand); font-family: inherit; font-weight: 600; font-size: .8rem; line-height: 1.4; cursor: pointer; white-space: nowrap; }
+.purpose:hover { background: var(--brand); color: #fff; border-color: var(--brand); }
+.purpose.unset { background: #fff; border-style: dashed; color: var(--muted); }
+h1 .purpose { font-size: .8rem; }

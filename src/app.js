@@ -626,8 +626,10 @@ function createApp({ dbPath } = {}) {
     if (slug !== f.slug && await db.get('SELECT 1 FROM funnels WHERE slug = ?', slug)) {
       throw new HttpError(409, 'That URL is already taken, try another');
     }
+    const PURPOSES = ['leads', 'sales', 'bookings', 'newsletter', 'upsell', 'info'];
+    const purpose = req.body?.purpose !== undefined ? (PURPOSES.includes(req.body.purpose) ? req.body.purpose : '') : f.purpose || '';
     // Domains belong to the account (Settings), not to a single funnel.
-    await db.run('UPDATE funnels SET name = ?, slug = ? WHERE id = ?', name, slug, f.id);
+    await db.run('UPDATE funnels SET name = ?, slug = ?, purpose = ? WHERE id = ?', name, slug, purpose, f.id);
     domainCache.clear();
     res.json({ ok: true, slug });
   });
