@@ -114,14 +114,14 @@ const BRAND = 'Fourfold';
 // Four squares, one per growth lever: lead gen, conversion, upsell, continuity.
 const LOGO = '<svg viewBox="0 0 32 32" aria-hidden="true"><rect x="3" y="3" width="12" height="12" rx="3.5" fill="#0ea5e9"/><rect x="17" y="3" width="12" height="12" rx="3.5" fill="#8b5cf6"/><rect x="3" y="17" width="12" height="12" rx="3.5" fill="#f59e0b"/><rect x="17" y="17" width="12" height="12" rx="3.5" fill="#10b981"/></svg>';
 const NAV = [
-  ['', '📊', 'Dashboard'],
-  ['pages', '📄', 'Pages'],
-  ['workflows', '⚡', 'Workflows'],
-  ['people', '👥', 'People'],
-  ['pipelines', '📈', 'Pipelines'],
-  ['products', '🛒', 'Products'],
-  ['email', '✉️', 'Email'],
-  ['settings', '⚙️', 'Settings'],
+  ['', icon('dashboard'), 'Dashboard'],
+  ['pages', icon('page'), 'Pages'],
+  ['workflows', icon('bolt'), 'Workflows'],
+  ['people', icon('people'), 'People'],
+  ['pipelines', icon('trend'), 'Pipelines'],
+  ['products', icon('bag'), 'Products'],
+  ['email', icon('mail'), 'Email'],
+  ['settings', icon('gear'), 'Settings'],
 ];
 
 function shell(section, html) {
@@ -130,7 +130,7 @@ function shell(section, html) {
     <aside class="sidebar">
       <div class="logo">${LOGO}${BRAND}</div>
       <div class="acct-wrap"><button class="acct" data-acct aria-haspopup="menu" aria-expanded="false" title="Switch sub-account">
-        <span class="av">${esc(initials(state.me.account.name))}</span><span class="nm">${esc(state.me.account.name)}</span><span class="car">▾</span></button></div>
+        <span class="av">${esc(initials(state.me.account.name))}</span><span class="nm">${esc(state.me.account.name)}</span><span class="car">${icon('chevronDown')}</span></button></div>
       <nav class="nav">${NAV.map(([k, i, l]) => `<a href="#/${k}" class="${section === k ? 'active' : ''}"><span class="ico">${i}</span>${l}</a>`).join('')}</nav>
       <div class="foot"><div class="muted">${esc(state.me.user.email)}</div><button data-logout>Sign out</button></div>
     </aside>
@@ -149,8 +149,8 @@ function accountMenu(btn) {
   menu.setAttribute('role', 'menu');
   menu.innerHTML = `<div class="muted small" style="padding:6px 10px">Sub-accounts</div>
     ${state.me.accounts.map((a) => `<button role="menuitem" data-switch-to="${a.id}" class="${a.id === state.me.account.id ? 'on' : ''}">
-      <span>${esc(a.name)}</span>${a.id === state.me.account.id ? '<span>✓</span>' : ''}</button>`).join('')}
-    <hr><button role="menuitem" data-new-acct>＋ New sub-account</button><button role="menuitem" data-manage>Manage sub-accounts</button>
+      <span>${esc(a.name)}</span>${a.id === state.me.account.id ? '<span>' + icon('check') + '</span>' : ''}</button>`).join('')}
+    <hr><button role="menuitem" data-new-acct>${icon('plus')} New sub-account</button><button role="menuitem" data-manage>Manage sub-accounts</button>
     <button role="menuitem" class="mobile-only" data-logout2>Sign out</button>`;
   btn.parentNode.append(menu);
   btn.setAttribute('aria-expanded', 'true');
@@ -177,4 +177,27 @@ async function newSubAccount() {
     <label class="f">Business name<input name="name" required placeholder="e.g. Corner Bakery"></label>`,
   { submit: 'Create and switch', onSubmit: (v) => api('POST', '/api/accounts', { ...v, switch: true }) });
   if (r) { state.me = await api('GET', '/api/me'); toast(`Created ${state.me.account.name}`); location.hash = '#/'; route(); }
+}
+
+// Photo upload: pictures are shrunk in the browser (longest side 2000px)
+// before sending, so even big phone photos upload quickly. GIFs are sent as
+// they are to keep any animation.
+async function uploadImage(file) {
+  if (!file || !/^image\/(jpeg|png|webp|gif)$/.test(file.type)) throw new Error('Use a JPG, PNG, WebP or GIF picture');
+  let blob = file;
+  if (file.type !== 'image/gif') {
+    const img = await createImageBitmap(file);
+    const scale = Math.min(1, 2000 / Math.max(img.width, img.height));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(img.width * scale); canvas.height = Math.round(img.height * scale);
+    canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+    const type = file.type === 'image/jpeg' ? 'image/jpeg' : 'image/webp';
+    const out = await new Promise((r) => canvas.toBlob(r, type, 0.86));
+    if (out && out.size < file.size) blob = out; // keep the original if it was already smaller
+  }
+  if (blob.size > 4 * 1024 * 1024) throw new Error('That picture is too big (over 4 MB), even after shrinking');
+  const res = await fetch('/api/uploads', { method: 'POST', headers: { 'Content-Type': blob.type }, body: blob });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Upload failed');
+  return data.url;
 }

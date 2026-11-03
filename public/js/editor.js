@@ -3,10 +3,10 @@
 // ---------------- Page builder ----------------
 const ALIGN = ['align', 'align', 'Alignment'];
 const BLOCKS = {
-  hero: { label: 'Hero banner', icon: '▀', defaults: { eyebrow: 'New', text: 'A bold headline for your offer', subtext: '', background: '#0d9488', textColor: '#ffffff' },
+  hero: { label: 'Hero banner', icon: icon('hero'), defaults: { eyebrow: 'New', text: 'A bold headline for your offer', subtext: '', background: '#0d9488', textColor: '#ffffff' },
     fields: [['eyebrow', 'text', 'Small label above'], ['text', 'textarea', 'Headline'], ['subtext', 'textarea', 'Subheadline'],
       ['background', 'color', 'Band color'], ['textColor', 'color', 'Text color']] },
-  pricing: { label: 'Pricing card', icon: '$', defaults: { productId: null, badge: 'LIMITED TIME OFFER', compareText: '', billingText: '', note: '',
+  pricing: { label: 'Pricing card', icon: icon('dollar'), defaults: { productId: null, badge: 'LIMITED TIME OFFER', compareText: '', billingText: '', note: '',
     featuresTitle: 'Everything you get:', features: 'Feature one\nFeature two\nFeature three', buttonLabel: 'Get Instant Access Now',
     buttonSubtext: '14-day money-back guarantee', buttonColor: '#ff7849' },
   fields: [['productId', 'product', 'Product sold by this card'], ['badge', 'text', 'Badge'],
@@ -16,29 +16,29 @@ const BLOCKS = {
     ['buttonLabel', 'text', 'Button text'], ['buttonSubtext', 'text', 'Small text in button'], ['buttonColor', 'color', 'Button color'],
     ['bumpProductId', 'product', 'Order bump (a one-time add-on ticked at checkout)'], ['bumpLabel', 'text', 'Order bump checkbox text', null, 'e.g. Yes, add the matching coasters']] },
   // Only real, approved testimonials (People → Testimonials) can be shown.
-  testimonial: { label: 'Testimonial', icon: '❝', defaults: { testimonialId: null }, fields: [['testimonialId', 'testimonial', 'Testimonial from your records']] },
-  reviews: { label: 'Reviews', icon: '★', defaults: { limit: 3 }, fields: [['limit', 'number', 'How many to show (newest approved first)']] },
-  heading: { label: 'Heading', icon: 'H', defaults: { text: 'Your big headline', size: 'large', align: 'center' },
+  testimonial: { label: 'Testimonial', icon: icon('quote'), defaults: { testimonialId: null }, fields: [['testimonialId', 'testimonial', 'Testimonial from your records']] },
+  reviews: { label: 'Reviews', icon: icon('star'), defaults: { limit: 3 }, fields: [['limit', 'number', 'How many to show (newest approved first)']] },
+  heading: { label: 'Heading', icon: icon('heading'), defaults: { text: 'Your big headline', size: 'large', align: 'center' },
     fields: [['text', 'textarea', 'Text'], ['size', 'select', 'Size', ['large', 'medium', 'small']], ALIGN] },
-  text: { label: 'Text', icon: '¶', defaults: { text: 'Write something persuasive here.', align: 'center' },
+  text: { label: 'Text', icon: icon('text'), defaults: { text: 'Write something persuasive here.', align: 'center' },
     fields: [['text', 'textarea', 'Text'], ALIGN] },
-  image: { label: 'Image', icon: '🖼', defaults: { url: '', alt: '', align: 'center' },
-    fields: [['url', 'text', 'Image URL', null, 'Paste a link to an image (https://…)'], ['alt', 'text', 'Description (for accessibility)'], ALIGN] },
-  video: { label: 'Video', icon: '▶', defaults: { url: '' },
+  image: { label: 'Image', icon: icon('image'), defaults: { url: '', alt: '', align: 'center' },
+    fields: [['url', 'photo', 'Photo'], ['alt', 'text', 'Description (for accessibility)'], ALIGN] },
+  video: { label: 'Video', icon: icon('video'), defaults: { url: '' },
     fields: [['url', 'text', 'YouTube link', null, 'e.g. https://youtu.be/…']] },
-  button: { label: 'Button', icon: '⬭', defaults: { label: 'Continue', url: '#next', align: 'center' },
+  button: { label: 'Button', icon: icon('button'), defaults: { label: 'Continue', url: '#next', align: 'center' },
     fields: [['label', 'text', 'Button text'], ['url', 'text', 'Link', null, 'page:contact = another page of this site · #next = this page’s ✓ Yes exit · #no = its ✕ No thanks exit · or a full https:// link'], ALIGN] },
-  form: { label: 'Form', icon: '✉', defaults: { buttonLabel: 'Get instant access', collectName: true, collectPhone: false, purpose: 'Sign up', tag: 'lead' },
+  form: { label: 'Form', icon: icon('form'), defaults: { buttonLabel: 'Get instant access', collectName: true, collectPhone: false, purpose: 'Sign up', tag: 'lead' },
     fields: [['purpose', 'select', 'What happens', ['Sign up', 'Newsletter', 'Inquiry', 'Review'], 'Sign up: a lead. Newsletter: also subscribes them. Inquiry: logs a request you should answer.'],
       ['newsletter', 'text', 'Newsletter name (for Newsletter forms)'],
       ['buttonLabel', 'text', 'Button text'], ['collectName', 'check', 'Ask for first name'], ['collectPhone', 'check', 'Ask for phone number'], ['smsOptIn', 'check', 'SMS updates (adds a mobile number and the required text-message consent)'], ['collectMessage', 'check', 'Ask for a message'],
       ['tag', 'text', 'Tag new contacts with', null, 'Use tags to email this group later. Comma-separate for several.']] },
-  cards: { label: 'Cards', icon: '▦', defaults: { items: 'Service one | A short description\nService two | A short description\nService three | A short description' },
+  cards: { label: 'Cards', icon: icon('cards'), defaults: { items: 'Service one | A short description\nService two | A short description\nService three | A short description' },
     fields: [['items', 'textarea', 'Cards (one per line: Title | description)']] },
-  info: { label: 'Business info', icon: 'ℹ', defaults: { hours: 'Mon–Fri 9am–5pm', address: '', phone: '', email: '' },
+  info: { label: 'Business info', icon: icon('info'), defaults: { hours: 'Mon–Fri 9am–5pm', address: '', phone: '', email: '' },
     fields: [['hours', 'text', 'Hours'], ['address', 'text', 'Address'], ['phone', 'text', 'Phone'], ['email', 'text', 'Email']] },
-  spacer: { label: 'Spacer', icon: '↕', defaults: { height: 40 }, fields: [['height', 'number', 'Height (px)']] },
-  divider: { label: 'Divider', icon: '—', defaults: {}, fields: [] },
+  spacer: { label: 'Spacer', icon: icon('spacer'), defaults: { height: 40 }, fields: [['height', 'number', 'Height (px)']] },
+  divider: { label: 'Divider', icon: icon('divider'), defaults: {}, fields: [] },
 };
 const uid = () => Math.random().toString(36).slice(2, 10);
 
@@ -54,12 +54,12 @@ async function viewEditor(stepId) {
     <div class="bar"><a class="btn sm" href="#/${step.funnel.kind === 'website' ? 'websites' : 'funnels'}/${step.funnel.id}">← ${esc(step.funnel.name)}</a>
       <div class="title"><input data-name value="${esc(step.name)}" aria-label="Page name"></div>
       ${step.variant_blocks ? `<span class="seg"><a href="#/editor/${step.id}" class="btn sm ${editingB ? '' : 'primary'}">Version A</a><a href="#/editor/${step.id}?v=b" class="btn sm ${editingB ? 'primary' : ''}">Version B</a></span>` : ''}
-      <button class="btn sm" data-abtest>${step.variant_blocks ? '🧪 Test results' : '🧪 Split test'}</button>
+      <button class="btn sm" data-abtest>${step.variant_blocks ? icon('flask') + ' Test results' : icon('flask') + ' Split test'}</button>
       <span class="saved" data-saved>All changes saved</span>
-      <button class="btn sm" data-undo title="Undo (Ctrl+Z)" disabled>↶ Undo</button><button class="btn sm" data-redo title="Redo (Ctrl+Shift+Z)" disabled>↷ Redo</button>
-      <button class="btn sm" data-history title="Earlier versions of this page">🕘 History</button>
-      <button class="btn sm" data-device title="Toggle mobile preview">📱 Mobile</button>
-      <a class="btn sm primary" href="${esc(link)}" target="_blank" rel="noopener" data-live>View live ↗</a></div>
+      <button class="btn sm" data-undo title="Undo (Ctrl+Z)" disabled>${icon('undo')} Undo</button><button class="btn sm" data-redo title="Redo (Ctrl+Shift+Z)" disabled>${icon('redo')} Redo</button>
+      <button class="btn sm" data-history title="Earlier versions of this page">${icon('history')} History</button>
+      <button class="btn sm" data-device title="Toggle mobile preview">${icon('phone')} Mobile</button>
+      <a class="btn sm primary" href="${esc(link)}" target="_blank" rel="noopener" data-live>View live ${icon('external')}</a></div>
     <div class="side">
       <h3>Add a block</h3><div class="palette">${Object.entries(BLOCKS).map(([k, b]) => `<button data-addblock="${k}" draggable="true" title="Click to add at the end, or drag onto the page"><span class="ico">${b.icon}</span>${b.label}</button>`).join('')}</div>
       <h3>Page content</h3><div data-blocks></div>
@@ -130,12 +130,19 @@ async function viewEditor(stepId) {
         ${products.map((pr) => `<option value="${pr.id}" ${pr.id === v ? 'selected' : ''}>${esc(pr.name)} · ${esc(pr.priceLabel)}</option>`).join('')}</select>`
         : '<div class="hint" style="margin-top:4px">No products yet. <a href="#/products" target="_blank">Create one</a>, then reload this page.</div>'}</label>`;
     }
+    if (kind === 'photo') {
+      return `<div class="f">${label}<div class="dropzone ${v ? 'has' : ''}" data-photo="${i}" tabindex="0" role="button" aria-label="Upload a photo">
+        ${v ? `<img src="${esc(v)}" alt="">` : `<span class="dz-ico">${icon('image')}</span>`}
+        <span class="dz-text"><b>${v ? 'Replace photo' : 'Drop a photo here'}</b><span>or click to choose one</span></span>
+        <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" hidden data-photofile="${i}"></div>
+        <input type="text" ${attrs} value="${esc(v)}" placeholder="…or paste an image link (https://…)" style="margin-top:6px"></div>`;
+    }
     if (kind === 'check') return `<label class="check"><input type="checkbox" ${attrs} ${v ? 'checked' : ''}>${label}</label>`;
     if (kind === 'align') return `<div class="f">${label}<div class="aligns">${['left', 'center', 'right'].map((a) => `<button type="button" data-align="${i}:${a}" class="${(v || 'center') === a ? 'on' : ''}">${a}</button>`).join('')}</div></div>`;
     return `<label class="f">${label}${hint ? ` <span class="hint">${esc(hint)}</span>` : ''}<input type="${kind}" ${attrs} value="${esc(v)}"></label>`;
   };
   const summary = (b) => esc(String(b.type === 'pricing' ? (products.find((pr) => pr.id === b.productId)?.name || 'no product')
-    : b.text || b.label || b.buttonLabel || b.url || '').slice(0, 40));
+    : b.type === 'image' ? (b.url ? b.alt || 'Photo' : 'no photo yet') : b.text || b.label || b.buttonLabel || b.url || '').slice(0, 40));
 
   const renderBlocks = () => {
     $('[data-blocks]').innerHTML = ed.blocks.length ? ed.blocks.map((b, i) => {
@@ -145,8 +152,8 @@ async function viewEditor(stepId) {
         <div class="bh" data-toggle="${b.id}" draggable="true" data-drag="${i}" title="Drag to move"><span>${def.icon}</span><span class="name">${def.label} <span>${summary(b)}</span></span>
           <button class="btn" data-up="${i}" ${i === 0 ? 'disabled' : ''} title="Move up">↑</button>
           <button class="btn" data-down="${i}" ${i === ed.blocks.length - 1 ? 'disabled' : ''} title="Move down">↓</button>
-          <button class="btn" data-dup="${i}" title="Duplicate">⧉</button>
-          <button class="btn danger" data-rm="${i}" title="Delete">✕</button></div>
+          <button class="btn" data-dup="${i}" title="Duplicate">${icon('copy')}</button>
+          <button class="btn danger" data-rm="${i}" title="Delete">${icon('x')}</button></div>
         ${open ? `<div class="bb">${def.fields.length ? def.fields.map((fd) => fieldHtml(b, i, fd)).join('') : '<p class="muted small">No settings for this block.</p>'}</div>` : ''}
       </div>`;
     }).join('') : '<p class="muted small" data-empty>Your page is empty. Drag a block from above onto the page, or click one to add it.</p>';
@@ -235,6 +242,50 @@ async function viewEditor(stepId) {
     e.preventDefault(); listMark(null); document.body.classList.remove('dragging-block');
     dropAt(e.dataTransfer.getData('text/x-fourfold'), listSpot(e.clientY));
   });
+  // Photos: dropped or chosen in the panel, or dropped onto the page preview.
+  const putPhoto = async (i, file) => {
+    const b = ed.blocks[i];
+    if (!b) return;
+    saved.textContent = 'Uploading photo…';
+    try {
+      const url = await uploadImage(file);
+      b.url = url;
+      if (!b.alt) b.alt = file.name.replace(/\.[a-z0-9]+$/i, '').replace(/[-_]+/g, ' ').trim();
+      ed.open = b.id; structural();
+    } catch (err) { saved.textContent = 'Not saved'; toast(err.message, true); }
+  };
+  const photoAt = (at, file) => {
+    const b = { id: uid(), type: 'image', ...BLOCKS.image.defaults };
+    ed.blocks.splice(at, 0, b);
+    return putPhoto(at, file);
+  };
+  side.addEventListener('click', (e) => {
+    const z = e.target.closest('[data-photo]');
+    if (z && !e.target.closest('input')) side.querySelector(`[data-photofile="${z.dataset.photo}"]`).click();
+  });
+  side.addEventListener('keydown', (e) => {
+    const z = e.target.closest?.('[data-photo]');
+    if (z && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); z.click(); }
+  });
+  side.addEventListener('change', (e) => {
+    const t = e.target;
+    if (t.dataset.photofile && t.files[0]) putPhoto(Number(t.dataset.photofile), t.files[0]);
+  });
+  side.addEventListener('dragover', (e) => {
+    const z = e.target.closest?.('[data-photo]');
+    if (!z || !e.dataTransfer.types.includes('Files')) return;
+    e.preventDefault(); e.stopPropagation(); z.classList.add('over');
+  });
+  side.addEventListener('dragleave', (e) => { e.target.closest?.('[data-photo]')?.classList.remove('over'); });
+  side.addEventListener('drop', (e) => {
+    const z = e.target.closest?.('[data-photo]');
+    if (!z || !e.dataTransfer.files.length) return;
+    e.preventDefault(); e.stopPropagation(); z.classList.remove('over');
+    putPhoto(Number(z.dataset.photo), e.dataTransfer.files[0]);
+  });
+  // A picture dropped anywhere else in the editor shouldn't open in the browser tab.
+  window.ondragover = (e) => { if ($('.editor') && e.dataTransfer?.types.includes('Files')) e.preventDefault(); };
+  window.ondrop = (e) => { if ($('.editor') && e.dataTransfer?.types.includes('Files')) e.preventDefault(); };
   $('[data-slug]').addEventListener('change', (e) => changed({ slug: e.target.value }));
   $('[data-name]').addEventListener('input', () => changed());
   $('[data-device]').onclick = () => $('.stage').classList.toggle('mobile');
@@ -242,6 +293,11 @@ async function viewEditor(stepId) {
   // Click-to-edit: the preview sends what was typed, or which block was clicked.
   window.onmessage = (e) => {
     const d = e.data;
+    if (d?.ff === 'photo' && $('.editor') && d.file) {
+      // Onto an image block: fill it. Anywhere else: a new image block there.
+      const at = Math.max(0, Math.min(Number(d.at) || 0, ed.blocks.length));
+      return ed.blocks[d.i]?.type === 'image' ? putPhoto(d.i, d.file) : photoAt(at, d.file);
+    }
     if (d?.ff === 'drop' && $('.editor')) { document.body.classList.remove('dragging-block'); return dropAt(d.data, Math.max(0, Math.min(Number(d.at) || 0, ed.blocks.length))); }
     if (!d?.ff || !$('.editor') || !ed.blocks[d.i]) return;
     if (d.ff === 'open' && ed.open !== ed.blocks[d.i].id) { ed.open = ed.blocks[d.i].id; renderBlocks(); }

@@ -12,7 +12,7 @@ async function viewWebsites() {
       <div class="row" style="justify-content:space-between"><h3>${esc(s.name)}</h3>${s.status === 'live' ? '<span class="pill ok">Live</span>' : '<span class="pill warn">Draft</span>'}</div>
       <p class="muted small">${esc(publicUrl(`/f/${s.slug}`))}</p>
       <div class="wf-meta"><span>${s.pages} pages</span><span>${s.views} visits</span><span>${s.leads} inquiries & signups</span><span class="muted">last 30 days</span></div></article>`).join('')}</div>`
-      : `<div class="card empty"><div class="big">🌐</div><h2>No website yet</h2><p>Pick a template for your kind of business and edit the words. It’s live in minutes.</p>
+      : `<div class="card empty"><div class="big">${icon('globe')}</div><h2>No website yet</h2><p>Pick a template for your kind of business and edit the words. It’s live in minutes.</p>
         <button class="btn primary" data-new>Choose a template</button></div>`}`);
   bindRowLinks();
   $$('[data-go]').forEach((c) => { c.onkeydown = (e) => { if (e.key === 'Enter') location.hash = c.dataset.go; }; });
@@ -28,7 +28,7 @@ async function newWebsite() {
     <div class="f" style="margin-bottom:6px;font-size:.85rem;font-weight:500">Template</div>
     <div class="tpl-grid">${templates.map((t, i) => `<label class="tpl ${i === 0 ? 'on' : ''}"><input type="radio" name="template" value="${t.key}" ${i === 0 ? 'checked' : ''} class="sr">
       <span class="swatch" style="background:${esc(t.accent)}"></span><b>${esc(t.label)}</b><span class="muted small">${esc(t.description)}</span>
-      <span class="small">${t.pages.map(esc).join(' · ')}</span>${t.workflows.length ? `<span class="small">⚡ ${t.workflows.map(esc).join(', ')}</span>` : ''}</label>`).join('')}</div>
+      <span class="small">${t.pages.map(esc).join(' · ')}</span>${t.workflows.length ? `<span class="small">${icon('bolt')} ${t.workflows.map(esc).join(', ')}</span>` : ''}</label>`).join('')}</div>
     <p class="hint">Words in [brackets] are yours to fill in. Click any text in the page editor to change it.</p>
     <div class="err"></div><div class="actions"><button type="button" class="btn" data-x>Cancel</button><button class="btn primary">Create website</button></div></form>`;
   document.body.append(bg);
@@ -55,9 +55,9 @@ async function viewWebsite(id) {
     <div class="head"><div><a href="#/websites" class="small">← Websites</a>
       <h1 style="display:flex;gap:10px;align-items:center">${esc(f.name)} ${f.status === 'live' ? '<span class="pill ok">Live</span>' : '<span class="pill warn">Draft</span>'}</h1>
       <div class="muted small">${esc(link)}</div></div>
-      <div class="row"><a class="btn" href="${esc(publicUrl(`/f/${f.slug}`))}" target="_blank" rel="noopener">View site ↗</a><button class="btn" data-settings>Settings</button>
+      <div class="row"><a class="btn" href="${esc(publicUrl(`/f/${f.slug}`))}" target="_blank" rel="noopener">View site ${icon('external')}</a><button class="btn" data-settings>Settings</button>
         ${f.status === 'live' ? '<button class="btn" data-unpublish>Unpublish</button>' : '<button class="btn primary" data-publish>Publish</button>'}</div></div>
-    ${f.workflows?.length ? `<div class="wf-strip"><span class="muted small">⚡ Email follow-up:</span>${f.workflows.map((w) => `<a class="chip" href="#/workflows/${w.id}">${esc(w.name.replace(`${f.name}: `, ''))} <span class="pill ${w.status === 'active' ? 'ok' : ''}">${w.status === 'active' ? 'Live' : 'Off'}</span></a>`).join('')}
+    ${f.workflows?.length ? `<div class="wf-strip"><span class="muted small">${icon('bolt')} Email follow-up:</span>${f.workflows.map((w) => `<a class="chip" href="#/workflows/${w.id}">${esc(w.name.replace(`${f.name}: `, ''))} <span class="pill ${w.status === 'active' ? 'ok' : ''}">${w.status === 'active' ? 'Live' : 'Off'}</span></a>`).join('')}
       <span class="muted small">${f.status === 'live' ? 'Replies to every contact form instantly and checks in after 2 days.' : 'Turns on when you publish: an instant reply to every contact form, and a check-in after 2 days.'}</span></div>` : ''}
     <div class="card table-wrap"><table>
       <tr><th>Menu order</th><th>Page</th><th>Address</th><th>Visits</th><th>Leads</th><th></th></tr>
@@ -66,7 +66,7 @@ async function viewWebsite(id) {
         <td><strong>${esc(p.name)}</strong>${i === 0 ? ' <span class="pill">home</span>' : ''}${p.settings.hideInMenu ? ' <span class="pill warn">hidden from menu</span>' : ''}</td>
         <td class="muted small">/${i === 0 ? '' : esc(p.slug)}</td><td>${p.views}</td><td>${p.optins}</td>
         <td style="text-align:right;white-space:nowrap"><a class="btn sm primary" href="#/editor/${p.id}">Edit</a>
-          <button class="btn sm" data-pmenu="${p.id}">⋯</button></td></tr>`).join('')}
+          <button class="btn sm" data-pmenu="${p.id}">${icon('more')}</button></td></tr>`).join('')}
     </table></div>
     <button class="btn" data-addpage style="margin-top:12px">+ Add page</button>`);
 
@@ -106,7 +106,7 @@ async function viewWebsite(id) {
   const pub = $('[data-publish]');
   if (pub) pub.onclick = async () => {
     const pre = await api('GET', `/api/funnels/${id}/preflight`);
-    const list = pre.problems.map((p) => `<div class="li"><span>${p.severity === 'block' ? '⛔' : '⚠️'} ${esc(p.text)}</span>${p.fix ? `<a class="btn sm" href="${esc(p.fix.href.replace('#/funnels/', '#/websites/'))}">${esc(p.fix.label)}</a>` : ''}</div>`).join('');
+    const list = pre.problems.map((p) => `<div class="li"><span>${p.severity === 'block' ? icon('stop') : icon('alert')} ${esc(p.text)}</span>${p.fix ? `<a class="btn sm" href="${esc(p.fix.href.replace('#/funnels/', '#/websites/'))}">${esc(p.fix.label)}</a>` : ''}</div>`).join('');
     if (!pre.ready) { modal('Fix these before publishing', list, { submit: 'OK' }); return; }
     if (!await modal('Publish this website?', `${list}<p class="muted small">Your pages go live now. You can unpublish any time.</p>`, { submit: 'Publish' })) return;
     const r = await api('POST', `/api/funnels/${id}/publish`);

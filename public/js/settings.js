@@ -38,14 +38,14 @@ function viewSettings() {
       <div class="err"></div><button class="btn primary">Save domain</button>
     </form>
     <div class="card" style="max-width:560px;margin-top:16px" data-subs>
-      <div class="row" style="justify-content:space-between"><h2 style="margin:0">Sub-accounts</h2><button class="btn sm primary" data-newsub>＋ New sub-account</button></div>
+      <div class="row" style="justify-content:space-between"><h2 style="margin:0">Sub-accounts</h2><button class="btn sm primary" data-newsub>${icon('plus')} New sub-account</button></div>
       <p class="muted small">One workspace per business. Each has its own people, funnels, emails and dashboard.</p>
       <div data-sublist class="muted small">Loading…</div>
     </div>
     <div class="card" style="max-width:560px;margin-top:16px">
       <h2>Your data</h2>
       <p class="muted small">Download everything (people, events, orders, subscriptions, campaigns, funnels, deals) at any time.</p>
-      <div class="row"><a class="btn" href="/api/export.zip">⬇ Every table as CSV (.zip)</a><a class="btn" href="/api/export.json">⬇ Everything as JSON</a></div>
+      <div class="row"><a class="btn" href="/api/export.zip">${icon('download')} Every table as CSV (.zip)</a><a class="btn" href="/api/export.json">${icon('download')} Everything as JSON</a></div>
     </div>
     <form class="card" style="max-width:560px;margin-top:16px" data-stripe>
       <h2>Payments (Stripe)</h2>

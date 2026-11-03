@@ -17,7 +17,7 @@ async function viewPeople() {
   const link = (over) => `#/people?${new URLSearchParams({ q, tag, stage, ...over })}`;
   shell('people', `
     <div class="head"><div><h1>People</h1><div class="muted">One record per person, across your store, newsletter, podcast and inquiries.</div></div>
-      <div class="row"><a class="btn" href="#/people/testimonials">❝ Testimonials</a><button class="btn" data-import>Import CSV</button><a class="btn" href="/api/export.zip">Export everything</a>
+      <div class="row"><a class="btn" href="#/people/testimonials">${icon('quote')} Testimonials</a><button class="btn" data-import>Import CSV</button><a class="btn" href="/api/export.zip">Export everything</a>
       <button class="btn primary" data-add>+ Add person</button></div></div>
     <div class="stagebar">
       <a href="${link({ stage: '' })}" class="${stage ? '' : 'active'}"><b>${all.length}</b>Everyone</a>
@@ -31,7 +31,7 @@ async function viewPeople() {
         <td>${esc(c.email) || '<span class="muted">no email</span>'} ${c.unsubscribed ? '<span class="pill warn">unsubscribed</span>' : ''}</td>
         <td>${stagePill(c.stage)}</td><td>${esc(c.city)}</td>
         <td>${tagsHtml(c.tags)}</td><td class="muted small">${esc(c.source)}</td><td class="muted small">${fmtDate(c.created_at)}</td></tr>`).join('')}
-    </table></div>` : `<div class="card empty"><div class="big">👥</div><h2>${q || tag || stage ? 'No matches' : 'No people yet'}</h2>
+    </table></div>` : `<div class="card empty"><div class="big">${icon('people')}</div><h2>${q || tag || stage ? 'No matches' : 'No people yet'}</h2>
       <p>${q || tag || stage ? 'Try a different search.' : 'Import your store orders, newsletter list or podcast signups to get started.'}</p>
       ${q || tag || stage ? '' : '<button class="btn primary" data-import>Import a CSV</button>'}</div>`}`);
   bindRowLinks();
@@ -57,7 +57,7 @@ const personForm = (c = {}) => `
     <input name="region" value="${esc(c.region)}" placeholder="State"><input name="postal" value="${esc(c.postal)}" placeholder="ZIP"><input name="country" value="${esc(c.country)}" placeholder="Country"></div>
   <label class="f">Tags <span class="hint">comma separated</span><input name="tags" value="${esc((c.tags || []).join(', '))}"></label>`;
 
-const EVENT_ICON = { signup: '✍️', inquiry: '💬', purchase: '🛍️', subscribe: '📬', unsubscribe: '🚪', open: '👀', click: '🖱️', listen: '🎧', scan: '📷', visit: '🌐', note: '📝' };
+const EVENT_ICON = { signup: icon('pencil'), inquiry: icon('chat'), purchase: icon('bag'), subscribe: icon('inbox'), unsubscribe: icon('door'), open: icon('eye'), click: icon('cursor'), listen: icon('headphones'), scan: icon('camera'), visit: icon('globe'), note: icon('note') };
 const EVENT_LABEL = { signup: 'Signed up', inquiry: 'Inquiry', purchase: 'Bought', subscribe: 'Subscribed', unsubscribe: 'Unsubscribed', open: 'Opened an email', click: 'Clicked a link', listen: 'Listened', scan: 'Scanned a QR code', visit: 'Visited', note: 'Note' };
 const eventText = (e) => {
   const m = e.meta || {};
@@ -72,7 +72,7 @@ async function viewPerson(personId) {
     <div class="head"><div><a href="#/people" class="small">← People</a>
       <h1 style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">${esc(personName(p))} ${stagePill(p.stage)}</h1>
       <div class="muted">${[p.email && esc(p.email), p.phone && esc(p.phone), `first came from <b>${esc(p.source)}</b>`, `added ${fmtDate(p.created_at)}`].filter(Boolean).join(' · ')}</div></div>
-      <div class="row"><button class="btn" data-log>+ Log activity</button><button class="btn" data-addt>❝ Add testimonial</button><button class="btn" data-edit>Edit</button></div></div>
+      <div class="row"><button class="btn" data-log>+ Log activity</button><button class="btn" data-addt>${icon('quote')} Add testimonial</button><button class="btn" data-edit>Edit</button></div></div>
     <div class="flowline">${STAGES.map(([k, l]) => `<div class="${k} ${STAGES.findIndex((s) => s[0] === k) <= STAGES.findIndex((s) => s[0] === p.stage) ? 'on' : ''}">${esc(l.replace(/s$/, ''))}</div>`).join('')}</div>
     <div class="grid two">
       <div class="card"><h2>Timeline</h2>

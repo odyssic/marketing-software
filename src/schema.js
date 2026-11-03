@@ -420,6 +420,18 @@ CREATE TABLE IF NOT EXISTS magic_links (
   expires_at TIMESTAMPTZ NOT NULL,
   used_at TIMESTAMPTZ
 );
+
+-- Photos people upload for their pages (drag a picture onto an image block).
+-- Stored in the database so the app needs no separate file storage.
+CREATE TABLE IF NOT EXISTS uploads (
+  id TEXT PRIMARY KEY,
+  account_id INT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+  content_type TEXT NOT NULL,
+  size INT NOT NULL,
+  data BYTEA NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS uploads_account ON uploads (account_id);
 `;
 
 module.exports = { SCHEMA };

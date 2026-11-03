@@ -19,7 +19,7 @@ async function viewPipeline(pipelineId) {
   if (!pipelines.length) {
     shell('pipelines', `
       <div class="head"><div><h1>Pipelines</h1><div class="muted">Track deals from first contact to closed.</div></div></div>
-      <div class="card empty"><div class="big">📈</div><h2>No pipeline yet</h2>
+      <div class="card empty"><div class="big">${icon('trend')}</div><h2>No pipeline yet</h2>
         <p>A pipeline is a board of stages, like <i>${DEFAULT_STAGES.map(esc).join(' → ')}</i>. Add a deal for each opportunity and drag it along as it moves forward.</p>
         <button class="btn primary" data-new>Create your first pipeline</button></div>`);
     $('[data-new]').onclick = () => editPipeline();
@@ -58,7 +58,7 @@ async function viewPipeline(pipelineId) {
         <td>${esc(d.contact_name || d.contact_email || '') || '<span class="muted">—</span>'}</td><td>${esc(d.valueLabel)}</td>
         <td>${esc(p.stages.find((s) => s.id === d.stage_id)?.name || '')}</td><td class="muted small">${fmtDate(d.closed_at)}</td>
         <td style="text-align:right"><button class="btn sm" data-reopen="${d.id}">Reopen</button></td></tr>`).join('')}
-    </table></div>` : `<div class="card empty"><div class="big">${view === 'won' ? '🏆' : '🗂️'}</div><h2>No ${view} deals yet</h2>
+    </table></div>` : `<div class="card empty"><div class="big">${view === 'won' ? icon('trophy') : icon('folder')}</div><h2>No ${view} deals yet</h2>
       <p>Open a deal on the board and mark it ${view} to see it here.</p></div>`}`);
 
   const reload = () => viewPipeline(p.id);
@@ -79,8 +79,8 @@ async function viewPipeline(pipelineId) {
 
 const dealCard = (d) => `<article class="deal" draggable="true" data-deal="${d.id}">
   <div class="title">${esc(d.title)}</div>
-  ${d.contact_name || d.contact_email ? `<div class="muted small">👤 ${esc(d.contact_name || d.contact_email)}</div>` : ''}
-  <div class="foot"><b>${esc(d.valueLabel)}</b>${d.notes ? '<span class="muted small" title="Has notes">📝</span>' : ''}</div></article>`;
+  ${d.contact_name || d.contact_email ? `<div class="muted small">${icon('user')} ${esc(d.contact_name || d.contact_email)}</div>` : ''}
+  <div class="foot"><b>${esc(d.valueLabel)}</b>${d.notes ? '<span class="muted small" title="Has notes">' + icon('note') + '</span>' : ''}</div></article>`;
 
 // HTML5 drag and drop: a gap opens where the deal will land; on drop the new
 // order of that column is saved. (On touch screens, change the stage from the
@@ -138,7 +138,7 @@ async function editDeal(p, contacts, deal, reload) {
     <label class="f">Stage<select name="stage_id">${p.stages.map((s) => `<option value="${s.id}" ${(d.stage_id || p.stages[0].id) === s.id ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select></label>
     <label class="f">Notes<textarea name="notes" rows="3">${esc(d.notes)}</textarea></label>
     ${isNew ? '' : `<div class="row">${status === 'open'
-      ? '<button type="button" class="btn sm won" data-status="won">🏆 Mark won</button><button type="button" class="btn sm" data-status="lost">Mark lost</button>'
+      ? '<button type="button" class="btn sm won" data-status="won">' + icon('trophy') + ' Mark won</button><button type="button" class="btn sm" data-status="lost">Mark lost</button>'
       : '<button type="button" class="btn sm" data-status="open">Reopen</button>'}
       <span style="flex:1"></span><button type="button" class="btn danger sm" data-deld>Delete deal</button></div>`}`,
   { submit: isNew ? 'Add deal' : 'Save', onSubmit: (v) => (isNew
@@ -154,7 +154,7 @@ async function editDeal(p, contacts, deal, reload) {
     try {
       await api('PUT', `/api/deals/${d.id}`, { ...values, status: b.dataset.status });
       $('.modal-bg [data-x]').click();
-      toast(b.dataset.status === 'won' ? 'Deal won 🎉' : b.dataset.status === 'lost' ? 'Deal marked lost' : 'Deal reopened');
+      toast(b.dataset.status === 'won' ? 'Deal won' : b.dataset.status === 'lost' ? 'Deal marked lost' : 'Deal reopened');
       reload();
     } catch (err) { $('.modal .err').textContent = err.message; }
   }; });
@@ -195,7 +195,7 @@ async function editPipeline(p) {
       <span class="muted small n" title="Open deals in this stage">${s.id && counts[s.id] ? `${counts[s.id]} open` : ''}</span>
       <button type="button" class="btn sm icon" data-up="${i}" ${i ? '' : 'disabled'} title="Move up">↑</button>
       <button type="button" class="btn sm icon" data-down="${i}" ${i < stages.length - 1 ? '' : 'disabled'} title="Move down">↓</button>
-      <button type="button" class="btn sm icon danger" data-rm="${i}" ${stages.length > 1 ? '' : 'disabled'} title="Remove stage">✕</button></div>`).join('');
+      <button type="button" class="btn sm icon danger" data-rm="${i}" ${stages.length > 1 ? '' : 'disabled'} title="Remove stage">${icon('x')}</button></div>`).join('');
     $$('[data-up]', box).forEach((b) => { b.onclick = () => { sync(); const i = Number(b.dataset.up); [stages[i - 1], stages[i]] = [stages[i], stages[i - 1]]; draw(); }; });
     $$('[data-down]', box).forEach((b) => { b.onclick = () => { sync(); const i = Number(b.dataset.down); [stages[i + 1], stages[i]] = [stages[i], stages[i + 1]]; draw(); }; });
     $$('[data-rm]', box).forEach((b) => { b.onclick = () => { sync(); stages.splice(Number(b.dataset.rm), 1); draw(); }; });

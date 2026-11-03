@@ -19,6 +19,7 @@ const { createDigest } = require('./digest');
 const { registerFunnelKit } = require('./funnelkit');
 const { SITE_TEMPLATES } = require('./sites');
 const { registerLibrary, approvedTestimonials } = require('./library');
+const { registerUploads } = require('./uploads');
 
 const slugify = (s) => String(s || '').toLowerCase().normalize('NFKD').replace(/[^\w\s-]/g, '')
   .trim().replace(/[\s_]+/g, '-').replace(/-+/g, '-').slice(0, 60) || 'page';
@@ -67,7 +68,7 @@ function createApp({ dbPath } = {}) {
     if (a) domainCache.set(host, { account: a, at: Date.now() });
     return a || null;
   };
-  const PASS = /^\/(t|s|checkout|stripe|unsubscribe|f)\//;
+  const PASS = /^\/(t|s|u|checkout|stripe|unsubscribe|f)\//;
   app.use(async (req, res, next) => {
     let host = String(req.hostname || '').toLowerCase();
     let path = req.path;
@@ -205,7 +206,10 @@ function createApp({ dbPath } = {}) {
   // cross-site HTML form cannot send.
   api.use((req, res, next) => {
     // Check the header, not req.is(): DELETEs have no body, and req.is() is null without one.
-    if (req.method !== 'GET' && !String(req.get('content-type') || '').startsWith('application/json')) {
+    // Photo uploads send the image itself; image/* also can't come from a cross-site form.
+    const type = String(req.get('content-type') || '');
+    if (req.method === 'POST' && req.path === '/uploads' && type.startsWith('image/')) return next();
+    if (req.method !== 'GET' && !type.startsWith('application/json')) {
       return res.status(415).json({ error: 'Expected application/json' });
     }
     next();
@@ -968,6 +972,7 @@ function createApp({ dbPath } = {}) {
     const now = process.env.ALLOW_TIME_TRAVEL === '1' && req.body?.now ? new Date(req.body.now) : new Date();
     res.json(await app.runJobs(now));
   });
+  registerUploads(app, api, { getDb: () => db, HttpError, baseUrl });
   registerLibrary(api, { getDb: () => db, HttpError, id, ownHost, clearDomainCache: () => domainCache.clear() });
   registerPrint(api, app, { getDb: () => db, HttpError, id, logEvent, publicBase, toCsv: people.toCsv });
   registerAccounts(api, { getDb: () => db, HttpError, id });

@@ -104,7 +104,7 @@ function renderBlock(b, ctx, index) {
     case 'text':
       return `<p class="txt" style="text-align:${a}"${f('text')}>${multiline(b.text)}</p>`;
     case 'image':
-      return b.url ? `<div style="text-align:${a}"><img src="${esc(safeUrl(b.url))}" alt="${esc(b.alt)}"></div>` : (ctx.preview ? `<div class="ph">🖼 Image: paste an image link in the panel on the left</div>` : '');
+      return b.url ? `<div style="text-align:${a}"><img src="${esc(safeUrl(b.url))}" alt="${esc(b.alt)}"></div>` : (ctx.preview ? `<div class="ph ph-image"><svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><circle cx="9" cy="9.5" r="1.6"/><path d="m4 17.5 4.8-4.6a1.2 1.2 0 0 1 1.6 0l3.1 2.9 2.3-2.1a1.2 1.2 0 0 1 1.6 0l3.1 2.8"/></svg><div>Drop a photo here</div><small>or choose one in the panel on the left</small></div>` : '');
     case 'button': {
       // "page:<slug>" links to another page of the same website or funnel.
       const href = String(b.url || '').startsWith('page:') ? ctx.pageHref(String(b.url).slice(5))
@@ -113,7 +113,7 @@ function renderBlock(b, ctx, index) {
     }
     case 'video': {
       const src = youtubeEmbed(b.url);
-      return src ? `<div class="video"><iframe src="${src}" allowfullscreen loading="lazy" title="Video"></iframe></div>` : (ctx.preview ? `<div class="ph">▶ Video: paste a YouTube link in the panel on the left</div>` : '');
+      return src ? `<div class="video"><iframe src="${src}" allowfullscreen loading="lazy" title="Video"></iframe></div>` : (ctx.preview ? `<div class="ph">Video: paste a YouTube link in the panel on the left</div>` : '');
     }
     case 'form': {
       const fields = [
@@ -233,14 +233,17 @@ ${body || '<p style="text-align:center;opacity:.5">This page is empty. Add block
 // Drag and drop from the builder's block list: while something is dragged
 // over the preview, a line shows where it will land; dropping tells the
 // builder the position. Only drags started in the builder are accepted.
-const PREVIEW_DROP_SCRIPT = `<style>.ph{border:2px dashed #c7d2fe;border-radius:10px;padding:34px 16px;text-align:center;color:#6366f1;background:#f5f7ff;font:500 14px/1.4 system-ui,sans-serif;margin:8px 0}#ff-drop{position:absolute;left:0;right:0;height:4px;background:#4f46e5;border-radius:2px;box-shadow:0 0 0 3px rgba(79,70,229,.25);pointer-events:none;z-index:99999;display:none}</style>
+const PREVIEW_DROP_SCRIPT = `<style>.ph{border:2px dashed #c7d2fe;border-radius:14px;padding:34px 16px;text-align:center;color:#6366f1;background:#f5f7ff;font:500 14px/1.4 -apple-system,system-ui,sans-serif;margin:8px 0;transition:background .15s,border-color .15s}.ph small{display:block;color:#818cf8;font-weight:400;margin-top:2px}.ph.ph-over{background:#e0e7ff;border-color:#6366f1}#ff-drop{position:absolute;left:0;right:0;height:4px;background:#4f46e5;border-radius:2px;box-shadow:0 0 0 3px rgba(79,70,229,.25);pointer-events:none;z-index:99999;display:none}</style>
 <script>(function(){var line=document.createElement('div');line.id='ff-drop';document.body.appendChild(line);
-function ours(e){return Array.prototype.indexOf.call(e.dataTransfer.types,'text/x-fourfold')>=0;}
+function has(e,t){return Array.prototype.indexOf.call(e.dataTransfer.types,t)>=0;}function ours(e){return has(e,'text/x-fourfold')||has(e,'Files');}
 function spot(y){var bs=document.querySelectorAll('[data-bi]');for(var k=0;k<bs.length;k++){var r=bs[k].getBoundingClientRect();if(y<r.top+r.height/2)return{at:k,top:r.top+scrollY-2};}
 var last=bs[bs.length-1],m=document.querySelector('main')||document.body;return{at:bs.length,top:last?last.getBoundingClientRect().bottom+scrollY-2:m.getBoundingClientRect().top+scrollY+24};}
 document.addEventListener('dragover',function(e){if(!ours(e))return;e.preventDefault();e.dataTransfer.dropEffect='copy';var s=spot(e.clientY);line.style.top=s.top+'px';line.style.display='block';});
 document.addEventListener('dragleave',function(e){if(!e.relatedTarget)line.style.display='none';});
-document.addEventListener('drop',function(e){if(!ours(e))return;e.preventDefault();line.style.display='none';parent.postMessage({ff:'drop',at:spot(e.clientY).at,data:e.dataTransfer.getData('text/x-fourfold')},'*');});})();<\/script>`;
+document.addEventListener('dragover',function(e){if(!has(e,'Files'))return;var b=e.target.closest&&e.target.closest('[data-bi]'),ph=b&&b.querySelector('.ph-image');document.querySelectorAll('.ph-over').forEach(function(x){if(x!==ph)x.classList.remove('ph-over');});if(ph){ph.classList.add('ph-over');line.style.display='none';}});
+document.addEventListener('drop',function(e){if(!ours(e))return;e.preventDefault();line.style.display='none';var at=spot(e.clientY).at;
+if(has(e,'Files')){var f=e.dataTransfer.files[0],b=e.target.closest&&e.target.closest('[data-bi]');if(f)parent.postMessage({ff:'photo',at:at,i:b?+b.dataset.bi:-1,file:f},'*');return;}
+parent.postMessage({ff:'drop',at:at,data:e.dataTransfer.getData('text/x-fourfold')},'*');});})();<\/script>`;
 
 const PREVIEW_EDIT_SCRIPT = `<style>[data-f]{outline:1px dashed transparent;outline-offset:3px;cursor:text}[data-f]:hover{outline-color:#818cf8}[data-f][contenteditable]{outline:2px solid #4f46e5}[data-bi]:hover{box-shadow:inset 0 0 0 1px #c7d2fe}</style>
 <script>document.addEventListener('click',function(e){var blk=e.target.closest('[data-bi]');var el=e.target.closest('[data-f]');if(e.target.closest('a,button'))e.preventDefault();if(blk)parent.postMessage({ff:'open',i:+blk.dataset.bi},'*');if(!el||el.isContentEditable)return;e.preventDefault();el.contentEditable='true';el.focus();el.oninput=function(){parent.postMessage({ff:'edit',i:+blk.dataset.bi,f:el.dataset.f,v:el.innerText.replace(/^\\u201c|\\u201d$/g,'').trim()},'*');};el.onkeydown=function(k){if(k.key==='Escape'||(k.key==='Enter'&&el.dataset.f!=='text'&&el.dataset.f!=='quote'&&el.dataset.f!=='subtext')){k.preventDefault();el.blur();}};el.onblur=function(){el.removeAttribute('contenteditable');};},true);<\/script>`;

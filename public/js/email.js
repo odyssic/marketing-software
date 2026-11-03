@@ -45,11 +45,11 @@ const broadcastsHtml = (items) => (items.length ? `<div class="card table-wrap">
     <td><span class="pill ${b.status === 'sent' ? 'ok' : ''}">${esc(b.status)}</span></td>
     <td>${b.status === 'sent' ? `${b.sent_count} · ${fmtDate(b.sent_at)}` : '—'}</td>
     <td style="text-align:right;white-space:nowrap">${b.status === 'draft' ? `<button class="btn sm primary" data-send="${b.id}">Send</button>
-      <button class="btn sm danger icon" data-delb="${b.id}" title="Delete draft">✕</button>` : ''}</td></tr>`).join('')}
-  </table></div>` : `<div class="card empty"><div class="big">✉️</div><h2>No broadcasts yet</h2><p>Write your first email to your list.</p></div>`);
+      <button class="btn sm danger icon" data-delb="${b.id}" title="Delete draft">${icon('x')}</button>` : ''}</td></tr>`).join('')}
+  </table></div>` : `<div class="card empty"><div class="big">${icon('mail')}</div><h2>No broadcasts yet</h2><p>Write your first email to your list.</p></div>`);
 
 const outboxHtml = (items) => (items.length ? `<div class="card table-wrap"><table>
   <tr><th>To</th><th>Subject</th><th>Status</th><th>When</th></tr>
   ${items.map((m) => `<tr class="click" data-view="${m.id}"><td>${esc(m.to_email)}</td><td>${esc(m.subject)}</td>
     <td><span class="pill ${m.status === 'failed' ? 'warn' : 'ok'}">${esc(m.status)}</span></td><td class="muted small">${fmtDate(m.created_at)}</td></tr>`).join('')}
-  </table></div>` : '<div class="card empty"><div class="big">📭</div><h2>Outbox is empty</h2><p>Every email you send is recorded here.</p></div>');
+  </table></div>` : '<div class="card empty"><div class="big">' + icon('inbox') + '</div><h2>Outbox is empty</h2><p>Every email you send is recorded here.</p></div>');

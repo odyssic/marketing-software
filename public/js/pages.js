@@ -22,8 +22,8 @@ async function viewPages() {
         <td class="muted small">${esc(p.address)}</td><td>${p.status === 'live' ? '<span class="pill ok">Live</span>' : '<span class="pill warn">Draft</span>'}</td>
         <td>${p.views}</td><td>${p.leads}</td><td class="muted small">${fmtDate(p.updated_at)}</td>
         <td style="text-align:right;white-space:nowrap"><a class="btn sm primary" href="#/editor/${p.id}">Edit</a>
-          <a class="btn sm" href="${esc(p.address.startsWith('http') ? p.address : publicUrl(p.address))}" target="_blank" rel="noopener">View ↗</a></td></tr>`).join('')}
-    </table></div>` : `<div class="card empty"><div class="big">📄</div><h2>${q ? 'No matching pages' : 'No pages yet'}</h2>
+          <a class="btn sm" href="${esc(p.address.startsWith('http') ? p.address : publicUrl(p.address))}" target="_blank" rel="noopener">View ${icon('external')}</a></td></tr>`).join('')}
+    </table></div>` : `<div class="card empty"><div class="big">${icon('page')}</div><h2>${q ? 'No matching pages' : 'No pages yet'}</h2>
       <p>${q ? 'Try a different search.' : 'Start a website for your business, or a funnel for one offer.'}</p></div>`}`);
   let t; $('[data-q]').oninput = (e) => { clearTimeout(t); t = setTimeout(() => { location.hash = `#/pages?q=${encodeURIComponent(e.target.value)}`; }, 350); };
   if (q) { const el = $('[data-q]'); el.focus(); el.setSelectionRange(q.length, q.length); }
@@ -41,7 +41,7 @@ async function viewTestimonials() {
         <span class="muted small">${esc(t.name)}${t.detail ? ` · ${esc(t.detail)}` : ''} · ${esc(t.source)}${t.person_id ? ` · <a href="#/people/${t.person_id}">${esc(t.person_name || 'person')}</a>` : ''} · ${fmtDate(t.created_at)}</span></span>
       <span class="row">${t.approved ? '<span class="pill ok">shown on pages</span><button class="btn sm" data-ap="' + t.id + ':0">Hide</button>' : '<span class="pill warn">waiting for approval</span><button class="btn sm primary" data-ap="' + t.id + ':1">Approve</button>'}
         <button class="btn sm danger" data-delt="${t.id}">Delete</button></span></div>`).join('')}</div>`
-      : '<div class="card empty"><div class="big">❝</div><h2>No testimonials yet</h2><p>Add one from a customer’s page (People → a person → Add testimonial), or put a Review form on your website. Reviews wait here for your approval.</p></div>'}`);
+      : '<div class="card empty"><div class="big">' + icon('quote') + '</div><h2>No testimonials yet</h2><p>Add one from a customer’s page (People → a person → Add testimonial), or put a Review form on your website. Reviews wait here for your approval.</p></div>'}`);
   $$('[data-ap]').forEach((b) => { b.onclick = async () => { const [tid, v] = b.dataset.ap.split(':'); await api('PUT', `/api/testimonials/${tid}`, { approved: v === '1' }); viewTestimonials(); }; });
   $$('[data-delt]').forEach((b) => { b.onclick = async () => { if (await confirmBox('Delete testimonial?', 'It will be removed from every page.')) { await api('DELETE', `/api/testimonials/${b.dataset.delt}`); viewTestimonials(); } }; });
 }

@@ -10,7 +10,7 @@ async function viewFunnels() {
       <tr><th>Name</th><th>Pages</th><th>Views</th><th>Opt-ins</th><th>Conversion</th><th>Created</th></tr>
       ${funnels.map((f) => `<tr class="click" data-go="#/funnels/${f.id}"><td><strong>${esc(f.name)}</strong><div class="muted small">/f/${esc(f.slug)}</div></td>
         <td>${f.steps}</td><td>${f.views}</td><td>${f.optins}</td><td>${f.views ? Math.round((f.optins / f.views) * 1000) / 10 : 0}%</td><td>${fmtDate(f.created_at)}</td></tr>`).join('')}
-    </table></div>` : `<div class="card empty"><div class="big">🧲</div><h2>No funnels yet</h2>
+    </table></div>` : `<div class="card empty"><div class="big">${icon('magnet')}</div><h2>No funnels yet</h2>
       <p>Pick a template and you’ll have a live page in under a minute.</p><button class="btn primary" data-new>Create your first funnel</button></div>`}`);
   bindRowLinks();
   $$('[data-new]').forEach((b) => { b.onclick = newFunnel; });
@@ -23,13 +23,13 @@ async function newFunnel() {
   bg.innerHTML = `<form class="modal wide"><h2>New funnel</h2>
     <div class="describe"><label class="f" style="margin:0">Describe it in one sentence <span class="hint">we’ll pick the pages and write the words${state.me.aiLive ? ' in your voice' : ''}</span>
       <textarea data-sentence rows="2" placeholder="e.g. A free glaze guide for beginner potters that leads to my $49 starter kit"></textarea></label>
-      <div class="row" style="margin-top:8px"><button type="button" class="btn primary" data-describe>✨ Build it for me</button><span class="err" data-derr style="margin:0"></span></div></div>
+      <div class="row" style="margin-top:8px"><button type="button" class="btn primary" data-describe>${icon('sparkle')} Build it for me</button><span class="err" data-derr style="margin:0"></span></div></div>
     <div class="or"><span>or pick a template</span></div>
     <label class="f">Funnel name<input name="name" placeholder="e.g. Free glaze guide"></label>
     <div class="f" style="margin-bottom:6px;font-size:.85rem;font-weight:500">Start from</div>
     <div class="tpl-grid" role="radiogroup">${templates.map((t, i) => `<label class="tpl ${i === 0 ? 'on' : ''}"><input type="radio" name="template" value="${t.key}" ${i === 0 ? 'checked' : ''} class="sr">
       <b>${esc(t.label)}</b><span class="muted small">${esc(t.description)}</span>
-      <span class="small">${t.pages} page${t.pages === 1 ? '' : 's'}${t.workflows.length ? ` · ⚡ ${t.workflows.map(esc).join(', ')}` : ''}</span></label>`).join('')}</div>
+      <span class="small">${t.pages} page${t.pages === 1 ? '' : 's'}${t.workflows.length ? ` · ${icon('bolt')} ${t.workflows.map(esc).join(', ')}` : ''}</span></label>`).join('')}</div>
     <p class="hint">Follow-up workflows are created switched off, so you can review the emails first.</p>
     <div class="err"></div><div class="actions"><button type="button" class="btn" data-x>Cancel</button><button class="btn primary">Create funnel</button></div></form>`;
   document.body.append(bg);
@@ -46,7 +46,7 @@ async function newFunnel() {
       bg.remove();
       toast(`Built “${r.name}”${r.workflows.length ? ` with ${r.workflows.length} follow-up workflow${r.workflows.length === 1 ? '' : 's'}` : ''}. Review it, then publish`);
       location.hash = `#/funnels/${r.id}`;
-    } catch (err) { $('[data-derr]', bg).textContent = err.message; b.disabled = false; b.textContent = '✨ Build it for me'; }
+    } catch (err) { $('[data-derr]', bg).textContent = err.message; b.disabled = false; b.innerHTML = icon('sparkle') + ' Build it for me'; }
   };
   $('form', bg).onsubmit = async (e) => {
     e.preventDefault();
@@ -128,19 +128,19 @@ async function viewFunnel(id) {
     <div class="head" style="margin-bottom:14px"><div><a href="#/funnels" class="small">← All funnels</a>
       <h1 style="display:flex;gap:10px;align-items:center">${esc(f.name)} ${f.status === 'live' ? '<span class="pill ok">Live</span>' : '<span class="pill warn">Draft</span>'}</h1></div>
       <div class="row"><div class="copy" style="min-width:320px"><input readonly value="${esc(link)}" aria-label="Funnel link">
-        <button class="btn" data-copy="${esc(link)}">Copy</button><a class="btn" href="${esc(link)}" target="_blank" rel="noopener">Open ↗</a></div>
+        <button class="btn" data-copy="${esc(link)}">Copy</button><a class="btn" href="${esc(link)}" target="_blank" rel="noopener">Open ${icon('external')}</a></div>
         <button class="btn" data-rename>Settings</button><button class="btn danger" data-del>Delete</button>
         ${f.status === 'live' ? '<button class="btn" data-unpublish>Unpublish</button>' : '<button class="btn primary" data-publish>Publish</button>'}</div></div>
     <div data-leak></div>
-    ${f.workflows?.length ? `<div class="wf-strip"><span class="muted small">⚡ Follow-ups for this funnel:</span>
+    ${f.workflows?.length ? `<div class="wf-strip"><span class="muted small">${icon('bolt')} Follow-ups for this funnel:</span>
       ${f.workflows.map((w) => `<a class="chip" href="#/workflows/${w.id}">${esc(w.name.replace(`${f.name}: `, ''))} <span class="pill ${w.status === 'active' ? 'ok' : ''}">${w.status === 'active' ? 'Live' : 'Off'}</span></a>`).join('')}
       ${f.workflows.some((w) => w.status !== 'active') ? '<span class="muted small">Review the emails, then turn them on.</span>' : ''}</div>` : ''}
     <div class="map" tabindex="0">
       <div class="map-tools">
         <button class="btn primary sm" data-addpage>+ Add page</button>
-        <button class="btn sm" data-tidy title="Arrange pages as a tidy tree">✨ Tidy up</button>
+        <button class="btn sm" data-tidy title="Arrange pages as a tidy tree">${icon('sparkle')} Tidy up</button>
         <span class="sep"></span>
-        <button class="btn sm icon" data-zoom="-1" title="Zoom out">−</button><span class="zoomlbl" data-zoomlbl>100%</span>
+        <button class="btn sm icon" data-zoom="-1" title="Zoom out">${icon('minus')}</button><span class="zoomlbl" data-zoomlbl>100%</span>
         <button class="btn sm icon" data-zoom="1" title="Zoom in">+</button><button class="btn sm" data-fit>Fit</button>
       </div>
       <div class="map-help">Drag cards to move them · Drag from <b class="y">✓ Yes</b> or <b class="n">✕ No</b> to connect or create a page · Drag the background to pan</div>
@@ -157,9 +157,9 @@ async function viewFunnel(id) {
     renderNodes();
     if (flow.leak) {
       const st = byId()[flow.leak.step_id];
-      $('[data-leak]').innerHTML = `<div class="banner leak"><b>🚩 Leakiest step: “${esc(st?.name || '')}”</b> (${esc(flow.leak.plain)}).
+      $('[data-leak]').innerHTML = `<div class="banner leak"><b>${icon('flag')} Leakiest step: “${esc(st?.name || '')}”</b> (${esc(flow.leak.plain)}).
         <br>Try this: ${esc(flow.leak.suggestion)} <a class="btn sm" href="#/editor/${flow.leak.step_id}" style="margin-left:6px">Edit page</a>
-        ${st?.variant_blocks ? '<span class="pill">A/B test running</span>' : '<button class="btn sm primary" data-testfix>🧪 Test the fix</button>'}</div>`;
+        ${st?.variant_blocks ? '<span class="pill">A/B test running</span>' : '<button class="btn sm primary" data-testfix>' + icon('flask') + ' Test the fix</button>'}</div>`;
       const tf = $('[data-testfix]');
       if (tf) tf.onclick = async () => { await api('POST', `/api/steps/${flow.leak.step_id}/variant`, { mode: 'suggestion' }); toast('Split test started with the fix as version B'); location.hash = `#/editor/${flow.leak.step_id}?v=b`; };
     }
@@ -167,7 +167,7 @@ async function viewFunnel(id) {
   const pub = $('[data-publish]');
   if (pub) pub.onclick = async () => {
     const pre = await api('GET', `/api/funnels/${id}/preflight`);
-    const list = (ps) => ps.map((p) => `<div class="li"><span>${p.severity === 'block' ? '⛔' : '⚠️'} ${esc(p.text)}</span>${p.fix ? `<a class="btn sm" href="${esc(p.fix.href)}">${esc(p.fix.label)}</a>` : ''}</div>`).join('');
+    const list = (ps) => ps.map((p) => `<div class="li"><span>${p.severity === 'block' ? icon('stop') : icon('alert')} ${esc(p.text)}</span>${p.fix ? `<a class="btn sm" href="${esc(p.fix.href)}">${esc(p.fix.label)}</a>` : ''}</div>`).join('');
     if (!pre.ready) {
       modal('Fix these before publishing', `<p class="muted small">Checked before going live so customers never hit a broken page.</p>${list(pre.problems)}`, { submit: 'OK' });
       return;
@@ -189,25 +189,25 @@ async function viewFunnel(id) {
     save({ steps: m.steps.map((s) => ({ id: s.id, x: s.x, y: s.y })) });
   }
 
-  const pageIcon = (s) => (s.blocks.some((b) => b.type === 'pricing') ? '💳' : s.blocks.some((b) => b.type === 'form') ? '✉️' : '📄');
+  const pageIcon = (s) => (s.blocks.some((b) => b.type === 'pricing') ? icon('card') : s.blocks.some((b) => b.type === 'form') ? icon('mail') : icon('page'));
   const pageKind = (s) => (s.blocks.some((b) => b.type === 'pricing') ? 'Sales page' : s.blocks.some((b) => b.type === 'form') ? 'Opt-in page' : 'Page');
 
   function renderNodes() {
     nodesEl.innerHTML = m.steps.map((s) => `
       <div class="node ${s.id === m.entry ? 'start' : ''} ${m.flow?.leak?.step_id === s.id ? 'leaky' : ''}" data-node="${s.id}" style="left:${s.x}px;top:${s.y}px;width:${NODE_W}px;${m.flow ? `border-top:4px solid ${LEVER_UI[m.flow.levers[s.id]]?.color || 'var(--line)'}` : ''}">
-        ${m.flow?.leak?.step_id === s.id ? '<span class="leakpill" title="Fewest people go on from here">🚩 Leakiest step</span>' : ''}
+        ${m.flow?.leak?.step_id === s.id ? '<span class="leakpill" title="Fewest people go on from here">' + icon('flag') + ' Leakiest step</span>' : ''}
         ${s.variant_blocks ? '<span class="abpill" title="Split test running on this page">A/B</span>' : ''}
         <div class="node-in" title="Visitors arrive here"></div>
         ${s.id === m.entry ? '<span class="startpill">▶ START</span>' : ''}
         <div class="nhead"><span class="nicon">${pageIcon(s)}</span><div style="min-width:0"><div class="nname">${esc(s.name)}</div>
           <div class="nkind">${pageKind(s)} · /${esc(s.slug)}</div></div>
-          <button class="nmenu" data-menu="${s.id}" title="More">⋯</button></div>
+          <button class="nmenu" data-menu="${s.id}" title="More">${icon('more')}</button></div>
         <div class="nstats"><span><b>${s.views}</b> views</span><span><b>${s.optins}</b> opt-ins</span><span><b>${s.sales}</b> sales</span></div>
         <div class="nact"><a class="btn sm primary" href="#/editor/${s.id}">Edit page</a>
-          <a class="btn sm" href="${esc(publicUrl(`/f/${f.slug}/${s.slug}`))}" target="_blank" rel="noopener">View ↗</a></div>
+          <a class="btn sm" href="${esc(publicUrl(`/f/${f.slug}/${s.slug}`))}" target="_blank" rel="noopener">View ${icon('external')}</a></div>
         <div class="ports">${Object.entries(PORTS).map(([p, d]) => `<div class="port ${p} ${s[d.key] ? 'linked' : ''}" data-port="${p}" data-from="${s.id}"
           title="${s[d.key] ? 'Drag to change where this leads' : 'Drag to a page, or click to add the next page'}">${d.label}</div>`).join('')}</div>
-      </div>`).join('') || `<div class="map-empty"><div class="big">🌱</div><p>Every funnel starts with one page.</p>
+      </div>`).join('') || `<div class="map-empty"><div class="big">${icon('sprout')}</div><p>Every funnel starts with one page.</p>
         <button class="btn primary" data-addpage>+ Add your first page</button></div>`;
     renderEdges();
   }
@@ -233,7 +233,7 @@ async function viewFunnel(id) {
         const a = anchor(s, p), b = anchor(t);
         html += `<path class="edge ${p}" d="${curve(a, b)}" marker-end="url(#arrow-${p})"/>`;
         const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
-        buttons += `<button class="edge-x" style="left:${mid.x}px;top:${mid.y}px" data-unlink="${s.id}:${p}" title="Remove this link">✕</button>`;
+        buttons += `<button class="edge-x" style="left:${mid.x}px;top:${mid.y}px" data-unlink="${s.id}:${p}" title="Remove this link">${icon('x')}</button>`;
         const metric = m.flow?.edges.find((e) => e.from === s.id && e.port === p);
         if (metric && metric.visitors) buttons += `<span class="edge-lbl ${p}" style="left:${mid.x}px;top:${mid.y + 18}px">${esc(metric.plain)}</span>`;
       }
@@ -380,8 +380,8 @@ async function viewFunnel(id) {
       menu = document.createElement('div');
       menu.className = 'nodemenu';
       menu.dataset.for = ds.menu;
-      menu.innerHTML = `${s.id === m.entry ? '' : '<button data-act="start">▶ Make this the start page</button>'}
-        <button data-act="rename">✏️ Rename / change URL</button><button data-act="delete" class="danger">🗑 Delete page</button>`;
+      menu.innerHTML = `${s.id === m.entry ? '' : '<button data-act="start">' + icon('play') + ' Make this the start page</button>'}
+        <button data-act="rename">${icon('pencil')} Rename / change URL</button><button data-act="delete" class="danger">${icon('trash')} Delete page</button>`;
       t.closest('.node').append(menu);
       menu.onclick = async (ev) => {
         const act = ev.target.dataset.act;

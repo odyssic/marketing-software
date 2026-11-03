@@ -19,7 +19,7 @@ async function viewCampaign(campaignId) {
       <p class="muted">${c.stats.sent ? `${c.stats.clicked} of every ${c.stats.sent} people clicked, and ${c.stats.buyers} bought.` : ''}</p></div>` : ''}
     <div class="grid two" style="margin-top:14px">
       <div class="card"><div class="row" style="justify-content:space-between"><h2 style="margin:0">The email</h2>
-        ${editable ? `<button class="btn sm" data-draft>${c.draft_body ? '↻ Redraft' : '✍️ Draft it'}</button>` : ''}</div>
+        ${editable ? `<button class="btn sm" data-draft>${c.draft_body ? icon('refresh') + ' Redraft' : icon('pencil') + ' Draft it'}</button>` : ''}</div>
         ${c.aiLive ? '' : '<p class="hint" style="margin:8px 0 0">AI drafting isn’t connected, so drafts are fill-in-the-blank templates. Set ANTHROPIC_API_KEY on the server to draft in your voice.</p>'}
         <label class="f" style="margin-top:12px">Subject<input data-subject value="${esc(c.subject)}" ${editable ? '' : 'readonly'} placeholder="Press Draft it, or write your own"></label>
         <label class="f">Message<textarea data-body rows="14" ${editable ? '' : 'readonly'}>${esc(c.draft_body)}</textarea></label>
@@ -42,7 +42,7 @@ async function viewCampaign(campaignId) {
     const b = e.currentTarget;
     if ($('[data-body]').value.trim() && !confirm('Replace the current draft with a new one?')) return;
     b.disabled = true; b.textContent = 'Drafting…';
-    try { const d = await api('POST', `/api/campaigns/${c.id}/draft`); toast(d.template ? 'Template draft ready. Fill in the brackets' : 'Draft ready, in your voice'); viewCampaign(c.id); } catch (err) { toast(err.message, true); b.disabled = false; b.textContent = '✍️ Draft it'; }
+    try { const d = await api('POST', `/api/campaigns/${c.id}/draft`); toast(d.template ? 'Template draft ready. Fill in the brackets' : 'Draft ready, in your voice'); viewCampaign(c.id); } catch (err) { toast(err.message, true); b.disabled = false; b.innerHTML = icon('pencil') + ' Draft it'; }
   };
   $('[data-send]').onclick = async () => {
     clearTimeout(t);
@@ -59,7 +59,7 @@ const campaignsHtml = (items) => (items.length ? `<div class="card table-wrap"><
   ${items.map((c) => `<tr class="click" data-go="#/campaigns/${c.id}"><td><strong>${esc(c.move.title || c.title || c.subject || 'Campaign')}</strong><div class="muted small">${esc(c.subject)}</div></td>
     <td>${leverPill(c.lever)}</td><td>${c.audience_count}</td><td><span class="pill ${c.status === 'sent' ? 'ok' : c.status === 'skipped' ? 'warn' : ''}">${esc(c.status)}</span></td>
     <td class="muted small">${fmtDate(c.sent_at || c.week || c.created_at)}</td></tr>`).join('')}</table></div>`
-  : '<div class="card empty"><div class="big">🎯</div><h2>No campaigns yet</h2><p>Each week’s move from the dashboard shows up here.</p></div>');
+  : '<div class="card empty"><div class="big">' + icon('target') + '</div><h2>No campaigns yet</h2><p>Each week’s move from the dashboard shows up here.</p></div>');
 
 // Called by the dashboard's "This week's move" tile.
 function bindMoveTile(el, m) {
@@ -67,7 +67,7 @@ function bindMoveTile(el, m) {
   const draft = $('[data-draft]', el);
   if (draft) draft.onclick = async () => {
     draft.disabled = true; draft.textContent = 'Drafting…';
-    try { await api('POST', `/api/campaigns/${m.campaign_id}/draft`); location.hash = `#/campaigns/${m.campaign_id}`; } catch (err) { toast(err.message, true); draft.disabled = false; draft.textContent = '✍️ Draft it'; }
+    try { await api('POST', `/api/campaigns/${m.campaign_id}/draft`); location.hash = `#/campaigns/${m.campaign_id}`; } catch (err) { toast(err.message, true); draft.disabled = false; draft.innerHTML = icon('pencil') + ' Draft it'; }
   };
   const skip = $('[data-skipmove]', el);
   if (skip) skip.onclick = async () => {
@@ -129,7 +129,7 @@ function viewRepurpose() {
         <label class="check" style="margin:0"><input type="radio" name="kind" value="episode"> Episode transcript</label></div>
       <textarea name="text" rows="10" required minlength="200" placeholder="Paste the full text here…"></textarea>
       <div class="err" data-rperr></div>
-      <button class="btn primary">✍️ Make the drafts</button>
+      <button class="btn primary">${icon('sparkle')} Make the drafts</button>
     </form>
     <div data-rpout></div>`);
   $('[data-rp]').onsubmit = async (e) => {
@@ -142,16 +142,16 @@ function viewRepurpose() {
         <span class="row">${extra}<button class="btn sm" data-copytext>Copy</button></span></div><pre class="mail" style="max-height:none">${esc(body)}</pre></div>`;
       $('[data-rpout]').innerHTML = `${r.template ? '<div class="banner" style="margin-top:14px">These are templates. Fill in the [bracketed] parts, or connect AI drafting to write them in your voice.</div>' : ''}
         <div class="grid two" style="margin-top:14px">
-        ${card('✉️ Email to subscribers', `Subject: ${r.email.subject}\n\n${r.email.body}`, '<button class="btn sm primary" data-tobroadcast>Make it a broadcast draft</button>')}
-        ${card('🛍️ Product listing', `${r.product_listing.title}\n\n${r.product_listing.description}`)}
-        ${r.social_posts.map((p, i) => card(`💬 Social post ${i + 1}`, p)).join('')}
-        ${card('🎧 Show notes', r.show_notes)}</div>`;
+        ${card(icon('mail') + ' Email to subscribers', `Subject: ${r.email.subject}\n\n${r.email.body}`, '<button class="btn sm primary" data-tobroadcast>Make it a broadcast draft</button>')}
+        ${card(icon('bag') + ' Product listing', `${r.product_listing.title}\n\n${r.product_listing.description}`)}
+        ${r.social_posts.map((p, i) => card(`${icon('chat')} Social post ${i + 1}`, p)).join('')}
+        ${card(icon('headphones') + ' Show notes', r.show_notes)}</div>`;
       $$('[data-copytext]').forEach((b) => { b.onclick = async () => { await navigator.clipboard.writeText(b.closest('.card').querySelector('pre').textContent); toast('Copied'); }; });
       $('[data-tobroadcast]').onclick = async () => {
         await api('POST', '/api/broadcasts', { subject: r.email.subject, body: r.email.body, tag: '' });
         toast('Saved as a broadcast draft'); location.hash = '#/email';
       };
     } catch (err) { $('[data-rperr]').textContent = err.message; }
-    btn.disabled = false; btn.textContent = '✍️ Make the drafts';
+    btn.disabled = false; btn.innerHTML = icon('sparkle') + ' Make the drafts';
   };
 }

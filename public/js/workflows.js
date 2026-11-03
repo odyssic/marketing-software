@@ -4,14 +4,14 @@
 // One map per workflow: a trigger, then waits, emails, yes/no splits and
 // actions. Email sequences are just email + wait steps on the map.
 const STEP_UI = {
-  trigger: { icon: '⚡', label: 'Trigger', color: '#4f46e5' },
-  wait: { icon: '⏳', label: 'Wait', color: '#64748b', hint: 'Pause for days or hours' },
-  email: { icon: '✉️', label: 'Send email', color: '#0ea5e9', hint: 'An email in the sequence' },
-  condition: { icon: '🔀', label: 'Yes / no split', color: '#8b5cf6', hint: 'Branch on what they did' },
-  tag: { icon: '🏷️', label: 'Tag', color: '#f59e0b', hint: 'Add or remove tags' },
-  subscribe: { icon: '📬', label: 'Subscribe', color: '#10b981', hint: 'Add to a newsletter' },
-  notify: { icon: '🔔', label: 'Notify me', color: '#ef4444', hint: 'Email you to follow up personally' },
-  deal: { icon: '💼', label: 'Create deal', color: '#0f766e', hint: 'Add to a pipeline' },
+  trigger: { icon: icon('bolt'), label: 'Trigger', color: '#4f46e5' },
+  wait: { icon: icon('clock'), label: 'Wait', color: '#64748b', hint: 'Pause for days or hours' },
+  email: { icon: icon('mail'), label: 'Send email', color: '#0ea5e9', hint: 'An email in the sequence' },
+  condition: { icon: icon('branch'), label: 'Yes / no split', color: '#8b5cf6', hint: 'Branch on what they did' },
+  tag: { icon: icon('tag'), label: 'Tag', color: '#f59e0b', hint: 'Add or remove tags' },
+  subscribe: { icon: icon('inbox'), label: 'Subscribe', color: '#10b981', hint: 'Add to a newsletter' },
+  notify: { icon: icon('bell'), label: 'Notify me', color: '#ef4444', hint: 'Email you to follow up personally' },
+  deal: { icon: icon('briefcase'), label: 'Create deal', color: '#0f766e', hint: 'Add to a pipeline' },
 };
 const PALETTE = ['email', 'wait', 'condition', 'tag', 'subscribe', 'notify', 'deal'];
 const TRIGGER_UI = {
@@ -34,8 +34,8 @@ async function viewWorkflows() {
         <div><div class="row" style="gap:6px;margin-bottom:6px">${leverPill(w.lever)}${w.status === 'active' ? '<span class="pill ok">Live</span>' : w.status === 'paused' ? '<span class="pill warn">Paused</span>' : '<span class="pill">Off</span>'}</div>
           <h3>${esc(w.name)}</h3></div>
         <label class="switch" title="${w.status === 'active' ? 'Turn off' : 'Turn on'}"><input type="checkbox" data-toggle="${w.id}" ${w.status === 'active' ? 'checked' : ''}><span></span></label></div>
-      <p class="muted small">⚡ When someone ${esc((w.triggerLabel || '').toLowerCase())}</p>
-      <div class="wf-meta"><span>✉️ ${w.emails} email${w.emails === 1 ? '' : 's'}</span><span>${w.steps} step${w.steps === 1 ? '' : 's'}</span>
+      <p class="muted small">${icon('bolt')} When someone ${esc((w.triggerLabel || '').toLowerCase())}</p>
+      <div class="wf-meta"><span>${icon('mail')} ${w.emails} email${w.emails === 1 ? '' : 's'}</span><span>${w.steps} step${w.steps === 1 ? '' : 's'}</span>
         <span>${w.active_runs} in progress</span><span>${w.emails_sent} sent</span></div></article>`).join('')}</div>`);
   $$('[data-open]').forEach((c) => {
     c.onclick = (e) => { if (!e.target.closest('.switch')) location.hash = `#/workflows/${c.dataset.open}`; };
@@ -86,8 +86,8 @@ async function viewWorkflow(workflowId) {
       <select data-lever aria-label="Growth lever" class="sm-select">${['lead', 'conversion', 'upsell', 'continuity'].map((k) => `<option value="${k}" ${w.lever === k ? 'selected' : ''}>${esc(LEVER_UI[k].label)}</option>`).join('')}</select>
       <span class="saved" data-saved>Saved</span>
       <button class="btn sm" data-activity>People</button><button class="btn sm" data-enroll>Add people</button>
-      <button class="btn sm ${w.status === 'active' ? '' : 'primary'}" data-status>${w.status === 'active' ? '⏸ Pause' : '▶ Turn on'}</button></div>
-    <aside class="palette-col" aria-label="Steps"><h3>Steps</h3><p class="hint">Drag onto a ＋ on the map, or click a ＋.</p>
+      <button class="btn sm ${w.status === 'active' ? '' : 'primary'}" data-status>${w.status === 'active' ? icon('pause') + ' Pause' : icon('play') + ' Turn on'}</button></div>
+    <aside class="palette-col" aria-label="Steps"><h3>Steps</h3><p class="hint">Drag onto a + on the map, or click a +.</p>
       ${PALETTE.map((t) => `<div class="pchip" draggable="true" data-ptype="${t}" style="--c:${STEP_UI[t].color}"><span class="pi">${STEP_UI[t].icon}</span><span><b>${STEP_UI[t].label}</b><small>${STEP_UI[t].hint}</small></span></div>`).join('')}</aside>
     <main class="canvas" data-canvas><div data-problems></div><div class="tree" data-tree></div></main>
     <aside class="inspector" data-inspector></aside></div>`;
@@ -151,7 +151,7 @@ function statBadge(key) {
 }
 
 function renderTree() {
-  const slot = (parent, port) => `<div class="slot" data-slot="${parent}:${port}"><button class="plus" data-plus="${parent}:${port}" aria-label="Add a step here">＋</button></div>`;
+  const slot = (parent, port) => `<div class="slot" data-slot="${parent}:${port}"><button class="plus" data-plus="${parent}:${port}" aria-label="Add a step here">${icon('plus')}</button></div>`;
   const card = (key) => {
     const n = nodes()[key], ui = STEP_UI[n.type];
     return `<div class="wnode t-${n.type} ${wf.selected === key ? 'sel' : ''}" data-node="${key}" ${n.type === 'trigger' ? '' : 'draggable="true"'} tabindex="0" style="--c:${ui.color}">
@@ -394,7 +394,7 @@ function bindBuilderChrome() {
     ch.onclick = () => {
       let k = wf.selected;
       while (nodes()[k] && nodes()[k].type !== 'condition' && nodes()[k].next) k = nodes()[k].next;
-      if (nodes()[k].type === 'condition') { toast('Use a ＋ under Yes or No to add after a split'); return; }
+      if (nodes()[k].type === 'condition') { toast('Use a + under Yes or No to add after a split'); return; }
       insertStep(ch.dataset.ptype, k, 'next');
     };
   });

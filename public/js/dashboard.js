@@ -30,18 +30,18 @@ function renderDashboard() {
   const focus = dash.levers.focus;
   const meta = (id) => dash.catalog.find((t) => t.id === id);
   shell('', `
-    <div class="head"><div><h1>Hi ${esc(state.me.user.name.split(' ')[0])} 👋</h1>
+    <div class="head"><div><h1>Hi ${esc(state.me.user.name.split(' ')[0])}</h1>
       <div class="muted">${esc(state.me.account.name)} · focus this week: <b style="color:${LEVER_UI[focus].color}">${esc(LEVER_UI[focus].label)}</b>${dash.levers.pinned ? ' (pinned)' : ''}</div></div>
-      <button class="btn ${dash.customize ? 'primary' : ''}" data-customize>${dash.customize ? 'Done' : '⚙ Customize'}</button></div>
+      <button class="btn ${dash.customize ? 'primary' : ''}" data-customize>${dash.customize ? 'Done' : icon('gear') + ' Customize'}</button></div>
     <div class="leverbar" role="tablist">${Object.entries(LEVER_UI).map(([k, l]) => `<button role="tab" aria-selected="${k === lv}" data-lever="${k}" style="--c:${l.color}" class="${k === lv ? 'on' : ''}"><i class="dot"></i>
       ${k !== 'all' && dash.levers.levers[k]?.score !== null && dash.levers.levers[k]?.score !== undefined ? `<span class="sc">${dash.levers.levers[k].score}</span>` : ''}${esc(l.label)}${k === focus ? ' <span class="focus-dot" title="Focus here">●</span>' : ''}</button>`).join('')}</div>
     ${dash.customize ? `<div class="tray"><span class="muted small">Hidden tiles:</span>
-      ${tiles.filter((t) => t.hidden).map((t) => `<button class="chip" data-restore="${t.tile_id}">＋ ${esc(meta(t.tile_id)?.title || t.tile_id)}</button>`).join('') || '<span class="muted small">none. Hide a tile with ✕ to park it here.</span>'}</div>` : ''}
+      ${tiles.filter((t) => t.hidden).map((t) => `<button class="chip" data-restore="${t.tile_id}">${icon('plus')} ${esc(meta(t.tile_id)?.title || t.tile_id)}</button>`).join('') || '<span class="muted small">none. Hide a tile with ✕ to park it here.</span>'}</div>` : ''}
     <div class="tiles ${dash.customize ? 'editing' : ''}" style="--lever:${lv === 'all' ? 'var(--brand)' : LEVER_UI[lv].color}">
       ${tiles.filter((t) => !t.hidden).map((t) => `<section class="tile ${t.width}" data-tile="${t.tile_id}">
         <header><h2>${esc(meta(t.tile_id)?.title || t.tile_id)}</h2>
-          ${dash.customize ? `<div class="tctl"><button class="handle" title="Drag to move" aria-label="Drag to move">⠿</button>
-            <button data-width title="Change width">${t.width === 'full' ? '½' : '↔'}</button><button data-hide title="Hide">✕</button></div>` : ''}</header>
+          ${dash.customize ? `<div class="tctl"><button class="handle" title="Drag to move" aria-label="Drag to move">${icon('grip')}</button>
+            <button data-width title="Change width">${t.width === 'full' ? '½' : icon('resize')}</button><button data-hide title="Hide">${icon('x')}</button></div>` : ''}</header>
         <div class="tbody"><div class="skeleton"></div></div></section>`).join('')}
     </div>`);
 
@@ -103,7 +103,7 @@ function flowStrip(counts, lever) {
   return `<div class="flow">${FLOW.map(([k, l], i) => {
     const arrow = FLOW_ARROWS[i - 1];
     return `${arrow ? `<div class="farrow ${lever === 'all' || lever === arrow[0] ? 'on' : ''}" style="--c:${LEVER_UI[arrow[0]].color}"><span>${esc(LEVER_UI[arrow[0]].label)}</span>→</div>` : ''}
-      <div class="fstage ${k} ${on(k) ? 'on' : 'dim'}"><b>${counts[k]}</b>${l}${k === 'customer' ? `<span class="loop ${lever === 'all' || lever === 'upsell' ? 'on' : ''}" title="Upsell happens within an order">↻ Upsell</span>` : ''}</div>`;
+      <div class="fstage ${k} ${on(k) ? 'on' : 'dim'}"><b>${counts[k]}</b>${l}${k === 'customer' ? `<span class="loop ${lever === 'all' || lever === 'upsell' ? 'on' : ''}" title="Upsell happens within an order">${icon('refresh')} Upsell</span>` : ''}</div>`;
   }).join('')}</div>`;
 }
 
@@ -145,9 +145,9 @@ function moveTile(m) {
     <div class="ml"><span class="lever-tag">${esc(LEVER_UI[m.lever]?.label || m.lever)}</span>
       <h3>${esc(m.title)}</h3><p class="muted">${esc(m.reason)}</p>
       ${m.count ? `<p class="small"><b>${m.count}</b> ${m.count === 1 ? 'person' : 'people'}: ${m.people.slice(0, 5).map((p) => `<a href="#/people/${p.id}">${esc(p.name)}</a>`).join(', ')}${m.count > 5 ? ` and ${m.count - 5} more` : ''}</p>` : ''}</div>
-    <div class="mr">${m.status === 'proposed' ? '<button class="btn primary" data-draft>✍️ Draft it</button><button class="btn sm" data-skipmove>Skip this week</button>'
+    <div class="mr">${m.status === 'proposed' ? '<button class="btn primary" data-draft>' + icon('pencil') + ' Draft it</button><button class="btn sm" data-skipmove>Skip this week</button>'
       : m.status === 'draft' ? `<a class="btn primary" href="#/campaigns/${m.campaign_id}">Review draft</a><button class="btn sm" data-skipmove>Skip this week</button>`
-        : m.status === 'sent' ? `<a class="btn" href="#/campaigns/${m.campaign_id}">✓ Sent · view results</a>`
+        : m.status === 'sent' ? `<a class="btn" href="#/campaigns/${m.campaign_id}">${icon('check')} Sent · view results</a>`
           : m.status === 'skipped' ? '<span class="muted small">Skipped this week. A new move comes Monday.</span>' : ''}</div></div>`;
 }
 

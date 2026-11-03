@@ -29,7 +29,7 @@ async function route() {
     else if (section === 'settings') viewSettings();
     else await viewDashboard();
   } catch (err) {
-    if (state.me) shell(section, `<div class="card empty"><div class="big">⚠️</div><h2>${esc(err.message)}</h2><a href="#/">Back to dashboard</a></div>`);
+    if (state.me) shell(section, `<div class="card empty"><div class="big">${icon('alert')}</div><h2>${esc(err.message)}</h2><a href="#/">Back to dashboard</a></div>`);
   }
 }
 

@@ -51,7 +51,7 @@ const productsHtml = (items) => (items.length ? `<div class="card table-wrap"><t
   <tr><th>Product</th><th>Price</th><th>Billing</th><th>Buyer tag</th><th>Sales</th></tr>
   ${items.map((pr) => `<tr class="click" data-edit="${pr.id}"><td><strong>${esc(pr.name)}</strong><div class="muted small">${esc(pr.description.slice(0, 70))}</div></td>
     <td>${esc(pr.priceLabel)}</td><td>${BILLING_LABEL[pr.billing]}</td><td>${pr.tag ? tagsHtml(pr.tag.split(',')) : ''}</td><td>${pr.sales}</td></tr>`).join('')}
-  </table></div>` : `<div class="card empty"><div class="big">🛒</div><h2>No products yet</h2>
+  </table></div>` : `<div class="card empty"><div class="big">${icon('bag')}</div><h2>No products yet</h2>
   <p>Create a product, then sell it with a Pricing card on any funnel page.</p></div>`);
 
 const ordersHtml = (items) => (items.length ? `<div class="card table-wrap"><table>
@@ -60,4 +60,4 @@ const ordersHtml = (items) => (items.length ? `<div class="card table-wrap"><tab
     <td>${esc(o.email) || '<span class="muted">—</span>'}</td><td>${esc(o.amountLabel)}</td>
     <td><span class="pill ${o.status === 'paid' ? 'ok' : ''}">${o.status === 'pending' ? 'abandoned / pending' : esc(o.status)}</span></td>
     <td class="muted small">${fmtDate(o.paid_at || o.created_at)}</td></tr>`).join('')}
-  </table></div>` : '<div class="card empty"><div class="big">🧾</div><h2>No orders yet</h2><p>Orders appear here when someone clicks buy on a pricing card.</p></div>');
+  </table></div>` : '<div class="card empty"><div class="big">' + icon('receipt') + '</div><h2>No orders yet</h2><p>Orders appear here when someone clicks buy on a pricing card.</p></div>');
