@@ -112,7 +112,7 @@ function renderTile(id, t) {
   const d = t.data;
   if (t.error) return `<p class="muted">${esc(t.error)}</p>`;
   if (id === 'health') return healthTile(d);
-  if (!d) return `<p class="empty-line">${esc(t.empty_state)}</p>`;
+  if (!d) return `<p class="empty-line">${esc(t.empty_state)}${t.empty_action ? ` <a href="${esc(t.empty_action[0])}">${esc(t.empty_action[1])}</a>` : ''}</p>`;
   switch (id) {
     case 'move': return moveTile(d);
     case 'flow': return flowStrip(d, dash.lever);

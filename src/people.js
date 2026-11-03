@@ -5,7 +5,7 @@ const { zip } = require('./zip');
 
 const STAGES = ['audience', 'lead', 'customer', 'regular'];
 const EVENT_TYPES = ['signup', 'inquiry', 'purchase', 'subscribe', 'unsubscribe', 'open', 'click', 'listen', 'scan', 'visit', 'note'];
-const SOURCES = ['store', 'newsletter', 'podcast', 'inquiry', 'funnel', 'etsy', 'paypal', 'stripe', 'print', 'social', 'referral', 'manual', 'import', 'deal', 'other'];
+const SOURCES = ['store', 'newsletter', 'podcast', 'inquiry', 'funnel', 'etsy', 'paypal', 'stripe', 'print', 'social', 'referral', 'event', 'manual', 'import', 'deal', 'other'];
 const ADDRESS = ['address1', 'address2', 'city', 'region', 'postal', 'country'];
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const iso = (d) => (d instanceof Date ? d.toISOString() : d);
@@ -121,6 +121,8 @@ function createPeople({ getDb, HttpError, parseTags, id, formatMoney }) {
         try {
           const r = await upsertContact(t, accountId, { ...row, tags: [...parseTags(row.tags), ...parseTags(tag)], source: row.source || source });
           r.created ? created++ : updated++;
+          const note = String(row.note || '').trim().slice(0, 500);
+          if (note) await logEvent(t, accountId, { person_id: r.id, type: 'note', source: 'import', meta: { note } }, { recompute: false });
           touched.push(r.id);
         } catch (e) { if (e.status === 400) skipped++; else throw e; }
       }
@@ -308,6 +310,21 @@ function createPeople({ getDb, HttpError, parseTags, id, formatMoney }) {
     api.post('/import/people', async (req, res) => {
       const rows = Array.isArray(req.body?.rows) ? req.body.rows : [];
       res.json(await importPeople(req.accountId, rows, { source: req.body?.source, tag: req.body?.tag }));
+    });
+    // "Paste or drop anything": the AI (or, without a key, an email finder)
+    // turns text or a photo into people to review before importing.
+    api.post('/import/extract', async (req, res) => {
+      const ai = require('./ai');
+      const text = String(req.body?.text || '').trim();
+      const image = req.body?.image;
+      const images = image && /^image\/(jpeg|png|webp|gif)$/.test(image.media_type) && typeof image.data === 'string' ? [{ media_type: image.media_type, data: image.data }] : [];
+      if (!text && !images.length) throw new HttpError(400, 'Paste some text or drop a photo');
+      if (text.length > 60000) throw new HttpError(400, 'That’s a lot of text. Paste up to about 60,000 characters at a time, or use a CSV for big lists');
+      const account = await getDb().get('SELECT * FROM accounts WHERE id = ?', req.accountId);
+      try { res.json(await ai.extractLeads({ account, text, images })); } catch (e) {
+        if (e instanceof ai.AIError) throw new HttpError(e.status, e.message);
+        throw e;
+      }
     });
     api.post('/import/orders', async (req, res) => {
       const orders = Array.isArray(req.body?.orders) ? req.body.orders : [];

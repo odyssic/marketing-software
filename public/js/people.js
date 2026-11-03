@@ -17,8 +17,8 @@ async function viewPeople() {
   const link = (over) => `#/people?${new URLSearchParams({ q, tag, stage, ...over })}`;
   shell('people', `
     <div class="head"><div><h1>People</h1><div class="muted">One record per person, across your store, newsletter, podcast and inquiries.</div></div>
-      <div class="row"><a class="btn" href="#/people/testimonials">${icon('quote')} Testimonials</a><button class="btn" data-import>Import CSV</button><a class="btn" href="/api/export.zip">Export everything</a>
-      <button class="btn primary" data-add>+ Add person</button></div></div>
+      <div class="row"><a class="btn" href="#/people/testimonials">${icon('quote')} Testimonials</a><a class="btn" href="/api/export.zip">${icon('download')} Export</a>
+      <button class="btn primary" data-leads>${icon('plus')} Add leads</button></div></div>
     <div class="stagebar">
       <a href="${link({ stage: '' })}" class="${stage ? '' : 'active'}"><b>${all.length}</b>Everyone</a>
       ${STAGES.map(([k, l]) => `<a href="${link({ stage: k })}" class="${stage === k ? 'active' : ''} ${k}"><b>${count(k)}</b>${l}</a>`).join('<span class="arrow">→</span>')}
@@ -32,18 +32,16 @@ async function viewPeople() {
         <td>${stagePill(c.stage)}</td><td>${esc(c.city)}</td>
         <td>${tagsHtml(c.tags)}</td><td class="muted small">${esc(c.source)}</td><td class="muted small">${fmtDate(c.created_at)}</td></tr>`).join('')}
     </table></div>` : `<div class="card empty"><div class="big">${icon('people')}</div><h2>${q || tag || stage ? 'No matches' : 'No people yet'}</h2>
-      <p>${q || tag || stage ? 'Try a different search.' : 'Import your store orders, newsletter list or podcast signups to get started.'}</p>
-      ${q || tag || stage ? '' : '<button class="btn primary" data-import>Import a CSV</button>'}</div>`}`);
+      <p>${q || tag || stage ? 'Try a different search.' : 'Upload a spreadsheet, paste a list or a photo of a sign-up sheet, or add someone by hand.'}</p>
+      ${q || tag || stage ? '' : '<button class="btn primary" data-leads>' + icon('plus') + ' Add leads</button>'}</div>`}`);
   bindRowLinks();
   const go = () => { location.hash = link({ q: $('[data-q]').value, tag: $('[data-tag]').value }); };
   let t; $('[data-q]').oninput = () => { clearTimeout(t); t = setTimeout(go, 350); };
   $('[data-tag]').onchange = go;
   const qEl = $('[data-q]'); if (q) { qEl.focus(); qEl.setSelectionRange(q.length, q.length); }
-  $('[data-add]').onclick = async () => {
-    const r = await modal('Add person', personForm(), { submit: 'Add person', onSubmit: (v) => api('POST', '/api/contacts', v) });
-    if (r) { toast('Person added'); location.hash = `#/people/${r.id}`; }
-  };
-  $$('[data-import]').forEach((b) => { b.onclick = () => importWizard(viewPeople); });
+  $$('[data-leads]').forEach((b) => { b.onclick = () => addLeads(viewPeople); });
+  // The dashboard's "Add leads" link lands here with ?add=1.
+  if (new URLSearchParams(location.hash.split('?')[1] || '').get('add')) { history.replaceState(null, '', '#/people'); addLeads(viewPeople); }
 }
 
 const personForm = (c = {}) => `
@@ -205,7 +203,7 @@ function guessMapping(type, headers, sample) {
   });
 }
 
-async function importWizard(done) {
+async function importWizard(done, file) {
   const bg = document.createElement('div');
   bg.className = 'modal-bg';
   document.body.append(bg);
@@ -310,5 +308,141 @@ async function importWizard(done) {
       done?.();
     };
   };
+  if (file) {
+    // A spreadsheet dropped in "Add leads": go straight to matching columns.
+    file.text().then((txt) => {
+      const parsed = parseCsv(txt.replace(/^\ufeff/, ''));
+      headers = parsed.shift() || []; rows = parsed;
+      if (!headers.length || !rows.length) return step1();
+      mapping = guessMapping(type, headers, rows.slice(0, 20));
+      step2();
+    });
+  } else step1();
+}
+
+// ---------------- Add leads ----------------
+// One door for every way people arrive: a spreadsheet, anything pasted or
+// photographed (read by the AI), or one person typed in.
+function addLeads(done) {
+  const bg = document.createElement('div');
+  bg.className = 'modal-bg';
+  bg.innerHTML = `<div class="modal"><h2>Add leads</h2>
+    <div class="choices">
+      <button type="button" class="choice" data-c="csv"><span class="ci">${icon('download')}</span><span><b>Upload a spreadsheet</b><small>A CSV from Excel, Google Sheets, your store, Etsy, PayPal or a newsletter tool</small></span></button>
+      <button type="button" class="choice" data-c="ai"><span class="ci">${icon('sparkle')}</span><span><b>Paste or drop anything</b><small>An email thread, a list, notes, or a photo of business cards or a sign-up sheet. AI finds the people for you to check.</small></span></button>
+      <button type="button" class="choice" data-c="one"><span class="ci">${icon('user')}</span><span><b>Add one person</b><small>Type in their details</small></span></button>
+    </div>
+    <div class="dropzone" data-any style="margin-top:12px"><span class="dz-ico">${icon('upload')}</span><span class="dz-text"><b>Or drop a file here</b><span>CSV, text file or photo: we’ll pick the right way in</span></span></div>
+    <div class="err"></div><div class="actions"><button type="button" class="btn" data-x>Cancel</button></div></div>`;
+  document.body.append(bg);
+  const close = () => bg.remove();
+  bg.addEventListener('mousedown', (e) => { if (e.target === bg) close(); });
+  $('[data-x]', bg).onclick = close;
+  $$('[data-c]', bg).forEach((b) => { b.onclick = async () => {
+    close();
+    if (b.dataset.c === 'csv') return importWizard(done);
+    if (b.dataset.c === 'ai') return aiLeads(done);
+    const r = await modal('Add person', personForm(), { submit: 'Add person', onSubmit: (v) => api('POST', '/api/contacts', v) });
+    if (r) { toast('Person added'); location.hash = `#/people/${r.id}`; }
+  }; });
+  const z = $('[data-any]', bg);
+  z.ondragover = (e) => { e.preventDefault(); z.classList.add('over'); };
+  z.ondragleave = () => z.classList.remove('over');
+  z.ondrop = (e) => {
+    e.preventDefault(); z.classList.remove('over');
+    const f = e.dataTransfer.files[0];
+    if (!f) return;
+    close();
+    if (/\.(csv|tsv)$/i.test(f.name) || f.type === 'text/csv') importWizard(done, f); else aiLeads(done, f);
+  };
+}
+
+// Shrink a photo and return it as base64 for the AI to read.
+async function photoForAI(file) {
+  const img = await createImageBitmap(file);
+  const scale = Math.min(1, 1600 / Math.max(img.width, img.height));
+  const c = document.createElement('canvas');
+  c.width = Math.round(img.width * scale); c.height = Math.round(img.height * scale);
+  c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+  return { media_type: 'image/jpeg', data: c.toDataURL('image/jpeg', 0.85).split(',')[1] };
+}
+
+function aiLeads(done, file) {
+  const bg = document.createElement('div');
+  bg.className = 'modal-bg';
+  document.body.append(bg);
+  const close = () => bg.remove();
+  bg.addEventListener('mousedown', (e) => { if (e.target === bg) close(); });
+  let photo = null, photoName = '';
+
+  const step1 = (text = '') => {
+    bg.innerHTML = `<form class="modal wide"><h2>Paste or drop anything</h2>
+      <p class="muted small">${state.me?.aiLive ? 'The AI reads it and lists the people it finds. Nothing is added until you check the list.' : 'No AI key is set, so this finds email addresses (and names next to them). Add an ANTHROPIC_API_KEY to read messy notes and photos too.'}</p>
+      <label class="f">Text<textarea name="text" rows="9" placeholder="Paste an email thread, a list of names and emails, cells copied from a spreadsheet, notes from an event…">${esc(text)}</textarea></label>
+      <div class="dropzone" data-photo tabindex="0" role="button"><span class="dz-ico">${icon('camera')}</span><span class="dz-text"><b data-pn>${photoName ? esc(photoName) : 'Drop a photo or text file'}</b><span>business cards, a sign-up sheet, a .txt or .vcf file, or click to choose</span></span>
+        <input type="file" hidden accept="image/*,.txt,.vcf,.csv,.tsv,.md,text/plain"></div>
+      <div class="err"></div><div class="actions"><button type="button" class="btn" data-x>Cancel</button><button class="btn primary">${icon('sparkle')} Find the people</button></div></form>`;
+    $('[data-x]', bg).onclick = close;
+    const z = $('[data-photo]', bg), input = $('input[type=file]', bg);
+    const take = async (f) => {
+      if (!f) return;
+      if (f.type.startsWith('image/')) { photo = await photoForAI(f); photoName = f.name; $('[data-pn]', bg).textContent = `${f.name} (ready)`; }
+      else { const t = $('textarea', bg); t.value = `${t.value ? `${t.value}\n` : ''}${await f.text()}`; }
+    };
+    z.onclick = () => input.click();
+    z.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); input.click(); } };
+    input.onchange = () => take(input.files[0]);
+    z.ondragover = (e) => { e.preventDefault(); z.classList.add('over'); };
+    z.ondragleave = () => z.classList.remove('over');
+    z.ondrop = (e) => { e.preventDefault(); z.classList.remove('over'); take(e.dataTransfer.files[0]); };
+    $('form', bg).onsubmit = async (e) => {
+      e.preventDefault();
+      const btn = $('button.primary', bg);
+      const text = $('textarea', bg).value.trim();
+      btn.disabled = true; btn.textContent = 'Reading…';
+      try {
+        const r = await api('POST', '/api/import/extract', { text, image: photo || undefined });
+        if (!r.people.length) throw new Error(r.template ? 'No email addresses found. Without an AI key only emails can be picked out.' : 'No people found in that.');
+        step2(r.people, text);
+      } catch (err) { $('.err', bg).textContent = err.message; btn.disabled = false; btn.innerHTML = `${icon('sparkle')} Find the people`; }
+    };
+  };
+
+  const F = [['first_name', 'First name'], ['last_name', 'Last name'], ['email', 'Email'], ['phone', 'Phone'], ['city', 'City'], ['note', 'Note']];
+  const step2 = (people, text) => {
+    bg.innerHTML = `<form class="modal wide"><h2>Check the ${people.length} ${people.length === 1 ? 'person' : 'people'} found</h2>
+      <p class="muted small">Fix anything that’s wrong and untick anyone you don’t want. People already in your list are updated, not duplicated.</p>
+      <div class="table-wrap" style="border:1px solid var(--line);border-radius:8px;max-height:46vh"><table class="mini leads">
+        <tr><th><input type="checkbox" data-all checked aria-label="Select all"></th>${F.map(([, l]) => `<th>${l}</th>`).join('')}</tr>
+        ${people.map((p, i) => `<tr><td><input type="checkbox" data-keep="${i}" checked aria-label="Include"></td>${F.map(([k]) => `<td><input data-r="${i}" data-k="${k}" value="${esc(p[k])}"></td>`).join('')}</tr>`).join('')}</table></div>
+      <div class="colors" style="grid-template-columns:1fr 1fr;margin-top:12px">
+        <label class="f">Where did they come from?<select name="source">${['inquiry', 'referral', 'social', 'event', 'newsletter', 'podcast', 'store', 'import', 'other'].map((s) => `<option>${s}</option>`).join('')}</select></label>
+        <label class="f">Tag them <span class="hint">optional</span><input name="tag" placeholder="e.g. spring-fair"></label></div>
+      <div class="err"></div><div class="actions"><button type="button" class="btn" data-back>Back</button><button class="btn primary">Add ${people.length} ${people.length === 1 ? 'person' : 'people'}</button></div></form>`;
+    const count = () => $$('[data-keep]', bg).filter((c) => c.checked).length;
+    const label = () => { const n = count(); $('button.primary', bg).textContent = `Add ${n} ${n === 1 ? 'person' : 'people'}`; $('button.primary', bg).disabled = !n; };
+    $$('[data-keep]', bg).forEach((c) => { c.onchange = label; });
+    $('[data-all]', bg).onchange = (e) => { $$('[data-keep]', bg).forEach((c) => { c.checked = e.target.checked; }); label(); };
+    $$('[data-r]', bg).forEach((inp) => { inp.oninput = () => { people[inp.dataset.r][inp.dataset.k] = inp.value; }; });
+    $('[data-back]', bg).onclick = () => step1(text);
+    $('form', bg).onsubmit = async (e) => {
+      e.preventDefault();
+      const opts = Object.fromEntries(new FormData(e.target));
+      const rows = people.filter((p, i) => $(`[data-keep="${i}"]`, bg).checked);
+      const btn = $('button.primary', bg);
+      btn.disabled = true; btn.textContent = 'Adding…';
+      try {
+        const r = await api('POST', '/api/import/people', { ...opts, rows });
+        close();
+        toast([`${r.created} new ${r.created === 1 ? 'person' : 'people'}`, r.updated && `${r.updated} updated`, r.skipped && `${r.skipped} skipped (no email or name)`].filter(Boolean).join(' · '));
+        done?.();
+      } catch (err) { $('.err', bg).textContent = err.message; label(); }
+    };
+  };
+
   step1();
+  if (file) {
+    if (file.type.startsWith('image/')) photoForAI(file).then((p) => { photo = p; photoName = file.name; $('[data-pn]', bg).textContent = `${file.name} (ready)`; });
+    else file.text().then((t) => { $('textarea', bg).value = t; });
+  }
 }

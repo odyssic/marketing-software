@@ -29,15 +29,15 @@ function voiceSystem(account) {
 
 // One request with a JSON schema as the output format. Refusals are checked
 // before reading the text, then the JSON is validated against the schema.
-async function structured({ account, prompt, schema, effort = 'medium' }) {
+async function structured({ account, prompt, schema, effort = 'medium', system, content }) {
   let r;
   try {
     r = await getClient().messages.create({
       model: MODEL,
       max_tokens: 16000,
-      system: voiceSystem(account),
+      system: system || voiceSystem(account),
       output_config: { format: { type: 'json_schema', schema: zodOutputFormat(schema).schema }, effort },
-      messages: [{ role: 'user', content: prompt }],
+      messages: [{ role: 'user', content: content || prompt }],
     });
   } catch (e) {
     if (e instanceof Anthropic.AuthenticationError) throw new AIError('The AI key isn’t valid. Check ANTHROPIC_API_KEY.', 502);
@@ -111,6 +111,46 @@ const guessTemplate = (sentence, keys) => {
   return { template: keys.includes(pick) ? pick : keys[0], name: name || 'New funnel' };
 };
 
+// ---------- Leads from anything ----------
+// Pasted text (an email thread, a sign-up sheet, notes, cells copied from a
+// spreadsheet) or a photo (business cards, a paper sign-up sheet) → people.
+// Only people actually in the source; unknown fields stay empty.
+const LEAD_FIELDS = ['first_name', 'last_name', 'email', 'phone', 'city', 'region', 'country', 'note'];
+const Leads = z.object({ people: z.array(z.object(Object.fromEntries(LEAD_FIELDS.map((f) => [f, z.string()])))) });
+const LEADS_SYSTEM = 'You pull contact details out of material a small-business owner gives you, so they can add the people to their contact list. Extract only people who actually appear in the material. Never invent, guess or complete an email address, phone number or name: copy exactly what is there, and use an empty string for anything not shown. Skip the owner themself and obvious no-reply or system addresses. Put a person’s company, role or anything useful said about them (what they asked for, where you met) in note, in a few plain words.';
+async function extractLeads({ account, text = '', images = [] }) {
+  if (!isLive()) {
+    if (images.length) throw new AIError('Reading photos needs the AI. Add an ANTHROPIC_API_KEY, or paste the text instead.', 422);
+    return { people: plainLeads(text), template: true };
+  }
+  const content = [
+    ...images.map((im) => ({ type: 'image', source: { type: 'base64', media_type: im.media_type, data: im.data } })),
+    { type: 'text', text: `${text ? `<material>\n${text}\n</material>\n\n` : ''}List every person in ${images.length ? 'the image' : 'the material'}${images.length && text ? 's and the material' : ''} with these fields: ${LEAD_FIELDS.join(', ')}.` },
+  ];
+  const out = await structured({ account, system: LEADS_SYSTEM, content, schema: Leads, effort: 'low' });
+  return { people: out.people.map(cleanLead).filter((p) => p.email || p.first_name || p.last_name || p.phone), template: false };
+}
+const EMAIL_G = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
+const PHONE_RE = /\+?\(?\d[\d\s().-]{7,}\d/;
+const cleanLead = (p) => Object.fromEntries(LEAD_FIELDS.map((f) => [f, String(p[f] || '').trim().slice(0, f === 'note' ? 500 : 120)]));
+// Without the AI: find every email address and take a name from the same line
+// ("Ann Lee <ann@x.com>", "Ann Lee, ann@x.com, 555-0100").
+function plainLeads(text) {
+  const seen = new Set(), out = [];
+  for (const line of String(text).split(/\r?\n/)) {
+    for (const email of line.match(EMAIL_G) || []) {
+      const key = email.toLowerCase();
+      if (seen.has(key) || /no-?reply|mailer-daemon/i.test(email)) continue;
+      seen.add(key);
+      const rest = line.replace(EMAIL_G, ' ').replace(PHONE_RE, ' ');
+      const name = (rest.split(/[\t,;|<>()"]+/).map((x) => x.trim()).find((x) => /^[\p{L}][\p{L}' .-]{1,60}$/u.test(x) && !/^(mailto|email|e-mail|name|phone)$/i.test(x)) || '').replace(/\s+/g, ' ');
+      const [first_name = '', ...last] = name.split(' ');
+      out.push(cleanLead({ first_name, last_name: last.join(' '), email, phone: (line.match(PHONE_RE) || [''])[0] }));
+    }
+  }
+  return out;
+}
+
 // ---------- Template fallbacks (no AI key) ----------
 const TEMPLATE_EMAILS = {
   stale_inquiries: ['Following up on your question', 'Hi {{first_name|there}},\n\nYou asked me about [what they asked about] a little while ago and I wanted to make sure you got what you needed.\n\n[A helpful, specific answer]\n\nIf you’d like to go ahead, just reply and I’ll take care of it.\n\n'],
@@ -136,4 +176,4 @@ function templateRepurpose(text) {
   };
 }
 
-module.exports = { isLive, draftEmail, repurpose, describeFunnel, guessTemplate, voiceSystem, AIError, MODEL };
+module.exports = { isLive, draftEmail, repurpose, describeFunnel, guessTemplate, extractLeads, plainLeads, voiceSystem, AIError, MODEL };

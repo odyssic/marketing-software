@@ -19,7 +19,8 @@ const TILES = [
     empty_state: 'Health scores appear once you have a few weeks of activity.',
     query: async (ctx) => ({ levers: await ctx.levers(), focus: await ctx.focus() }) },
   { id: 'flow', title: 'Audience flow', levers: ['all', ...LEVER_KEYS], default_width: 'full',
-    empty_state: 'Import people or orders to see your flow.',
+    empty_state: 'Add your leads or customers to see your flow.',
+    empty_action: ['#/people?add=1', 'Add leads'],
     query: async ({ db, a }) => {
       const rows = await db.all('SELECT stage, COUNT(*)::int AS n FROM contacts WHERE account_id = ? GROUP BY stage', a);
       const counts = Object.fromEntries(['audience', 'lead', 'customer', 'regular'].map((s) => [s, rows.find((r) => r.stage === s)?.n || 0]));
@@ -51,7 +52,7 @@ const TILES = [
       return { value: String(total), sub: `${r.added} joined, ${r.ended} left in 30 days`, bars: [{ label: 'Email', n: r.email }, { label: 'Print', n: r.print }] };
     } },
   { id: 'inquiries', title: 'Inquiries waiting', levers: ['all', 'conversion'], default_width: 'half',
-    empty_state: 'No one is waiting on you. 🎉',
+    empty_state: 'No one is waiting on you.',
     query: async ({ db, a }) => {
       const rows = await inquiriesWaiting(db, a);
       if (!rows.length) return null;
@@ -60,7 +61,7 @@ const TILES = [
         people: rows.slice(0, 3).map((r) => ({ id: r.id, name: r.name, days: r.days })) };
     } },
   { id: 'listens', title: 'Podcast listens', levers: ['all', 'lead'], default_width: 'half',
-    empty_state: 'Import listens from your podcast host (People → Import CSV → Podcast listens).',
+    empty_state: 'Import listens from your podcast host (People → Add leads → Upload a spreadsheet → Podcast listens).',
     query: async ({ db, a }) => {
       const sumExpr = "SUM(GREATEST(COALESCE((meta::jsonb->>'count')::int, 1), 1))";
       const r = await db.get(`SELECT COALESCE(${sumExpr} FILTER (WHERE occurred_at > now() - interval '30 days'), 0)::int AS cur,
@@ -184,7 +185,7 @@ function registerDashboard(api, { getDb, HttpError, leversFor, weeklyMove, forma
     const row = await getDb().get('SELECT tiles FROM layouts WHERE account_id = ? AND lever = ?', req.accountId, lever);
     res.json({
       lever, saved: Boolean(row), tiles: row ? normalizeLayout(JSON.parse(row.tiles), lever) : defaultLayout(lever),
-      catalog: TILES.map(({ id, title, levers, default_width, empty_state }) => ({ id, title, levers, default_width, empty_state })),
+      catalog: TILES.map(({ id, title, levers, default_width, empty_state, empty_action }) => ({ id, title, levers, default_width, empty_state, empty_action })),
     });
   });
 
@@ -211,7 +212,7 @@ function registerDashboard(api, { getDb, HttpError, leversFor, weeklyMove, forma
     const out = {};
     for (const tileId of ids) {
       const tile = TILES.find((t) => t.id === tileId);
-      try { out[tileId] = { data: await tile.query(ctx), empty_state: tile.empty_state }; } catch (e) {
+      try { out[tileId] = { data: await tile.query(ctx), empty_state: tile.empty_state, empty_action: tile.empty_action }; } catch (e) {
         console.error(`tile ${tileId}:`, e.message);
         out[tileId] = { data: null, empty_state: tile.empty_state, error: 'Couldn’t load this tile' };
       }
