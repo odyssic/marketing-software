@@ -133,7 +133,9 @@ function registerTexting(app, api, { getDb, HttpError, id, upsertContact, logEve
   const form = express.urlencoded({ extended: false, limit: '64kb' });
   const guard = (req, res) => {
     if (!process.env.TWILIO_AUTH_TOKEN) { res.status(503).type('text').send('Texting is not set up'); return false; }
-    if (!validTwilio(req, hookUrl(req))) { res.status(403).type('text').send('Bad signature'); return false; }
+    // Twilio signs the exact address it called: accept getrilly.com, www, or the netlify.app address.
+    const called = `${req.get('x-forwarded-proto') || req.protocol}://${req.get('x-forwarded-host') || req.get('host')}${req.originalUrl}`;
+    if (![hookUrl(req), called].some((u) => validTwilio(req, u))) { res.status(403).type('text').send('Bad signature'); return false; }
     return true;
   };
 
