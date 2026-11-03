@@ -61,7 +61,7 @@ async function viewEditor(stepId) {
       <button class="btn sm" data-device title="Toggle mobile preview">📱 Mobile</button>
       <a class="btn sm primary" href="${esc(link)}" target="_blank" rel="noopener" data-live>View live ↗</a></div>
     <div class="side">
-      <h3>Add a block</h3><div class="palette">${Object.entries(BLOCKS).map(([k, b]) => `<button data-addblock="${k}"><span class="ico">${b.icon}</span>${b.label}</button>`).join('')}</div>
+      <h3>Add a block</h3><div class="palette">${Object.entries(BLOCKS).map(([k, b]) => `<button data-addblock="${k}" draggable="true" title="Click to add at the end, or drag onto the page"><span class="ico">${b.icon}</span>${b.label}</button>`).join('')}</div>
       <h3>Page content</h3><div data-blocks></div>
       <h3>Page style</h3>
       <div class="colors">
@@ -142,14 +142,14 @@ async function viewEditor(stepId) {
       const def = BLOCKS[b.type] || { label: b.type, icon: '?', fields: [] };
       const open = ed.open === b.id;
       return `<div class="block ${open ? 'open' : ''}">
-        <div class="bh" data-toggle="${b.id}"><span>${def.icon}</span><span class="name">${def.label} <span>${summary(b)}</span></span>
+        <div class="bh" data-toggle="${b.id}" draggable="true" data-drag="${i}" title="Drag to move"><span>${def.icon}</span><span class="name">${def.label} <span>${summary(b)}</span></span>
           <button class="btn" data-up="${i}" ${i === 0 ? 'disabled' : ''} title="Move up">↑</button>
           <button class="btn" data-down="${i}" ${i === ed.blocks.length - 1 ? 'disabled' : ''} title="Move down">↓</button>
           <button class="btn" data-dup="${i}" title="Duplicate">⧉</button>
           <button class="btn danger" data-rm="${i}" title="Delete">✕</button></div>
         ${open ? `<div class="bb">${def.fields.length ? def.fields.map((fd) => fieldHtml(b, i, fd)).join('') : '<p class="muted small">No settings for this block.</p>'}</div>` : ''}
       </div>`;
-    }).join('') : '<p class="muted small">Your page is empty. Click a block above to add it.</p>';
+    }).join('') : '<p class="muted small" data-empty>Your page is empty. Drag a block from above onto the page, or click one to add it.</p>';
   };
   const structural = () => { renderBlocks(); changed(); };
 
@@ -192,6 +192,49 @@ async function viewEditor(stepId) {
       changed();
     }
   });
+  // Drag and drop: blocks from the palette, or rows in Page content, can be
+  // dropped onto the preview (it reports the position) or into the list.
+  const dropAt = (data, at) => {
+    let d; try { d = JSON.parse(data); } catch { return; }
+    if (d.add && BLOCKS[d.add]) {
+      const b = { id: uid(), type: d.add, ...BLOCKS[d.add].defaults };
+      ed.blocks.splice(at, 0, b); ed.open = b.id;
+    } else if (Number.isInteger(d.move) && ed.blocks[d.move]) {
+      const [b] = ed.blocks.splice(d.move, 1);
+      ed.blocks.splice(d.move < at ? at - 1 : at, 0, b);
+    } else return;
+    structural();
+  };
+  side.addEventListener('dragstart', (e) => {
+    const t = e.target.closest?.('[data-addblock], [data-drag]');
+    if (!t) return;
+    const data = t.dataset.addblock ? { add: t.dataset.addblock } : { move: Number(t.dataset.drag) };
+    e.dataTransfer.setData('text/x-fourfold', JSON.stringify(data));
+    e.dataTransfer.setData('text/plain', t.dataset.addblock || 'block');
+    e.dataTransfer.effectAllowed = 'copyMove';
+    document.body.classList.add('dragging-block');
+  });
+  side.addEventListener('dragend', () => { document.body.classList.remove('dragging-block'); listMark(null); });
+  const list = $('[data-blocks]');
+  const listSpot = (y) => {
+    const rows = [...list.querySelectorAll('.block')];
+    const k = rows.findIndex((r) => { const b = r.getBoundingClientRect(); return y < b.top + b.height / 2; });
+    return k === -1 ? rows.length : k;
+  };
+  const listMark = (at) => list.querySelectorAll('.block').forEach((r, k, all) => {
+    r.classList.toggle('drop-before', at === k);
+    r.classList.toggle('drop-after', at === all.length && k === all.length - 1);
+  });
+  list.addEventListener('dragover', (e) => {
+    if (!e.dataTransfer.types.includes('text/x-fourfold')) return;
+    e.preventDefault(); listMark(listSpot(e.clientY));
+  });
+  list.addEventListener('dragleave', (e) => { if (!list.contains(e.relatedTarget)) listMark(null); });
+  list.addEventListener('drop', (e) => {
+    if (!e.dataTransfer.types.includes('text/x-fourfold')) return;
+    e.preventDefault(); listMark(null); document.body.classList.remove('dragging-block');
+    dropAt(e.dataTransfer.getData('text/x-fourfold'), listSpot(e.clientY));
+  });
   $('[data-slug]').addEventListener('change', (e) => changed({ slug: e.target.value }));
   $('[data-name]').addEventListener('input', () => changed());
   $('[data-device]').onclick = () => $('.stage').classList.toggle('mobile');
@@ -199,6 +242,7 @@ async function viewEditor(stepId) {
   // Click-to-edit: the preview sends what was typed, or which block was clicked.
   window.onmessage = (e) => {
     const d = e.data;
+    if (d?.ff === 'drop' && $('.editor')) { document.body.classList.remove('dragging-block'); return dropAt(d.data, Math.max(0, Math.min(Number(d.at) || 0, ed.blocks.length))); }
     if (!d?.ff || !$('.editor') || !ed.blocks[d.i]) return;
     if (d.ff === 'open' && ed.open !== ed.blocks[d.i].id) { ed.open = ed.blocks[d.i].id; renderBlocks(); }
     if (d.ff === 'edit') {
