@@ -1,6 +1,6 @@
 # Rilly
 
-**Simple Marketing.**
+**Simple Marketing.** Live at https://getrilly.com
 
 A simple, all-in-one marketing platform for small businesses. It starts with the core of
 **systeme.io** (funnels, contacts, email) and is built to grow toward **GoHighLevel**
@@ -150,5 +150,5 @@ the business's own name, with replies going to the business owner.
 1. In Resend, verify the sending domain (getrilly.com) and create a sending API key.
 2. In Netlify, set `SMTP_HOST=smtp.resend.com`, `SMTP_PORT=465`, `SMTP_SECURE=true`,
    `SMTP_USER=resend`, `SMTP_PASS=<re_ key>` (secret), `SMTP_FROM=Rilly <hello@getrilly.com>`.
-3. In Resend > Webhooks, add `https://<app host>/hooks/email` for `email.bounced` and
+3. In Resend > Webhooks, add `https://getrilly.com/hooks/email` for `email.bounced` and
    `email.complained`, and put its signing secret in `EMAIL_WEBHOOK_SECRET`.
