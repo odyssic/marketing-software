@@ -754,3 +754,6 @@ input[name=when]:checked + .pill-opt { background: var(--brand); color: #fff; bo
 .setup-extra .colors { grid-template-columns: 1fr 1fr; }
 .setup-extra .colors > label:nth-child(3) { grid-column: 1 / -1; }
 .choice:hover:not(.on) { background: #fff; }
+.card.week { padding: 16px 20px; margin-bottom: 14px; }
+.card.week h2 { font-size: 1rem; margin: 0 0 8px; }
+.card.week ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; line-height: 1.5; }

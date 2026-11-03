@@ -4,6 +4,7 @@ const mailer = require('./mailer');
 const ai = require('./ai');
 const { inquiriesWaiting } = require('./dashboard');
 const { rillyEmail } = require('./emailhtml');
+const { weekResults } = require('./results');
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const bar = (score) => (score === null ? '··········' : '█'.repeat(Math.round(score / 10)).padEnd(10, '·'));
@@ -16,9 +17,11 @@ function createDigest({ getDb, leversFor, moves, publicBase }) {
     const move = await moves.current(accountId);
     const old = (await inquiriesWaiting(db, accountId)).filter((r) => r.days >= 14);
     const base = publicBase();
+    const results = await weekResults(db, accountId);
     const lines = [
       `Your week at ${account.name}`,
       '',
+      ...(results.length ? ['THIS WEEK', ...results.map((r) => `• ${r}`), ''] : ['A quiet week: nothing new to report yet. Share your page link to get things moving.', '']),
       'LEVER HEALTH',
       ...['lead', 'conversion', 'upsell', 'continuity'].map((k) => {
         const l = levers[k];
@@ -40,6 +43,8 @@ function createDigest({ getDb, leversFor, moves, publicBase }) {
     const subject = `Your week: focus on ${levers[levers.focus].label}${old.length ? `, ${old.length} inquir${old.length === 1 ? 'y' : 'ies'} waiting` : ''}`;
     // The same content, laid out for email apps.
     const blocks = [
+      { h: 'This week' },
+      results.length ? { list: results.map((r) => [r]) } : { p: 'A quiet week: nothing new to report yet. Share your page link to get things moving.' },
       { h: 'Lever health' },
       { rows: ['lead', 'conversion', 'upsell', 'continuity'].map((k) => {
         const l = levers[k];
@@ -90,6 +95,7 @@ function createDigest({ getDb, leversFor, moves, publicBase }) {
       const { subject, text } = await build(req.accountId);
       res.json({ subject, text, day: DAYS[(await getDb().get('SELECT digest_day FROM accounts WHERE id = ?', req.accountId)).digest_day] });
     });
+    api.get('/results/week', async (req, res) => res.json({ lines: await weekResults(getDb(), req.accountId) }));
     api.post('/digest/send', async (req, res) => res.json(await send(req.accountId)));
     api.put('/account/digest', async (req, res) => {
       const day = Number(req.body?.day);

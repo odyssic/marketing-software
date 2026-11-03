@@ -1606,6 +1606,7 @@ ${order.status === 'paid' ? '<p>This order is already paid.</p>' : `<label>Name<
     await init();
     return { ...(await workflows.processDue({ now })), ...(await digest.sendDue(now)), ...(await bookings.sendReminders(now)), ...(await recoverCheckouts(now)), ...(await askForReviews(now)), ...(await sendScheduled(now)), ...(await invoices.remindOverdue(now)) };
   };
+  app.getDb = () => db; // for tests (seeding history)
   app.messaging = messaging; // for tests (signing tracking links)
 
   app.close = async () => { if (ready) { await ready; await db.close(); } };

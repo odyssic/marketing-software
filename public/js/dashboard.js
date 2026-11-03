@@ -15,8 +15,9 @@ const dash = { lever: localStorage.getItem('dashLever') || 'all', customize: fal
 async function viewDashboard() {
   const keys = Object.keys(LEVER_UI);
   // All five layouts load up front, so switching levers is instant.
-  const [levers, funnels, ...layouts] = await Promise.all([api('GET', '/api/levers'), api('GET', '/api/funnels').catch(() => null), ...keys.map((k) => api('GET', `/api/layouts/${k}`))]);
+  const [levers, funnels, week, ...layouts] = await Promise.all([api('GET', '/api/levers'), api('GET', '/api/funnels').catch(() => null), api('GET', '/api/results/week').catch(() => ({ lines: [] })), ...keys.map((k) => api('GET', `/api/layouts/${k}`))]);
   dash.noPages = Array.isArray(funnels) && !funnels.length;
+  dash.week = week.lines;
   dash.levers = levers;
   keys.forEach((k, i) => { dash.layouts[k] = layouts[i].tiles; });
   dash.catalog = layouts[0].catalog;
@@ -37,6 +38,7 @@ function renderDashboard() {
     ${dash.noPages && !dash.customize ? `<div class="card setup-nudge"><div><b>Get your first page live in about two minutes</b>
       <div class="muted small">Tell us what kind of business this is. We’ll build the page, booking hours and follow-ups.</div></div>
       <a class="btn primary" href="#/setup">Set it up</a></div>` : ''}
+    ${!dash.customize && dash.week?.length ? `<section class="card week"><h2>This week</h2><ul>${dash.week.map((l) => `<li>${esc(l)}</li>`).join('')}</ul></section>` : ''}
     <div class="leverbar" role="tablist">${Object.entries(LEVER_UI).map(([k, l]) => `<button role="tab" aria-selected="${k === lv}" data-lever="${k}" style="--c:${l.color}" class="${k === lv ? 'on' : ''}"><i class="dot"></i>
       ${k !== 'all' && dash.levers.levers[k]?.score !== null && dash.levers.levers[k]?.score !== undefined ? `<span class="sc">${dash.levers.levers[k].score}</span>` : ''}${esc(l.label)}${k === focus ? ' <span class="focus-dot" title="Focus here">●</span>' : ''}</button>`).join('')}</div>
     ${dash.customize ? `<div class="tray"><span class="muted small">Hidden tiles:</span>
