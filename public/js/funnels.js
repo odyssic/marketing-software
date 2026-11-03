@@ -132,10 +132,13 @@ async function viewFunnel(id) {
         <button class="btn" data-copy="${esc(link)}">Copy</button><a class="btn" href="${esc(link)}" target="_blank" rel="noopener">Open ${icon('external')}</a></div>
         <button class="btn" data-rename>Settings</button><button class="btn danger" data-del>Delete</button>
         ${f.status === 'live' ? '<button class="btn" data-unpublish>Unpublish</button>' : '<button class="btn primary" data-publish>Publish</button>'}</div></div>
+    <div class="fstats" data-fstats aria-label="Funnel statistics"></div>
     <div data-leak></div>
-    ${f.workflows?.length ? `<div class="wf-strip"><span class="muted small">${icon('bolt')} Follow-ups for this funnel:</span>
-      ${f.workflows.map((w) => `<a class="chip" href="#/workflows/${w.id}">${esc(w.name.replace(`${f.name}: `, ''))} <span class="pill ${w.status === 'active' ? 'ok' : ''}">${w.status === 'active' ? 'Live' : 'Off'}</span></a>`).join('')}
-      ${f.workflows.some((w) => w.status !== 'active') ? '<span class="muted small">Review the emails, then turn them on.</span>' : ''}</div>` : ''}
+    <details class="fu card" data-fu ${f.workflows?.length ? 'open' : ''}>
+      <summary><span>${icon('bolt')} <b>Follow-ups</b> <span class="muted small">emails and steps that run after someone goes through this funnel</span></span>
+        <span class="muted small" data-fucount>${f.workflows?.length || 0} workflow${f.workflows?.length === 1 ? '' : 's'}</span></summary>
+      <div data-fulist><p class="muted small" style="margin:8px 0">Loading…</p></div>
+    </details>
     <div class="map" tabindex="0">
       <div class="map-tools">
         <button class="btn primary sm" data-addpage>+ Add page</button>
@@ -189,6 +192,138 @@ async function viewFunnel(id) {
     m.steps.forEach((s) => Object.assign(s, pos[s.id]));
     save({ steps: m.steps.map((s) => ({ id: s.id, x: s.x, y: s.y })) });
   }
+
+  // ---------- Statistics: percentages at a glance ----------
+  const pct = (a, b) => (b ? `${Math.round((a / b) * 1000) / 10}%` : '—');
+  const renderStats = (mail) => {
+    const entry = m.steps.find((s) => s.id === m.entry) || m.steps[0];
+    const visitors = entry?.views || 0;
+    const optins = m.steps.reduce((n, s) => n + s.optins, 0), sales = m.steps.reduce((n, s) => n + s.sales, 0);
+    const tile = (label, value, sub) => `<div class="fstat"><span class="fs-v">${value}</span><span class="fs-l">${label}</span>${sub ? `<span class="fs-s">${sub}</span>` : ''}</div>`;
+    $('[data-fstats]').innerHTML = [
+      tile('Visitors', visitors, 'on the start page'),
+      tile('Opt-in rate', pct(optins, visitors), `${optins} opt-in${optins === 1 ? '' : 's'}`),
+      tile('Sale rate', pct(sales, visitors), `${sales} sale${sales === 1 ? '' : 's'}`),
+      mail ? tile('Emails opened', pct(mail.opened, mail.sent), `${mail.sent} sent`) : '',
+      mail ? tile('Emails clicked', pct(mail.clicked, mail.sent), `${mail.clicked} click${mail.clicked === 1 ? '' : 's'}`) : '',
+    ].join('');
+  };
+  renderStats(null);
+  api('GET', `/api/funnels/${id}/email-stats`).then(renderStats).catch(() => {});
+
+  // ---------- Follow-ups, laid out as steps you can add to ----------
+  const FU_ICON = { trigger: 'bolt', wait: 'clock', email: 'mail', condition: 'branch', tag: 'tag', subscribe: 'inbox', notify: 'bell', deal: 'briefcase' };
+  const fuLabel = (n, w) => {
+    const c = n.config || {};
+    switch (n.type) {
+      case 'trigger': return ['When someone', (w.triggers?.[c.event] || 'starts').replace(/^./, (x) => x.toLowerCase())];
+      case 'wait': return ['Wait', `${c.days || 0} day${c.days === 1 ? '' : 's'}${c.hours ? ` ${c.hours}h` : ''}`];
+      case 'email': return ['Send email', c.subject || 'Untitled email'];
+      case 'condition': return ['Yes / no split', 'opens the full map'];
+      case 'tag': return ['Tag', [c.add && `+ ${c.add}`, c.remove && `− ${c.remove}`].filter(Boolean).join(' ') || 'tags'];
+      case 'subscribe': return ['Subscribe', c.product || 'Newsletter'];
+      case 'notify': return ['Notify me', c.message || 'a reminder'];
+      case 'deal': return ['Create deal', c.title || 'a deal'];
+      default: return [n.type, ''];
+    }
+  };
+  // Merge codes read as plain words: {{first_name|there}} → [first name].
+  const readable = (t) => String(t || '').replace(/\{\{\s*([a-z_]+)[^}]*\}\}/g, (_, k) => `[${k.replace(/_/g, ' ')}]`);
+  const chain = (w) => {
+    const out = [];
+    for (let k = w.graph.root, guard = 0; k && guard < 60; guard++) {
+      const n = w.graph.nodes[k]; if (!n) break;
+      out.push([k, n]);
+      if (n.type === 'condition') break; // branches live on the full map
+      k = n.next;
+    }
+    return out;
+  };
+  async function renderFollowups() {
+    const list = await Promise.all((f.workflows || []).map((w) => api('GET', `/api/workflows/${w.id}`)));
+    $('[data-fucount]').textContent = `${list.length} workflow${list.length === 1 ? '' : 's'}`;
+    $('[data-fulist]').innerHTML = `${list.map((w) => {
+      const steps = chain(w);
+      const last = steps[steps.length - 1];
+      const canAppend = last && last[1].type !== 'condition';
+      return `<div class="fu-wf" data-wf="${w.id}">
+        <div class="fu-head"><b>${esc(w.name.replace(`${f.name}: `, ''))}</b>
+          <label class="switch" title="${w.status === 'active' ? 'Turn off' : 'Turn on'}"><input type="checkbox" data-fuon="${w.id}" ${w.status === 'active' ? 'checked' : ''}><span></span></label>
+          <span class="muted small">${w.status === 'active' ? 'Live' : 'Off'}</span>
+          <a class="btn sm" href="#/workflows/${w.id}" style="margin-left:auto">Open full map</a></div>
+        <div class="fu-strip">${steps.map(([k, n], i) => {
+          const [t, d] = fuLabel(n, w);
+          const sent = n.type === 'email' ? Object.values(w.stats?.[k]?.outcomes || {}).reduce((a, b) => a + b, 0) : 0;
+          return `${i ? `<button class="fu-add" data-fuadd="${w.id}:${steps[i - 1][0]}" title="Add a step here" aria-label="Add a step here">${icon('plus')}</button>` : ''}
+            <a class="fu-step t-${n.type}" href="#/workflows/${w.id}" data-fustep="${w.id}:${k}">
+              <span class="fu-ico">${icon(FU_ICON[n.type] || 'bolt')}</span><span class="fu-t">${esc(t)}</span><span class="fu-d">${esc(readable(d))}</span>
+              ${n.type === 'email' ? `<span class="fu-n">${sent} sent</span>` : ''}</a>`;
+        }).join('')}
+        ${canAppend ? `<button class="fu-add end" data-fuadd="${w.id}:${last[0]}" title="Add a step at the end">${icon('plus')} Add</button>` : ''}</div>
+      </div>`;
+    }).join('')}
+      <button class="btn sm" data-funew>${icon('plus')} New follow-up for this funnel</button>`;
+    $$('[data-fuon]').forEach((c) => { c.onchange = async () => {
+      try { await api('PUT', `/api/workflows/${c.dataset.fuon}/status`, { status: c.checked ? 'active' : 'paused' }); toast(c.checked ? 'Follow-up is live' : 'Follow-up turned off'); f.workflows = (await api('GET', `/api/funnels/${id}`)).workflows; renderFollowups(); }
+      catch (err) { c.checked = !c.checked; toast(err.message, true); }
+    }; });
+    // Click an email step to edit it right here.
+    $$('[data-fustep]').forEach((a) => { a.onclick = (e) => {
+      const [wid, key] = a.dataset.fustep.split(':');
+      const w = list.find((x) => String(x.id) === wid), n = w.graph.nodes[key];
+      if (n.type !== 'email' && n.type !== 'wait') return; // others open the full map
+      e.preventDefault(); editStep(w, key);
+    }; });
+    $$('[data-fuadd]').forEach((b) => { b.onclick = () => {
+      const [wid, after] = b.dataset.fuadd.split(':');
+      addStep(list.find((x) => String(x.id) === wid), after);
+    }; });
+    $('[data-funew]').onclick = async () => {
+      const r = await api('POST', '/api/workflows', { template: 'blank', name: `${f.name}: Follow-up ${(f.workflows?.length || 0) + 1}`, funnel_id: id });
+      const w = await api('GET', `/api/workflows/${r.id}`);
+      w.graph.nodes[w.graph.root].config = { event: 'signup', funnel_id: id };
+      await api('PUT', `/api/workflows/${r.id}`, { graph: w.graph });
+      f.workflows = (await api('GET', `/api/funnels/${id}`)).workflows; renderFollowups();
+      toast('Follow-up added. Add its emails below');
+    };
+  }
+  const emailForm = (c = {}, withWait = false) => `${withWait ? '<label class="f">Wait first <span class="hint">days after the previous step</span><input name="days" type="number" min="0" max="365" value="1"></label>' : ''}
+    <label class="f">Subject<input name="subject" required value="${esc(c.subject || '')}" placeholder="e.g. Quick tip for your new typewriter"></label>
+    <label class="f">Message <span class="hint">{{first_name|there}} becomes their name; an unsubscribe link is added for you</span><textarea name="body" rows="7" required>${esc(c.body || 'Hi {{first_name|there}},\n\n')}</textarea></label>`;
+  const saveGraph = async (w, graph) => {
+    try { await api('PUT', `/api/workflows/${w.id}`, { graph }); renderFollowups(); return true; }
+    catch (err) { toast(err.message, true); return false; }
+  };
+  async function editStep(w, key) {
+    const n = w.graph.nodes[key];
+    const v = await modal(n.type === 'email' ? 'Edit email' : 'Edit wait', n.type === 'email' ? emailForm(n.config)
+      : `<label class="f">Wait (days)<input name="days" type="number" min="0" max="3650" value="${n.config.days || 0}"></label>`, { submit: 'Save' });
+    if (!v) return;
+    n.config = n.type === 'email' ? { subject: v.subject, body: v.body } : { days: Number(v.days) || 0, hours: 0 };
+    if (await saveGraph(w, w.graph)) toast('Saved');
+  }
+  async function addStep(w, after) {
+    const kind = await modal('Add a step', `<div class="choices">
+      <label class="choice"><input type="radio" name="kind" value="email" checked hidden><span class="ci">${icon('mail')}</span><span><b>Send email</b><small>With an optional wait before it</small></span></label>
+      <label class="choice"><input type="radio" name="kind" value="wait" hidden><span class="ci">${icon('clock')}</span><span><b>Wait</b><small>Pause before the next step</small></span></label>
+      <label class="choice"><input type="radio" name="kind" value="more" hidden><span class="ci">${icon('branch')}</span><span><b>Something else</b><small>Yes/no split, tag, notify me, deal: on the full map</small></span></label></div>`, { submit: 'Next' });
+    if (!kind) return;
+    if (kind.kind === 'more') { location.hash = `#/workflows/${w.id}`; return; }
+    const v = kind.kind === 'email' ? await modal('New email', emailForm({}, true), { submit: 'Add email' })
+      : await modal('Wait', '<label class="f">Wait (days)<input name="days" type="number" min="0" max="3650" value="2"></label>', { submit: 'Add wait' });
+    if (!v) return;
+    const g = w.graph, prev = g.nodes[after], newKey = () => `n${Math.random().toString(36).slice(2, 8)}`;
+    let tail = prev.next ?? null;
+    const insert = (node) => { const k = newKey(); g.nodes[k] = { ...node, next: tail }; return k; };
+    let first;
+    if (kind.kind === 'email') {
+      const ek = insert({ type: 'email', config: { subject: v.subject, body: v.body } });
+      first = Number(v.days) > 0 ? (tail = ek, insert({ type: 'wait', config: { days: Number(v.days), hours: 0 } })) : ek;
+    } else first = insert({ type: 'wait', config: { days: Number(v.days) || 0, hours: 0 } });
+    prev.next = first;
+    if (await saveGraph(w, g)) toast(kind.kind === 'email' ? 'Email added' : 'Wait added');
+  }
+  renderFollowups().catch(() => { $('[data-fulist]').innerHTML = '<p class="muted small">Couldn’t load follow-ups.</p>'; });
 
   const pageIcon = (s) => (s.blocks.some((b) => b.type === 'pricing') ? icon('card') : s.blocks.some((b) => b.type === 'form') ? icon('mail') : icon('page'));
   const pageKind = (s) => (s.blocks.some((b) => b.type === 'pricing') ? 'Sales page' : s.blocks.some((b) => b.type === 'form') ? 'Opt-in page' : 'Page');

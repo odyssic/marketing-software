@@ -429,6 +429,15 @@ function createWorkflows({ getDb, HttpError, id, people, messaging, getAccount }
       res.status(201).json({ id: await create(req.accountId, { template: b.template, name: b.name, funnel_id: b.funnel_id ? id(b.funnel_id) : null }) });
     });
 
+    // Email results for the follow-ups attached to one funnel (for its stats strip).
+    api.get('/funnels/:id/email-stats', async (req, res) => {
+      const f = await db().get('SELECT id FROM funnels WHERE id = ? AND account_id = ?', id(req.params.id), req.accountId);
+      if (!f) throw new HttpError(404, 'Funnel not found');
+      const r = await db().get(`SELECT COUNT(*)::int AS sent, COUNT(e.opened_at)::int AS opened, COUNT(e.clicked_at)::int AS clicked
+        FROM email_log e JOIN workflows w ON w.id = e.workflow_id WHERE w.funnel_id = ? AND e.account_id = ? AND e.status IN ('sent', 'logged')`, f.id, req.accountId);
+      res.json(r);
+    });
+
     api.get('/workflows/:id', async (req, res) => {
       const w = await getWorkflow(req.accountId, req.params.id);
       const [at, passed] = await Promise.all([
