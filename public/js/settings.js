@@ -22,6 +22,15 @@ function viewSettings() {
         ${[['calendar', 'Calendar', 'people book calls or appointments from your pages'], ['pipelines', 'Deals', 'a board for quotes, jobs or clients you win one at a time'], ['products', 'Products', 'things you sell with checkout'], ['email', 'Email', 'newsletters and broadcasts']].map(([k, l, h]) => `<label class="check"><input type="checkbox" name="show" value="${k}" ${(a.hidden_sections || []).includes(k) ? '' : 'checked'}> <b>${l}</b> <span class="muted small">${h}</span></label>`).join('')}</div>
       <button class="btn primary">Save</button>
     </form>
+    <form class="card" style="max-width:560px;margin-top:16px" data-reviews>
+      <h2>Reviews</h2>
+      <p class="muted small">Paste your Google review link (Google Business Profile → <b>Ask for reviews</b> → copy link), or any review page. Rilly asks happy customers once, at the right moment.</p>
+      <label class="f">Review link<input name="review_url" type="url" value="${esc(a.review_url || '')}" placeholder="https://g.page/r/…/review"></label>
+      <label class="check"><input type="checkbox" name="after_booking" ${a.review_after_booking === 0 ? '' : 'checked'}> A few hours after an appointment</label>
+      <label class="check"><input type="checkbox" name="after_purchase" ${a.review_after_purchase === 0 ? '' : 'checked'}> Five days after a purchase</label>
+      <p class="hint">At most once every 90 days per person, and never to anyone who unsubscribed.</p>
+      <div class="err"></div><button class="btn primary">Save</button>
+    </form>
     <form class="card" style="max-width:560px;margin-top:16px" data-voice>
       <h2>Your voice</h2>
       <p class="muted small">Paste 3 to 5 things you’ve written (an email, a product description, a post). Drafts copy your tone, not your words. ${state.me.aiLive ? '' : '<b>AI drafting isn’t connected</b> (set ANTHROPIC_API_KEY on the server), so drafts are templates for now.'}</p>
@@ -72,6 +81,11 @@ function viewSettings() {
     </form>`);
   bindCopy();
   $('[data-newsub]').onclick = newSubAccount;
+  $('[data-reviews]').onsubmit = async (e) => {
+    e.preventDefault(); const f = e.target;
+    try { await api('PUT', '/api/account/reviews', { review_url: f.review_url.value, after_booking: f.after_booking.checked, after_purchase: f.after_purchase.checked }); state.me = await api('GET', '/api/me'); toast(f.review_url.value ? 'Review requests on' : 'Saved'); }
+    catch (err) { $('.err', f).textContent = err.message; }
+  };
   $('[data-recover]').onchange = async (e) => { await api('PUT', '/api/account/recovery', { on: e.target.checked }); state.me = await api('GET', '/api/me'); toast(e.target.checked ? 'Checkout reminders on' : 'Checkout reminders off'); };
   const bizForm = $('[data-business]');
   // Picking a type suggests its usual sections; the boxes can still be changed.

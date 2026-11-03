@@ -1085,6 +1085,13 @@ function createApp({ dbPath } = {}) {
   registerLibrary(api, { getDb: () => db, HttpError, id, ownHost, clearDomainCache: () => domainCache.clear() });
   registerPrint(api, app, { getDb: () => db, HttpError, id, logEvent, publicBase, toCsv: people.toCsv });
   registerAccounts(api, { getDb: () => db, HttpError, id, seed: (accountId) => workflows.seedDefaults(accountId) });
+  api.put('/account/reviews', async (req, res) => {
+    const url = String(req.body?.review_url || '').trim();
+    if (url && !/^https:\/\/[^\s]+$/i.test(url)) throw new HttpError(400, 'Paste the full review link, starting with https://');
+    await db.run('UPDATE accounts SET review_url = ?, review_after_booking = ?, review_after_purchase = ? WHERE id = ?',
+      url.slice(0, 500), req.body?.after_booking === false ? 0 : 1, req.body?.after_purchase === false ? 0 : 1, req.accountId);
+    res.json({ ok: true });
+  });
   api.put('/account/recovery', async (req, res) => {
     await db.run('UPDATE accounts SET recover_checkouts = ? WHERE id = ?', req.body?.on ? 1 : 0, req.accountId);
     res.json({ ok: true });
@@ -1494,11 +1501,38 @@ ${order.status === 'paid' ? '<p>This order is already paid.</p>' : `<label>Name<
     return { recovered: sent };
   }
 
+  // Review requests: a few hours after an appointment ends, or five days after
+  // a purchase, ask once for a review on the owner's review link. At most once
+  // every 90 days per person; sendToPerson skips anyone who unsubscribed.
+  async function askForReviews(now = new Date()) {
+    const at = (h) => new Date(now.getTime() - h * 3600e3).toISOString();
+    const due = [
+      ...(await db.all(`SELECT DISTINCT b.account_id, b.contact_id, 'booking' AS why FROM bookings b JOIN accounts a ON a.id = b.account_id
+        WHERE a.review_url <> '' AND a.review_after_booking = 1 AND b.status = 'confirmed' AND b.contact_id IS NOT NULL
+          AND b.ends_at <= ? AND b.ends_at > ?`, at(2), at(26))),
+      ...(await db.all(`SELECT DISTINCT o.account_id, o.contact_id, 'purchase' AS why FROM orders o JOIN accounts a ON a.id = o.account_id
+        WHERE a.review_url <> '' AND a.review_after_purchase = 1 AND o.status = 'paid' AND o.contact_id IS NOT NULL
+          AND o.paid_at <= ? AND o.paid_at > ?`, at(5 * 24), at(6 * 24))),
+    ];
+    let sent = 0;
+    for (const d of due) {
+      const person = await db.get(`UPDATE contacts SET review_asked_at = ? WHERE id = ? AND account_id = ?
+        AND (review_asked_at IS NULL OR review_asked_at < ?) RETURNING *`, now.toISOString(), d.contact_id, d.account_id, at(90 * 24));
+      if (!person) continue;
+      const account = await db.get('SELECT * FROM accounts WHERE id = ?', d.account_id);
+      const r = await messaging.sendToPerson({ account, person, subject: 'Would you leave a quick review?',
+        preheader: 'It takes a minute and helps a small business a lot.',
+        body: `Hi {{first_name|there}},\n\nThank you for ${d.why === 'booking' ? 'your time today' : 'your order'}. If you have a minute, a short review would mean a lot. It helps other people find us.\n\nLeave a review: ${account.review_url}\n\nThank you!\n${account.from_name || account.name}` });
+      if (r.status === 'sent' || r.status === 'logged') sent++;
+    }
+    return { reviews_asked: sent };
+  }
+
   // Background jobs (workflow runner). Called by server.js every minute and by
   // the scheduled Netlify function.
   app.runJobs = async (now = new Date()) => {
     await init();
-    return { ...(await workflows.processDue({ now })), ...(await digest.sendDue(now)), ...(await bookings.sendReminders(now)), ...(await recoverCheckouts(now)) };
+    return { ...(await workflows.processDue({ now })), ...(await digest.sendDue(now)), ...(await bookings.sendReminders(now)), ...(await recoverCheckouts(now)), ...(await askForReviews(now)) };
   };
   app.messaging = messaging; // for tests (signing tracking links)
 

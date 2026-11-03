@@ -119,3 +119,24 @@ test('booking: hours, open times, book, no double-booking, emails, workflow, rem
   assert.equal((await other('GET', '/api/bookings')).body.bookings.length, 0);
   assert.equal((await other('POST', `/api/bookings/${list.length ? 1 : 1}/cancel`)).status, 404);
 });
+
+test('review requests: after an appointment ends, once per 90 days, only with a review link', async () => {
+  const c = client();
+  await c('POST', '/api/auth/signup', { name: 'Rhea', email: 'rhea@example.com', password: 'password123', workspace: 'Rhea Studio', business_type: 'local' });
+  const f = (await c('POST', '/api/funnels', { name: 'Book', template: 'booking' })).body;
+  const funnel = (await c('GET', `/api/funnels/${f.id}`)).body;
+  await c('PUT', '/api/bookings/settings', { tz: 'UTC', days: [0, 1, 2, 3, 4, 5, 6], start: '00:00', end: '23:30', length: 30, notice_hours: 0, horizon_days: 3 });
+  const slot = (await c('GET', `/f/${funnel.slug}/slots`)).body.slots[4];
+  await c('POST', `/f/${funnel.slug}/book/book`, { start: slot.start, name: 'Vi Visitor', email: 'vi@example.com' });
+  const after = (h) => new Date(new Date(slot.end).getTime() + h * 3600e3).toISOString();
+  // No review link yet → nothing.
+  assert.equal((await c('POST', '/api/jobs/run', { now: after(3) })).body.reviews_asked, 0);
+  assert.equal((await c('PUT', '/api/account/reviews', { review_url: 'not a link' })).status, 400);
+  await c('PUT', '/api/account/reviews', { review_url: 'https://g.page/r/abc/review' });
+  assert.equal((await c('POST', '/api/jobs/run', { now: after(1) })).body.reviews_asked, 0); // not straight away
+  assert.equal((await c('POST', '/api/jobs/run', { now: after(3) })).body.reviews_asked, 1);
+  assert.equal((await c('POST', '/api/jobs/run', { now: after(4) })).body.reviews_asked, 0); // once
+  const m = (await c('GET', '/api/outbox')).body.find((x) => x.subject === 'Would you leave a quick review?');
+  assert.equal(m.to_email, 'vi@example.com');
+  assert.match(m.body, /Thank you for your time today[\s\S]*https:\/\/g\.page\/r\/abc\/review/);
+});
