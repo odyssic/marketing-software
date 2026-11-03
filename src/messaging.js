@@ -63,11 +63,11 @@ function createMessaging({ getDb, getSecret, publicBase, logEvent }) {
   }
 
   // A note to the business owner (e.g. "follow up personally with Ann").
-  async function sendToOwner({ account, subject, body }) {
+  async function sendToOwner({ account, subject, body, html }) {
     const to = account.from_email || (await getDb().get(`SELECT u.email FROM memberships m JOIN users u ON u.id = m.user_id
       WHERE m.account_id = ? ORDER BY m.user_id LIMIT 1`, account.id))?.email;
     if (!to) return { status: 'skipped', reason: 'no owner email' };
-    const r = await mailer.sendEmail({ ...mailer.senderFor({ name: 'Rilly' }), to, subject, text: body });
+    const r = await mailer.sendEmail({ ...mailer.senderFor({ name: 'Rilly' }), to, subject, text: body, ...(html ? { html } : {}) });
     await getDb().run(`INSERT INTO email_log (account_id, to_email, subject, body, status) VALUES (?, ?, ?, ?, ?)`, account.id, to, subject, body, r.status);
     return r;
   }

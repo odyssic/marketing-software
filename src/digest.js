@@ -3,6 +3,7 @@
 const mailer = require('./mailer');
 const ai = require('./ai');
 const { inquiriesWaiting } = require('./dashboard');
+const { rillyEmail } = require('./emailhtml');
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const bar = (score) => (score === null ? '··········' : '█'.repeat(Math.round(score / 10)).padEnd(10, '·'));
@@ -36,7 +37,23 @@ function createDigest({ getDb, leversFor, moves, publicBase }) {
       '',
       `You get this every ${DAYS[account.digest_day]}. Change the day in Settings.`,
     ].filter((l) => l !== null && l !== undefined);
-    return { subject: `Your week: focus on ${levers[levers.focus].label}${old.length ? `, ${old.length} inquir${old.length === 1 ? 'y' : 'ies'} waiting` : ''}`, text: lines.join('\n').replace(/\n{3,}/g, '\n\n'), account };
+    const subject = `Your week: focus on ${levers[levers.focus].label}${old.length ? `, ${old.length} inquir${old.length === 1 ? 'y' : 'ies'} waiting` : ''}`;
+    // The same content, laid out for email apps.
+    const blocks = [
+      { h: 'Lever health' },
+      { rows: ['lead', 'conversion', 'upsell', 'continuity'].map((k) => {
+        const l = levers[k];
+        return [l.label, `${l.score === null ? '' : `${l.score}/100 · `}${l.valueLabel}${l.changeLabel ? ` (${l.changeLabel})` : ''}`, k === levers.focus ? 'Focus this week' : '', l.score];
+      }) },
+      { h: 'This week’s move' },
+      { p: move.status === 'empty' ? move.title : `${move.title}\n${move.reason}` },
+      ...(move.campaign_id ? [{ button: [move.status === 'sent' ? 'See results' : 'Draft and send it', `${base}/#/campaigns/${move.campaign_id}`] }] : []),
+      ...(old.length ? [{ h: `Inquiries waiting more than 14 days (${old.length})` }, { list: old.slice(0, 10).map((r) => [`${r.name}: ${r.days} days`, `${base}/#/people/${r.id}`]) }]
+        : [{ small: 'No inquiries have waited more than 14 days. Nice.' }]),
+      { button: ['Open your dashboard', `${base}/#/`] },
+    ];
+    const html = rillyEmail({ base, title: `Your week at ${account.name}`, preheader: subject, blocks, footer: `You get this every ${DAYS[account.digest_day]}. Change the day in Settings.` });
+    return { subject, text: lines.join('\n').replace(/\n{3,}/g, '\n\n'), html, account };
   }
 
   async function ownerEmail(accountId) {
@@ -45,10 +62,10 @@ function createDigest({ getDb, leversFor, moves, publicBase }) {
   }
 
   async function send(accountId, now = new Date()) {
-    const { subject, text, account } = await build(accountId);
+    const { subject, text, html } = await build(accountId);
     const to = await ownerEmail(accountId);
     if (!to) return { status: 'skipped' };
-    const r = await mailer.sendEmail({ ...mailer.senderFor({ name: 'Rilly' }), to, subject, text });
+    const r = await mailer.sendEmail({ ...mailer.senderFor({ name: 'Rilly' }), to, subject, text, html });
     await getDb().run('INSERT INTO email_log (account_id, to_email, subject, body, status) VALUES (?, ?, ?, ?, ?)', accountId, to, subject, text, r.status);
     await getDb().run('UPDATE accounts SET last_digest_at = ? WHERE id = ?', now.toISOString(), accountId);
     return { status: r.status, to, subject };

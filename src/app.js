@@ -22,6 +22,7 @@ const { registerLibrary, approvedTestimonials } = require('./library');
 const { registerUploads } = require('./uploads');
 const business = require('./business');
 const { registerBounces } = require('./bounces');
+const { rillyEmail } = require('./emailhtml');
 
 const slugify = (s) => String(s || '').toLowerCase().normalize('NFKD').replace(/[^\w\s-]/g, '')
   .trim().replace(/[\s_]+/g, '-').replace(/-+/g, '-').slice(0, 60) || 'page';
@@ -282,6 +283,11 @@ function createApp({ dbPath } = {}) {
       await mailer.sendEmail({
         ...mailer.senderFor({ name: 'Rilly' }), to: email, subject: 'Your sign-in link',
         text: `Hi ${user.name.split(' ')[0]},\n\nClick to sign in (the link works once, for 15 minutes):\n${link}\n\nIf you didn’t ask for this, ignore this email.`,
+        html: rillyEmail({ base: baseUrl(req), title: `Sign in to Rilly`, preheader: 'Your sign-in link works once, for 15 minutes.', blocks: [
+          { p: `Hi ${user.name.split(' ')[0]}, here’s your sign-in link. It works once, for 15 minutes.` },
+          { button: ['Sign in', link] },
+          { small: 'If you didn’t ask for this, you can ignore this email.' },
+        ] }),
       });
       // With no email provider (local development) the link is shown on screen instead.
       if (!mailer.isLive() && process.env.NODE_ENV !== 'production') out.devLink = link;

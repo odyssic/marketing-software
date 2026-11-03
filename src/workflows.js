@@ -189,6 +189,7 @@ TEMPLATES.site_followup = {
 
 const DEFAULT_SET = ['care', 'review', 'referral', 'winback']; // seeded (off) when no business type is set
 const { typeOf } = require('./business');
+const { rillyEmail } = require('./emailhtml');
 
 function createWorkflows({ getDb, HttpError, id, people, messaging, getAccount }) {
   const parse = (w) => ({ ...w, graph: JSON.parse(w.graph || '{}') });
@@ -335,7 +336,13 @@ function createWorkflows({ getDb, HttpError, id, people, messaging, getAccount }
       }
       case 'notify': {
         const who = [person.first_name, person.last_name].filter(Boolean).join(' ') || person.email || `person #${person.id}`;
-        await messaging.sendToOwner({ account, subject: `Follow up with ${who} (${w.name})`, body: `${c.message || 'A workflow flagged this person for a personal follow-up.'}\n\n${who}${person.email ? ` <${person.email}>` : ''}${person.phone ? `\n${person.phone}` : ''}${process.env.PUBLIC_URL ? `\nOpen their record: ${process.env.PUBLIC_URL}/#/people/${person.id}` : ''}\nWorkflow: ${w.name}` });
+        const recordUrl = process.env.PUBLIC_URL ? `${process.env.PUBLIC_URL}/#/people/${person.id}` : '';
+        const html = process.env.PUBLIC_URL ? rillyEmail({ base: process.env.PUBLIC_URL, title: `Follow up with ${who}`, preheader: c.message || 'A personal follow-up', blocks: [
+          ...(c.message ? [{ p: c.message }] : [{ p: 'A workflow flagged this person for a personal follow-up.' }]),
+          { rows: [['Who', who], ...(person.email ? [['Email', person.email]] : []), ...(person.phone ? [['Phone', person.phone]] : []), ['Workflow', w.name]] },
+          { button: ['Open their record', recordUrl] },
+        ] }) : undefined;
+        await messaging.sendToOwner({ account, html, subject: `Follow up with ${who} (${w.name})`, body: `${c.message || 'A workflow flagged this person for a personal follow-up.'}\n\n${who}${person.email ? ` <${person.email}>` : ''}${person.phone ? `\n${person.phone}` : ''}${process.env.PUBLIC_URL ? `\nOpen their record: ${process.env.PUBLIC_URL}/#/people/${person.id}` : ''}\nWorkflow: ${w.name}` });
         return { next: node.next, outcome: 'notified' };
       }
       case 'deal': {
