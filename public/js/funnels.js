@@ -290,14 +290,15 @@ async function viewFunnel(id) {
     };
   }
   const emailForm = (c = {}, withWait = false) => `${withWait ? '<label class="f">Wait first <span class="hint">days after the previous step</span><input name="days" type="number" min="0" max="365" value="1"></label>' : ''}
-    <label class="f">Subject<input name="subject" required value="${esc(c.subject || '')}" placeholder="e.g. Quick tip for your new typewriter"></label>
-    <label class="f">Message <span class="hint">{{first_name|there}} becomes their name; an unsubscribe link is added for you</span><textarea name="body" rows="7" required>${esc(c.body || 'Hi {{first_name|there}},\n\n')}</textarea></label>`;
+    <div class="f"><span class="lbl-row">Subject ${fieldSelect('subject')}</span><input name="subject" required value="${esc(c.subject || '')}" placeholder="e.g. Quick tip for your new typewriter"></div>
+    <div class="f"><span class="lbl-row">Message <span class="hint">type {{ for fill-in fields</span> ${fieldSelect('body')}</span><textarea name="body" rows="7" required>${esc(c.body || 'Hi {{first_name|there}},\n\n')}</textarea></div>`;
   const saveGraph = async (w, graph) => {
     try { await api('PUT', `/api/workflows/${w.id}`, { graph }); renderFollowups(); return true; }
     catch (err) { toast(err.message, true); return false; }
   };
   async function editStep(w, key) {
     const n = w.graph.nodes[key];
+    setTimeout(() => { const m = $('.modal'); if (m) bindFieldInserts(m); });
     const v = await modal(n.type === 'email' ? 'Edit email' : 'Edit wait', n.type === 'email' ? emailForm(n.config)
       : `<label class="f">Wait (days)<input name="days" type="number" min="0" max="3650" value="${n.config.days || 0}"></label>`, { submit: 'Save' });
     if (!v) return;
@@ -311,6 +312,7 @@ async function viewFunnel(id) {
       <label class="choice"><input type="radio" name="kind" value="more" hidden><span class="ci">${icon('branch')}</span><span><b>Something else</b><small>Yes/no split, tag, notify me, deal: on the full map</small></span></label></div>`, { submit: 'Next' });
     if (!kind) return;
     if (kind.kind === 'more') { location.hash = `#/workflows/${w.id}`; return; }
+    if (kind.kind === 'email') setTimeout(() => { const m = $('.modal'); if (m) bindFieldInserts(m); });
     const v = kind.kind === 'email' ? await modal('New email', emailForm({}, true), { submit: 'Add email' })
       : await modal('Wait', '<label class="f">Wait (days)<input name="days" type="number" min="0" max="3650" value="2"></label>', { submit: 'Add wait' });
     if (!v) return;

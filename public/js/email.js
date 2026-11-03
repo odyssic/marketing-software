@@ -70,16 +70,15 @@ async function viewCompose(bid) {
         <label class="f">To<select name="tag" ${locked ? 'disabled' : ''}><option value="">Everyone subscribed</option>
           ${tags.map((t) => `<option value="${esc(t.tag)}" ${t.tag === b.tag ? 'selected' : ''}>Contacts tagged “${esc(t.tag)}”</option>`).join('')}</select>
           <span class="hint" data-count>Counting…</span></label>
-        <label class="f">Subject <span class="hint" data-sublen></span><input name="subject" maxlength="300" value="${esc(b.subject)}" placeholder="A short, specific promise" ${locked ? 'disabled' : ''}></label>
-        <label class="f">Preview text <span class="hint">the grey line after the subject in the inbox</span><input name="preheader" maxlength="200" value="${esc(b.preheader || '')}" placeholder="Adds context so more people open" ${locked ? 'disabled' : ''}></label>
+        <div class="f"><span class="lbl-row">Subject <span class="hint" data-sublen></span>${locked ? '' : fieldSelect('subject')}</span><input name="subject" maxlength="300" value="${esc(b.subject)}" placeholder="A short, specific promise" ${locked ? 'disabled' : ''}></div>
+        <div class="f"><span class="lbl-row">Preview text <span class="hint">the grey line after the subject in the inbox</span>${locked ? '' : fieldSelect('preheader')}</span><input name="preheader" maxlength="200" value="${esc(b.preheader || '')}" placeholder="Adds context so more people open" ${locked ? 'disabled' : ''}></div>
         <div class="f">Message
           ${locked ? '' : `<div class="cmp-tools" role="toolbar" aria-label="Insert">
-            <button type="button" data-ins="{{first_name|there}}" title="Their first name, or “there” if unknown">First name</button>
-            <button type="button" data-ins="{{business}}">Business name</button>
+            ${fieldSelect('body')}
             <button type="button" data-link>${icon('link')} Link</button>
             <button type="button" data-ins="\n\n—\n${esc(acct.from_name || acct.name)}">Sign-off</button></div>`}
           <textarea name="body" rows="18" ${locked ? 'disabled' : ''}>${esc(b.body)}</textarea>
-          <span class="hint">Write like a note to one person. Leave a blank line between paragraphs. An unsubscribe link is added for you.</span></div>
+          <span class="hint">Write like a note to one person. Type <b>{{</b> for fill-in fields like their first name. An unsubscribe link is added for you.</span></div>
       </form>
       <aside class="cmp-preview">
         <div class="seg cmp-device"><button type="button" class="on" data-dev="desktop">Desktop</button><button type="button" data-dev="phone">Phone</button></div>
@@ -131,6 +130,7 @@ async function viewCompose(bid) {
     dirty = true; render();
   };
   $$('[data-ins]').forEach((btn) => { btn.onclick = () => insert(btn.dataset.ins); });
+  bindFieldInserts(form);
   $('[data-link]').onclick = async () => {
     const v = await modal('Add a link', `<label class="f">Words before the link <span class="hint">optional</span><input name="label" placeholder="e.g. Read the full guide"></label>
       <label class="f">Web address<input name="url" type="url" required placeholder="https://"></label>`, { submit: 'Add link' });
