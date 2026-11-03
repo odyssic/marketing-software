@@ -29,6 +29,7 @@ const attribution = require('./attribution');
 const { registerInvoices } = require('./invoices');
 const { registerSetup } = require('./setup');
 const { registerTexting } = require('./texting');
+const { registerMembers } = require('./members');
 
 const slugify = (s) => String(s || '').toLowerCase().normalize('NFKD').replace(/[^\w\s-]/g, '')
   .trim().replace(/[\s_]+/g, '-').replace(/-+/g, '-').slice(0, 60) || 'page';
@@ -77,7 +78,7 @@ function createApp({ dbPath } = {}) {
     if (a) domainCache.set(host, { account: a, at: Date.now() });
     return a || null;
   };
-  const PASS = /^\/(t|s|u|b|pay|hooks|checkout|stripe|unsubscribe|f)\//;
+  const PASS = /^\/(t|s|u|b|m|pay|hooks|checkout|stripe|unsubscribe|f)\//;
   app.use(async (req, res, next) => {
     let host = String(req.hostname || '').toLowerCase();
     let path = req.path;
@@ -211,6 +212,7 @@ function createApp({ dbPath } = {}) {
       }
     });
     if (fresh) await invoices.onOrderPaid(order).catch((e) => console.error('invoice paid:', e.message));
+    if (fresh) await members.onOrderPaid(order).catch((e) => console.error('members access:', e.message));
   }
 
   // ---------- API ----------
@@ -597,7 +599,7 @@ function createApp({ dbPath } = {}) {
       const idOf = (key) => (key == null ? null : ids[steps.findIndex((st) => st.key === key)] ?? null);
       for (const [i, st] of steps.entries()) {
         // Website pages are reached from the menu, not by "next" exits.
-        const next = kind === 'website' ? null : 'next' in st ? idOf(st.next) : ids[i + 1] ?? null;
+        const next = kind === 'website' || kind === 'members' ? null : 'next' in st ? idOf(st.next) : ids[i + 1] ?? null;
         await t.run('UPDATE funnel_steps SET next_step_id = ?, no_step_id = ? WHERE id = ?', next, idOf(st.no), ids[i]);
       }
       await t.run('UPDATE funnels SET entry_step_id = ? WHERE id = ?', ids[0], f.id);
@@ -1157,6 +1159,8 @@ function createApp({ dbPath } = {}) {
   });
   registerDashboard(api, { getDb: () => db, HttpError, leversFor, formatMoney, getAccount, weeklyMove: (accountId) => moves.current(accountId) });
 
+  const members = registerMembers(app, api, { getDb: () => db, HttpError, id, upsertContact, messaging, publicBase, getSecret: () => secret,
+    createFunnel: (...x) => createFunnel(...x), getFunnel: (...x) => getFunnel(...x) });
   const texting = registerTexting(app, api, { getDb: () => db, HttpError, id, upsertContact, logEvent, messaging, publicBase, getSecret: () => secret });
   registerSetup(api, { getDb: () => db, HttpError, createFunnel, TEMPLATES, getAccount });
   const invoices = registerInvoices(app, api, { getDb: () => db, HttpError, id, upsertContact, messaging, publicBase, stripe, orderToken: (...a) => orderToken(...a),
@@ -1236,7 +1240,7 @@ function createApp({ dbPath } = {}) {
   const siteChrome = async (req, funnel, step) => {
     const base = req.viaDomain ? req.domainBase ?? '' : `/f/${funnel.slug}`;
     const pageHref = (slug) => `${base}/${slug}`;
-    if (funnel.kind !== 'website') return { pageHref };
+    if (funnel.kind !== 'website' && funnel.kind !== 'members') return { pageHref };
     const pages = await db.all('SELECT id, name, slug, settings FROM funnel_steps WHERE funnel_id = ? ORDER BY position, id', funnel.id);
     const home = base || '/';
     return {
@@ -1262,6 +1266,7 @@ function createApp({ dbPath } = {}) {
     const { funnel, step, nextUrl, noUrl } = found;
     const draft = funnel.status !== 'live';
     if (draft && !await ownerViewing(req, funnel)) return notPublished(res);
+    if (funnel.kind === 'members' && !await members.gate(req, res, funnel, ownerViewing)) return;
     const v = req.query.v === 'b' && draft ? 'b' : variantFor(req, res, step);
     const page = pageOf(step, v);
     const buyer = page.blocks.some((x) => x.type === 'pricing') ? await buyerOrder(req, funnel) : null;

@@ -51,24 +51,27 @@ async function viewWebsite(id) {
   const f = await api('GET', `/api/funnels/${id}`);
   const link = state.me.account.domain ? `https://${state.me.account.domain}${state.me.account.home_funnel_id === f.id ? '' : `/${f.slug}`}` : publicUrl(`/f/${f.slug}`);
   const pages = [...f.steps].sort((a, b) => a.position - b.position || a.id - b.id);
-  shell('pages', `${PAGES_TABS('websites')}
-    <div class="head"><div><a href="#/websites" class="small">← Websites</a>
+  const isArea = f.kind === 'members';
+  shell('pages', `${PAGES_TABS(isArea ? 'members' : 'websites')}
+    <div class="head"><div>${isArea ? '<a href="#/members" class="small">← Members areas</a>' : '<a href="#/websites" class="small">← Websites</a>'}
       <h1 style="display:flex;gap:10px;align-items:center">${esc(f.name)} ${f.status === 'live' ? '<span class="pill ok">Live</span>' : '<span class="pill warn">Draft</span>'}</h1>
       <div class="muted small">${esc(link)}</div></div>
-      <div class="row"><a class="btn" href="${esc(publicUrl(`/f/${f.slug}`))}" target="_blank" rel="noopener">View site ${icon('external')}</a><button class="btn" data-settings>Settings</button>
+      <div class="row"><a class="btn" href="${esc(publicUrl(`/f/${f.slug}`))}" target="_blank" rel="noopener">${isArea ? 'Preview as a member' : 'View site'} ${icon('external')}</a><button class="btn" data-settings>Settings</button>
         ${f.status === 'live' ? '<button class="btn" data-unpublish>Unpublish</button>' : '<button class="btn primary" data-publish>Publish</button>'}</div></div>
     ${f.workflows?.length ? `<div class="wf-strip"><span class="muted small">${icon('bolt')} Email follow-up:</span>${f.workflows.map((w) => `<a class="chip" href="#/workflows/${w.id}">${esc(w.name.replace(`${f.name}: `, ''))} <span class="pill ${w.status === 'active' ? 'ok' : ''}">${w.status === 'active' ? 'Live' : 'Off'}</span></a>`).join('')}
       <span class="muted small">${f.status === 'live' ? 'Replies to every contact form instantly and checks in after 2 days.' : 'Turns on when you publish: an instant reply to every contact form, and a check-in after 2 days.'}</span></div>` : ''}
     <div class="card table-wrap"><table>
-      <tr><th>Menu order</th><th>Page</th><th>Address</th><th>Visits</th><th>Leads</th><th></th></tr>
+      <tr><th>Menu order</th><th>${isArea ? 'Lesson or page' : 'Page'}</th><th>Address</th><th>Visits</th>${isArea ? '' : '<th>Leads</th>'}<th></th></tr>
       ${pages.map((p, i) => `<tr><td style="white-space:nowrap"><button class="btn sm icon" data-mv="${i}:-1" ${i ? '' : 'disabled'} aria-label="Move up">↑</button>
           <button class="btn sm icon" data-mv="${i}:1" ${i < pages.length - 1 ? '' : 'disabled'} aria-label="Move down">↓</button></td>
-        <td><strong>${esc(p.name)}</strong>${i === 0 ? ' <span class="pill">home</span>' : ''}${p.settings.hideInMenu ? ' <span class="pill warn">hidden from menu</span>' : ''}</td>
-        <td class="muted small">/${i === 0 ? '' : esc(p.slug)}</td><td>${p.views}</td><td>${p.optins}</td>
+        <td><strong>${esc(p.name)}</strong>${i === 0 ? ` <span class="pill">${isArea ? 'first page' : 'home'}</span>` : ''}${p.settings.hideInMenu ? ' <span class="pill warn">hidden from menu</span>' : ''}</td>
+        <td class="muted small">/${i === 0 ? '' : esc(p.slug)}</td><td>${p.views}</td>${isArea ? '' : `<td>${p.optins}</td>`}
         <td style="text-align:right;white-space:nowrap"><a class="btn sm primary" href="#/editor/${p.id}">Edit</a>
           <button class="btn sm" data-pmenu="${p.id}">${icon('more')}</button></td></tr>`).join('')}
     </table></div>
-    <button class="btn" data-addpage style="margin-top:12px">+ Add page</button>`);
+    <button class="btn" data-addpage style="margin-top:12px">+ Add ${isArea ? 'a lesson or page' : 'page'}</button>
+    ${isArea ? '<div data-members></div>' : ''}`);
+  if (isArea) renderMembersPanel(f);
 
   const order = async (ids) => { await api('PUT', `/api/websites/${id}/order`, { ids }); viewWebsite(id); };
   $$('[data-mv]').forEach((b) => { b.onclick = () => {
@@ -114,4 +117,69 @@ async function viewWebsite(id) {
   };
   const un = $('[data-unpublish]');
   if (un) un.onclick = async () => { await api('POST', `/api/funnels/${id}/unpublish`); viewWebsite(id); undoToast('Website unpublished', async () => { await api('POST', `/api/funnels/${id}/publish`).catch((e) => toast(e.message, true)); viewWebsite(id); }); };
+}
+
+// ---------------- Members areas ----------------
+async function viewMembersAreas() {
+  const areas = await api('GET', '/api/members-areas');
+  shell('pages', `${PAGES_TABS('members')}
+    <div class="head"><div><h1>Members areas</h1><div class="muted">Lessons, downloads and resources only members can open. Great for courses, memberships and client portals.</div></div>
+      <button class="btn primary" data-new>+ New members area</button></div>
+    ${areas.length ? `<div class="wf-grid">${areas.map((a) => `<article class="wf-card" data-go="#/members/${a.id}" tabindex="0">
+      <div class="row" style="justify-content:space-between"><h3>${esc(a.name)}</h3>${a.status === 'live' ? '<span class="pill ok">Open</span>' : '<span class="pill warn">Draft</span>'}</div>
+      <p class="muted small">${esc(publicUrl(`/f/${a.slug}`))}</p>
+      <div class="wf-meta"><span>${a.pages} pages</span><span>${a.members} member${a.members === 1 ? '' : 's'}</span><span>${a.active} active this month</span></div></article>`).join('')}</div>`
+    : `<div class="card empty"><div class="big">${icon('door')}</div><h2>No members area yet</h2>
+      <p>Start with a welcome page and two lessons. Link it to a product and buyers get in automatically, or add people by hand. Members sign in with an emailed link, so there’s no password to forget.</p>
+      <button class="btn primary" data-new>Create a members area</button></div>`}`);
+  bindRowLinks();
+  $$('[data-go]').forEach((c) => { c.onkeydown = (e) => { if (e.key === 'Enter') location.hash = c.dataset.go; }; });
+  $$('[data-new]').forEach((b) => { b.onclick = async () => {
+    const r = await modal('New members area', '<label class="f">Name <span class="hint">members see this</span><input name="name" required placeholder="e.g. Pottery Basics course, Client portal"></label>',
+      { submit: 'Create', onSubmit: (v) => api('POST', '/api/members-areas', v) });
+    if (r?.id) { toast('Members area created. Fill in the lessons, then publish'); location.hash = `#/members/${r.id}`; }
+  }; });
+}
+
+async function renderMembersPanel(f) {
+  const box = $('[data-members]');
+  const { members, products } = await api('GET', `/api/members-areas/${f.id}/members`);
+  const seen = (m) => (m.last_seen_at ? `last in ${fmtDate(m.last_seen_at)}` : 'not signed in yet');
+  box.innerHTML = `
+    ${f.status === 'live' ? '' : '<div class="banner" style="margin-top:16px"><b>This area is still a draft.</b> Members can’t get in until you publish it, so publish before you send anyone their link.</div>'}
+    <section class="card" style="margin-top:16px"><div class="row" style="justify-content:space-between;align-items:center">
+      <div><h2 style="margin:0">Members</h2><div class="muted small">${members.length} with access. They sign in with a link we email them.</div></div>
+      <button class="btn primary" data-addm>${icon('plus')} Add a member</button></div>
+      ${members.length ? `<div class="mem-list">${members.map((m) => `<div class="mem" data-mem="${m.id}">${avatarHtml(m, 34)}
+        <div class="who"><b>${esc(fullName(m) || m.email)}</b><div class="muted small">${esc(m.email)} · ${m.source === 'purchase' ? 'bought' : 'added'} ${fmtDate(m.granted_at)} · ${seen(m)}</div></div>
+        <button class="btn sm" data-resend="${esc(m.email)}">Send link</button><button class="btn sm" data-rm="${m.id}">Remove</button></div>`).join('')}</div>`
+      : `<p class="muted" style="margin:12px 0 0">No members yet. ${products.length ? 'Link a product below and buyers get in automatically, or add someone by hand.' : 'Add someone by hand, or create a product to sell access.'}</p>`}
+    </section>
+    <section class="card" style="margin-top:16px"><h2 style="margin:0 0 4px">Who gets in automatically</h2>
+      <p class="muted small" style="margin-top:0">Anyone who buys one of these gets access and a sign-in link straight away.</p>
+      ${products.length ? `<div class="prod-picks">${products.map((p) => `<label class="check"><input type="checkbox" data-prod="${p.id}" ${p.linked ? 'checked' : ''}> ${esc(p.name)}${p.elsewhere ? ' <span class="muted small">(opens another area; ticking moves it here)</span>' : ''}</label>`).join('')}</div>`
+      : '<p class="muted small"><a href="#/products">Create a product</a> to sell access.</p>'}
+    </section>`;
+  const reload = () => renderMembersPanel(f);
+  $('[data-addm]', box).onclick = async () => {
+    const r = await modal('Add a member', `<label class="f">Email<input name="email" type="email" required></label><label class="f">Name <span class="hint">optional</span><input name="name"></label>
+      <label class="check"><input type="checkbox" name="send" checked> Email them their sign-in link now</label>`,
+    { submit: 'Add member', onSubmit: (v) => api('POST', `/api/members-areas/${f.id}/members`, { ...v, send: v.send }) });
+    if (r) { toast(r.send === false ? 'Member added' : 'Member added and link sent'); reload(); }
+  };
+  $$('[data-rm]', box).forEach((b) => { b.onclick = async () => {
+    const cid = b.dataset.rm;
+    await api('DELETE', `/api/members-areas/${f.id}/members/${cid}`);
+    b.closest('.mem').style.display = 'none';
+    undoToast('Access removed', async () => { await api('POST', `/api/members-areas/${f.id}/members/${cid}/restore`); reload(); });
+  }; });
+  $$('[data-resend]', box).forEach((b) => { b.onclick = async () => {
+    b.disabled = true;
+    await api('POST', `/api/members-areas/${f.id}/members`, { email: b.dataset.resend }).then(() => toast(`Link sent to ${b.dataset.resend}`)).catch((e) => toast(e.message, true));
+    b.disabled = false;
+  }; });
+  $$('[data-prod]', box).forEach((c) => { c.onchange = async () => {
+    await api('PUT', `/api/members-areas/${f.id}/products`, { product_ids: $$('[data-prod]:checked', box).map((x) => Number(x.dataset.prod)) });
+    toast(c.checked ? 'Buyers of this product now get in' : 'Product unlinked');
+  }; });
 }

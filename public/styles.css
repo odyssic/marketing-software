@@ -816,3 +816,9 @@ a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visib
   .ib-msgs { max-height: none; min-height: 40vh; }
 }
 .av-c svg { width: 55%; height: 55%; color: #fff; }
+
+/* Members areas */
+.mem-list { display: grid; margin-top: 12px; }
+.mem { display: flex; gap: 10px; align-items: center; padding: 10px 0; border-top: 1px solid var(--line); flex-wrap: wrap; }
+.mem .who { flex: 1; min-width: 180px; }
+.prod-picks { display: grid; gap: 4px; }

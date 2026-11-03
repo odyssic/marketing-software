@@ -2,7 +2,7 @@
 
 // ---------------- Pages ----------------
 // One place for every page, whoever built it: website, funnel, template or AI.
-const PAGES_TABS = (on) => `<div class="tabs" style="margin-top:-6px">${[['', 'All pages'], ['websites', 'Websites'], ['funnels', 'Funnels']]
+const PAGES_TABS = (on) => `<div class="tabs" style="margin-top:-6px">${[['', 'All pages'], ['websites', 'Websites'], ['funnels', 'Funnels'], ['members', 'Members areas']]
   .map(([k, l]) => `<a href="#/${k || 'pages'}" class="${on === (k || 'pages') ? 'active' : ''}">${l}</a>`).join('')}</div>`;
 
 async function viewPages() {
@@ -19,13 +19,13 @@ async function viewPages() {
     <input data-q placeholder="Search funnels and pages…" value="${esc(q)}" style="max-width:340px;margin-bottom:14px">
     ${groups.length ? groups.map((g) => `<section class="pgroup card">
       <header class="pg-head">
-        <div><a class="pg-name" href="#/${g.kind === 'website' ? 'websites' : 'funnels'}/${g.id}">${esc(g.name)}</a>
-          <span class="muted small">${g.kind === 'website' ? 'Website' : 'Funnel'} · ${g.pages.length} page${g.pages.length === 1 ? '' : 's'}${g.followups ? ` · ${g.followups} follow-up${g.followups === 1 ? '' : 's'}` : ''}</span></div>
+        <div><a class="pg-name" href="#/${({ website: 'websites', members: 'members' })[g.kind] || 'funnels'}/${g.id}">${esc(g.name)}</a>
+          <span class="muted small">${({ website: 'Website', members: 'Members area' })[g.kind] || 'Funnel'} · ${g.pages.length} page${g.pages.length === 1 ? '' : 's'}${g.followups ? ` · ${g.followups} follow-up${g.followups === 1 ? '' : 's'}` : ''}</span></div>
         ${purposeTag(g)}
         ${g.status === 'live' ? '<span class="pill ok">Live</span>' : '<span class="pill warn">Draft</span>'}
         <div class="pg-stats"><span><b>${g.views}</b> visitors</span><span><b>${g.leads}</b> leads &amp; sales</span><span><b>${g.rate === null ? '—' : `${g.rate}%`}</b> convert</span><span class="muted small">last 30 days</span></div>
         <span class="row" style="gap:6px"><button class="btn sm" data-gdup="${g.id}" title="Duplicate">${icon('copy')} Duplicate</button>
-          <a class="btn sm" href="#/${g.kind === 'website' ? 'websites' : 'funnels'}/${g.id}">${g.kind === 'website' ? 'Open site' : 'Open map'}</a></span>
+          <a class="btn sm" href="#/${({ website: 'websites', members: 'members' })[g.kind] || 'funnels'}/${g.id}">${g.kind === 'members' ? 'Open area' : g.kind === 'website' ? 'Open site' : 'Open map'}</a></span>
       </header>
       <div class="pg-strip">${g.pages.map((p, i) => `${i && g.kind !== 'website' ? `<span class="pg-arrow" aria-hidden="true">${icon('arrowRight')}</span>` : ''}
         <figure class="pg-page">

@@ -37,7 +37,7 @@ function registerLibrary(api, { getDb, HttpError, id, ownHost, clearDomainCache 
       const byId = Object.fromEntries(mine.map((s) => [s.id, s]));
       const order = [], seen = new Set();
       // Websites keep menu order; funnels follow the path from the start page.
-      for (let s = f.kind === 'website' ? null : byId[f.entry_step_id]; s && !seen.has(s.id); s = byId[s.next_step_id]) { order.push(s); seen.add(s.id); }
+      for (let s = f.kind === 'website' || f.kind === 'members' ? null : byId[f.entry_step_id]; s && !seen.has(s.id); s = byId[s.next_step_id]) { order.push(s); seen.add(s.id); }
       for (const s of mine) if (!seen.has(s.id)) order.push(s);
       const views = order[0]?.views || 0, leads = order.reduce((n, s) => n + s.leads, 0);
       return { ...f, pages: order, views, leads, rate: views ? Math.round((leads / views) * 1000) / 10 : null };

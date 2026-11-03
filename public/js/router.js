@@ -18,6 +18,8 @@ async function route() {
     else if (section === 'people' && id === 'testimonials') await viewTestimonials();
     else if (section === 'websites' && id) await viewWebsite(id);
     else if (section === 'websites') await viewWebsites();
+    else if (section === 'members' && id) await viewWebsite(id);
+    else if (section === 'members') await viewMembersAreas();
     else if (section === 'workflows' && id) await viewWorkflow(id);
     else if (section === 'workflows') await viewWorkflows();
     else if ((section === 'people' || section === 'contacts') && id) await viewPerson(id);
