@@ -76,3 +76,22 @@ test('duplicating a funnel copies its pages, links, purpose and follow-ups, as a
   await other('POST', '/api/auth/signup', { name: 'O', email: 'dup-other@example.com', password: 'password123', workspace: 'Other' });
   assert.equal((await other('POST', `/api/funnels/${f.id}/duplicate`, {})).status, 404);
 });
+
+test('email designer: drafts are editable, tests do not count, preview text and audience count work', async () => {
+  const c = client();
+  await c('POST', '/api/auth/signup', { name: 'Eve Owner', email: 'eve-owner@example.com', password: 'password123', workspace: 'Eve Co' });
+  await c('POST', '/api/contacts', { email: 'a1@example.com', first_name: 'Ann', tags: 'vip' });
+  await c('POST', '/api/contacts', { email: 'a2@example.com', first_name: 'Bo' });
+  assert.equal((await c('GET', '/api/broadcasts/audience')).body.count, 2);
+  assert.equal((await c('GET', '/api/broadcasts/audience?tag=vip')).body.count, 1);
+  const { id } = (await c('POST', '/api/broadcasts', { subject: 'Hi {{first_name|there}}', body: 'Hello', tag: 'vip', preheader: 'Quick news' })).body;
+  assert.equal((await c('PUT', `/api/broadcasts/${id}`, { subject: 'Hello {{first_name|there}}', body: 'Updated', tag: 'vip', preheader: 'Fresh news' })).status, 200);
+  const t = (await c('POST', '/api/broadcasts/test', { subject: 'Hello {{first_name|there}}', body: 'Updated', preheader: 'x' })).body;
+  assert.equal(t.to, 'eve-owner@example.com');
+  assert.equal((await c('POST', `/api/broadcasts/${id}/send`)).body.sent, 1);
+  const b = (await c('GET', `/api/broadcasts/${id}`)).body;
+  assert.deepEqual([b.status, b.sent_count, b.preheader, b.opened, b.clicked], ['sent', 1, 'Fresh news', 0, 0]);
+  const out = (await c('GET', '/api/outbox')).body.map((m) => m.subject).sort();
+  assert.deepEqual(out, ['Hello Ann', '[Test] Hello Eve']); // the test went only to the owner, and isn't counted
+  assert.equal((await c('PUT', `/api/broadcasts/${id}`, { subject: 'x', body: 'y' })).status, 409); // sent ones are locked
+});

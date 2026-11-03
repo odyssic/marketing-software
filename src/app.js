@@ -964,16 +964,47 @@ function createApp({ dbPath } = {}) {
   });
 
   // Email broadcasts
+  // Broadcasts with their results (opens and clicks from the tracked sends).
+  const BROADCAST_STATS = `(SELECT COUNT(*)::int FROM email_log e WHERE e.broadcast_id = b.id AND e.opened_at IS NOT NULL) AS opened,
+      (SELECT COUNT(*)::int FROM email_log e WHERE e.broadcast_id = b.id AND e.clicked_at IS NOT NULL) AS clicked`;
   api.get('/broadcasts', async (req, res) => {
-    res.json(await db.all('SELECT * FROM broadcasts WHERE account_id = ? ORDER BY id DESC', req.accountId));
+    res.json(await db.all(`SELECT b.*, ${BROADCAST_STATS} FROM broadcasts b WHERE b.account_id = ? ORDER BY b.id DESC`, req.accountId));
   });
+  api.get('/broadcasts/audience', async (req, res) => {
+    const tag = String(req.query.tag || '').trim().toLowerCase();
+    const rows = await db.all("SELECT tags FROM contacts WHERE account_id = ? AND unsubscribed = 0 AND email <> ''", req.accountId);
+    res.json({ count: rows.filter((c) => !tag || JSON.parse(c.tags).includes(tag)).length });
+  });
+  api.get('/broadcasts/:id', async (req, res) => {
+    const b = await db.get(`SELECT b.*, ${BROADCAST_STATS} FROM broadcasts b WHERE b.id = ? AND b.account_id = ?`, id(req.params.id), req.accountId);
+    if (!b) throw new HttpError(404, 'Broadcast not found');
+    res.json(b);
+  });
+  const broadcastFields = (b = {}) => ({ subject: String(b.subject || '').trim().slice(0, 300), body: String(b.body || '').slice(0, 50000),
+    tag: String(b.tag || '').trim().toLowerCase(), preheader: String(b.preheader || '').trim().slice(0, 200) });
 
   api.post('/broadcasts', async (req, res) => {
-    const { subject, body, tag } = req.body || {};
-    if (!subject?.trim() || !body?.trim()) throw new HttpError(400, 'Subject and message are required');
-    const r = await db.get('INSERT INTO broadcasts (account_id, subject, body, tag) VALUES (?, ?, ?, ?) RETURNING id',
-      req.accountId, subject.trim(), body, String(tag || '').trim().toLowerCase());
+    const v = broadcastFields(req.body);
+    if (!v.subject || !v.body.trim()) throw new HttpError(400, 'Subject and message are required');
+    const r = await db.get('INSERT INTO broadcasts (account_id, subject, body, tag, preheader) VALUES (?, ?, ?, ?, ?) RETURNING id',
+      req.accountId, v.subject, v.body, v.tag, v.preheader);
     res.status(201).json({ id: r.id });
+  });
+  api.put('/broadcasts/:id', async (req, res) => {
+    const v = broadcastFields(req.body);
+    if (!v.subject || !v.body.trim()) throw new HttpError(400, 'Subject and message are required');
+    const r = await db.get("UPDATE broadcasts SET subject = ?, body = ?, tag = ?, preheader = ? WHERE id = ? AND account_id = ? AND status = 'draft' RETURNING id",
+      v.subject, v.body, v.tag, v.preheader, id(req.params.id), req.accountId);
+    if (!r) throw new HttpError(409, 'Only drafts can be edited');
+    res.json({ ok: true });
+  });
+  // A test copy to the signed-in owner, from the editor (saved or not).
+  api.post('/broadcasts/test', async (req, res) => {
+    const v = broadcastFields(req.body);
+    if (!v.subject || !v.body.trim()) throw new HttpError(400, 'Write a subject and message first');
+    const account = await db.get('SELECT * FROM accounts WHERE id = ?', req.accountId);
+    const r = await messaging.sendTest({ account, to: req.user.email, name: req.user.name, ...v });
+    res.json({ status: r.status, to: req.user.email });
   });
 
   api.delete('/broadcasts/:id', async (req, res) => {
@@ -995,7 +1026,7 @@ function createApp({ dbPath } = {}) {
     let sent = 0;
     // Same sender as workflows and campaigns: merge fields, unsubscribe link, open/click tracking.
     for (const c of recipients) {
-      const r = await messaging.sendToPerson({ account, person: c, subject: b.subject, body: b.body, broadcastId: b.id });
+      const r = await messaging.sendToPerson({ account, person: c, subject: b.subject, body: b.body, preheader: b.preheader, broadcastId: b.id });
       if (r.status === 'sent' || r.status === 'logged') sent++;
     }
     await db.run("UPDATE broadcasts SET status = 'sent', sent_count = ?, sent_at = now() WHERE id = ?", sent, b.id);

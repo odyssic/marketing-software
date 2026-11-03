@@ -28,18 +28,19 @@ function createMessaging({ getDb, getSecret, publicBase, logEvent }) {
 
   // Plain text in, plain text + simple HTML out. Links are rewritten through
   // the click tracker; a 1px image records opens.
-  function toHtml(text, token, base) {
+  function toHtml(text, token, base, preheader = '') {
     const linked = escHtml(text).replace(/https?:\/\/[^\s<]+[^\s<.,;:!?)\]'"]/g, (url) => {
       const raw = url.replace(/&amp;/g, '&');
       return `<a href="${base}/t/c/${token}?u=${encodeURIComponent(raw)}">${url}</a>`;
     });
     const paras = linked.split(/\n{2,}/).map((p) => `<p style="margin:0 0 14px">${p.replace(/\n/g, '<br>')}</p>`).join('');
-    return `<!doctype html><html><body style="font:16px/1.55 -apple-system,Segoe UI,Roboto,sans-serif;color:#111827;max-width:580px;margin:0 auto;padding:24px">${paras}<img src="${base}/t/o/${token}.gif" width="1" height="1" alt="" style="display:block;border:0"></body></html>`;
+    const pre = preheader ? `<div style="display:none;max-height:0;overflow:hidden;opacity:0">${escHtml(preheader)}</div>` : '';
+    return `<!doctype html><html><body style="font:16px/1.55 -apple-system,Segoe UI,Roboto,sans-serif;color:#111827;max-width:580px;margin:0 auto;padding:24px">${pre}${paras}<img src="${base}/t/o/${token}.gif" width="1" height="1" alt="" style="display:block;border:0"></body></html>`;
   }
 
   // Sends one email to one person. Never throws for a bad address or an
   // unsubscribed person; returns { status: 'sent' | 'logged' | 'skipped' | 'failed', reason }.
-  async function sendToPerson({ account, person, subject, body, workflowId = null, campaignId = null, broadcastId = null }) {
+  async function sendToPerson({ account, person, subject, body, preheader = '', workflowId = null, campaignId = null, broadcastId = null }) {
     if (!person.email) return { status: 'skipped', reason: 'no email address' };
     if (person.unsubscribed) return { status: 'skipped', reason: 'unsubscribed' };
     const db = getDb();
@@ -49,7 +50,7 @@ function createMessaging({ getDb, getSecret, publicBase, logEvent }) {
     const text = `${merge(body, person, account)}\n\n--\nUnsubscribe: ${unsub}`;
     const row = await db.get(`INSERT INTO email_log (account_id, broadcast_id, contact_id, to_email, subject, body, status, workflow_id, campaign_id)
       VALUES (?, ?, ?, ?, ?, ?, 'queued', ?, ?) RETURNING id`, account.id, broadcastId, person.id, person.email, subj, text, workflowId, campaignId);
-    const html = toHtml(text, sign(row.id), base);
+    const html = toHtml(text, sign(row.id), base, merge(preheader, person, account));
     try {
       // One-click unsubscribe headers (required by Gmail and Yahoo for bulk senders).
       const headers = { 'List-Unsubscribe': `<${unsub}>`, 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' };
@@ -60,6 +61,20 @@ function createMessaging({ getDb, getSecret, publicBase, logEvent }) {
       await db.run("UPDATE email_log SET status = 'failed', error = ? WHERE id = ?", e.message, row.id);
       return { status: 'failed', reason: e.message, emailId: row.id };
     }
+  }
+
+  // A test copy for the owner: real sender and layout, sample merge values,
+  // "[Test]" in the subject, and no tracking, so it never counts in results.
+  async function sendTest({ account, to, name, subject, body, preheader = '' }) {
+    const [first, ...rest] = String(name || '').split(' ');
+    const person = { first_name: first, last_name: rest.join(' '), email: to };
+    const subj = `[Test] ${merge(subject, person, account)}`;
+    const text = `${merge(body, person, account)}\n\n--\nUnsubscribe: (your readers get a working link here)`;
+    const base = publicBase();
+    const html = toHtml(text, 'test', base, merge(preheader, person, account)).replace(/<img src="[^"]*\/t\/o\/[^"]*"[^>]*>/, '').replace(/href="[^"]*\/t\/c\/test\?u=([^"]*)"/g, (_, u) => `href="${decodeURIComponent(u)}"`);
+    const r = await mailer.sendEmail({ ...fromFor(account), to, subject: subj, text, html });
+    await getDb().run('INSERT INTO email_log (account_id, to_email, subject, body, status) VALUES (?, ?, ?, ?, ?)', account.id, to, subj, text, r.status);
+    return r;
   }
 
   // A note to the business owner (e.g. "follow up personally with Ann").
@@ -103,7 +118,7 @@ function createMessaging({ getDb, getSecret, publicBase, logEvent }) {
     });
   }
 
-  return { sendToPerson, sendToOwner, registerTracking, merge, unsubToken, sign, verify };
+  return { sendToPerson, sendTest, sendToOwner, registerTracking, merge, unsubToken, sign, verify };
 }
 
 module.exports = { createMessaging, merge };

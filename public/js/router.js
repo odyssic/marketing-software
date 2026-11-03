@@ -24,6 +24,7 @@ async function route() {
     else if (section === 'products') await viewProducts(id);
     else if (section === 'email' && id === 'print') await viewPrint();
     else if (section === 'email' && id === 'repurpose') viewRepurpose();
+    else if (section === 'email' && (id === 'new' || /^\d+$/.test(id || ''))) await viewCompose(id);
     else if (section === 'email') await viewEmail(id);
     else if (section === 'campaigns' && id) await viewCampaign(id);
     else if (section === 'settings') viewSettings();
