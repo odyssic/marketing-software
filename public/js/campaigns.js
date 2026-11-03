@@ -40,14 +40,17 @@ async function viewCampaign(campaignId) {
   $('[data-body]').oninput = save;
   $('[data-draft]').onclick = async (e) => {
     const b = e.currentTarget;
-    if ($('[data-body]').value.trim() && !confirm('Replace the current draft with a new one?')) return;
+    const prev = { subject: $('[data-subject]').value, body: $('[data-body]').value };
     b.disabled = true; b.textContent = 'Drafting…';
-    try { const d = await api('POST', `/api/campaigns/${c.id}/draft`); toast(d.template ? 'Template draft ready. Fill in the brackets' : 'Draft ready, in your voice'); viewCampaign(c.id); } catch (err) { toast(err.message, true); b.disabled = false; b.innerHTML = icon('pencil') + ' Draft it'; }
+    try { const d = await api('POST', `/api/campaigns/${c.id}/draft`); await viewCampaign(c.id);
+      const msg = d.template ? 'Template draft ready. Fill in the brackets' : 'Draft ready, in your voice';
+      if (prev.body.trim()) undoToast(msg, async () => { await api('PUT', `/api/campaigns/${c.id}`, prev); viewCampaign(c.id); }); else toast(msg); } catch (err) { toast(err.message, true); b.disabled = false; b.innerHTML = icon('pencil') + ' Draft it'; }
   };
   $('[data-send]').onclick = async () => {
     clearTimeout(t);
     await api('PUT', `/api/campaigns/${c.id}`, { subject: $('[data-subject]').value, body: $('[data-body]').value });
-    if (/\[[^\]]+\]/.test($('[data-body]').value + $('[data-subject]').value) && !confirm('There are still [bracketed] placeholders in the email. Send anyway?')) return;
+    const gaps = ($('[data-body]').value + $('[data-subject]').value).match(/\[[^\]]+\]/g);
+    if (gaps) { toast(`Fill in ${[...new Set(gaps)].slice(0, 3).join(', ')} before sending`, true); $('[data-body]').focus(); return; }
     if (!await modal('Send this email?', `<p>“${esc($('[data-subject]').value)}” goes to <b>${c.people.length}</b> ${c.people.length === 1 ? 'person' : 'people'} now. This can’t be undone.</p>`, { submit: 'Approve & send' })) return;
     try { const r = await api('POST', `/api/campaigns/${c.id}/send`); toast(`Sent to ${r.sent}${r.skipped ? ` (${r.skipped} skipped: unsubscribed or no email)` : ''}`); viewCampaign(c.id); } catch (err) { toast(err.message, true); }
   };
@@ -59,7 +62,7 @@ const campaignsHtml = (items) => (items.length ? `<div class="card table-wrap"><
   ${items.map((c) => `<tr class="click" data-go="#/campaigns/${c.id}"><td><strong>${esc(c.move.title || c.title || c.subject || 'Campaign')}</strong><div class="muted small">${esc(c.subject)}</div></td>
     <td>${leverPill(c.lever)}</td><td>${c.audience_count}</td><td><span class="pill ${c.status === 'sent' ? 'ok' : c.status === 'skipped' ? 'warn' : ''}">${esc(c.status)}</span></td>
     <td class="muted small">${fmtDate(c.sent_at || c.week || c.created_at)}</td></tr>`).join('')}</table></div>`
-  : '<div class="card empty"><div class="big">' + icon('target') + '</div><h2>No campaigns yet</h2><p>Each week’s move from the dashboard shows up here.</p></div>');
+  : '<div class="card empty"><div class="big">' + icon('target') + '</div><h2>No campaigns yet</h2><p>Each week the dashboard suggests one small move, like inviting past customers back. Draft it there and it’s tracked here.</p><a class="btn" href="#/">See this week’s move</a></div>');
 
 // Called by the dashboard's "This week's move" tile.
 function bindMoveTile(el, m) {
@@ -112,7 +115,7 @@ async function viewPrint() {
     try { await api('POST', '/api/links', Object.fromEntries(new FormData(e.target))); toast('Link created'); viewPrint(); } catch (err) { $('[data-linkerr]').textContent = err.message; }
   };
   $$('[data-dellink]').forEach((b) => { b.onclick = async () => {
-    if (await confirmBox('Delete this link?', 'Printed QR codes pointing to it will stop working.')) { await api('DELETE', `/api/links/${b.dataset.dellink}`); viewPrint(); }
+    deleteWithUndo('Link deleted', { url: `/api/links/${b.dataset.dellink}`, hide: hideEl(b.closest('.card')) });
   }; });
 }
 

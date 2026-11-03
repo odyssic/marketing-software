@@ -26,7 +26,7 @@ async function viewPeople() {
       ${STAGES.map(([k, l]) => `<a href="${link({ stage: k })}" class="${stage === k ? 'active' : ''} ${k}"><b>${count(k)}</b>${l}</a>`).join('<span class="arrow">→</span>')}
     </div>
     <div class="row" style="margin:14px 0"><input data-q placeholder="Search name, email, phone or city…" value="${esc(q)}" style="max-width:340px">
-      <select data-tag style="max-width:220px"><option value="">All tags</option>${tags.map((t) => `<option value="${esc(t.tag)}" ${t.tag === tag ? 'selected' : ''}>${esc(t.tag)} (${t.count})</option>`).join('')}</select>
+      <select data-tag aria-label="Filter by tag" style="max-width:220px"><option value="">All tags</option>${tags.map((t) => `<option value="${esc(t.tag)}" ${t.tag === tag ? 'selected' : ''}>${esc(t.tag)} (${t.count})</option>`).join('')}</select>
       <span class="seg pv-toggle" role="group" aria-label="Show as"><button type="button" data-pv="cards" class="${peopleView() === 'cards' ? 'on' : ''}">Cards</button><button type="button" data-pv="list" class="${peopleView() === 'list' ? 'on' : ''}">List</button></span>
       <select data-seg style="max-width:260px" aria-label="Email behaviour"><option value="">Any email behaviour</option>
         ${[...new Set(segs.map((x) => x.group))].map((g) => `<optgroup label="${esc(g)}">${segs.filter((x) => x.group === g).map((x) => `<option value="${esc(x.key)}" ${x.key === segment ? 'selected' : ''}>${esc(x.label)} (${x.count})</option>`).join('')}</optgroup>`).join('')}</select></div>
@@ -130,9 +130,8 @@ async function viewPerson(personId) {
     { onSubmit: (v) => api('PUT', `/api/contacts/${p.id}`, v) });
     $('[data-delc]').onclick = async () => {
       $('.modal-bg [data-x]').click();
-      if (await confirmBox('Delete person?', `${personName(p)} and their whole timeline will be permanently removed. Orders are kept.`)) {
-        await api('DELETE', `/api/contacts/${p.id}`); toast('Person deleted'); location.hash = '#/people';
-      }
+      location.hash = '#/people';
+      deleteWithUndo(`${personName(p)} deleted`, { url: `/api/contacts/${p.id}`, hide: () => () => { location.hash = `#/people/${p.id}`; }, done: () => { if (location.hash === '#/people') viewPeople(); } });
     };
     if (await pending) { toast('Saved'); viewPerson(p.id); }
   };

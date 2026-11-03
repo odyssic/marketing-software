@@ -184,7 +184,8 @@ async function viewFunnel(id) {
   };
   const unpub = $('[data-unpublish]');
   if (unpub) unpub.onclick = async () => {
-    if (await confirmBox('Unpublish this funnel?', 'Visitors will see “not published yet” until you publish again.', 'Unpublish')) { await api('POST', `/api/funnels/${id}/unpublish`); toast('Unpublished'); viewFunnel(id); }
+    await api('POST', `/api/funnels/${id}/unpublish`); viewFunnel(id);
+    undoToast('Unpublished', async () => { await api('POST', `/api/funnels/${id}/publish`).catch((e) => toast(e.message, true)); viewFunnel(id); });
   };
   const save = (body) => api('PUT', `/api/funnels/${id}/map`, body).catch((err) => toast(err.message, true));
   const reload = () => viewFunnel(id);
@@ -584,9 +585,8 @@ async function viewFunnel(id) {
     if (r) { toast('Saved'); reload(); }
   };
   $('[data-del]').onclick = async () => {
-    if (await confirmBox('Delete funnel?', `“${f.name}” and all its pages and stats will be removed. Contacts and orders are kept.`)) {
-      await api('DELETE', `/api/funnels/${id}`); toast('Funnel deleted'); location.hash = '#/funnels';
-    }
+    location.hash = '#/pages';
+    deleteWithUndo(`“${f.name}” deleted`, { url: `/api/funnels/${id}`, hide: () => () => { location.hash = `#/funnels/${id}`; }, done: () => { if (location.hash === '#/pages') viewPages(); } });
   };
 
   renderNodes();

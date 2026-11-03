@@ -35,7 +35,8 @@ async function viewPages() {
             <span class="pg-links"><a href="#/editor/${p.id}">Edit</a> · <a href="${esc(link(g, p, i))}" target="_blank" rel="noopener">View</a></span></figcaption>
         </figure>`).join('')}</div>
     </section>`).join('') : `<div class="card empty"><div class="big">${icon('page')}</div><h2>${q ? 'Nothing matches' : 'No pages yet'}</h2>
-      <p>${q ? 'Try a different search.' : 'Start a website for your business, or a funnel for one offer.'}</p></div>`}`);
+      <p>${q ? 'Try a different search.' : 'Answer three quick questions and Rilly builds your first page: booking, quote requests, a sign-up list or a simple shop.'}</p>
+      ${q ? '' : '<a class="btn primary" href="#/setup">Build my first page</a>'}</div>`}`);
   let t; $('[data-q]').oninput = (e) => { clearTimeout(t); t = setTimeout(() => { location.hash = `#/pages?q=${encodeURIComponent(e.target.value)}`; }, 350); };
   if (q) { const el = $('[data-q]'); el.focus(); el.setSelectionRange(q.length, q.length); }
   $('[data-newsite]').onclick = newWebsite;
@@ -68,5 +69,5 @@ async function viewTestimonials() {
         <button class="btn sm danger" data-delt="${t.id}">Delete</button></span></div>`).join('')}</div>`
       : '<div class="card empty"><div class="big">' + icon('quote') + '</div><h2>No testimonials yet</h2><p>Add one from a customer’s page (People → a person → Add testimonial), or put a Review form on your website. Reviews wait here for your approval.</p></div>'}`);
   $$('[data-ap]').forEach((b) => { b.onclick = async () => { const [tid, v] = b.dataset.ap.split(':'); await api('PUT', `/api/testimonials/${tid}`, { approved: v === '1' }); viewTestimonials(); }; });
-  $$('[data-delt]').forEach((b) => { b.onclick = async () => { if (await confirmBox('Delete testimonial?', 'It will be removed from every page.')) { await api('DELETE', `/api/testimonials/${b.dataset.delt}`); viewTestimonials(); } }; });
+  $$('[data-delt]').forEach((b) => { b.onclick = async () => { deleteWithUndo('Testimonial deleted', { url: `/api/testimonials/${b.dataset.delt}`, hide: hideEl(b.closest('.li')) }); }; });
 }

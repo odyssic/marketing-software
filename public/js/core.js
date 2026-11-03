@@ -41,6 +41,28 @@ function undoToast(msg, onUndo) {
   toastTimer = setTimeout(() => { t.className = ''; }, 6000);
 }
 
+// Delete with Undo: the item disappears now, the real delete runs after the
+// Undo window (or straight away if the tab is closed). `hide` removes it from
+// view and returns a function that puts it back.
+const pendingDeletes = new Set();
+function deleteWithUndo(msg, { url, hide, done }) {
+  const restore = hide?.() || (() => {});
+  const job = { url, timer: null };
+  const run = async () => {
+    pendingDeletes.delete(job);
+    try { await api('DELETE', url); done?.(); } catch (e) { restore(); toast(e.message, true); }
+  };
+  job.timer = setTimeout(run, 6000);
+  pendingDeletes.add(job);
+  undoToast(msg, () => { clearTimeout(job.timer); pendingDeletes.delete(job); restore(); });
+}
+// Hides an element and returns how to bring it back.
+const hideEl = (el) => () => { if (!el) return () => {}; const d = el.style.display; el.style.display = 'none'; return () => { el.style.display = d; }; };
+addEventListener('pagehide', () => {
+  for (const j of pendingDeletes) { clearTimeout(j.timer); fetch(j.url, { method: 'DELETE', keepalive: true }); }
+  pendingDeletes.clear();
+});
+
 const fmtDate = (s) => (s ? new Date(s).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '');
 const fullName = (c) => [c.first_name, c.last_name].filter(Boolean).join(' ');
 const tagsHtml = (tags) => tags.map((t) => `<span class="tag">${esc(t)}</span>`).join('');

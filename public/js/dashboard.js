@@ -5,10 +5,11 @@
 // appear in Customize mode; drag uses pointer events so it works on touch.
 const LEVER_UI = {
   all: { label: 'All four', color: '#111827' },
-  lead: { label: 'Lead gen', color: '#0ea5e9' },
-  conversion: { label: 'Conversion', color: '#8b5cf6' },
-  upsell: { label: 'Upsell', color: '#f59e0b' },
-  continuity: { label: 'Continuity', color: '#10b981' },
+  // Dark enough for white text and for text on white (WCAG AA).
+  lead: { label: 'New people', color: '#0369a1' },
+  conversion: { label: 'First sales', color: '#6d28d9' },
+  upsell: { label: 'Bigger orders', color: '#b45309' },
+  continuity: { label: 'Repeat business', color: '#047857' },
 };
 const dash = { lever: localStorage.getItem('dashLever') || 'all', customize: false, layouts: {}, catalog: [], data: {}, levers: null };
 
@@ -136,6 +137,10 @@ function renderTile(id, t) {
 function healthTile(d) {
   if (!d) return '';
   const levers = d.levers;
+  // Nothing to score yet: one calm line instead of four empty meters.
+  if (['lead', 'conversion', 'upsell', 'continuity'].every((k) => levers[k].score === null)) {
+    return `<p class="muted">Too early to tell. Once people visit your pages and sign up or buy, you’ll see how you’re doing at bringing in <b>new people</b>, turning them into <b>first sales</b>, <b>bigger orders</b> and <b>repeat business</b>, and which one deserves your time.</p>`;
+  }
   return `<div class="health">${['lead', 'conversion', 'upsell', 'continuity'].map((k) => {
     const l = levers[k];
     return `<button class="hcard ${k === d.focus ? 'focus' : ''}" data-golever="${k}" style="--c:${LEVER_UI[k].color}">

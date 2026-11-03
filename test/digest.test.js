@@ -34,7 +34,7 @@ test('weekly digest: lever health, the move, old inquiries; sent once on the cho
   await c('POST', `/api/people/${p.id}/events`, { type: 'inquiry', occurred_at: new Date(Date.now() - 21 * 864e5).toISOString() });
   const prev = (await c('GET', '/api/digest/preview')).body;
   assert.match(prev.subject, /^Your week: focus on .*, 1 inquiry waiting$/);
-  for (const s of ['LEVER HEALTH', 'Lead gen', 'Conversion', 'Upsell', 'Continuity', 'THIS WEEK’S MOVE', 'INQUIRIES WAITING MORE THAN 14 DAYS (1)', 'Wanda: 21 days', '/#/people/']) {
+  for (const s of ['HOW EACH AREA IS DOING', 'New people', 'First sales', 'Bigger orders', 'Repeat business', 'THIS WEEK’S MOVE', 'INQUIRIES WAITING MORE THAN 14 DAYS (1)', 'Wanda: 21 days', '/#/people/']) {
     assert.ok(prev.text.includes(s), s);
   }
   assert.equal(prev.day, 'Monday');

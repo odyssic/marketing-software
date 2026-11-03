@@ -5,10 +5,10 @@
 // current value (t = now), last month's (t = now - 30d) and the trailing
 // 90-day baseline (the average at now - 30d, - 60d and - 90d).
 const LEVERS = {
-  lead: { label: 'Lead gen', color: '#0ea5e9', flow: ['audience', 'lead'], metric: 'New leads, last 30 days' },
-  conversion: { label: 'Conversion', color: '#8b5cf6', flow: ['lead', 'customer'], metric: 'Leads who bought within 60 days' },
-  upsell: { label: 'Upsell', color: '#f59e0b', flow: ['customer'], metric: 'Average order value' },
-  continuity: { label: 'Continuity', color: '#10b981', flow: ['customer', 'regular'], metric: 'Active subscribers + repeat buyers' },
+  lead: { label: 'New people', color: '#0369a1', flow: ['audience', 'lead'], metric: 'New leads, last 30 days' },
+  conversion: { label: 'First sales', color: '#6d28d9', flow: ['lead', 'customer'], metric: 'Leads who bought within 60 days' },
+  upsell: { label: 'Bigger orders', color: '#b45309', flow: ['customer'], metric: 'Average order value' },
+  continuity: { label: 'Repeat business', color: '#047857', flow: ['customer', 'regular'], metric: 'Active subscribers + repeat buyers' },
 };
 const LEVER_KEYS = Object.keys(LEVERS);
 const LEAD_TYPES = "('signup', 'inquiry', 'subscribe')";

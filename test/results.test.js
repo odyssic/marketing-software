@@ -53,6 +53,6 @@ test('the Monday digest opens with the week in plain English', async () => {
   assert.match(text, /4 new people joined, up from 1\. Most came from Instagram\./);
   assert.match(text, /You took \$120 from 1 payment, up from \$80\./);
   assert.match(text, /\$90 is waiting on 1 invoice\./);
-  assert.ok(text.indexOf('THIS WEEK') < text.indexOf('LEVER HEALTH'));
+  assert.ok(text.indexOf('THIS WEEK') < text.indexOf('HOW EACH AREA IS DOING'));
   assert.ok(subject);
 });

@@ -74,7 +74,7 @@ function viewSettings() {
       <label class="f">Webhook signing secret <span class="hint">recommended</span>
         <input name="webhookSecret" type="password" autocomplete="off" placeholder="${state.me.payments.webhookSecretSet ? 'Saved. Paste a new one to replace it' : 'whsec_…'}"></label>
       <p class="hint">In Stripe, add a webhook endpoint for <b>checkout.session.completed</b> pointing to:</p>
-      <div class="copy" style="margin-bottom:12px"><input readonly value="${esc(state.me.payments.webhookUrl)}"><button type="button" class="btn" data-copy="${esc(state.me.payments.webhookUrl)}">Copy</button></div>
+      <div class="copy" style="margin-bottom:12px"><input readonly aria-label="Webhook address" value="${esc(state.me.payments.webhookUrl)}"><button type="button" class="btn" data-copy="${esc(state.me.payments.webhookUrl)}">Copy</button></div>
       <label class="check" style="margin:4px 0 12px"><input type="checkbox" data-recover ${state.me.account.recover_checkouts === 0 ? '' : 'checked'}> Remind people who start checking out but don’t finish <span class="muted small">(one email, an hour later)</span></label>
       <div class="err"></div>
       <div class="row"><button class="btn primary">Save payment settings</button>

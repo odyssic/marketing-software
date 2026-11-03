@@ -161,9 +161,7 @@ async function editDeal(p, contacts, deal, reload) {
   const del = $('.modal [data-deld]');
   if (del) del.onclick = async () => {
     $('.modal-bg [data-x]').click();
-    if (await confirmBox('Delete deal?', `“${d.title}” will be permanently removed. The contact is kept.`)) {
-      await api('DELETE', `/api/deals/${d.id}`); toast('Deal deleted'); reload();
-    }
+    deleteWithUndo('Deal deleted', { url: `/api/deals/${d.id}`, hide: hideEl($(`[data-deal="${d.id}"]`)) });
   };
   if (await pending) { toast(isNew ? 'Deal added' : 'Saved'); reload(); }
 }
@@ -205,9 +203,9 @@ async function editPipeline(p) {
   const del = $('.modal [data-delpipe]');
   if (del) del.onclick = async () => {
     $('.modal-bg [data-x]').click();
-    if (await confirmBox('Delete pipeline?', `“${p.name}” and all ${p.deals.length} of its deals will be permanently removed. Contacts are kept.`)) {
-      await api('DELETE', `/api/pipelines/${p.id}`); toast('Pipeline deleted'); location.hash = '#/pipelines';
-    }
+    const back = location.hash;
+    location.hash = '#/';
+    deleteWithUndo(`“${p.name}” deleted`, { url: `/api/pipelines/${p.id}`, hide: () => () => { location.hash = back; } });
   };
   const r = await pending;
   if (r) {

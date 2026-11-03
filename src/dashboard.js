@@ -15,7 +15,7 @@ const TILES = [
       const m = await ctx.weeklyMove?.(ctx.lever);
       return m && m.status !== 'empty' ? m : null;
     } },
-  { id: 'health', title: 'Lever health', levers: ['all'], default_width: 'full',
+  { id: 'health', title: 'How each area is doing', levers: ['all'], default_width: 'full',
     empty_state: 'Health scores appear once you have a few weeks of activity.',
     query: async (ctx) => ({ levers: await ctx.levers(), focus: await ctx.focus() }) },
   { id: 'flow', title: 'Audience flow', levers: ['all', ...LEVER_KEYS], default_width: 'full',

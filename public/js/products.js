@@ -25,6 +25,7 @@ async function viewProducts(tab) {
     <label class="f">Photo <span class="hint">link to an image (https://…), shown on buy buttons</span><input name="image_url" value="${esc(pr.image_url || '')}" placeholder="https://"></label>
     <label class="f">Tag buyers with <span class="hint">buyers are always tagged “customer” too</span><input name="tag" value="${esc(pr.tag)}" placeholder="e.g. bought-course"></label>`;
   if (orders) return;
+  $('[data-new-empty]')?.addEventListener('click', () => $('[data-new]').click());
   $('[data-new]').onclick = async () => {
     const r = await modal('New product', form(), { submit: 'Create product', onSubmit: (v) => api('POST', '/api/products', v) });
     if (r) {
@@ -41,9 +42,7 @@ async function viewProducts(tab) {
       { onSubmit: (v) => api('PUT', `/api/products/${pr.id}`, v) });
     $('[data-delp]').onclick = async () => {
       $('.modal-bg [data-x]').click();
-      if (await confirmBox('Delete product?', `Pricing cards selling “${pr.name}” will stop taking payments. Past orders are kept.`)) {
-        await api('DELETE', `/api/products/${pr.id}`); toast('Product deleted'); viewProducts();
-      }
+      deleteWithUndo(`“${pr.name}” deleted`, { url: `/api/products/${pr.id}`, hide: hideEl(row) });
     };
     if (await pending) { toast('Saved'); viewProducts(); }
   }; });
@@ -54,7 +53,8 @@ const productsHtml = (items) => (items.length ? `<div class="card table-wrap"><t
   ${items.map((pr) => `<tr class="click" data-edit="${pr.id}"><td><strong>${esc(pr.name)}</strong><div class="muted small">${esc(pr.description.slice(0, 70))}</div></td>
     <td>${esc(pr.priceLabel)}</td><td>${BILLING_LABEL[pr.billing]}</td><td>${pr.tag ? tagsHtml(pr.tag.split(',')) : ''}</td><td>${pr.sales}</td></tr>`).join('')}
   </table></div>` : `<div class="card empty"><div class="big">${icon('bag')}</div><h2>No products yet</h2>
-  <p>Create a product, then sell it with a Pricing card on any funnel page.</p></div>`);
+  <p>Add what you sell and its price. Then put it on any page with a Pricing block, and Rilly handles checkout and receipts.</p>
+  <button class="btn primary" data-new-empty>+ New product</button></div>`);
 
 const ordersHtml = (items) => (items.length ? `<div class="card table-wrap"><table>
   <tr><th>Order</th><th>Product</th><th>Buyer</th><th>Amount</th><th>Status</th><th>Date</th></tr>
@@ -62,7 +62,7 @@ const ordersHtml = (items) => (items.length ? `<div class="card table-wrap"><tab
     <td>${esc(o.email) || '<span class="muted">—</span>'}</td><td>${esc(o.amountLabel)}</td>
     <td><span class="pill ${o.status === 'paid' ? 'ok' : ''}">${o.status === 'pending' ? 'abandoned / pending' : esc(o.status)}</span></td>
     <td class="muted small">${fmtDate(o.paid_at || o.created_at)}</td></tr>`).join('')}
-  </table></div>` : '<div class="card empty"><div class="big">' + icon('receipt') + '</div><h2>No orders yet</h2><p>Orders appear here when someone clicks buy on a pricing card.</p></div>');
+  </table></div>` : '<div class="card empty"><div class="big">' + icon('receipt') + '</div><h2>No orders yet</h2><p>Orders appear here when someone buys from a page or pays an invoice or payment link.</p></div>');
 
 const productTabs = (on) => `<div class="tabs">${[['products', 'Products', '#/products'], ['invoices', 'Invoices & links', '#/products/invoices'], ['orders', 'Orders', '#/products/orders']]
   .map(([k, l, h]) => `<a href="${h}" class="${on === k ? 'active' : ''}">${l}</a>`).join('')}</div>`;

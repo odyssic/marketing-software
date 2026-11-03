@@ -5,7 +5,7 @@
 const { inquiriesWaiting } = require('./dashboard');
 const ai = require('./ai');
 
-const LEVER_LABEL = { lead: 'Lead gen', conversion: 'Conversion', upsell: 'Upsell', continuity: 'Continuity' };
+const LEVER_LABEL = { lead: 'New people', conversion: 'First sales', upsell: 'Bigger orders', continuity: 'Repeat business' };
 const RECENTLY_MAILED_DAYS = 14;
 
 // Monday of this week (UTC), the key for "this week's move".
@@ -86,9 +86,9 @@ function createMoves({ getDb, HttpError, id, leversFor, getAccount, messaging, f
       if (!best || value > best.value) best = { c, people, value };
     }
     const l = levers[lever];
-    const focusWhy = (await getAccount(accountId)).pinned_lever === lever ? `You pinned ${LEVER_LABEL[lever]} as this week’s focus.`
-      : l.score === null ? `${LEVER_LABEL[lever]} is where to start.` : `${LEVER_LABEL[lever]} is your weakest lever (health ${l.score}/100).`;
-    if (!best) return { lever, key: null, title: `Nothing to send for ${LEVER_LABEL[lever]} this week`, reason: `${focusWhy} No one fits a move right now. Import more people or orders, or pin a different lever.`, people: [] };
+    const focusWhy = (await getAccount(accountId)).pinned_lever === lever ? `You chose ${LEVER_LABEL[lever]} as this week’s focus.`
+      : l.score === null ? `${LEVER_LABEL[lever]} is the place to start.` : `${LEVER_LABEL[lever]} is the area most worth your time (${l.score}/100).`;
+    if (!best) return { lever, key: null, title: `Nothing to send for ${LEVER_LABEL[lever]} this week`, reason: `${focusWhy} No one fits a move right now. Import more people or orders, or pick a different focus.`, people: [] };
     return { lever, key: best.c.key, title: best.c.title(best.people.length), reason: `${focusWhy} ${best.c.why}`, people: best.people, estimated_cents: Math.round(best.value) };
   }
 

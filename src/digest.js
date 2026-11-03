@@ -22,10 +22,10 @@ function createDigest({ getDb, leversFor, moves, publicBase }) {
       `Your week at ${account.name}`,
       '',
       ...(results.length ? ['THIS WEEK', ...results.map((r) => `• ${r}`), ''] : ['A quiet week: nothing new to report yet. Share your page link to get things moving.', '']),
-      'LEVER HEALTH',
+      'HOW EACH AREA IS DOING',
       ...['lead', 'conversion', 'upsell', 'continuity'].map((k) => {
         const l = levers[k];
-        return `${l.label.padEnd(11)} ${bar(l.score)} ${l.score === null ? 'not enough data' : `${l.score}/100`}  ${l.valueLabel}${l.changeLabel ? ` (${l.changeLabel})` : ''}${k === levers.focus ? '  ← focus' : ''}`;
+        return `${l.label.padEnd(16)} ${bar(l.score)} ${l.score === null ? 'too early to tell' : `${l.score}/100`}  ${l.valueLabel}${l.changeLabel ? ` (${l.changeLabel})` : ''}${k === levers.focus ? '  ← focus' : ''}`;
       }),
       '',
       'THIS WEEK’S MOVE',
@@ -45,7 +45,7 @@ function createDigest({ getDb, leversFor, moves, publicBase }) {
     const blocks = [
       { h: 'This week' },
       results.length ? { list: results.map((r) => [r]) } : { p: 'A quiet week: nothing new to report yet. Share your page link to get things moving.' },
-      { h: 'Lever health' },
+      { h: 'How each area is doing' },
       { rows: ['lead', 'conversion', 'upsell', 'continuity'].map((k) => {
         const l = levers[k];
         return [l.label, `${l.score === null ? '' : `${l.score}/100 · `}${l.valueLabel}${l.changeLabel ? ` (${l.changeLabel})` : ''}`, k === levers.focus ? 'Focus this week' : '', l.score];

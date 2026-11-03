@@ -93,7 +93,7 @@ async function viewWebsite(id) {
     $('[data-delpage]').onclick = async () => {
       $('.modal-bg [data-x]').click();
       if (pages.length < 2) { toast('A website needs at least one page', true); return; }
-      if (await confirmBox('Delete this page?', `“${p.name}” will be removed from the site.`)) { await api('DELETE', `/api/steps/${p.id}`); viewWebsite(id); }
+      deleteWithUndo(`“${p.name}” deleted`, { url: `/api/steps/${p.id}`, hide: hideEl($(`[data-pmenu="${p.id}"]`)?.closest('tr')), done: () => viewWebsite(id) });
     };
     if (await pending) { toast('Saved'); viewWebsite(id); }
   }; });
@@ -113,5 +113,5 @@ async function viewWebsite(id) {
     toast(r.followups ? 'Your website is live, and its email follow-up is on' : 'Your website is live!'); viewWebsite(id);
   };
   const un = $('[data-unpublish]');
-  if (un) un.onclick = async () => { if (await confirmBox('Unpublish this website?', 'Visitors will see “not published yet”.', 'Unpublish')) { await api('POST', `/api/funnels/${id}/unpublish`); viewWebsite(id); } };
+  if (un) un.onclick = async () => { await api('POST', `/api/funnels/${id}/unpublish`); viewWebsite(id); undoToast('Website unpublished', async () => { await api('POST', `/api/funnels/${id}/publish`).catch((e) => toast(e.message, true)); viewWebsite(id); }); };
 }

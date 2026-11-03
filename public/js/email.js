@@ -22,7 +22,7 @@ async function viewEmail(tab) {
     viewEmail();
   }; });
   $$('[data-delb]').forEach((b) => { b.onclick = async () => {
-    if (await confirmBox('Delete draft?', 'This draft will be removed.')) { await api('DELETE', `/api/broadcasts/${b.dataset.delb}`); viewEmail(); }
+    deleteWithUndo('Draft deleted', { url: `/api/broadcasts/${b.dataset.delb}`, hide: hideEl(b.closest('article.bc')) });
   }; });
   $$('[data-view]').forEach((r) => { r.onclick = () => {
     const m = items.find((x) => x.id === Number(r.dataset.view));
@@ -44,7 +44,7 @@ const broadcastsHtml = (items) => (items.length ? `<div class="bc-list">${items.
         ${b.sent_count > b.opened ? `<a class="btn sm" href="#/email/new?segment=${encodeURIComponent(`bc_noopen:${b.id}`)}&from=${b.id}" title="Same email, new subject line, to people who didn’t open">${icon('refresh')} Resend to ${b.sent_count - b.opened} who didn’t open</a>` : ''}</div>`
       : `<div class="bc-actions"><a class="btn sm" href="#/email/${b.id}">Edit</a><button class="btn sm primary" data-send="${b.id}">Send</button>
         <button class="btn sm danger icon" data-delb="${b.id}" title="Delete draft" aria-label="Delete draft">${icon('trash')}</button></div>`}
-  </article>`).join('')}</div>` : `<div class="card empty"><div class="big">${icon('mail')}</div><h2>No emails yet</h2><p>Write your first email to your list.</p>
+  </article>`).join('')}</div>` : `<div class="card empty"><div class="big">${icon('mail')}</div><h2>No emails yet</h2><p>Start with one short note: some news, an offer or a useful tip. You’ll see a preview and can send yourself a test before it goes to anyone.</p>
     <a class="btn primary" href="#/email/new">${icon('plus')} New email</a></div>`);
 
 const outboxHtml = (items) => (items.length ? `<div class="card table-wrap"><table>

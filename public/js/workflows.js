@@ -247,17 +247,18 @@ function moveStep(key, parent, port) {
 }
 
 function deleteStep(key) {
+  const before = JSON.parse(JSON.stringify(wf.w.graph));
   const n = nodes()[key];
   const [p, pp] = parentOf(key);
   if (n.type === 'condition') {
     const lost = [...subtree(n.no)];
-    if (lost.length && !confirm(`Removing this split also removes the ${lost.length} step${lost.length === 1 ? '' : 's'} under “No”. The “Yes” path stays.`)) return;
     for (const k of lost) delete nodes()[k];
     nodes()[p][pp] = n.yes || null;
   } else nodes()[p][pp] = n.next || null;
   delete nodes()[key];
   wf.selected = p;
   changed();
+  undoToast(n.type === 'condition' ? 'Split removed (the “Yes” path stays)' : 'Step removed', () => { wf.w.graph = before; wf.selected = key; changed(); });
 }
 
 // Swap a step with the one above or below it in the same path (keyboard and touch friendly).

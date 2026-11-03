@@ -63,7 +63,7 @@ test('weekly move: picked for the focus lever, stable for the week, template dra
   assert.equal(m.status, 'proposed');
   assert.equal(m.count, 3); // the 3-day-old inquiry is too fresh; the unsubscribed one has no usable email
   assert.match(m.title, /^Follow up personally on 2 inquiries older than two weeks$|^Follow up personally on 3 inquiries/);
-  assert.match(m.reason, /You pinned Conversion/);
+  assert.match(m.reason, /You chose First sales/);
   assert.equal((await c('GET', '/api/moves/current')).body.campaign_id, m.campaign_id); // same move all week
   const tile = (await c('GET', '/api/tiles?ids=move')).body.move.data;
   assert.equal(tile.campaign_id, m.campaign_id);

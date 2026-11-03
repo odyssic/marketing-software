@@ -28,7 +28,7 @@ async function viewSetup() {
   const frame = (inner, { back = true } = {}) => {
     app.innerHTML = `<div class="setup"><div class="setup-card card">
       <div class="setup-top">${back && s.step > 1 && s.step < 4 ? `<button class="btn ghost sm" data-back>${icon('arrowRight')} Back</button>` : '<span></span>'}
-        <div class="dots" aria-label="Step ${s.step} of 4">${[1, 2, 3, 4].map((i) => `<i class="${i <= s.step ? 'on' : ''}"></i>`).join('')}</div>
+        <div class="dots" role="img" aria-label="Step ${s.step} of 4">${[1, 2, 3, 4].map((i) => `<i class="${i <= s.step ? 'on' : ''}"></i>`).join('')}</div>
         ${s.step < 4 ? '<a href="#/" class="muted small" data-skip>Skip for now</a>' : '<span></span>'}</div>${inner}</div></div>`;
     const bk = $('[data-back]'); if (bk) bk.onclick = () => { s.step--; render(); };
   };
