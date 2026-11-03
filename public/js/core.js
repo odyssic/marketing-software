@@ -80,7 +80,7 @@ async function renderAuth(mode) {
   mode = mode || (status.hasOwner ? 'link' : 'setup');
   const setup = mode === 'setup';
   app.innerHTML = `<div class="auth"><form class="card">
-    <div class="logo">${LOGO}${BRAND}</div>
+    <div class="logo">${LOGO_INK}</div>
     <p class="tagline">${TAGLINE}</p>
     <h1>${setup ? 'Set up your marketing home' : 'Welcome back'}</h1>
     <p class="muted">${setup ? 'One owner, about an hour a week. You’ll sign in with a link sent to this email.'
@@ -123,7 +123,9 @@ async function renderAuth(mode) {
 const BRAND = 'Rilly';
 const TAGLINE = 'Simple Marketing.';
 // Four squares, one per growth lever: lead gen, conversion, upsell, continuity.
-const LOGO = '<svg viewBox="0 0 32 32" aria-hidden="true"><rect x="2" y="2" width="28" height="28" rx="8" fill="#4f46e5"/><path d="M11.5 23V9h5.2c2.9 0 4.8 1.6 4.8 4.1 0 1.9-1.1 3.3-2.9 3.8L22 23" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+// Rilly lockups (public/brand): white text on the dark sidebar, ink text on light pages.
+const LOGO = '<img class="lockup" src="/brand/rilly-lockup-white.svg" alt="Rilly" width="96" height="33"><img class="mark" src="/brand/rilly-icon.svg" alt="Rilly" width="26" height="26">';
+const LOGO_INK = '<img class="lockup" src="/brand/rilly-lockup-ink.svg" alt="Rilly" width="102" height="35">';
 const NAV = [
   ['', icon('dashboard'), 'Dashboard'],
   ['pages', icon('page'), 'Pages'],
@@ -139,7 +141,7 @@ function shell(section, html) {
   const initials = (n) => n.split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase();
   app.innerHTML = `<div class="shell">
     <aside class="sidebar">
-      <div class="logo">${LOGO}${BRAND}</div>
+      <div class="logo">${LOGO}</div>
       <div class="acct-wrap"><button class="acct" data-acct aria-haspopup="menu" aria-expanded="false" title="Switch sub-account">
         <span class="av">${esc(initials(state.me.account.name))}</span><span class="nm">${esc(state.me.account.name)}</span><span class="car">${icon('chevronDown')}</span></button></div>
       <nav class="nav">${NAV.filter(([k]) => !(state.me.account.hidden_sections || []).includes(k)).map(([k, i, l]) => `<a href="#/${k}" class="${section === k ? 'active' : ''}"><span class="ico">${i}</span>${l}</a>`).join('')}</nav>

@@ -4,7 +4,7 @@
 // One map per workflow: a trigger, then waits, emails, yes/no splits and
 // actions. Email sequences are just email + wait steps on the map.
 const STEP_UI = {
-  trigger: { icon: icon('bolt'), label: 'Trigger', color: '#4f46e5' },
+  trigger: { icon: icon('bolt'), label: 'Trigger', color: '#1f7f78' },
   wait: { icon: icon('clock'), label: 'Wait', color: '#475569', hint: 'Pause for days or hours' },
   email: { icon: icon('mail'), label: 'Send email', color: '#475569', hint: 'An email in the sequence' },
   condition: { icon: icon('branch'), label: 'Yes / no split', color: '#475569', hint: 'Branch on what they did' },
