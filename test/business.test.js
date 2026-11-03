@@ -95,3 +95,41 @@ test('email designer: drafts are editable, tests do not count, preview text and 
   assert.deepEqual(out, ['Hello Ann', '[Test] Hello Eve']); // the test went only to the owner, and isn't counted
   assert.equal((await c('PUT', `/api/broadcasts/${id}`, { subject: 'x', body: 'y' })).status, 409); // sent ones are locked
 });
+
+test('segments from email behaviour: clicked, opened-no-click, no engagement, per-email; send to a segment; save as tag', async () => {
+  const c = client();
+  await c('POST', '/api/auth/signup', { name: 'Sid Owner', email: 'seg-owner@example.com', password: 'password123', workspace: 'Seg Co' });
+  for (const [e, n] of [['clicker@example.com', 'Cleo'], ['opener@example.com', 'Otto'], ['quiet@example.com', ''], ['never@example.com', 'Nev']]) {
+    await c('POST', '/api/contacts', { email: e, first_name: n });
+  }
+  const { id } = (await c('POST', '/api/broadcasts', { subject: 'Hi {{first_name}}', body: 'Hello {{first_name}}, see https://example.com/guide' })).body;
+  // Send to the "Never emailed" segment (all four, at this point).
+  await c('PUT', `/api/broadcasts/${id}`, { subject: 'Hi {{first_name}}', body: 'Hello {{first_name}}, see https://example.com/guide', segment: 'never_emailed' });
+  assert.equal((await c('GET', '/api/broadcasts/audience?segment=never_emailed')).body.count, 4);
+  await c('POST', `/api/broadcasts/${id}/send`);
+  const mail = (await c('GET', '/api/outbox')).body;
+  // No name → a sensible default, never "Hi ,".
+  assert.equal(mail.find((m) => m.to_email === 'quiet@example.com').subject, 'Hi there');
+  const token = (to) => app.messaging.sign(mail.find((m) => m.to_email === to).id);
+  await fetch(`${base}/t/o/${token('clicker@example.com')}.gif`);
+  await fetch(`${base}/t/c/${token('clicker@example.com')}?u=${encodeURIComponent('https://example.com/guide')}`, { redirect: 'manual' });
+  await fetch(`${base}/t/o/${token('opener@example.com')}.gif`);
+
+  const segs = Object.fromEntries((await c('GET', '/api/segments')).body.map((s) => [s.key, s]));
+  const who = async (key) => (await c('GET', `/api/contacts?segment=${encodeURIComponent(key)}`)).body.map((p) => p.email).sort();
+  assert.deepEqual(await who('clicked'), ['clicker@example.com']);
+  assert.deepEqual(await who('opened_no_click'), ['opener@example.com']);
+  assert.deepEqual(await who('engaged'), ['clicker@example.com', 'opener@example.com']);
+  assert.deepEqual(await who('never_emailed'), []);
+  assert.deepEqual(await who(`bc_noopen:${id}`), ['never@example.com', 'quiet@example.com']);
+  assert.deepEqual(await who(`bc_click:${id}`), ['clicker@example.com']);
+  assert.equal(segs.clicked.count, 1);
+  assert.ok(segs[`bc_noopen:${id}`].label.startsWith('Didn’t open'));
+  // "No engagement" needs emails older than 2 days, so it's empty right after a send.
+  assert.deepEqual(await who('unengaged'), []);
+  // Save a segment as a tag.
+  const t = (await c('POST', '/api/segments/tag', { segment: `bc_noopen:${id}`, tag: 'Resend-Spring' })).body;
+  assert.deepEqual(t, { tagged: 2, total: 2 });
+  assert.deepEqual((await c('GET', '/api/contacts?tag=resend-spring')).body.map((p) => p.email).sort(), ['never@example.com', 'quiet@example.com']);
+  assert.equal((await c('POST', '/api/segments/tag', { segment: 'bogus', tag: 'x' })).status, 400);
+});

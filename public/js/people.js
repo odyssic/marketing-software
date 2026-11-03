@@ -10,11 +10,12 @@ const addressLines = (c) => [c.address1, c.address2, [c.city, c.region].filter(B
 
 async function viewPeople() {
   const params = new URLSearchParams(location.hash.split('?')[1] || '');
-  const q = params.get('q') || '', tag = params.get('tag') || '', stage = params.get('stage') || '';
-  const [all, tags] = await Promise.all([api('GET', `/api/contacts?${new URLSearchParams({ q, tag })}`), api('GET', '/api/tags')]);
+  const q = params.get('q') || '', tag = params.get('tag') || '', stage = params.get('stage') || '', segment = params.get('segment') || '';
+  const [all, tags, segs] = await Promise.all([api('GET', `/api/contacts?${new URLSearchParams({ q, tag, segment })}`), api('GET', '/api/tags'), api('GET', '/api/segments').catch(() => [])]);
+  const seg = segs.find((s) => s.key === segment);
   const people = stage ? all.filter((c) => c.stage === stage) : all;
   const count = (s) => all.filter((c) => c.stage === s).length;
-  const link = (over) => `#/people?${new URLSearchParams({ q, tag, stage, ...over })}`;
+  const link = (over) => `#/people?${new URLSearchParams({ q, tag, stage, segment, ...over })}`;
   shell('people', `
     <div class="head"><div><h1>People</h1><div class="muted">One record per person: all your ${esc(state.me.account.people_word || 'people')}, leads and subscribers in one place.</div></div>
       <div class="row"><a class="btn" href="#/people/testimonials">${icon('quote')} Testimonials</a><a class="btn" href="/api/export.zip">${icon('download')} Export</a>
@@ -24,20 +25,34 @@ async function viewPeople() {
       ${STAGES.map(([k, l]) => `<a href="${link({ stage: k })}" class="${stage === k ? 'active' : ''} ${k}"><b>${count(k)}</b>${l}</a>`).join('<span class="arrow">→</span>')}
     </div>
     <div class="row" style="margin:14px 0"><input data-q placeholder="Search name, email, phone or city…" value="${esc(q)}" style="max-width:340px">
-      <select data-tag style="max-width:220px"><option value="">All tags</option>${tags.map((t) => `<option value="${esc(t.tag)}" ${t.tag === tag ? 'selected' : ''}>${esc(t.tag)} (${t.count})</option>`).join('')}</select></div>
+      <select data-tag style="max-width:220px"><option value="">All tags</option>${tags.map((t) => `<option value="${esc(t.tag)}" ${t.tag === tag ? 'selected' : ''}>${esc(t.tag)} (${t.count})</option>`).join('')}</select>
+      <select data-seg style="max-width:260px" aria-label="Email behaviour"><option value="">Any email behaviour</option>
+        ${[...new Set(segs.map((x) => x.group))].map((g) => `<optgroup label="${esc(g)}">${segs.filter((x) => x.group === g).map((x) => `<option value="${esc(x.key)}" ${x.key === segment ? 'selected' : ''}>${esc(x.label)} (${x.count})</option>`).join('')}</optgroup>`).join('')}</select></div>
+    ${seg ? `<div class="seg-bar card"><span>${icon('target')} <b>${esc(seg.label)}</b> <span class="muted small">${esc(seg.description)} · ${seg.count} ${seg.count === 1 ? 'person' : 'people'}</span></span>
+      <span class="row" style="gap:6px"><a class="btn sm primary" href="#/email/new?segment=${encodeURIComponent(seg.key)}">${icon('mail')} Email them</a><button class="btn sm" data-segtag>${icon('tag')} Save as tag</button>
+      <a class="btn sm" href="${link({ segment: '' })}">Clear</a></span></div>` : ''}
     ${people.length ? `<div class="card table-wrap"><table>
       <tr><th>Name</th><th>Email</th><th>Stage</th><th>City</th><th>Tags</th><th>First source</th><th>Added</th></tr>
       ${people.map((c) => `<tr class="click" data-go="#/people/${c.id}"><td><strong>${esc(personName(c))}</strong></td>
         <td>${esc(c.email) || '<span class="muted">no email</span>'} ${c.unsubscribed ? '<span class="pill warn">unsubscribed</span>' : ''}</td>
         <td>${stagePill(c.stage)}</td><td>${esc(c.city)}</td>
         <td>${tagsHtml(c.tags)}</td><td class="muted small">${esc(c.source)}</td><td class="muted small">${fmtDate(c.created_at)}</td></tr>`).join('')}
-    </table></div>` : `<div class="card empty"><div class="big">${icon('people')}</div><h2>${q || tag || stage ? 'No matches' : 'No people yet'}</h2>
-      <p>${q || tag || stage ? 'Try a different search.' : 'Upload a spreadsheet, paste a list or a photo of a sign-up sheet, or add someone by hand.'}</p>
-      ${q || tag || stage ? '' : '<button class="btn primary" data-leads>' + icon('plus') + ' Add leads</button>'}</div>`}`);
+    </table></div>` : `<div class="card empty"><div class="big">${icon('people')}</div><h2>${q || tag || stage || segment ? 'No matches' : 'No people yet'}</h2>
+      <p>${q || tag || stage || segment ? 'Try a different search.' : 'Upload a spreadsheet, paste a list or a photo of a sign-up sheet, or add someone by hand.'}</p>
+      ${q || tag || stage || segment ? '' : '<button class="btn primary" data-leads>' + icon('plus') + ' Add leads</button>'}</div>`}`);
   bindRowLinks();
   const go = () => { location.hash = link({ q: $('[data-q]').value, tag: $('[data-tag]').value }); };
   let t; $('[data-q]').oninput = () => { clearTimeout(t); t = setTimeout(go, 350); };
   $('[data-tag]').onchange = go;
+  $('[data-seg]').onchange = (e) => { location.hash = link({ segment: e.target.value }); };
+  const st = $('[data-segtag]');
+  if (st) st.onclick = async () => {
+    const v = await modal('Save this segment as a tag', `<p class="muted small">Tags everyone in “${esc(seg.label)}” now. Segments update as people open and click; a tag keeps today’s list, and can start a workflow.</p>
+      <label class="f">Tag<input name="tag" required value="${esc(seg.label.toLowerCase().replace(/[“”"’']/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40))}"></label>`, { submit: 'Save tag' });
+    if (!v) return;
+    try { const r = await api('POST', '/api/segments/tag', { segment: seg.key, tag: v.tag }); toast(`Tagged ${r.tagged} ${r.tagged === 1 ? 'person' : 'people'} “${v.tag.toLowerCase()}”`); viewPeople(); }
+    catch (err) { toast(err.message, true); }
+  };
   const qEl = $('[data-q]'); if (q) { qEl.focus(); qEl.setSelectionRange(q.length, q.length); }
   $$('[data-leads]').forEach((b) => { b.onclick = () => addLeads(viewPeople); });
   // The dashboard's "Add leads" link lands here with ?add=1.

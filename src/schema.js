@@ -354,6 +354,8 @@ ALTER TABLE accounts ADD COLUMN IF NOT EXISTS hidden_sections TEXT NOT NULL DEFA
 ALTER TABLE funnels ADD COLUMN IF NOT EXISTS purpose TEXT NOT NULL DEFAULT '';
 -- The grey line after the subject in the inbox list.
 ALTER TABLE broadcasts ADD COLUMN IF NOT EXISTS preheader TEXT NOT NULL DEFAULT '';
+-- Send to a behaviour segment (src/segments.js) instead of a tag.
+ALTER TABLE broadcasts ADD COLUMN IF NOT EXISTS segment TEXT NOT NULL DEFAULT '';
 -- Email tracking: which workflow or campaign sent it, and when it was opened or clicked.
 ALTER TABLE email_log ADD COLUMN IF NOT EXISTS workflow_id INT;
 ALTER TABLE email_log ADD COLUMN IF NOT EXISTS campaign_id INT;

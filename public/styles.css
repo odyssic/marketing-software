@@ -607,3 +607,7 @@ svg.rot90 { transform: rotate(90deg); }
 .ins-pop button { all: unset; display: flex; justify-content: space-between; gap: 12px; padding: 8px 10px; border-radius: 7px; cursor: pointer; font-size: .9rem; }
 .ins-pop button span { color: var(--muted); font-size: .78rem; }
 .ins-pop button.on, .ins-pop button:hover { background: var(--brand-soft); color: var(--brand); }
+
+/* People: active behaviour segment */
+.seg-bar { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 14px; margin: -4px 0 14px; background: var(--brand-soft); border-color: #a9dcd6; }
+.seg-bar svg { color: var(--brand); }

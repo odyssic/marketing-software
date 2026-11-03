@@ -23,6 +23,7 @@ const { registerUploads } = require('./uploads');
 const business = require('./business');
 const { registerBounces } = require('./bounces');
 const { rillyEmail } = require('./emailhtml');
+const segments = require('./segments');
 
 const slugify = (s) => String(s || '').toLowerCase().normalize('NFKD').replace(/[^\w\s-]/g, '')
   .trim().replace(/[\s_]+/g, '-').replace(/-+/g, '-').slice(0, 60) || 'page';
@@ -379,11 +380,36 @@ function createApp({ dbPath } = {}) {
     const q = `%${String(req.query.q || '').trim()}%`;
     const tag = String(req.query.tag || '').trim().toLowerCase();
     const stage = String(req.query.stage || '').trim();
+    const seg = String(req.query.segment || '');
+    const inSeg = segments.isSegment(seg) ? new Set(await segments.members(db, req.accountId, seg)) : null;
     const rows = (await db.all(`SELECT * FROM contacts WHERE account_id = ?
       AND (email ILIKE ? OR first_name ILIKE ? OR last_name ILIKE ? OR phone ILIKE ? OR city ILIKE ?)
       AND (? = '' OR stage = ?)
       ORDER BY id DESC LIMIT 1000`, req.accountId, q, q, q, q, q, stage, stage)).map(contactOut);
-    res.json(tag ? rows.filter((c) => c.tags.includes(tag)) : rows);
+    res.json(rows.filter((c) => (!tag || c.tags.includes(tag)) && (!inSeg || inSeg.has(c.id))));
+  });
+
+  // Segments from email behaviour, with live counts; any segment can be saved as a tag.
+  api.get('/segments', async (req, res) => res.json(await segments.list(db, req.accountId)));
+  api.post('/segments/tag', async (req, res) => {
+    const key = String(req.body?.segment || '');
+    const tag = String(req.body?.tag || '').trim().toLowerCase().slice(0, 60);
+    if (!segments.isSegment(key)) throw new HttpError(400, 'Unknown segment');
+    if (!tag) throw new HttpError(400, 'Name the tag');
+    const ids = await segments.members(db, req.accountId, key);
+    let added = 0;
+    await db.tx(async (t) => {
+      for (const cid of ids) {
+        const c = await t.get('SELECT tags FROM contacts WHERE id = ? AND account_id = ?', cid, req.accountId);
+        if (!c) continue;
+        const tags = JSON.parse(c.tags);
+        if (tags.includes(tag)) continue;
+        await t.run('UPDATE contacts SET tags = ? WHERE id = ?', JSON.stringify([...tags, tag]), cid);
+        await people.tagsAdded(t, req.accountId, cid, [tag]); // tag-triggered workflows start
+        added++;
+      }
+    });
+    res.json({ tagged: added, total: ids.length });
   });
 
   api.get('/contacts/export.csv', async (req, res) => {
@@ -972,8 +998,8 @@ function createApp({ dbPath } = {}) {
   });
   api.get('/broadcasts/audience', async (req, res) => {
     const tag = String(req.query.tag || '').trim().toLowerCase();
-    const rows = await db.all("SELECT tags FROM contacts WHERE account_id = ? AND unsubscribed = 0 AND email <> ''", req.accountId);
-    res.json({ count: rows.filter((c) => !tag || JSON.parse(c.tags).includes(tag)).length });
+    const segment = segments.isSegment(req.query.segment) ? String(req.query.segment) : '';
+    res.json({ count: (await audience(req.accountId, { tag, segment })).length });
   });
   api.get('/broadcasts/:id', async (req, res) => {
     const b = await db.get(`SELECT b.*, ${BROADCAST_STATS} FROM broadcasts b WHERE b.id = ? AND b.account_id = ?`, id(req.params.id), req.accountId);
@@ -981,20 +1007,27 @@ function createApp({ dbPath } = {}) {
     res.json(b);
   });
   const broadcastFields = (b = {}) => ({ subject: String(b.subject || '').trim().slice(0, 300), body: String(b.body || '').slice(0, 50000),
-    tag: String(b.tag || '').trim().toLowerCase(), preheader: String(b.preheader || '').trim().slice(0, 200) });
+    tag: String(b.tag || '').trim().toLowerCase(), preheader: String(b.preheader || '').trim().slice(0, 200),
+    segment: segments.isSegment(b.segment) ? String(b.segment) : '' });
+  // Who a broadcast goes to: a behaviour segment, a tag, or everyone emailable.
+  const audience = async (accountId, { tag = '', segment = '' }) => {
+    const rows = await db.all("SELECT * FROM contacts WHERE account_id = ? AND unsubscribed = 0 AND email <> ''", accountId);
+    if (segment) { const ids = new Set(await segments.members(db, accountId, segment)); return rows.filter((c) => ids.has(c.id)); }
+    return rows.filter((c) => !tag || JSON.parse(c.tags).includes(tag));
+  };
 
   api.post('/broadcasts', async (req, res) => {
     const v = broadcastFields(req.body);
     if (!v.subject || !v.body.trim()) throw new HttpError(400, 'Subject and message are required');
-    const r = await db.get('INSERT INTO broadcasts (account_id, subject, body, tag, preheader) VALUES (?, ?, ?, ?, ?) RETURNING id',
-      req.accountId, v.subject, v.body, v.tag, v.preheader);
+    const r = await db.get('INSERT INTO broadcasts (account_id, subject, body, tag, preheader, segment) VALUES (?, ?, ?, ?, ?, ?) RETURNING id',
+      req.accountId, v.subject, v.body, v.tag, v.preheader, v.segment);
     res.status(201).json({ id: r.id });
   });
   api.put('/broadcasts/:id', async (req, res) => {
     const v = broadcastFields(req.body);
     if (!v.subject || !v.body.trim()) throw new HttpError(400, 'Subject and message are required');
-    const r = await db.get("UPDATE broadcasts SET subject = ?, body = ?, tag = ?, preheader = ? WHERE id = ? AND account_id = ? AND status = 'draft' RETURNING id",
-      v.subject, v.body, v.tag, v.preheader, id(req.params.id), req.accountId);
+    const r = await db.get("UPDATE broadcasts SET subject = ?, body = ?, tag = ?, preheader = ?, segment = ? WHERE id = ? AND account_id = ? AND status = 'draft' RETURNING id",
+      v.subject, v.body, v.tag, v.preheader, v.segment, id(req.params.id), req.accountId);
     if (!r) throw new HttpError(409, 'Only drafts can be edited');
     res.json({ ok: true });
   });
@@ -1021,8 +1054,7 @@ function createApp({ dbPath } = {}) {
       throw exists ? new HttpError(409, 'This broadcast was already sent') : new HttpError(404, 'Broadcast not found');
     }
     const account = await db.get('SELECT * FROM accounts WHERE id = ?', req.accountId);
-    const recipients = (await db.all("SELECT * FROM contacts WHERE account_id = ? AND unsubscribed = 0 AND email <> ''", req.accountId))
-      .filter((c) => !b.tag || JSON.parse(c.tags).includes(b.tag));
+    const recipients = await audience(req.accountId, { tag: b.tag, segment: b.segment });
     let sent = 0;
     // Same sender as workflows and campaigns: merge fields, unsubscribe link, open/click tracking.
     for (const c of recipients) {

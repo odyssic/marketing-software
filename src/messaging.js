@@ -9,9 +9,11 @@ const escHtml = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;
 const GIF = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64');
 
 // {{first_name}}, {{first_name|there}} (with a fallback), {{last_name}}, {{email}}, {{business}}.
+// When a fill-in has no "|fallback" and we don't have the detail, use these.
+const DEFAULTS = { first_name: 'there', name: 'there' };
 function merge(text, person, account) {
   const values = { first_name: person.first_name, last_name: person.last_name, email: person.email, business: account?.name, name: [person.first_name, person.last_name].filter(Boolean).join(' ') };
-  return String(text || '').replace(/\{\{\s*(\w+)\s*(?:\|\s*([^}]*?)\s*)?\}\}/g, (m, k, fallback) => (k in values ? values[k] || fallback || '' : m));
+  return String(text || '').replace(/\{\{\s*(\w+)\s*(?:\|\s*([^}]*?)\s*)?\}\}/g, (m, k, fallback) => (k in values ? values[k] || fallback || DEFAULTS[k] || '' : m));
 }
 
 function createMessaging({ getDb, getSecret, publicBase, logEvent }) {

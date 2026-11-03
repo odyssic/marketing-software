@@ -3,7 +3,8 @@
 // ---------------- Email ----------------
 async function viewEmail(tab) {
   const outbox = tab === 'outbox', camps = tab === 'campaigns';
-  const [items, tags] = await Promise.all([api('GET', outbox ? '/api/outbox' : camps ? '/api/campaigns' : '/api/broadcasts'), api('GET', '/api/tags')]);
+  const [items, tags, segs] = await Promise.all([api('GET', outbox ? '/api/outbox' : camps ? '/api/campaigns' : '/api/broadcasts'), api('GET', '/api/tags'), api('GET', '/api/segments').catch(() => [])]);
+  SEG_LABELS = Object.fromEntries(segs.map((s) => [s.key, s.label]));
   shell('email', `
     <div class="head"><div><h1>Email</h1><div class="muted">Send newsletters and announcements to your contacts.</div></div>
       <button class="btn primary" data-compose>${icon('plus')} New email</button></div>
@@ -29,6 +30,7 @@ async function viewEmail(tab) {
   }; });
 }
 
+let SEG_LABELS = {};
 const readableMerge = (t) => String(t || '').replace(/\{\{\s*([a-z_]+)[^}]*\}\}/g, (_, k) => `[${k.replace(/_/g, ' ')}]`);
 const rate = (n, d) => (d ? `${Math.round((n / d) * 100)}%` : '—');
 const broadcastsHtml = (items) => (items.length ? `<div class="bc-list">${items.map((b) => `
@@ -37,7 +39,7 @@ const broadcastsHtml = (items) => (items.length ? `<div class="bc-list">${items.
       <span class="pill ${b.status === 'sent' ? 'ok' : b.status === 'sending' ? '' : 'warn'}">${b.status === 'draft' ? 'Draft' : b.status === 'sent' ? 'Sent' : 'Sending'}</span>
       <b class="bc-subj">${esc(readableMerge(b.subject))}</b>
       <span class="muted small bc-pre">${esc(readableMerge(b.preheader || b.body.replace(/\s+/g, ' ').slice(0, 110)))}</span>
-      <span class="muted small">${b.tag ? `To contacts tagged “${esc(b.tag)}”` : 'To everyone subscribed'}${b.sent_at ? ` · sent ${fmtDate(b.sent_at)}` : ` · edited ${fmtDate(b.created_at)}`}</span></a>
+      <span class="muted small">${b.segment ? `To segment “${esc(SEG_LABELS[b.segment] || b.segment)}”` : b.tag ? `To contacts tagged “${esc(b.tag)}”` : 'To everyone subscribed'}${b.sent_at ? ` · sent ${fmtDate(b.sent_at)}` : ` · edited ${fmtDate(b.created_at)}`}</span></a>
     ${b.status === 'sent' ? `<div class="bc-stats"><span><b>${b.sent_count}</b>sent</span><span><b>${rate(b.opened, b.sent_count)}</b>opened</span><span><b>${rate(b.clicked, b.sent_count)}</b>clicked</span></div>`
       : `<div class="bc-actions"><a class="btn sm" href="#/email/${b.id}">Edit</a><button class="btn sm primary" data-send="${b.id}">Send</button>
         <button class="btn sm danger icon" data-delb="${b.id}" title="Delete draft" aria-label="Delete draft">${icon('trash')}</button></div>`}
@@ -56,8 +58,11 @@ const outboxHtml = (items) => (items.length ? `<div class="card table-wrap"><tab
 // land in inboxes more often, so the design stays simple on purpose.
 async function viewCompose(bid) {
   const isNew = bid === 'new';
-  const [b, tags, people] = await Promise.all([isNew ? Promise.resolve({ subject: '', preheader: '', body: 'Hi {{first_name|there}},\n\n', tag: '', status: 'draft' }) : api('GET', `/api/broadcasts/${bid}`),
-    api('GET', '/api/tags'), api('GET', '/api/contacts').catch(() => [])]);
+  const preset = new URLSearchParams(location.hash.split('?')[1] || '').get('segment') || '';
+  const [b, tags, people, segs] = await Promise.all([isNew ? Promise.resolve({ subject: '', preheader: '', body: 'Hi {{first_name|there}},\n\n', tag: '', segment: preset, status: 'draft' }) : api('GET', `/api/broadcasts/${bid}`),
+    api('GET', '/api/tags'), api('GET', '/api/contacts').catch(() => []), api('GET', '/api/segments').catch(() => [])]);
+  const groups = [...new Set(segs.map((s) => s.group))];
+  const toVal = b.segment ? `seg:${b.segment}` : b.tag ? `tag:${b.tag}` : '';
   const locked = b.status !== 'draft';
   const acct = state.me.account;
   const sample = people.find((p) => p.first_name) || { first_name: 'Alex', last_name: 'Reader', email: 'alex@example.com' };
@@ -67,8 +72,9 @@ async function viewCompose(bid) {
         <span class="muted small" data-state>${locked ? `Sent ${fmtDate(b.sent_at)} to ${b.sent_count}` : isNew ? 'New email' : 'Draft'}</span>
         ${locked ? '' : `<span class="cmp-actions"><button class="btn sm" data-test>${icon('mail')} Send me a test</button><button class="btn sm" data-save>Save draft</button><button class="btn sm primary" data-sendnow>Send…</button></span>`}</div>
       <form class="cmp-form" data-form>
-        <label class="f">To<select name="tag" ${locked ? 'disabled' : ''}><option value="">Everyone subscribed</option>
-          ${tags.map((t) => `<option value="${esc(t.tag)}" ${t.tag === b.tag ? 'selected' : ''}>Contacts tagged “${esc(t.tag)}”</option>`).join('')}</select>
+        <label class="f">To<select name="to" ${locked ? 'disabled' : ''}><option value="">Everyone subscribed</option>
+          ${groups.map((g) => `<optgroup label="${esc(g)}">${segs.filter((s) => s.group === g).map((s) => `<option value="seg:${esc(s.key)}" ${toVal === `seg:${s.key}` ? 'selected' : ''}>${esc(s.label)} (${s.count})</option>`).join('')}</optgroup>`).join('')}
+          ${tags.length ? `<optgroup label="Tags">${tags.map((t) => `<option value="tag:${esc(t.tag)}" ${toVal === `tag:${t.tag}` ? 'selected' : ''}>Tagged “${esc(t.tag)}” (${t.count})</option>`).join('')}</optgroup>` : ''}</select>
           <span class="hint" data-count>Counting…</span></label>
         <div class="f"><span class="lbl-row">Subject <span class="hint" data-sublen></span>${locked ? '' : fieldSelect('subject')}</span><input name="subject" maxlength="300" value="${esc(b.subject)}" placeholder="A short, specific promise" ${locked ? 'disabled' : ''}></div>
         <div class="f"><span class="lbl-row">Preview text <span class="hint">the grey line after the subject in the inbox</span>${locked ? '' : fieldSelect('preheader')}</span><input name="preheader" maxlength="200" value="${esc(b.preheader || '')}" placeholder="Adds context so more people open" ${locked ? 'disabled' : ''}></div>
@@ -92,10 +98,11 @@ async function viewCompose(bid) {
     </div>`);
 
   const form = $('[data-form]');
-  const val = () => ({ subject: form.subject.value, preheader: form.preheader.value, body: form.body.value, tag: form.tag.value });
+  const toParts = () => { const [k, ...r] = form.to.value.split(':'); const v = r.join(':'); return { tag: k === 'tag' ? v : '', segment: k === 'seg' ? v : '' }; };
+  const val = () => ({ subject: form.subject.value, preheader: form.preheader.value, body: form.body.value, ...toParts() });
   const merge = (t) => String(t || '').replace(/\{\{\s*(\w+)\s*(?:\|\s*([^}]*?)\s*)?\}\}/g, (m, k, fb) => {
     const v = { first_name: sample.first_name, last_name: sample.last_name, email: sample.email, business: acct.name, name: [sample.first_name, sample.last_name].filter(Boolean).join(' ') };
-    return k in v ? v[k] || fb || '' : m;
+    return k in v ? v[k] || fb || ({ first_name: 'there', name: 'there' }[k] || '') : m;
   });
   const bodyHtml = (t) => esc(merge(t)).split(/\n{2,}/).filter((x) => x.trim()).map((para) => `<p>${para.replace(/\n/g, '<br>')
     .replace(/https?:\/\/[^\s<]+[^\s<.,;:!?)\]'"]/g, (u) => `<a href="${u}" target="_blank" rel="noopener">${u}</a>`)}</p>`).join('');
@@ -111,12 +118,14 @@ async function viewCompose(bid) {
     $('[data-sublen]').textContent = n ? `${n} characters${n > 60 ? ' · may be cut off on phones' : ''}` : '';
   };
   const count = async () => {
-    try { const r = await api('GET', `/api/broadcasts/audience?tag=${encodeURIComponent(form.tag.value)}`); $('[data-count]').textContent = `${r.count} ${r.count === 1 ? 'person' : 'people'} will get this`; }
+    const { tag, segment } = toParts();
+    const seg = segs.find((s) => s.key === segment);
+    try { const r = await api('GET', `/api/broadcasts/audience?${new URLSearchParams({ tag, segment })}`); $('[data-count]').textContent = `${r.count} ${r.count === 1 ? 'person' : 'people'} will get this${seg ? ` · ${seg.description}` : ''}`; }
     catch { $('[data-count]').textContent = ''; }
   };
   render(); count();
   form.addEventListener('input', () => { dirty = true; render(); });
-  form.tag.addEventListener('change', count);
+  form.to.addEventListener('change', count);
   $$('[data-dev]').forEach((btn) => { btn.onclick = () => {
     $$('[data-dev]').forEach((x) => x.classList.toggle('on', x === btn));
     $('[data-frame]').classList.toggle('phone', btn.dataset.dev === 'phone');
