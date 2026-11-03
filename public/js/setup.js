@@ -121,10 +121,10 @@ async function viewSetup() {
 function followupsHtml(r) {
   const ready = r.followups.filter((w) => w.ready), later = r.followups.filter((w) => !w.ready);
   const sample = (t) => esc(t.replace(/\{\{first_name\|?[^}]*\}\}/g, 'Sam').replace(/\{\{business\}\}/g, state.me.account.name));
-  return `<h2 class="section-h">What happens next</h2><div class="fu-list">
-    ${r.booking ? `<div class="fu on">${icon('check')}<span><b>Booking confirmations and reminders</b><span class="muted small">Sent for every booking, with a link to change the time.</span></span></div>` : ''}
-    ${ready.map((w) => `<label class="fu"><input type="checkbox" data-wf="${w.id}" checked><span><b>${esc(w.name)}</b>
+  return `<h2 class="section-h">What happens next</h2><div class="su-fu-list">
+    ${r.booking ? `<div class="su-fu on">${icon('check')}<span><b>Booking confirmations and reminders</b><span class="muted small">Sent for every booking, with a link to change the time.</span></span></div>` : ''}
+    ${ready.map((w) => `<label class="su-fu"><input type="checkbox" data-wf="${w.id}" checked><span><b>${esc(w.name)}</b>
       <span class="muted small">${w.emails} email${w.emails === 1 ? '' : 's'}${w.first ? `, starting “${sample(w.first)}”` : ''}</span></span></label>`).join('')}
-    ${!r.booking && !ready.length ? `<div class="fu on">${icon('check')}<span><b>You’ll hear about every new lead</b><span class="muted small">They show up in People and in your Monday summary.</span></span></div>` : ''}</div>
+    ${!r.booking && !ready.length ? `<div class="su-fu on">${icon('check')}<span><b>You’ll hear about every new lead</b><span class="muted small">They show up in People and in your Monday summary.</span></span></div>` : ''}</div>
     ${later.length ? `<p class="muted small" style="margin-top:10px">${later.length} more follow-up${later.length === 1 ? '' : 's'} (${esc(later.map((w) => w.name).join(', '))}) need a link or a few words from you. <a href="#/workflows">Finish them in Workflows</a> when you’re ready.</p>` : ''}`;
 }

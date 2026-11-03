@@ -734,11 +734,11 @@ input[name=when]:checked + .pill-opt { background: var(--brand); color: #fff; bo
 .setup-preview .bar i { width: 9px; height: 9px; border-radius: 50%; background: #d4dad9; }
 .setup-preview .bar span { margin-left: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .setup-preview iframe { width: 100%; height: 380px; border: 0; display: block; }
-.fu-list { display: grid; gap: 8px; }
-.fu { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; cursor: pointer; }
-.fu input { width: 20px; height: 20px; margin-top: 2px; accent-color: var(--brand); }
-.fu > span { display: grid; gap: 2px; }
-.fu.off { opacity: .75; cursor: default; }
+.su-fu-list { display: grid; gap: 8px; }
+.su-fu { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; cursor: pointer; }
+.su-fu input { width: 20px; height: 20px; margin-top: 2px; accent-color: var(--brand); }
+.su-fu > span { display: grid; gap: 2px; }
+.su-fu.off { opacity: .75; cursor: default; }
 .setup-actions { display: flex; gap: 10px; align-items: center; margin-top: 18px; }
 .setup-actions .btn.big { margin: 0; flex: 1; }
 .setup-done { text-align: center; padding: 12px 0; }
@@ -749,8 +749,8 @@ input[name=when]:checked + .pill-opt { background: var(--brand); color: #fff; bo
 @media (max-width: 560px) { .setup-card { padding: 20px; } .setup-actions { flex-direction: column-reverse; align-items: stretch; } .choice-grid { grid-template-columns: 1fr; } }
 .setup-nudge { display: flex; gap: 14px; align-items: center; justify-content: space-between; padding: 16px 18px; margin-bottom: 14px; border-color: var(--brand); background: var(--brand-soft); }
 @media (max-width: 560px) { .setup-nudge { flex-direction: column; align-items: stretch; } }
-.fu.on { cursor: default; }
-.fu.on > svg { width: 20px; height: 20px; color: var(--brand); flex: none; margin-top: 2px; }
+.su-fu.on { cursor: default; }
+.su-fu.on > svg { width: 20px; height: 20px; color: var(--brand); flex: none; margin-top: 2px; }
 .setup-extra .colors { grid-template-columns: 1fr 1fr; }
 .setup-extra .colors > label:nth-child(3) { grid-column: 1 / -1; }
 .choice:hover:not(.on) { background: #fff; }
@@ -763,4 +763,18 @@ input[type=checkbox], input[type=radio] { width: 20px; height: 20px; padding: 0;
 .pg-links a { display: inline-block; padding: 5px 4px; min-width: 24px; }
 .banner a { display: inline-block; padding: 4px 0; }
 summary { min-height: 24px; padding: 2px 0; cursor: pointer; }
-a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, summary:focus-visible, .choice:focus-visible, .fu:focus-within { outline: 3px solid #7cc8bf; outline-offset: 2px; }
+a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, summary:focus-visible, .choice:focus-visible, .su-fu:focus-within { outline: 3px solid #7cc8bf; outline-offset: 2px; }
+
+/* Funnel map: left to right, with follow-up emails on the links between pages */
+.node-in { top: 144px; left: -6px; margin: 0; }
+.fu-chip { position: absolute; transform: translate(-50%, -50%); z-index: 3; display: grid; gap: 6px; width: 176px; }
+.fu-chip.end { transform: translate(0, -50%); }
+.fu-card { display: grid; gap: 3px; text-align: left; background: #fff; border: 1.5px solid #b9e0db; border-radius: 10px; padding: 8px 10px; font: inherit; cursor: pointer; box-shadow: 0 2px 8px rgba(20,40,43,.08); color: var(--text); }
+.fu-card:hover { border-color: var(--brand); }
+.fu-card.off { border-style: dashed; border-color: var(--line); }
+.fc-t { display: flex; align-items: center; gap: 5px; font-size: .78rem; font-weight: 700; color: var(--brand); }
+.fc-t svg { width: 14px; height: 14px; }
+.fc-t i { font-style: normal; font-weight: 600; color: var(--muted); background: #f1f3f4; border-radius: 6px; padding: 0 5px; }
+.fc-r { font-size: .74rem; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fc-r b { color: var(--muted); font-weight: 600; margin-right: 3px; }
+.fu-wf.flash { box-shadow: 0 0 0 3px #7cc8bf; border-radius: 12px; transition: box-shadow .3s; }

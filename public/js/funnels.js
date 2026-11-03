@@ -66,8 +66,11 @@ async function newFunnel() {
 // Drag from an exit onto a card to link them, or into empty space to create
 // the next page right there.
 const NODE_W = 230;
-const COL_GAP = 60;
-const ROW_GAP = 90;
+// The map reads left to right, like the page strips on the Pages screen:
+// each step is a column; "No thanks" branches sit below. The gap between
+// columns leaves room for the follow-up emails that run in between.
+const COL_GAP = 210;
+const ROW_GAP = 60;
 const NODE_H = 300; // card height with its page picture
 const PORTS = { yes: { key: 'next_step_id', at: 0.27, label: '✓ Yes / Next' }, no: { key: 'no_step_id', at: 0.75, label: '✕ No thanks' } };
 
@@ -97,27 +100,27 @@ function tidyLayout(steps, entryId) {
     const owned = all.filter((k) => owner[k] === id && !pos[k]);
     let col;
     if (all.length === 2 && owned.length === 1) {
-      // One exit leads further down the tree (placed under another page), so
-      // give this page its own column and step the other branch to the side:
-      // "no" branches go right, "yes" branches go left.
+      // One exit leads further along (placed beside another page), so give
+      // this page its own row and step the other branch out of the way:
+      // "no" branches go below, "yes" branches stay on top.
       if (owned[0] === byId[id].no_step_id) { col = leaf++; place(owned[0]); } else { place(owned[0]); col = leaf++; }
     } else {
       const cols = owned.map(place);
       col = cols.length ? (Math.min(...cols) + Math.max(...cols)) / 2 : leaf++;
     }
-    pos[id] = { x: col * (NODE_W + COL_GAP), y: depth[id] * (NODE_H + ROW_GAP) };
+    pos[id] = { x: depth[id] * (NODE_W + COL_GAP), y: col * (NODE_H + ROW_GAP) };
     return col;
   };
   for (const r of roots) if (!pos[r] && owner[r] === null) place(r);
   // Centre pages reached from several parents between those parents, moving
-  // the pages hanging below them along, so links don't cut through cards.
-  const shift = (id, dx) => {
-    pos[id].x += dx;
-    for (const k of kids(id)) if (owner[k] === id) shift(k, dx);
+  // the pages after them along, so links don't cut through cards.
+  const shift = (id, dy) => {
+    pos[id].y += dy;
+    for (const k of kids(id)) if (owner[k] === id) shift(k, dy);
   };
   for (const id of Object.keys(pos).map(Number).sort((a, b) => depth[a] - depth[b])) {
     const parents = steps.filter((s) => s.id !== id && kids(s.id).includes(id) && depth[s.id] < depth[id]);
-    if (parents.length > 1) shift(id, parents.reduce((n, s) => n + pos[s.id].x, 0) / parents.length - pos[id].x);
+    if (parents.length > 1) shift(id, parents.reduce((n, s) => n + pos[s.id].y, 0) / parents.length - pos[id].y);
   }
   return pos;
 }
@@ -255,8 +258,45 @@ async function viewFunnel(id) {
     }
     return out;
   };
+  // Which page each follow-up hangs off: sign-up, inquiry and booking follow-ups after the
+  // page with the form or calendar, purchase follow-ups after the page that sells.
+  function placeFollowups(list) {
+    const ordered = [];
+    const ids = byId();
+    for (let s = ids[m.entry], guard = 0; s && guard < 50 && !ordered.includes(s); guard++) { ordered.push(s); s = ids[s.next_step_id]; }
+    const pages = [...ordered, ...m.steps.filter((s) => !ordered.includes(s))];
+    const has = (s, types) => s.blocks.some((b) => types.includes(b.type));
+    m.fuAt = {};
+    for (const w of list) {
+      const ev = w.graph.nodes[w.graph.root]?.config?.event;
+      const at = ev === 'purchase' ? pages.find((s) => has(s, ['pricing'])) : ['signup', 'inquiry', 'subscribe', 'booking'].includes(ev) ? pages.find((s) => has(s, ['form', 'booking'])) : null;
+      const page = at || pages[0];
+      if (page) (m.fuAt[page.id] = m.fuAt[page.id] || []).push(w);
+    }
+  }
+  // The emails a follow-up sends, as "Right away · Welcome", "Day 2 · The story behind…".
+  function followupChip(stepId) {
+    const list = m.fuAt?.[stepId];
+    if (!list?.length) return '';
+    return list.map((w) => {
+      let days = 0;
+      const rows = [];
+      for (const [, n] of chain(w)) {
+        if (n.type === 'wait') days += Number(n.config.days || 0) + Number(n.config.hours || 0) / 24;
+        if (n.type === 'email' || n.type === 'sms') rows.push([days < 0.5 ? 'Right away' : `Day ${Math.round(days)}`, n.type === 'sms' ? `Text: ${readable(n.config.body)}` : readable(n.config.subject) || 'Untitled email']);
+      }
+      if (!rows.length) return '';
+      const word = rows.some((r) => r[1].startsWith('Text:')) ? 'message' : 'email';
+      return `<button type="button" class="fu-card ${w.status === 'active' ? 'on' : 'off'}" data-fuopen="${w.id}" title="${w.status === 'active' ? 'Live' : 'Off'}: open this follow-up">
+        <span class="fc-t">${icon('mail')} ${rows.length} ${word}${rows.length === 1 ? '' : 's'} ${w.status === 'active' ? '' : '<i>off</i>'}</span>
+        ${rows.slice(0, 3).map(([d, t]) => `<span class="fc-r"><b>${esc(d)}</b> ${esc(t)}</span>`).join('')}
+        ${rows.length > 3 ? `<span class="fc-r muted">+ ${rows.length - 3} more</span>` : ''}</button>`;
+    }).join('');
+  }
   async function renderFollowups() {
     const list = await Promise.all((f.workflows || []).map((w) => api('GET', `/api/workflows/${w.id}`)));
+    placeFollowups(list);
+    renderEdges();
     $('[data-fucount]').textContent = `${list.length} workflow${list.length === 1 ? '' : 's'}`;
     $('[data-fulist]').innerHTML = `${list.map((w) => {
       const steps = chain(w);
@@ -272,7 +312,7 @@ async function viewFunnel(id) {
           const sent = n.type === 'email' ? Object.values(w.stats?.[k]?.outcomes || {}).reduce((a, b) => a + b, 0) : 0;
           return `${i ? `<button class="fu-add" data-fuadd="${w.id}:${steps[i - 1][0]}" title="Add a step here" aria-label="Add a step here">${icon('plus')}</button>` : ''}
             <a class="fu-step t-${n.type}" href="#/workflows/${w.id}" data-fustep="${w.id}:${k}">
-              <span class="fu-ico">${icon(FU_ICON[n.type] || 'bolt')}</span><span class="fu-t">${esc(t)}</span><span class="fu-d">${esc(readable(d))}</span>
+              <span class="fu-ico">${icon(FU_ICON[n.type] || 'bolt')}</span><span class="fc-t">${esc(t)}</span><span class="fu-d">${esc(readable(d))}</span>
               ${n.type === 'email' ? `<span class="fu-n">${sent} sent</span>` : ''}</a>`;
         }).join('')}
         ${canAppend ? `<button class="fu-add end" data-fuadd="${w.id}:${last[0]}" title="Add a step at the end">${icon('plus')} Add</button>` : ''}</div>
@@ -359,8 +399,12 @@ async function viewFunnel(id) {
       } catch { /* the card still works without its picture */ }
     }));
     // Older funnels were laid out for shorter cards: tidy once if any now overlap.
-    const overlap = m.steps.some((a) => m.steps.some((b) => a !== b && Math.abs(a.x - b.x) < NODE_W && b.y > a.y && b.y < a.y + (nodeEl(a.id)?.offsetHeight || NODE_H) + 20));
-    if (overlap) {
+    const hOf = (s) => nodeEl(s.id)?.offsetHeight || NODE_H;
+    const overlap = m.steps.some((a) => m.steps.some((b) => a !== b && Math.abs(a.x - b.x) < NODE_W + 20 && b.y >= a.y && b.y < a.y + hOf(a) + 20));
+    // Maps laid out top-to-bottom before the map turned sideways: lay them out again once.
+    const ids = byId();
+    const vertical = m.steps.some((s) => ids[s.next_step_id] && ids[s.next_step_id].y > s.y + hOf(s) * 0.6 && Math.abs(ids[s.next_step_id].x - s.x) < NODE_W);
+    if (overlap || vertical) {
       const pos = tidyLayout(m.steps, m.entry);
       m.steps.forEach((s) => Object.assign(s, pos[s.id]));
       renderNodes(); fit();
@@ -390,13 +434,17 @@ async function viewFunnel(id) {
   }
 
   const nodeEl = (sid) => $(`[data-node="${sid}"]`, nodesEl);
+  // "Yes / Next" leaves from the right side, "No thanks" from the bottom; links arrive on the left.
   const anchor = (s, port) => {
-    const h = nodeEl(s.id)?.offsetHeight || 170;
-    return port ? { x: s.x + NODE_W * PORTS[port].at, y: s.y + h } : { x: s.x + NODE_W / 2, y: s.y };
+    const h = nodeEl(s.id)?.offsetHeight || NODE_H;
+    if (port === 'yes') return { x: s.x + NODE_W, y: s.y + Math.min(h / 2, 150), dir: 'right' };
+    if (port === 'no') return { x: s.x + NODE_W * PORTS.no.at, y: s.y + h, dir: 'down' };
+    return { x: s.x, y: s.y + Math.min(h / 2, 150) };
   };
   const curve = (a, b) => {
-    const dy = Math.max(50, Math.abs(b.y - a.y) / 2);
-    return `M${a.x},${a.y} C${a.x},${a.y + dy} ${b.x},${b.y - dy} ${b.x},${b.y}`;
+    const dx = Math.max(60, Math.abs(b.x - a.x) / 2);
+    const c1 = a.dir === 'down' ? `${a.x},${a.y + Math.max(60, Math.abs(b.y - a.y) / 2)}` : `${a.x + dx},${a.y}`;
+    return `M${a.x},${a.y} C${c1} ${b.x - dx},${b.y} ${b.x},${b.y}`;
   };
 
   function renderEdges(temp) {
@@ -410,16 +458,31 @@ async function viewFunnel(id) {
         const a = anchor(s, p), b = anchor(t);
         html += `<path class="edge ${p}" d="${curve(a, b)}" marker-end="url(#arrow-${p})"/>`;
         const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
-        buttons += `<button class="edge-x" style="left:${mid.x}px;top:${mid.y}px" data-unlink="${s.id}:${p}" title="Remove this link">${icon('x')}</button>`;
+        const fu = p === 'yes' ? followupChip(s.id) : '';
+        buttons += `<button class="edge-x" style="left:${mid.x}px;top:${fu ? mid.y - 40 : mid.y}px" data-unlink="${s.id}:${p}" title="Remove this link">${icon('x')}</button>`;
         const metric = m.flow?.edges.find((e) => e.from === s.id && e.port === p);
-        if (metric && metric.visitors) buttons += `<span class="edge-lbl ${p}" style="left:${mid.x}px;top:${mid.y + 18}px">${esc(metric.plain)}</span>`;
+        if (metric && metric.visitors) buttons += `<span class="edge-lbl ${p}" style="left:${mid.x}px;top:${fu ? mid.y - 66 : mid.y + 18}px">${esc(metric.plain)}</span>`;
+        if (fu) buttons += `<div class="fu-chip" style="left:${mid.x}px;top:${mid.y}px">${fu}</div>`;
+      }
+      // Follow-ups after the last page sit just to its right.
+      if (!ids[s.next_step_id]) {
+        const fu = followupChip(s.id);
+        const a = anchor(s, 'yes');
+        if (fu) buttons += `<div class="fu-chip end" style="left:${a.x + 24}px;top:${a.y}px">${fu}</div>`;
       }
     }
     if (temp) html += `<path class="edge temp ${temp.port}" d="${curve(temp.a, temp.b)}"/>`;
     svg.innerHTML = `<defs>${['yes', 'no'].map((p) => `<marker id="arrow-${p}" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M0,0 L10,5 L0,10z" class="arrow ${p}"/></marker>`).join('')}</defs>${html}`;
-    $$('.edge-x, .edge-lbl', world).forEach((b) => b.remove());
+    $$('.edge-x, .edge-lbl, .fu-chip', world).forEach((b) => b.remove());
     world.insertAdjacentHTML('beforeend', buttons);
+    $$('.fu-chip [data-fuopen]', world).forEach((b) => { b.onclick = (e) => {
+      e.stopPropagation();
+      const d = $('[data-fu]'); d.open = true;
+      const card = $(`.fu-wf[data-wf="${b.dataset.fuopen}"]`) || d;
+      card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      card.classList.add('flash'); setTimeout(() => card.classList.remove('flash'), 1400);
+    }; });
   }
 
   const applyView = () => {
@@ -440,7 +503,7 @@ async function viewFunnel(id) {
   const fit = () => {
     if (!m.steps.length) { m.zoom = 1; m.panX = 40; m.panY = 40; return applyView(); }
     const xs = m.steps.map((s) => s.x), ys = m.steps.map((s) => s.y);
-    const w = Math.max(...xs) + NODE_W - Math.min(...xs), h = Math.max(...ys) + 200 - Math.min(...ys);
+    const w = Math.max(...xs) + NODE_W + (m.fuAt && Object.keys(m.fuAt).length ? 200 : 0) - Math.min(...xs), h = Math.max(...ys) + NODE_H - Math.min(...ys);
     m.zoom = Math.min(1, (mapEl.clientWidth - 80) / w, (mapEl.clientHeight - 110) / h);
     m.zoom = Math.max(0.3, m.zoom);
     m.panX = (mapEl.clientWidth - w * m.zoom) / 2 - Math.min(...xs) * m.zoom;
@@ -506,7 +569,7 @@ async function viewFunnel(id) {
     const key = PORTS[d.port].key;
     if (!d.moved) { // click on an exit
       renderEdges();
-      if (!d.s[key]) addPage({ x: d.s.x + (d.port === 'no' ? NODE_W + COL_GAP : 0), y: d.s.y + NODE_H + ROW_GAP }, d.s.id, d.port);
+      if (!d.s[key]) addPage({ x: d.s.x + NODE_W + COL_GAP, y: d.s.y + (d.port === 'no' ? NODE_H + ROW_GAP : 0) }, d.s.id, d.port);
       return;
     }
     const over = document.elementFromPoint(e.clientX, e.clientY)?.closest('[data-node]');
@@ -517,7 +580,7 @@ async function viewFunnel(id) {
     } else if (!over) {
       renderEdges();
       const w = toWorld(e);
-      addPage({ x: Math.round(w.x - NODE_W / 2), y: Math.round(w.y) }, d.s.id, d.port);
+      addPage({ x: Math.round(w.x), y: Math.round(w.y - 120) }, d.s.id, d.port);
     } else renderEdges();
   });
   mapEl.addEventListener('wheel', (e) => {
