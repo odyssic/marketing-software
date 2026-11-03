@@ -133,3 +133,25 @@ test('segments from email behaviour: clicked, opened-no-click, no engagement, pe
   assert.deepEqual((await c('GET', '/api/contacts?tag=resend-spring')).body.map((p) => p.email).sort(), ['never@example.com', 'quiet@example.com']);
   assert.equal((await c('POST', '/api/segments/tag', { segment: 'bogus', tag: 'x' })).status, 400);
 });
+
+test('lead magnet: the file or link on a form is emailed the moment someone signs up', async () => {
+  const c = client();
+  await c('POST', '/api/auth/signup', { name: 'Lou', email: 'lou@example.com', password: 'password123', workspace: 'Lou Co' });
+  const f = (await c('POST', '/api/funnels', { name: 'Guide', template: 'optin' })).body;
+  const step = (await c('GET', `/api/funnels/${f.id}`)).body.steps[0];
+  const blocks = step.blocks.map((b) => (b.type === 'form' ? { ...b, deliverUrl: 'https://example.com/care-guide.pdf', deliverName: 'the typewriter care guide' } : b));
+  await c('PUT', `/api/steps/${step.id}`, { name: step.name, blocks, settings: step.settings });
+  const funnel = (await c('GET', `/api/funnels/${f.id}`)).body;
+  const form = blocks.find((b) => b.type === 'form');
+  const r = await fetch(`${base}/f/${funnel.slug}/${step.slug}/optin`, { method: 'POST', redirect: 'manual', headers: { cookie: '', 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ block: form.id, email: 'reader@example.com', first_name: 'Rae' }) });
+  assert.ok([303, 404].includes(r.status)); // drafts aren't public; publish first
+  const pub = await c('POST', `/api/funnels/${f.id}/publish`);
+  assert.equal(pub.status, 200);
+  const sent = await fetch(`${base}/f/${funnel.slug}/${step.slug}/optin`, { method: 'POST', redirect: 'manual', headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ block: form.id, email: 'reader@example.com', first_name: 'Rae' }) });
+  assert.equal(sent.status, 303);
+  const m = (await c('GET', '/api/outbox')).body.find((x) => x.to_email === 'reader@example.com');
+  assert.equal(m.subject, 'Here’s the typewriter care guide');
+  assert.match(m.body, /Hi Rae,[\s\S]*https:\/\/example\.com\/care-guide\.pdf/);
+});

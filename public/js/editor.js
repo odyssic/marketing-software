@@ -33,7 +33,8 @@ const BLOCKS = {
     fields: [['purpose', 'select', 'What happens', ['Sign up', 'Newsletter', 'Inquiry', 'Review'], 'Sign up: a lead. Newsletter: also subscribes them. Inquiry: logs a request you should answer.'],
       ['newsletter', 'text', 'Newsletter name (for Newsletter forms)'],
       ['buttonLabel', 'text', 'Button text'], ['collectName', 'check', 'Ask for first name'], ['collectPhone', 'check', 'Ask for phone number'], ['smsOptIn', 'check', 'SMS updates (adds a mobile number and the required text-message consent)'], ['collectMessage', 'check', 'Ask for a message'],
-      ['tag', 'text', 'Tag new contacts with', null, 'Use tags to email this group later. Comma-separate for several.']] },
+      ['tag', 'text', 'Tag new contacts with', null, 'Use tags to email this group later. Comma-separate for several.'],
+      ['deliverUrl', 'file', 'Send them something (optional)'], ['deliverName', 'text', 'What it’s called in the email', null, 'e.g. the free typewriter care guide']] },
   cards: { label: 'Cards', icon: icon('cards'), defaults: { items: 'Service one | A short description\nService two | A short description\nService three | A short description' },
     fields: [['items', 'textarea', 'Cards (one per line: Title | description)']] },
   info: { label: 'Business info', icon: icon('info'), defaults: { hours: 'Mon–Fri 9am–5pm', address: '', phone: '', email: '' },
@@ -152,6 +153,14 @@ async function viewEditor(stepId) {
         <input type="text" ${attrs} value="${esc(v)}" placeholder="…or paste an image link (https://…)" style="margin-top:6px"></div>`;
     }
     // "Ask for email" is on unless switched off, including on older pricing cards.
+    if (kind === 'file') {
+      // A lead magnet: upload a PDF, or paste a link to a video, a Google Drive file, anything.
+      return `<div class="f">${label}<div class="dropzone ${v ? 'has' : ''}" data-filezone="${i}" tabindex="0" role="button" aria-label="Upload a PDF">
+        <span class="dz-ico">${icon(v ? 'check' : 'download')}</span>
+        <span class="dz-text"><b>${v ? (v.endsWith('.pdf') ? 'PDF ready. Replace it' : 'Link set. Replace with a PDF') : 'Drop a PDF here'}</b><span>emailed the moment they sign up</span></span>
+        <input type="file" accept="application/pdf" hidden data-filepick="${i}"></div>
+        <input type="url" ${attrs} value="${esc(v)}" placeholder="…or paste a link (video, Google Drive, Dropbox)" style="margin-top:6px"></div>`;
+    }
     if (kind === 'check') return `<label class="check"><input type="checkbox" ${attrs} ${(key === 'askEmail' ? b[key] !== false : v) ? 'checked' : ''}>${label}</label>`;
     if (kind === 'align') return `<div class="f">${label}<div class="aligns">${['left', 'center', 'right'].map((a) => `<button type="button" data-align="${i}:${a}" class="${(v || 'center') === a ? 'on' : ''}">${a}</button>`).join('')}</div></div>`;
     return `<label class="f">${label}${hint ? ` <span class="hint">${esc(hint)}</span>` : ''}<input type="${kind}" ${attrs} value="${esc(v)}"></label>`;
@@ -312,6 +321,23 @@ async function viewEditor(stepId) {
     e.preventDefault(); e.stopPropagation(); z.classList.remove('over');
     putPhoto(Number(z.dataset.photo), e.dataTransfer.files[0]);
   });
+  // Lead magnet files (PDF) on forms.
+  const putFile = async (i, file) => {
+    if (file.type !== 'application/pdf') { toast('Use a PDF, or paste a link instead', true); return; }
+    if (file.size > 4 * 1024 * 1024) { toast('That PDF is over 4 MB. Put it on Google Drive or Dropbox and paste the link instead', true); return; }
+    saved.textContent = 'Uploading…';
+    try {
+      const res = await fetch('/api/uploads', { method: 'POST', headers: { 'Content-Type': 'application/pdf' }, body: file });
+      const data = await res.json(); if (!res.ok) throw new Error(data.error || 'Upload failed');
+      ed.blocks[i].deliverUrl = data.url;
+      if (!ed.blocks[i].deliverName) ed.blocks[i].deliverName = `the ${file.name.replace(/\.pdf$/i, '').replace(/[-_]+/g, ' ')}`;
+      structural(); toast('PDF ready. It’ll be emailed to everyone who signs up');
+    } catch (err) { saved.textContent = 'Not saved'; toast(err.message, true); }
+  };
+  side.addEventListener('click', (e) => { const z = e.target.closest('[data-filezone]'); if (z && !e.target.closest('input')) side.querySelector(`[data-filepick="${z.dataset.filezone}"]`).click(); });
+  side.addEventListener('change', (e) => { const t = e.target; if (t.dataset.filepick && t.files[0]) putFile(Number(t.dataset.filepick), t.files[0]); });
+  side.addEventListener('dragover', (e) => { const z = e.target.closest?.('[data-filezone]'); if (z && e.dataTransfer.types.includes('Files')) { e.preventDefault(); z.classList.add('over'); } });
+  side.addEventListener('drop', (e) => { const z = e.target.closest?.('[data-filezone]'); if (!z || !e.dataTransfer.files.length) return; e.preventDefault(); e.stopPropagation(); z.classList.remove('over'); putFile(Number(z.dataset.filezone), e.dataTransfer.files[0]); });
   // A picture dropped anywhere else in the editor shouldn't open in the browser tab.
   window.ondragover = (e) => { if ($('.editor') && e.dataTransfer?.types.includes('Files')) e.preventDefault(); };
   window.ondrop = (e) => { if ($('.editor') && e.dataTransfer?.types.includes('Files')) e.preventDefault(); };

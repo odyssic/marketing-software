@@ -213,7 +213,7 @@ function createApp({ dbPath } = {}) {
     // Check the header, not req.is(): DELETEs have no body, and req.is() is null without one.
     // Photo uploads send the image itself; image/* also can't come from a cross-site form.
     const type = String(req.get('content-type') || '');
-    if (req.method === 'POST' && req.path === '/uploads' && type.startsWith('image/')) return next();
+    if (req.method === 'POST' && req.path === '/uploads' && (type.startsWith('image/') || type === 'application/pdf')) return next();
     if (req.method !== 'GET' && !type.startsWith('application/json')) {
       return res.status(415).json({ error: 'Expected application/json' });
     }
@@ -1258,6 +1258,16 @@ function createApp({ dbPath } = {}) {
     if (block.smsOptIn && req.body.sms_consent === '1') {
       await db.run('UPDATE contacts SET sms_consent_at = COALESCE(sms_consent_at, now()) WHERE id = ?', contact.id);
       await logEvent(db, funnel.account_id, { person_id: contact.id, type: 'subscribe', source: 'funnel', meta: { ...meta, format: 'sms', consent: 'Yes, text me updates. Msg & data rates may apply. Msg frequency varies. Reply STOP to opt out, HELP for help. Consent is not a condition of purchase.', ip: req.ip } });
+    }
+    // Lead magnet: what they signed up for arrives straight away.
+    if (block.deliverUrl && /^https?:\/\//i.test(block.deliverUrl)) {
+      const account = await db.get('SELECT * FROM accounts WHERE id = ?', funnel.account_id);
+      const what = String(block.deliverName || 'your free download').trim();
+      const first = String(req.body.first_name || '').trim() || 'there';
+      await messaging.sendTransactional({ account, to: String(req.body.email || '').trim().toLowerCase(), contactId: contact.id, subject: `Here’s ${what}`,
+        text: `Hi ${first},\n\nThanks for signing up. Here’s ${what}:\n${block.deliverUrl}\n\nEnjoy, and just reply if you have any questions.\n\n${account.from_name || account.name}` })
+        .catch((e) => console.error('lead magnet email:', e.message));
+      await logEvent(db, funnel.account_id, { person_id: contact.id, type: 'note', source: 'funnel', meta: { ...meta, note: `Sent ${what}` } }, { recompute: false });
     }
     await db.run("INSERT INTO page_events (account_id, funnel_id, step_id, type, contact_id, variant) VALUES (?, ?, ?, 'optin', ?, ?)",
       funnel.account_id, funnel.id, step.id, contact.id, variantFor(req, null, step));
