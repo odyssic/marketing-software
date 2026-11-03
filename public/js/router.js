@@ -8,6 +8,7 @@ async function route() {
   const [path] = location.hash.replace(/^#\/?/, '').split('?');
   const [section, id] = path.split('/');
   try {
+    if (section === 'setup') return viewSetup();
     if (section === 'funnels' && id === 'new') { await viewFunnels(); await newFunnel(); }
     else if (section === 'funnels' && id) await viewFunnel(id);
     else if (section === 'funnels') await viewFunnels();

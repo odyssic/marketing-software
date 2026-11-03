@@ -27,6 +27,7 @@ const segments = require('./segments');
 const { registerBookings } = require('./bookings');
 const attribution = require('./attribution');
 const { registerInvoices } = require('./invoices');
+const { registerSetup } = require('./setup');
 
 const slugify = (s) => String(s || '').toLowerCase().normalize('NFKD').replace(/[^\w\s-]/g, '')
   .trim().replace(/[\s_]+/g, '-').replace(/-+/g, '-').slice(0, 60) || 'page';
@@ -1155,6 +1156,7 @@ function createApp({ dbPath } = {}) {
   });
   registerDashboard(api, { getDb: () => db, HttpError, leversFor, formatMoney, getAccount, weeklyMove: (accountId) => moves.current(accountId) });
 
+  registerSetup(api, { getDb: () => db, HttpError, createFunnel, TEMPLATES, getAccount });
   const invoices = registerInvoices(app, api, { getDb: () => db, HttpError, id, upsertContact, messaging, publicBase, stripe, orderToken: (...a) => orderToken(...a),
     ownerViewing: (req, x) => ownerViewing(req, x) });
   // Booking calendar routes (registered before the API's not-found handler and the public page route).

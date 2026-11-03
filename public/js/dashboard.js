@@ -15,7 +15,8 @@ const dash = { lever: localStorage.getItem('dashLever') || 'all', customize: fal
 async function viewDashboard() {
   const keys = Object.keys(LEVER_UI);
   // All five layouts load up front, so switching levers is instant.
-  const [levers, ...layouts] = await Promise.all([api('GET', '/api/levers'), ...keys.map((k) => api('GET', `/api/layouts/${k}`))]);
+  const [levers, funnels, ...layouts] = await Promise.all([api('GET', '/api/levers'), api('GET', '/api/funnels').catch(() => null), ...keys.map((k) => api('GET', `/api/layouts/${k}`))]);
+  dash.noPages = Array.isArray(funnels) && !funnels.length;
   dash.levers = levers;
   keys.forEach((k, i) => { dash.layouts[k] = layouts[i].tiles; });
   dash.catalog = layouts[0].catalog;
@@ -33,6 +34,9 @@ function renderDashboard() {
     <div class="head"><div><h1>Hi ${esc(state.me.user.name.split(' ')[0])}</h1>
       <div class="muted">${esc(state.me.account.name)} · focus this week: <b style="color:${LEVER_UI[focus].color}">${esc(LEVER_UI[focus].label)}</b>${dash.levers.pinned ? ' (pinned)' : ''}</div></div>
       <button class="btn ${dash.customize ? 'primary' : ''}" data-customize>${dash.customize ? 'Done' : icon('gear') + ' Customize'}</button></div>
+    ${dash.noPages && !dash.customize ? `<div class="card setup-nudge"><div><b>Get your first page live in about two minutes</b>
+      <div class="muted small">Tell us what kind of business this is. We’ll build the page, booking hours and follow-ups.</div></div>
+      <a class="btn primary" href="#/setup">Set it up</a></div>` : ''}
     <div class="leverbar" role="tablist">${Object.entries(LEVER_UI).map(([k, l]) => `<button role="tab" aria-selected="${k === lv}" data-lever="${k}" style="--c:${l.color}" class="${k === lv ? 'on' : ''}"><i class="dot"></i>
       ${k !== 'all' && dash.levers.levers[k]?.score !== null && dash.levers.levers[k]?.score !== undefined ? `<span class="sc">${dash.levers.levers[k].score}</span>` : ''}${esc(l.label)}${k === focus ? ' <span class="focus-dot" title="Focus here">●</span>' : ''}</button>`).join('')}</div>
     ${dash.customize ? `<div class="tray"><span class="muted small">Hidden tiles:</span>

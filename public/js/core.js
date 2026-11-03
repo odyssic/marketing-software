@@ -16,7 +16,7 @@ async function api(method, url, body) {
   });
   const data = res.headers.get('content-type')?.includes('json') ? await res.json() : await res.text();
   if (res.status === 401 && !url.startsWith('/api/auth')) { state.me = null; renderAuth(); throw new Error('Please sign in'); }
-  if (!res.ok) throw new Error(data.error || 'Request failed');
+  if (!res.ok) throw Object.assign(new Error(data.error || 'Request failed'), { problems: data.problems });
   return data;
 }
 
@@ -125,7 +125,7 @@ async function renderAuth(mode) {
       if (!v.password) delete v.password;
       await api('POST', `/api/auth/${setup ? 'signup' : 'login'}`, v);
       state.me = await api('GET', '/api/me');
-      location.hash = '#/';
+      location.hash = setup ? '#/setup' : '#/';
       route();
     } catch (err) { $('.err').textContent = err.message; }
   };
