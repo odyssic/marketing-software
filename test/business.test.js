@@ -199,3 +199,24 @@ test('lead source tracking: first-touch source on visits, people and sales; per-
   assert.deepEqual([rows.Facebook.visitors, rows.Facebook.leads, rows.Facebook.rate], [1, 1, 100]);
   assert.deepEqual([rows.Google.visitors, rows.Google.leads], [1, 0]);
 });
+
+test('send later: a scheduled email goes out when its time comes, and can be cancelled', async () => {
+  process.env.ALLOW_TIME_TRAVEL = '1';
+  const c = client();
+  await c('POST', '/api/auth/signup', { name: 'Sky', email: 'sky@example.com', password: 'password123', workspace: 'Sky Co' });
+  await c('POST', '/api/contacts', { email: 'reader1@example.com', first_name: 'Rex' });
+  const { id } = (await c('POST', '/api/broadcasts', { subject: 'Hi {{first_name}}', body: 'Spring news' })).body;
+  assert.equal((await c('POST', `/api/broadcasts/${id}/schedule`, { at: '2001-01-01T00:00:00Z' })).status, 400);
+  const at = new Date(Date.now() + 3 * 3600e3).toISOString();
+  assert.equal((await c('POST', `/api/broadcasts/${id}/schedule`, { at })).status, 200);
+  assert.equal((await c('GET', `/api/broadcasts/${id}`)).body.status, 'scheduled');
+  assert.equal((await c('POST', '/api/jobs/run', { now: new Date(Date.now() + 3600e3).toISOString() })).body.scheduled_sent, 0);
+  assert.equal((await c('POST', '/api/jobs/run', { now: new Date(Date.now() + 4 * 3600e3).toISOString() })).body.scheduled_sent, 1);
+  assert.equal((await c('GET', `/api/broadcasts/${id}`)).body.status, 'sent');
+  // Cancelled before its time: back to a draft, nothing sent.
+  const two = (await c('POST', '/api/broadcasts', { subject: 'Later', body: 'x' })).body.id;
+  await c('POST', `/api/broadcasts/${two}/schedule`, { at });
+  await c('POST', `/api/broadcasts/${two}/unschedule`);
+  assert.equal((await c('POST', '/api/jobs/run', { now: new Date(Date.now() + 4 * 3600e3).toISOString() })).body.scheduled_sent, 0);
+  assert.equal((await c('GET', `/api/broadcasts/${two}`)).body.status, 'draft');
+});

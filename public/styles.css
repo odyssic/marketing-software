@@ -668,3 +668,16 @@ svg.rot90 { transform: rotate(90deg); }
 .wk-closed { display: none; padding-top: 6px; }
 .wk-day.off .wk-r, .wk-day.off [data-addr] { display: none; }
 .wk-day.off .wk-closed { display: inline; }
+
+/* Email: starters, checklist, send options */
+.starters { grid-column: 1 / -1; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.starter { display: inline-flex; gap: 6px; align-items: center; padding: 8px 13px; border: 1px solid var(--line); border-radius: 99px; background: #fff; font: inherit; font-size: .88rem; cursor: pointer; color: var(--text); min-height: 36px; }
+.starter:hover, .starter.on { border-color: var(--brand); color: var(--brand); background: var(--brand-soft); }
+.cmp-sched { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.cmp-check { padding: 12px 14px; display: grid; gap: 6px; font-size: .88rem; }
+.ck { display: flex; gap: 8px; align-items: flex-start; }
+.ck svg { flex: none; margin-top: 3px; }
+.ck.ok svg { color: var(--brand); } .ck.meh { color: var(--muted); } .ck.bad { color: #b45309; }
+.pill-opt { display: inline-block; padding: 7px 14px; border: 1px solid var(--line); border-radius: 99px; cursor: pointer; }
+input[name=when]:checked + .pill-opt { background: var(--brand); color: #fff; border-color: var(--brand); }
+.modal:has(input[name=when][value=now]:checked) [data-later] { display: none; }

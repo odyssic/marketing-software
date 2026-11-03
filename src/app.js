@@ -1046,7 +1046,7 @@ function createApp({ dbPath } = {}) {
   api.put('/broadcasts/:id', async (req, res) => {
     const v = broadcastFields(req.body);
     if (!v.subject || !v.body.trim()) throw new HttpError(400, 'Subject and message are required');
-    const r = await db.get("UPDATE broadcasts SET subject = ?, body = ?, tag = ?, preheader = ?, segment = ? WHERE id = ? AND account_id = ? AND status = 'draft' RETURNING id",
+    const r = await db.get("UPDATE broadcasts SET subject = ?, body = ?, tag = ?, preheader = ?, segment = ? WHERE id = ? AND account_id = ? AND status IN ('draft', 'scheduled') RETURNING id",
       v.subject, v.body, v.tag, v.preheader, v.segment, id(req.params.id), req.accountId);
     if (!r) throw new HttpError(409, 'Only drafts can be edited');
     res.json({ ok: true });
@@ -1061,20 +1061,14 @@ function createApp({ dbPath } = {}) {
   });
 
   api.delete('/broadcasts/:id', async (req, res) => {
-    await db.run("DELETE FROM broadcasts WHERE id = ? AND account_id = ? AND status = 'draft'", id(req.params.id), req.accountId);
+    await db.run("DELETE FROM broadcasts WHERE id = ? AND account_id = ? AND status IN ('draft', 'scheduled')", id(req.params.id), req.accountId);
     res.json({ ok: true });
   });
 
-  api.post('/broadcasts/:id/send', async (req, res) => {
-    // Claim the draft atomically so a double-click can't send it twice.
-    const b = await db.get(`UPDATE broadcasts SET status = 'sending' WHERE id = ? AND account_id = ? AND status = 'draft'
-      RETURNING *`, id(req.params.id), req.accountId);
-    if (!b) {
-      const exists = await db.get('SELECT 1 FROM broadcasts WHERE id = ? AND account_id = ?', id(req.params.id), req.accountId);
-      throw exists ? new HttpError(409, 'This broadcast was already sent') : new HttpError(404, 'Broadcast not found');
-    }
-    const account = await db.get('SELECT * FROM accounts WHERE id = ?', req.accountId);
-    const recipients = await audience(req.accountId, { tag: b.tag, segment: b.segment });
+  // Sends a claimed broadcast (status 'sending') to its audience.
+  async function deliverBroadcast(b) {
+    const account = await db.get('SELECT * FROM accounts WHERE id = ?', b.account_id);
+    const recipients = await audience(b.account_id, { tag: b.tag, segment: b.segment });
     let sent = 0;
     // Same sender as workflows and campaigns: merge fields, unsubscribe link, open/click tracking.
     for (const c of recipients) {
@@ -1082,7 +1076,31 @@ function createApp({ dbPath } = {}) {
       if (r.status === 'sent' || r.status === 'logged') sent++;
     }
     await db.run("UPDATE broadcasts SET status = 'sent', sent_count = ?, sent_at = now() WHERE id = ?", sent, b.id);
-    res.json({ sent, total: recipients.length });
+    return { sent, total: recipients.length };
+  }
+  api.post('/broadcasts/:id/send', async (req, res) => {
+    // Claim the draft atomically so a double-click can't send it twice.
+    const b = await db.get(`UPDATE broadcasts SET status = 'sending' WHERE id = ? AND account_id = ? AND status IN ('draft', 'scheduled')
+      RETURNING *`, id(req.params.id), req.accountId);
+    if (!b) {
+      const exists = await db.get('SELECT 1 FROM broadcasts WHERE id = ? AND account_id = ?', id(req.params.id), req.accountId);
+      throw exists ? new HttpError(409, 'This broadcast was already sent') : new HttpError(404, 'Broadcast not found');
+    }
+    res.json(await deliverBroadcast(b));
+  });
+  // Send later: the job runner sends it when the time comes; cancel turns it back into a draft.
+  api.post('/broadcasts/:id/schedule', async (req, res) => {
+    const at = new Date(String(req.body?.at || ''));
+    if (Number.isNaN(at.getTime()) || at.getTime() < Date.now() - 60e3) throw new HttpError(400, 'Pick a time in the future');
+    if (at.getTime() > Date.now() + 366 * 864e5) throw new HttpError(400, 'Pick a time within the next year');
+    const r = await db.get("UPDATE broadcasts SET status = 'scheduled', scheduled_at = ? WHERE id = ? AND account_id = ? AND status IN ('draft', 'scheduled') RETURNING id",
+      at.toISOString(), id(req.params.id), req.accountId);
+    if (!r) throw new HttpError(409, 'Only drafts can be scheduled');
+    res.json({ ok: true, scheduled_at: at.toISOString() });
+  });
+  api.post('/broadcasts/:id/unschedule', async (req, res) => {
+    await db.run("UPDATE broadcasts SET status = 'draft', scheduled_at = NULL WHERE id = ? AND account_id = ? AND status = 'scheduled'", id(req.params.id), req.accountId);
+    res.json({ ok: true });
   });
 
   api.get('/outbox', async (req, res) => {
@@ -1512,6 +1530,16 @@ ${order.status === 'paid' ? '<p>This order is already paid.</p>' : `<label>Name<
   // Abandoned checkouts: an hour after someone starts paying and doesn't finish,
   // one friendly email with a link back to the page. Never if they bought it
   // since, never twice, never to people who unsubscribed (sendToPerson checks).
+  async function sendScheduled(now = new Date()) {
+    const due = await db.all("SELECT id FROM broadcasts WHERE status = 'scheduled' AND scheduled_at <= ?", now.toISOString());
+    let sent = 0;
+    for (const { id: bid } of due) {
+      const b = await db.get("UPDATE broadcasts SET status = 'sending' WHERE id = ? AND status = 'scheduled' RETURNING *", bid);
+      if (b) sent += (await deliverBroadcast(b)).sent;
+    }
+    return { scheduled_sent: sent };
+  }
+
   async function recoverCheckouts(now = new Date()) {
     const due = await db.all(`SELECT o.*, f.slug AS funnel_slug, s.slug AS step_slug FROM orders o
         JOIN accounts a ON a.id = o.account_id AND a.recover_checkouts = 1
@@ -1566,7 +1594,7 @@ ${order.status === 'paid' ? '<p>This order is already paid.</p>' : `<label>Name<
   // the scheduled Netlify function.
   app.runJobs = async (now = new Date()) => {
     await init();
-    return { ...(await workflows.processDue({ now })), ...(await digest.sendDue(now)), ...(await bookings.sendReminders(now)), ...(await recoverCheckouts(now)), ...(await askForReviews(now)) };
+    return { ...(await workflows.processDue({ now })), ...(await digest.sendDue(now)), ...(await bookings.sendReminders(now)), ...(await recoverCheckouts(now)), ...(await askForReviews(now)), ...(await sendScheduled(now)) };
   };
   app.messaging = messaging; // for tests (signing tracking links)
 
