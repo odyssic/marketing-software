@@ -4,7 +4,12 @@
 // The app listens on a private local port inside the function and each
 // request is forwarded to it, so Express runs exactly as it does locally.
 import http from 'node:http';
-import appModule from '../../src/app.js';
+import { createRequire } from 'node:module';
+
+// Loaded with require (not import) so Netlify's bundler traces the app's
+// dependencies and ships node_modules alongside it.
+const require = createRequire(import.meta.url);
+const appModule = require('../../src/app.js');
 
 const server = http.createServer(appModule.createApp());
 const port = await new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve(server.address().port)));
