@@ -29,6 +29,18 @@ function toast(msg, bad = false) {
   toastTimer = setTimeout(() => { t.className = ''; }, 2600);
 }
 
+// "Done · Undo" instead of "Are you sure?": acts at once, one tap reverses it.
+function undoToast(msg, onUndo) {
+  toast(msg);
+  const t = $('#toast');
+  const b = document.createElement('button');
+  b.className = 'toast-undo'; b.textContent = 'Undo';
+  b.onclick = async () => { t.className = ''; clearTimeout(toastTimer); await onUndo(); };
+  t.append(' ', b);
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { t.className = ''; }, 6000);
+}
+
 const fmtDate = (s) => (s ? new Date(s).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '');
 const fullName = (c) => [c.first_name, c.last_name].filter(Boolean).join(' ');
 const tagsHtml = (tags) => tags.map((t) => `<span class="tag">${esc(t)}</span>`).join('');

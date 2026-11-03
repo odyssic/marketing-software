@@ -26,6 +26,7 @@ const { rillyEmail } = require('./emailhtml');
 const segments = require('./segments');
 const { registerBookings } = require('./bookings');
 const attribution = require('./attribution');
+const { registerInvoices } = require('./invoices');
 
 const slugify = (s) => String(s || '').toLowerCase().normalize('NFKD').replace(/[^\w\s-]/g, '')
   .trim().replace(/[\s_]+/g, '-').replace(/-+/g, '-').slice(0, 60) || 'page';
@@ -74,7 +75,7 @@ function createApp({ dbPath } = {}) {
     if (a) domainCache.set(host, { account: a, at: Date.now() });
     return a || null;
   };
-  const PASS = /^\/(t|s|u|b|hooks|checkout|stripe|unsubscribe|f)\//;
+  const PASS = /^\/(t|s|u|b|pay|hooks|checkout|stripe|unsubscribe|f)\//;
   app.use(async (req, res, next) => {
     let host = String(req.hostname || '').toLowerCase();
     let path = req.path;
@@ -181,9 +182,11 @@ function createApp({ dbPath } = {}) {
   // Marks an order paid and adds the buyer to contacts, tagged as a customer.
   // Idempotent: the success redirect and the Stripe webhook can both call it.
   async function fulfilOrder(order, { email, name = '', sessionId, customer = null, paymentMethod = null } = {}) {
+    let fresh = false;
     await db.tx(async (t) => {
       const cur = await t.get('SELECT status FROM orders WHERE id = ? FOR UPDATE', order.id);
       if (cur.status === 'paid') return;
+      fresh = true;
       const product = order.product_id && await t.get('SELECT * FROM products WHERE id = ?', order.product_id);
       const contact = await upsertContact(t, order.account_id, {
         email: email || order.email, first_name: name.split(' ')[0] || '',
@@ -205,6 +208,7 @@ function createApp({ dbPath } = {}) {
         if (osrc) await t.run("UPDATE contacts SET attribution = ? WHERE id = ? AND attribution = ''", order.attribution, contact.id);
       }
     });
+    if (fresh) await invoices.onOrderPaid(order).catch((e) => console.error('invoice paid:', e.message));
   }
 
   // ---------- API ----------
@@ -1151,6 +1155,8 @@ function createApp({ dbPath } = {}) {
   });
   registerDashboard(api, { getDb: () => db, HttpError, leversFor, formatMoney, getAccount, weeklyMove: (accountId) => moves.current(accountId) });
 
+  const invoices = registerInvoices(app, api, { getDb: () => db, HttpError, id, upsertContact, messaging, publicBase, stripe, orderToken: (...a) => orderToken(...a),
+    ownerViewing: (req, x) => ownerViewing(req, x) });
   // Booking calendar routes (registered before the API's not-found handler and the public page route).
   const bookings = registerBookings(app, api, { getDb: () => db, HttpError, id, upsertContact, logEvent, messaging, mailer, publicBase,
     ownerViewing: (...a) => ownerViewing(...a), findPublicStep: (...a) => findPublicStep(...a), attachSource: (...a) => attachSource(...a) });
@@ -1396,6 +1402,7 @@ function createApp({ dbPath } = {}) {
       }
     }
     rememberBuyer(req, res, order);
+    if (order.source === 'invoice') { const back = String(order.external_id || '').match(/^inv:(\d+):/) && await db.get('SELECT token FROM invoices WHERE id = ?', Number(order.external_id.split(':')[1])); if (back) return res.redirect(303, `/pay/${back.token}?paid=1`); }
     const next = order.step_id && await stepAfter(order.step_id);
     if (next) return res.redirect(303, next);
     messagePage(res, 200, `Thank you! Your purchase of ${order.product_name} is confirmed.`);
@@ -1453,11 +1460,11 @@ function createApp({ dbPath } = {}) {
 .c{background:#fff;border-radius:14px;padding:28px;max-width:420px;width:100%;box-shadow:0 10px 30px rgba(0,0,0,.08)}
 .t{background:#fef3c7;color:#92400e;padding:8px 12px;border-radius:8px;font-size:.85rem;margin-bottom:16px}
 input,button{width:100%;padding:12px;border-radius:8px;font:inherit;box-sizing:border-box;margin-top:8px}input{border:1px solid #d1d5db}
-button{background:#4f46e5;color:#fff;border:0;font-weight:600;cursor:pointer;margin-top:14px}.p{font-size:2rem;font-weight:800;margin:6px 0 14px}</style></head>
+button{background:#1f7f78;color:#fff;border:0;font-weight:600;cursor:pointer;margin-top:14px}.p{font-size:2rem;font-weight:800;margin:6px 0 14px}</style></head>
 <body><form class="c" method="post"><div class="t"><b>Test mode.</b> Stripe isn’t connected for this business yet, so no card is charged.</div>
 <div>${esc(order.product_name)}</div><div class="p">${esc(formatMoney(order.amount_cents, order.currency))}</div>
 ${order.status === 'paid' ? '<p>This order is already paid.</p>' : `<label>Name<input name="name" autocomplete="name"></label>
-<label>Email<input name="email" type="email" required autocomplete="email"></label><button>Complete test purchase</button>`}</form></body></html>`);
+<label>Email<input name="email" type="email" required autocomplete="email" value="${esc(order.email || '')}"></label><button>Complete test purchase</button>`}</form></body></html>`);
   });
   app.post('/checkout/test/:orderId/:token', express.urlencoded({ extended: false, limit: '5kb' }), async (req, res) => {
     const order = await testOrder(req);
@@ -1465,6 +1472,7 @@ ${order.status === 'paid' ? '<p>This order is already paid.</p>' : `<label>Name<
     if (!EMAIL_RE.test(String(req.body.email || '').trim())) return messagePage(res, 400, 'Please enter a valid email.', req.originalUrl);
     await fulfilOrder(order, { email: String(req.body.email).trim(), name: String(req.body.name || '').trim() });
     rememberBuyer(req, res, order);
+    if (order.source === 'invoice') { const back = String(order.external_id || '').match(/^inv:(\d+):/) && await db.get('SELECT token FROM invoices WHERE id = ?', Number(order.external_id.split(':')[1])); if (back) return res.redirect(303, `/pay/${back.token}?paid=1`); }
     const next = order.step_id && await stepAfter(order.step_id);
     if (next) return res.redirect(303, next);
     messagePage(res, 200, `Thank you! Your purchase of ${order.product_name} is confirmed.`);
@@ -1594,7 +1602,7 @@ ${order.status === 'paid' ? '<p>This order is already paid.</p>' : `<label>Name<
   // the scheduled Netlify function.
   app.runJobs = async (now = new Date()) => {
     await init();
-    return { ...(await workflows.processDue({ now })), ...(await digest.sendDue(now)), ...(await bookings.sendReminders(now)), ...(await recoverCheckouts(now)), ...(await askForReviews(now)), ...(await sendScheduled(now)) };
+    return { ...(await workflows.processDue({ now })), ...(await digest.sendDue(now)), ...(await bookings.sendReminders(now)), ...(await recoverCheckouts(now)), ...(await askForReviews(now)), ...(await sendScheduled(now)), ...(await invoices.remindOverdue(now)) };
   };
   app.messaging = messaging; // for tests (signing tracking links)
 
