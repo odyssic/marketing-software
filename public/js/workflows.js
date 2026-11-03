@@ -7,13 +7,14 @@ const STEP_UI = {
   trigger: { icon: icon('bolt'), label: 'Trigger', color: '#1f7f78' },
   wait: { icon: icon('clock'), label: 'Wait', color: '#475569', hint: 'Pause for days or hours' },
   email: { icon: icon('mail'), label: 'Send email', color: '#475569', hint: 'An email in the sequence' },
+  sms: { icon: icon('chat'), label: 'Send text', color: '#475569', hint: 'A text, to people who said yes to texts' },
   condition: { icon: icon('branch'), label: 'Yes / no split', color: '#475569', hint: 'Branch on what they did' },
   tag: { icon: icon('tag'), label: 'Tag', color: '#475569', hint: 'Add or remove tags' },
   subscribe: { icon: icon('inbox'), label: 'Subscribe', color: '#475569', hint: 'Add to a newsletter' },
   notify: { icon: icon('bell'), label: 'Notify me', color: '#475569', hint: 'Email you to follow up personally' },
   deal: { icon: icon('briefcase'), label: 'Create deal', color: '#475569', hint: 'Add to a pipeline' },
 };
-const PALETTE = ['email', 'wait', 'condition', 'tag', 'subscribe', 'notify', 'deal'];
+const PALETTE = ['email', 'sms', 'wait', 'condition', 'tag', 'subscribe', 'notify', 'deal'];
 const TRIGGER_UI = {
   signup: 'Signs up (any form or funnel)', purchase: 'Buys something', tag_added: 'Gets a tag', subscribe: 'Subscribes to a newsletter',
   inquiry: 'Sends an inquiry', silent: 'Goes quiet (no activity for a while)', manual: 'Added by hand',
@@ -128,6 +129,7 @@ function stepSummary(key) {
     }
     case 'wait': return `Wait ${c.days ? `${c.days} day${c.days === 1 ? '' : 's'}` : ''}${c.days && c.hours ? ' ' : ''}${c.hours ? `${c.hours} hour${c.hours === 1 ? '' : 's'}` : ''}${!c.days && !c.hours ? '0 days' : ''}`;
     case 'email': return prettyMerge(c.subject) || 'No subject yet';
+    case 'sms': return prettyMerge(c.body) || 'No message yet';
     case 'condition': return `${CONDITION_UI[c.check] || ''}${c.value ? ` “${c.value}”` : ''}`;
     case 'tag': return [c.add && `Add ${c.add}`, c.remove && `Remove ${c.remove}`].filter(Boolean).join(' · ') || 'Pick tags';
     case 'subscribe': return `Subscribe to ${c.product || 'Newsletter'}`;
@@ -212,7 +214,7 @@ function plusMenu(btn) {
 }
 
 const DEFAULT_CONFIG = {
-  wait: () => ({ days: 1, hours: 0 }), email: () => ({ subject: '', body: 'Hi {{first_name|there}},\n\n\n\n{{business}}' }),
+  wait: () => ({ days: 1, hours: 0 }), email: () => ({ subject: '', body: 'Hi {{first_name|there}},\n\n\n\n{{business}}' }), sms: () => ({ body: 'Hi {{first_name|there}}, it’s {{business}}. ' }),
   condition: () => ({ check: 'purchased_since', value: '' }), tag: () => ({ add: '', remove: '' }), subscribe: () => ({ product: 'Newsletter' }),
   notify: () => ({ message: '' }), deal: () => ({ pipeline_id: wf.pipelines[0]?.id || null, title: '{{name}}', value: 0 }),
 };
@@ -331,6 +333,11 @@ function renderInspector() {
         + `<div class="row" style="gap:4px;margin:-4px 0 10px">${['{{first_name|there}}', '{{last_name}}', '{{business}}'].map((t) => `<button class="chip" data-insert="${esc(t)}">${esc(t)}</button>`).join('')}</div>
         <p class="hint">An unsubscribe link is added automatically. Links are tracked so the map can branch on clicks.</p>
         <button class="btn sm" data-test>Send me a test</button>`;
+      break;
+    case 'sms':
+      body = field('Text message', `<textarea data-c="body" rows="4" maxlength="480">${esc(c.body)}</textarea>`, `${(c.body || '').length}/160 per text`)
+        + `<div class="row" style="gap:4px;margin:-4px 0 10px">${['{{first_name|there}}', '{{business}}'].map((t) => `<button class="chip" data-insert="${esc(t)}">${esc(t)}</button>`).join('')}</div>
+        <p class="hint">Only goes to people who ticked “text me” on a form or texted you first, and never after they reply STOP. Texts wait until 8am if it’s late at night. The first one adds “Reply STOP to opt out.”</p>`;
       break;
     case 'condition':
       body = field('Check', `<select data-c="check">${Object.entries(CONDITION_UI).map(([k, l]) => `<option value="${k}" ${c.check === k ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>`)

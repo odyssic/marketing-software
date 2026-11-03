@@ -63,6 +63,15 @@ addEventListener('pagehide', () => {
   pendingDeletes.clear();
 });
 
+// The Inbox badge: how many conversations are waiting for a reply.
+async function refreshUnread() {
+  try {
+    const { unread } = await api('GET', '/api/inbox/unread');
+    const b = $('[data-unread]');
+    if (b) { b.hidden = !unread; b.textContent = unread > 9 ? '9+' : String(unread); b.setAttribute('aria-label', `${unread} unread`); }
+  } catch { /* badge is optional */ }
+}
+
 const fmtDate = (s) => (s ? new Date(s).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '');
 const fullName = (c) => [c.first_name, c.last_name].filter(Boolean).join(' ');
 const tagsHtml = (tags) => tags.map((t) => `<span class="tag">${esc(t)}</span>`).join('');
@@ -162,6 +171,7 @@ const LOGO = '<img class="lockup" src="/brand/rilly-lockup-white.svg" alt="Rilly
 const LOGO_INK = '<img class="lockup" src="/brand/rilly-lockup-ink.svg" alt="Rilly" width="102" height="35">';
 const NAV = [
   ['', icon('dashboard'), 'Dashboard'],
+  ['inbox', icon('chat'), 'Inbox'],
   ['pages', icon('page'), 'Pages'],
   ['workflows', icon('bolt'), 'Workflows'],
   ['people', icon('people'), 'People'],
@@ -179,11 +189,12 @@ function shell(section, html) {
       <div class="logo">${LOGO}</div>
       <div class="acct-wrap"><button class="acct" data-acct aria-haspopup="menu" aria-expanded="false" title="Switch sub-account">
         <span class="av">${esc(initials(state.me.account.name))}</span><span class="nm">${esc(state.me.account.name)}</span><span class="car">${icon('chevronDown')}</span></button></div>
-      <nav class="nav">${NAV.filter(([k]) => !(state.me.account.hidden_sections || []).includes(k)).map(([k, i, l]) => `<a href="#/${k}" class="${section === k ? 'active' : ''}"><span class="ico">${i}</span>${l}</a>`).join('')}</nav>
+      <nav class="nav">${NAV.filter(([k]) => !(state.me.account.hidden_sections || []).includes(k)).map(([k, i, l]) => `<a href="#/${k}" class="${section === k ? 'active' : ''}"><span class="ico">${i}</span>${l}${k === 'inbox' ? '<span class="nav-badge" data-unread hidden></span>' : ''}</a>`).join('')}</nav>
       <div class="foot"><div class="muted">${esc(state.me.user.email)}</div><button data-logout>Sign out</button></div>
     </aside>
     <main class="main">${html}</main></div>`;
   $('[data-logout]').onclick = logout;
+  refreshUnread();
   $('[data-acct]').onclick = (e) => { e.stopPropagation(); accountMenu(e.currentTarget); };
 }
 async function logout() { await api('POST', '/api/auth/logout'); state.me = null; renderAuth(); }
