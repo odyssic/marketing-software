@@ -105,7 +105,8 @@ function createPeople({ getDb, HttpError, parseTags, id, formatMoney }) {
   const personOut = (c) => {
     let came = null;
     try { came = c.attribution ? JSON.parse(c.attribution) : null; } catch { /* ignore */ }
-    return { ...c, tags: JSON.parse(c.tags), unsubscribed: Boolean(c.unsubscribed), name: [c.first_name, c.last_name].filter(Boolean).join(' '), came_from: came };
+    const avatar_hash = c.email ? require('node:crypto').createHash('sha256').update(String(c.email).trim().toLowerCase()).digest('hex') : '';
+    return { ...c, tags: JSON.parse(c.tags), unsubscribed: Boolean(c.unsubscribed), name: [c.first_name, c.last_name].filter(Boolean).join(' '), came_from: came, avatar_hash };
   };
   const eventOut = (e) => ({ ...e, meta: JSON.parse(e.meta || '{}'), valueLabel: e.value_cents ? formatMoney(e.value_cents, 'usd') : '' });
   const getPerson = async (accountId, personId) => {

@@ -12,6 +12,7 @@ function viewSettings() {
       <label class="f">Sender name <span class="hint">what people see in their inbox</span><input name="from_name" value="${esc(a.from_name || '')}" placeholder="${esc(a.name)}"></label>
       <label class="f">Replies go to <span class="hint">your own email</span><input name="from_email" type="email" value="${esc(a.from_email || '')}"></label>
       <p class="muted small">${state.me.emailLive ? `Email is <b>connected</b>. Emails are sent from Rilly’s verified address under your sender name, and replies come straight to you.` : 'Email is in <b>test mode</b>: messages are saved to Email → Outbox but not delivered.'}</p>
+      <label class="check" style="margin:10px 0"><input type="checkbox" data-gravatar ${a.gravatar === 0 ? '' : 'checked'}> Show people’s public profile photos <span class="muted small">(from Gravatar, where they have one; looked up by a scrambled form of their email)</span></label>
       <div class="err"></div><button class="btn primary">Save settings</button>
     </form>
     <form class="card" style="max-width:560px;margin-top:16px" data-business>
@@ -86,6 +87,7 @@ function viewSettings() {
     try { await api('PUT', '/api/account/reviews', { review_url: f.review_url.value, after_booking: f.after_booking.checked, after_purchase: f.after_purchase.checked }); state.me = await api('GET', '/api/me'); toast(f.review_url.value ? 'Review requests on' : 'Saved'); }
     catch (err) { $('.err', f).textContent = err.message; }
   };
+  $('[data-gravatar]').onchange = async (e) => { await api('PUT', '/api/account/gravatar', { on: e.target.checked }); state.me = await api('GET', '/api/me'); toast(e.target.checked ? 'Profile photos on' : 'Profile photos off'); };
   $('[data-recover]').onchange = async (e) => { await api('PUT', '/api/account/recovery', { on: e.target.checked }); state.me = await api('GET', '/api/me'); toast(e.target.checked ? 'Checkout reminders on' : 'Checkout reminders off'); };
   const bizForm = $('[data-business]');
   // Picking a type suggests its usual sections; the boxes can still be changed.

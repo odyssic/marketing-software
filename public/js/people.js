@@ -8,6 +8,7 @@ const personName = (c) => fullName(c) || c.email || 'Unnamed';
 const addressLines = (c) => [c.address1, c.address2, [c.city, c.region].filter(Boolean).join(', ') + (c.postal ? ` ${c.postal}` : ''), c.country]
   .map((x) => String(x || '').trim()).filter(Boolean);
 
+const peopleView = () => { try { return localStorage.getItem('rilly.peopleView') || 'cards'; } catch { return 'cards'; } };
 async function viewPeople() {
   const params = new URLSearchParams(location.hash.split('?')[1] || '');
   const q = params.get('q') || '', tag = params.get('tag') || '', stage = params.get('stage') || '', segment = params.get('segment') || '';
@@ -26,14 +27,22 @@ async function viewPeople() {
     </div>
     <div class="row" style="margin:14px 0"><input data-q placeholder="Search name, email, phone or city…" value="${esc(q)}" style="max-width:340px">
       <select data-tag style="max-width:220px"><option value="">All tags</option>${tags.map((t) => `<option value="${esc(t.tag)}" ${t.tag === tag ? 'selected' : ''}>${esc(t.tag)} (${t.count})</option>`).join('')}</select>
+      <span class="seg pv-toggle" role="group" aria-label="Show as"><button type="button" data-pv="cards" class="${peopleView() === 'cards' ? 'on' : ''}">Cards</button><button type="button" data-pv="list" class="${peopleView() === 'list' ? 'on' : ''}">List</button></span>
       <select data-seg style="max-width:260px" aria-label="Email behaviour"><option value="">Any email behaviour</option>
         ${[...new Set(segs.map((x) => x.group))].map((g) => `<optgroup label="${esc(g)}">${segs.filter((x) => x.group === g).map((x) => `<option value="${esc(x.key)}" ${x.key === segment ? 'selected' : ''}>${esc(x.label)} (${x.count})</option>`).join('')}</optgroup>`).join('')}</select></div>
     ${seg ? `<div class="seg-bar card"><span>${icon('target')} <b>${esc(seg.label)}</b> <span class="muted small">${esc(seg.description)} · ${seg.count} ${seg.count === 1 ? 'person' : 'people'}</span></span>
       <span class="row" style="gap:6px"><a class="btn sm primary" href="#/email/new?segment=${encodeURIComponent(seg.key)}">${icon('mail')} Email them</a><button class="btn sm" data-segtag>${icon('tag')} Save as tag</button>
       <a class="btn sm" href="${link({ segment: '' })}">Clear</a></span></div>` : ''}
-    ${people.length ? `<div class="card table-wrap"><table>
+    ${people.length && peopleView() === 'cards' ? `<div class="pcards">${people.map((c) => `<a class="pcard" href="#/people/${c.id}">
+        ${avatarHtml(c, 56)}
+        <b class="pc-name">${esc(personName(c))}</b>
+        <span class="pc-sub">${esc(c.email || c.phone || 'no email')}</span>
+        <span class="pc-row">${stagePill(c.stage)}${c.unsubscribed ? '<span class="pill warn">unsubscribed</span>' : ''}</span>
+        <span class="pc-meta">${[c.came_from?.source, c.city].filter(Boolean).map(esc).join(' · ') || '&nbsp;'}</span>
+      </a>`).join('')}</div>`
+    : people.length ? `<div class="card table-wrap"><table>
       <tr><th>Name</th><th>Email</th><th>Stage</th><th>City</th><th>Tags</th><th>First source</th><th>Added</th></tr>
-      ${people.map((c) => `<tr class="click" data-go="#/people/${c.id}"><td><strong>${esc(personName(c))}</strong></td>
+      ${people.map((c) => `<tr class="click" data-go="#/people/${c.id}"><td><span class="row" style="gap:10px;flex-wrap:nowrap">${avatarHtml(c, 30)}<strong>${esc(personName(c))}</strong></span></td>
         <td>${esc(c.email) || '<span class="muted">no email</span>'} ${c.unsubscribed ? '<span class="pill warn">unsubscribed</span>' : ''}</td>
         <td>${stagePill(c.stage)}</td><td>${esc(c.city)}</td>
         <td>${tagsHtml(c.tags)}</td><td class="muted small">${esc(c.source)}</td><td class="muted small">${fmtDate(c.created_at)}</td></tr>`).join('')}
@@ -45,6 +54,7 @@ async function viewPeople() {
   let t; $('[data-q]').oninput = () => { clearTimeout(t); t = setTimeout(go, 350); };
   $('[data-tag]').onchange = go;
   $('[data-seg]').onchange = (e) => { location.hash = link({ segment: e.target.value }); };
+  $$('[data-pv]').forEach((b) => { b.onclick = () => { try { localStorage.setItem('rilly.peopleView', b.dataset.pv); } catch { /* private mode */ } viewPeople(); }; });
   const st = $('[data-segtag]');
   if (st) st.onclick = async () => {
     const v = await modal('Save this segment as a tag', `<p class="muted small">Tags everyone in “${esc(seg.label)}” now. Segments update as people open and click; a tag keeps today’s list, and can start a workflow.</p>
@@ -83,7 +93,8 @@ async function viewPerson(personId) {
   const addr = addressLines(p);
   shell('people', `
     <div class="head"><div><a href="#/people" class="small">← People</a>
-      <h1 style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">${esc(personName(p))} ${stagePill(p.stage)}</h1>
+      <h1 style="display:flex;align-items:center;gap:14px;flex-wrap:wrap"><button type="button" class="av-btn" data-photo title="Add or change their photo" aria-label="Add or change their photo">${avatarHtml(p, 64)}<span class="av-edit">${icon('camera')}</span></button>${esc(personName(p))} ${stagePill(p.stage)}</h1>
+      <input type="file" accept="image/*" hidden data-photofile>
       <div class="muted">${[p.email && esc(p.email), p.phone && esc(p.phone), p.came_from ? `came from <b>${esc(p.came_from.source)}</b>${p.came_from.campaign ? ` · “${esc(p.came_from.campaign)}”` : ''}` : `first came from <b>${esc(p.source)}</b>`, `added ${fmtDate(p.created_at)}`].filter(Boolean).join(' · ')}</div></div>
       <div class="row"><button class="btn" data-log>+ Log activity</button><button class="btn" data-addt>${icon('quote')} Add testimonial</button><button class="btn" data-edit>Edit</button></div></div>
     <div class="flowline">${STAGES.map(([k, l]) => `<div class="${k} ${STAGES.findIndex((s) => s[0] === k) <= STAGES.findIndex((s) => s[0] === p.stage) ? 'on' : ''}">${esc(l.replace(/s$/, ''))}</div>`).join('')}</div>
@@ -153,6 +164,14 @@ async function viewPerson(personId) {
   $$('[data-substatus]').forEach((b) => { b.onclick = async () => {
     await api('PUT', `/api/subscriptions/${b.dataset.substatus}`, { status: b.dataset.to }); toast('Updated'); viewPerson(p.id);
   }; });
+  // Their photo: click or drop a picture on the circle.
+  const pb = $('[data-photo]'), pf = $('[data-photofile]');
+  const setPhoto = async (file) => { try { const url = await uploadImage(file); await api('PUT', `/api/contacts/${p.id}`, { photo_url: url }); toast('Photo added'); viewPerson(p.id); } catch (err) { toast(err.message, true); } };
+  if (pb) {
+    pb.onclick = () => pf.click(); pf.onchange = () => pf.files[0] && setPhoto(pf.files[0]);
+    pb.ondragover = (e) => { e.preventDefault(); pb.classList.add('over'); }; pb.ondragleave = () => pb.classList.remove('over');
+    pb.ondrop = (e) => { e.preventDefault(); pb.classList.remove('over'); if (e.dataTransfer.files[0]) setPhoto(e.dataTransfer.files[0]); };
+  }
 }
 const fmtMoney = (cents, currency = 'usd') => new Intl.NumberFormat('en-US', { style: 'currency', currency: currency.toUpperCase(), minimumFractionDigits: cents % 100 ? 2 : 0 }).format((cents || 0) / 100);
 

@@ -458,6 +458,11 @@ function createApp({ dbPath } = {}) {
         ${ADDRESS.map((k) => `${k} = ?`).join(', ')} WHERE id = ?`, email, val('first_name'), val('last_name'),
       val('phone'), JSON.stringify(b.tags !== undefined ? parseTags(b.tags) : JSON.parse(c.tags)),
       b.unsubscribed !== undefined ? Number(Boolean(b.unsubscribed)) : c.unsubscribed, ...ADDRESS.map(val), c.id);
+      if (b.photo_url !== undefined) {
+        const url = String(b.photo_url || '').trim();
+        if (url && !/^https?:\/\//i.test(url)) throw new HttpError(400, 'Use an uploaded photo or a web link');
+        await db.run('UPDATE contacts SET photo_url = ? WHERE id = ?', url.slice(0, 500), c.id);
+      }
     } catch (e) {
       if (isUniqueViolation(e)) throw new HttpError(409, 'Another person already uses this email');
       throw e;
@@ -1104,6 +1109,10 @@ function createApp({ dbPath } = {}) {
     if (url && !/^https:\/\/[^\s]+$/i.test(url)) throw new HttpError(400, 'Paste the full review link, starting with https://');
     await db.run('UPDATE accounts SET review_url = ?, review_after_booking = ?, review_after_purchase = ? WHERE id = ?',
       url.slice(0, 500), req.body?.after_booking === false ? 0 : 1, req.body?.after_purchase === false ? 0 : 1, req.accountId);
+    res.json({ ok: true });
+  });
+  api.put('/account/gravatar', async (req, res) => {
+    await db.run('UPDATE accounts SET gravatar = ? WHERE id = ?', req.body?.on ? 1 : 0, req.accountId);
     res.json({ ok: true });
   });
   api.put('/account/recovery', async (req, res) => {
