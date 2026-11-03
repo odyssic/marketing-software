@@ -23,9 +23,8 @@ function createMessaging({ getDb, getSecret, publicBase, logEvent }) {
     return token.length === expected.length && crypto.timingSafeEqual(Buffer.from(token), Buffer.from(expected)) ? Number(idPart) : null;
   };
   const unsubToken = (contactId) => `${contactId}.${crypto.createHmac('sha256', getSecret()).update(`unsub:${contactId}`).digest('hex').slice(0, 24)}`;
-  const fromFor = (account) => (account.from_email
-    ? `"${String(account.from_name || account.name).replace(/"/g, '')}" <${account.from_email}>`
-    : process.env.SMTP_FROM || 'no-reply@localhost');
+  // The business's name on the verified sending address; replies go to the owner.
+  const fromFor = (account) => mailer.senderFor({ name: account.from_name || account.name, replyTo: account.from_email });
 
   // Plain text in, plain text + simple HTML out. Links are rewritten through
   // the click tracker; a 1px image records opens.
@@ -52,7 +51,9 @@ function createMessaging({ getDb, getSecret, publicBase, logEvent }) {
       VALUES (?, ?, ?, ?, ?, ?, 'queued', ?, ?) RETURNING id`, account.id, broadcastId, person.id, person.email, subj, text, workflowId, campaignId);
     const html = toHtml(text, sign(row.id), base);
     try {
-      const r = await mailer.sendEmail({ from: fromFor(account), to: person.email, subject: subj, text, html });
+      // One-click unsubscribe headers (required by Gmail and Yahoo for bulk senders).
+      const headers = { 'List-Unsubscribe': `<${unsub}>`, 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' };
+      const r = await mailer.sendEmail({ ...fromFor(account), to: person.email, subject: subj, text, html, headers });
       await db.run('UPDATE email_log SET status = ? WHERE id = ?', r.status, row.id);
       return { status: r.status, emailId: row.id };
     } catch (e) {
@@ -66,7 +67,7 @@ function createMessaging({ getDb, getSecret, publicBase, logEvent }) {
     const to = account.from_email || (await getDb().get(`SELECT u.email FROM memberships m JOIN users u ON u.id = m.user_id
       WHERE m.account_id = ? ORDER BY m.user_id LIMIT 1`, account.id))?.email;
     if (!to) return { status: 'skipped', reason: 'no owner email' };
-    const r = await mailer.sendEmail({ from: process.env.SMTP_FROM || fromFor(account), to, subject, text: body });
+    const r = await mailer.sendEmail({ ...mailer.senderFor({ name: 'Rilly' }), to, subject, text: body });
     await getDb().run(`INSERT INTO email_log (account_id, to_email, subject, body, status) VALUES (?, ?, ?, ?, ?)`, account.id, to, subject, body, r.status);
     return r;
   }

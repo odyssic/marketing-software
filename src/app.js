@@ -280,7 +280,7 @@ function createApp({ dbPath } = {}) {
         crypto.createHash('sha256').update(token).digest('hex'), user.id);
       const link = `${baseUrl(req)}/auth/magic/${token}`;
       await mailer.sendEmail({
-        from: process.env.SMTP_FROM || 'no-reply@localhost', to: email, subject: 'Your sign-in link',
+        ...mailer.senderFor({ name: 'Rilly' }), to: email, subject: 'Your sign-in link',
         text: `Hi ${user.name.split(' ')[0]},\n\nClick to sign in (the link works once, for 15 minutes):\n${link}\n\nIf you didn’t ask for this, ignore this email.`,
       });
       // With no email provider (local development) the link is shown on screen instead.
@@ -1308,6 +1308,16 @@ ${order.status === 'paid' ? '<p>This order is already paid.</p>' : `<label>Name<
     res.json({ received: true });
   });
 
+  // Mail apps' one-click unsubscribe button POSTs here (RFC 8058).
+  app.post('/unsubscribe/:token', express.urlencoded({ extended: false, limit: '2kb' }), async (req, res) => {
+    const token = String(req.params.token);
+    const [contactId] = token.split('.');
+    const expected = /^\d{1,9}$/.test(contactId) ? unsubToken(contactId) : '';
+    if (!expected || token.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(token), Buffer.from(expected))) return res.status(400).type('text').send('Invalid link');
+    const c = await db.get('UPDATE contacts SET unsubscribed = 1 WHERE id = ? AND unsubscribed = 0 RETURNING id, account_id', Number(contactId));
+    if (c) await logEvent(db, c.account_id, { person_id: c.id, type: 'unsubscribe', source: 'email', meta: { reason: 'One-click unsubscribe' } });
+    res.type('text').send('Unsubscribed');
+  });
   app.get('/unsubscribe/:token', async (req, res) => {
     const token = String(req.params.token);
     const [contactId] = token.split('.');

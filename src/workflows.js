@@ -498,7 +498,7 @@ function createWorkflows({ getDb, HttpError, id, people, messaging, getAccount }
       const body = messaging.merge(str(req.body?.body, 20000), me, account);
       if (!body.trim()) throw new HttpError(400, 'Write the email first');
       const mailer = require('./mailer');
-      const r = await mailer.sendEmail({ from: process.env.SMTP_FROM || 'no-reply@localhost', to: req.user.email, subject, text: body });
+      const r = await mailer.sendEmail({ ...mailer.senderFor({ name: 'Rilly' }), to: req.user.email, subject, text: body });
       await getDb().run('INSERT INTO email_log (account_id, to_email, subject, body, status, workflow_id) VALUES (?, ?, ?, ?, ?, ?)',
         req.accountId, req.user.email, subject, body, r.status, null);
       res.json({ ok: true, to: req.user.email, status: r.status });

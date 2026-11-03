@@ -48,7 +48,7 @@ function createDigest({ getDb, leversFor, moves, publicBase }) {
     const { subject, text, account } = await build(accountId);
     const to = await ownerEmail(accountId);
     if (!to) return { status: 'skipped' };
-    const r = await mailer.sendEmail({ from: process.env.SMTP_FROM || 'no-reply@localhost', to, subject, text });
+    const r = await mailer.sendEmail({ ...mailer.senderFor({ name: 'Rilly' }), to, subject, text });
     await getDb().run('INSERT INTO email_log (account_id, to_email, subject, body, status) VALUES (?, ?, ?, ?, ?)', accountId, to, subject, text, r.status);
     await getDb().run('UPDATE accounts SET last_digest_at = ? WHERE id = ?', now.toISOString(), accountId);
     return { status: r.status, to, subject };
