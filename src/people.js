@@ -114,13 +114,16 @@ function createPeople({ getDb, HttpError, parseTags, id, formatMoney }) {
   // Each import is idempotent: people merge by email, orders dedupe by
   // (source, order id), so re-importing the same file changes nothing.
   async function importPeople(accountId, rows, { source = 'import', tag = '' } = {}) {
-    let created = 0, updated = 0, skipped = 0;
+    let created = 0, updated = 0, skipped = 0, unsubscribed = 0;
     const touched = [];
     await getDb().tx(async (t) => {
       for (const row of rows.slice(0, 5000)) {
         try {
           const r = await upsertContact(t, accountId, { ...row, tags: [...parseTags(row.tags), ...parseTags(tag)], source: row.source || source });
           r.created ? created++ : updated++;
+          if (/^(1|y|yes|true|unsubscribed|cleaned|bounced|dnd|do not (email|contact))$/i.test(String(row.unsubscribed || '').trim())) {
+            await t.run('UPDATE contacts SET unsubscribed = 1 WHERE id = ?', r.id); unsubscribed++;
+          }
           const note = String(row.note || '').trim().slice(0, 500);
           if (note) await logEvent(t, accountId, { person_id: r.id, type: 'note', source: 'import', meta: { note } }, { recompute: false });
           touched.push(r.id);
@@ -128,7 +131,7 @@ function createPeople({ getDb, HttpError, parseTags, id, formatMoney }) {
       }
       await recomputeStages(t, touched);
     });
-    return { created, updated, skipped };
+    return { created, updated, skipped, unsubscribed };
   }
 
   async function importOrders(accountId, orders, { source = 'store' } = {}) {

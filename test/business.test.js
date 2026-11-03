@@ -155,3 +155,19 @@ test('lead magnet: the file or link on a form is emailed the moment someone sign
   assert.equal(m.subject, 'Here’s the typewriter care guide');
   assert.match(m.body, /Hi Rae,[\s\S]*https:\/\/example\.com\/care-guide\.pdf/);
 });
+
+test('imports from other tools: quoted tags, do-not-disturb kept unsubscribed', async () => {
+  const c = client();
+  await c('POST', '/api/auth/signup', { name: 'Ivy', email: 'ivy@example.com', password: 'password123', workspace: 'Ivy Co' });
+  const r = (await c('POST', '/api/import/people', { source: 'import', tag: 'from-mailchimp', rows: [
+    { email: 'a@example.com', first_name: 'A', tags: '"VIP","Spring Fair"' },
+    { email: 'b@example.com', first_name: 'B', tags: 'customer; repair', unsubscribed: 'true' },
+    { email: 'c@example.com', first_name: 'C', unsubscribed: 'false' },
+    { email: 'd@example.com', first_name: 'D', unsubscribed: 'cleaned' },
+  ] })).body;
+  assert.deepEqual(r, { created: 4, updated: 0, skipped: 0, unsubscribed: 2 });
+  const people = Object.fromEntries((await c('GET', '/api/contacts')).body.map((p) => [p.email, p]));
+  assert.deepEqual(people['a@example.com'].tags.sort(), ['from-mailchimp', 'spring fair', 'vip']);
+  assert.deepEqual([people['b@example.com'].unsubscribed, people['c@example.com'].unsubscribed, people['d@example.com'].unsubscribed], [true, false, true]);
+  assert.deepEqual(people['b@example.com'].tags.sort(), ['customer', 'from-mailchimp', 'repair']);
+});

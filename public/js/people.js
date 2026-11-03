@@ -178,19 +178,20 @@ function parseCsv(text) {
 // Squarespace, Shopify, Etsy and PayPal exports), check a preview, import.
 const IMPORT_TYPES = {
   people: { label: 'People (a contact or mailing list)', endpoint: '/api/import/people',
-    fields: ['email', 'name', 'first_name', 'last_name', 'phone', 'tags', 'address1', 'address2', 'city', 'region', 'postal', 'country', 'source'] },
+    fields: ['email', 'name', 'first_name', 'last_name', 'phone', 'tags', 'unsubscribed', 'address1', 'address2', 'city', 'region', 'postal', 'country', 'source'] },
   orders: { label: 'Orders (store, Etsy, PayPal export)', endpoint: '/api/import/orders',
     fields: ['order_id', 'email', 'name', 'first_name', 'last_name', 'date', 'total', 'currency', 'item_name', 'item_qty', 'item_price', 'address1', 'address2', 'city', 'region', 'postal', 'country', 'tags'] },
   subscribers: { label: 'Newsletter subscribers (print or email)', endpoint: '/api/import/subscribers',
     fields: ['email', 'name', 'first_name', 'last_name', 'address1', 'address2', 'city', 'region', 'postal', 'country', 'product', 'format', 'status', 'started_at', 'tags'] },
   listens: { label: 'Podcast listens (from your podcast host)', endpoint: '/api/import/listens', fields: ['date', 'episode', 'listens'] },
 };
-const FIELD_LABEL = { email: 'Email', name: 'Full name', first_name: 'First name', last_name: 'Last name', phone: 'Phone', tags: 'Tags', address1: 'Street address', address2: 'Address line 2', city: 'City', region: 'State / region', postal: 'ZIP / postal code', country: 'Country', source: 'Source', order_id: 'Order ID', date: 'Order date', total: 'Order total', currency: 'Currency', item_name: 'Item name', item_qty: 'Item quantity', item_price: 'Item price', product: 'Newsletter name', format: 'Format (print/email)', status: 'Status', started_at: 'Start date', episode: 'Episode', listens: 'Listens' };
+const FIELD_LABEL = { unsubscribed: 'Unsubscribed / do not disturb', email: 'Email', name: 'Full name', first_name: 'First name', last_name: 'Last name', phone: 'Phone', tags: 'Tags', address1: 'Street address', address2: 'Address line 2', city: 'City', region: 'State / region', postal: 'ZIP / postal code', country: 'Country', source: 'Source', order_id: 'Order ID', date: 'Order date', total: 'Order total', currency: 'Currency', item_name: 'Item name', item_qty: 'Item quantity', item_price: 'Item price', product: 'Newsletter name', format: 'Format (print/email)', status: 'Status', started_at: 'Start date', episode: 'Episode', listens: 'Listens' };
 const ALIASES = {
-  email: ['email', 'emailaddress', 'customeremail', 'buyeremail', 'fromemailaddress', 'e-mail', 'mail'],
+  email: ['email', 'emailaddress', 'customeremail', 'buyeremail', 'fromemailaddress', 'e-mail', 'mail', 'contactemail', 'primaryemail'],
+  unsubscribed: ['unsubscribed', 'dnd', 'donotdisturb', 'emaildnd', 'unsubscribedat', 'unsub', 'optedout', 'emailstatus', 'status_unsubscribed'],
   name: ['name', 'fullname', 'customername', 'billingname', 'shippingname', 'buyer', 'buyername', 'shipname', 'contactname'],
   first_name: ['firstname', 'first', 'givenname', 'billingfirstname'], last_name: ['lastname', 'last', 'surname', 'familyname', 'billinglastname'],
-  phone: ['phone', 'phonenumber', 'billingphone', 'shippingphone', 'mobile'], tags: ['tags', 'tag', 'labels', 'groups'],
+  phone: ['phone', 'phonenumber', 'billingphone', 'shippingphone', 'mobile', 'mobilephone', 'cellphone', 'contactphone'], tags: ['tags', 'tag', 'labels', 'groups', 'contacttags', 'mailchimptags'],
   address1: ['address1', 'address', 'street', 'streetaddress', 'addressline1', 'shippingaddress1', 'shippingaddress', 'shipaddress1', 'street1', 'billingaddress1', 'mailingaddress'],
   address2: ['address2', 'addressline2', 'shippingaddress2', 'shipaddress2', 'street2', 'billingaddress2', 'apt', 'suite'],
   city: ['city', 'shippingcity', 'shipcity', 'billingcity', 'town'], region: ['state', 'province', 'region', 'shippingprovince', 'shippingstate', 'shipstate', 'billingprovince', 'billingstate', 'statecode'],
@@ -203,6 +204,15 @@ const ALIASES = {
   product: ['newsletter', 'publication', 'list', 'productname'], format: ['format', 'delivery', 'type'], status: ['status', 'subscriptionstatus'],
   started_at: ['startedat', 'startdate', 'subscribedat', 'datesubscribed', 'since', 'joined', 'signupdate'],
   episode: ['episode', 'episodetitle', 'title', 'episodename'], listens: ['listens', 'downloads', 'plays', 'count', 'totallistens', 'totaldownloads'],
+};
+// Moving from another tool: where to find the export, and what its columns are called.
+const IMPORT_FROM = {
+  '': { label: 'A spreadsheet or another tool', help: '' },
+  mailchimp: { label: 'Mailchimp', help: 'Audience → All contacts → Export Audience. Unzip it and upload <b>subscribed</b> (and <b>unsubscribed</b> too, so those people stay opted out).' },
+  gohighlevel: { label: 'GoHighLevel', help: 'Contacts → select all → Export. Tags and the DND (do not disturb) column come across.' },
+  clickfunnels: { label: 'ClickFunnels', help: 'ClickFunnels 2.0: Contacts → Export. Classic: Contacts → Export contacts. Tags come across.' },
+  shopify: { label: 'Shopify', help: 'Customers → Export → CSV for Excel. For order history, choose “Orders” above and export Orders.' },
+  kit: { label: 'Kit (ConvertKit)', help: 'Subscribers → select all → Export. Unsubscribed people are marked as such.' },
 };
 const normHeader = (h) => String(h).toLowerCase().replace(/[^a-z0-9]/g, '');
 function guessMapping(type, headers, sample) {
@@ -224,15 +234,18 @@ async function importWizard(done, file) {
   document.body.append(bg);
   const close = () => bg.remove();
   bg.addEventListener('mousedown', (e) => { if (e.target === bg) close(); });
-  let type = 'people', headers = [], rows = [], mapping = [];
+  let type = 'people', headers = [], rows = [], mapping = [], from = '';
 
   const step1 = () => {
     bg.innerHTML = `<form class="modal"><h2>Import from a CSV</h2>
+      <label class="f">Where’s it from?<select name="from">${Object.entries(IMPORT_FROM).map(([k, f]) => `<option value="${k}" ${k === from ? 'selected' : ''}>${esc(f.label)}</option>`).join('')}</select></label>
+      <p class="hint" data-fromhelp>${IMPORT_FROM[from]?.help || ''}</p>
       <label class="f">What’s in the file?<select name="type">${Object.entries(IMPORT_TYPES).map(([k, t]) => `<option value="${k}" ${k === type ? 'selected' : ''}>${esc(t.label)}</option>`).join('')}</select></label>
       <label class="f">CSV file <span class="hint">with a header row</span><input type="file" name="file" accept=".csv,text/csv" required></label>
       <p class="hint">Re-importing is safe: people merge by email and orders skip ones already imported.</p>
       <div class="err"></div><div class="actions"><button type="button" class="btn" data-x>Cancel</button><button class="btn primary">Next: match columns</button></div></form>`;
     $('[data-x]', bg).onclick = close;
+    $('[name=from]', bg).onchange = (e) => { from = e.target.value; $('[data-fromhelp]', bg).innerHTML = IMPORT_FROM[from]?.help || ''; };
     $('form', bg).onsubmit = async (e) => {
       e.preventDefault();
       const f = new FormData(e.target);
@@ -280,8 +293,8 @@ async function importWizard(done, file) {
       ${type === 'listens' ? '' : type === 'subscribers' ? `<div class="colors" style="grid-template-columns:2fr 1fr;margin-top:12px"><label class="f">Newsletter name<input name="product" value="Newsletter"></label>
         <label class="f">Format<select name="format"><option value="email">Email</option><option value="print">Print</option></select></label></div>`
         : `<label class="f" style="margin-top:12px">Where did these ${type === 'orders' ? 'orders' : 'people'} come from?<select name="source">
-          ${(type === 'orders' ? ['store', 'etsy', 'paypal', 'stripe', 'other'] : ['newsletter', 'podcast', 'store', 'inquiry', 'social', 'referral', 'import', 'other']).map((s) => `<option>${s}</option>`).join('')}</select></label>`}
-      ${type === 'people' ? '<label class="f">Also tag everyone with <span class="hint">optional</span><input name="tag" placeholder="e.g. spring-fair"></label>' : ''}
+          ${(type === 'orders' ? ['store', 'etsy', 'paypal', 'stripe', 'other'] : ['import', 'newsletter', 'podcast', 'store', 'inquiry', 'social', 'referral', 'other']).map((s) => `<option>${s}</option>`).join('')}</select></label>`}
+      ${type === 'people' ? `<label class="f">Also tag everyone with <span class="hint">optional</span><input name="tag" placeholder="e.g. spring-fair" value="${from ? `from-${from}` : ''}"></label>` : ''}
       <h2 style="margin-top:6px">Preview</h2>
       ${cols.length ? `<div class="table-wrap" style="border:1px solid var(--line);border-radius:8px"><table class="mini"><tr>${cols.map((c) => `<th>${esc(FIELD_LABEL[c])}</th>`).join('')}</tr>
         ${preview.map((r) => `<tr>${cols.map((c) => `<td>${esc(r[c] || '')}</td>`).join('')}</tr>`).join('')}</table></div>` : '<p class="muted">Match at least one column.</p>'}
@@ -318,7 +331,7 @@ async function importWizard(done, file) {
       const parts = type === 'orders' ? [`${n('created')} orders imported`, n('people') && `${n('people')} new people`, n('duplicates') && `${n('duplicates')} already imported`, n('skipped') && `${n('skipped')} skipped (no email or name)`]
         : type === 'listens' ? [`${n('created')} listen rows imported`, n('skipped') && `${n('skipped')} skipped (no date or count)`]
         : type === 'subscribers' ? [`${n('created')} subscribers added`, n('existing') && `${n('existing')} already subscribed`, n('skipped') && `${n('skipped')} skipped`]
-          : [`${n('created')} new people`, n('updated') && `${n('updated')} updated`, n('skipped') && `${n('skipped')} skipped (no email or name)`];
+          : [`${n('created')} new people`, n('updated') && `${n('updated')} updated`, n('unsubscribed') && `${n('unsubscribed')} kept unsubscribed`, n('skipped') && `${n('skipped')} skipped (no email or name)`];
       toast(`${parts.filter(Boolean).join(' · ')} (${Math.round((Date.now() - t0) / 100) / 10}s)`);
       done?.();
     };

@@ -31,8 +31,8 @@ const slugify = (s) => String(s || '').toLowerCase().normalize('NFKD').replace(/
 const CURRENCIES = ['usd', 'eur', 'gbp', 'cad', 'aud'];
 const BILLING = ['one_time', 'monthly', 'yearly'];
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const parseTags = (t) => [...new Set((Array.isArray(t) ? t : String(t || '').split(','))
-  .map((x) => String(x).trim().toLowerCase()).filter(Boolean))];
+const parseTags = (t) => [...new Set((Array.isArray(t) ? t : String(t || '').split(/[,;]/))
+  .map((x) => String(x).trim().replace(/^["']+|["']+$/g, '').trim().toLowerCase()).filter(Boolean))];
 const isUniqueViolation = (e) => e?.code === '23505';
 const iso = (d) => (d instanceof Date ? d.toISOString() : d);
 
