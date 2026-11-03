@@ -74,7 +74,7 @@ test('CSV import: 1,000 people in well under 30 seconds, merged by email, idempo
   const t0 = Date.now();
   const r = (await c('POST', '/api/import/people', { rows, source: 'podcast', tag: 'imported' })).body;
   const ms = Date.now() - t0;
-  assert.deepEqual(r, { created: 1000, updated: 1, skipped: 1 });
+  assert.deepEqual(r, { created: 1000, updated: 1, skipped: 1, unsubscribed: 0 });
   assert.ok(ms < 30000, `took ${ms}ms`);
 
   const people = (await c('GET', '/api/contacts?q=person5%40')).body;
@@ -85,7 +85,7 @@ test('CSV import: 1,000 people in well under 30 seconds, merged by email, idempo
   assert.equal(people[0].stage, 'audience');
   assert.ok(people[0].tags.includes('imported'));
   const again = (await c('POST', '/api/import/people', { rows: rows.slice(0, 10) })).body;
-  assert.deepEqual(again, { created: 0, updated: 10, skipped: 0 });
+  assert.deepEqual(again, { created: 0, updated: 10, skipped: 0, unsubscribed: 0 });
   assert.equal((await c('GET', '/api/contacts?q=%40example.com')).body.length, 1000);
 });
 
