@@ -80,6 +80,7 @@ To run the tests through the production Postgres driver, point `DATABASE_URL` at
 | `ALLOW_SIGNUPS` | `1` lets anyone create a workspace. By default the first sign-up owns the app and sign-up closes |
 | `STRIPE_API_BASE` | Override the Stripe API URL (tests only) |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_SECURE`, `SMTP_FROM` | Real email delivery (Postmark, SES, Mailgun, Brevo, etc.). Without `SMTP_HOST`, emails only go to the Outbox. |
+| `EMAIL_WEBHOOK_SECRET` | Signing secret for bounce/spam-complaint webhooks sent to `/hooks/email` (Resend/Svix format). Bounced addresses stop getting email everywhere; complaints unsubscribe from that business. |
 
 ### Taking payments
 
@@ -140,3 +141,14 @@ test/                node:test end-to-end tests
 - Agency mode: one agency account managing many client sub-accounts (the `accounts`/`memberships` tables are already shaped for this), white-label, SaaS re-billing
 - Reputation management, forms/surveys, reporting
 
+
+## Email with Resend (production setup)
+
+Every email goes out from the one verified address in `SMTP_FROM`, showing
+the business's own name, with replies going to the business owner.
+
+1. In Resend, verify the sending domain (getrilly.com) and create a sending API key.
+2. In Netlify, set `SMTP_HOST=smtp.resend.com`, `SMTP_PORT=465`, `SMTP_SECURE=true`,
+   `SMTP_USER=resend`, `SMTP_PASS=<re_ key>` (secret), `SMTP_FROM=Rilly <hello@getrilly.com>`.
+3. In Resend > Webhooks, add `https://<app host>/hooks/email` for `email.bounced` and
+   `email.complained`, and put its signing secret in `EMAIL_WEBHOOK_SECRET`.
