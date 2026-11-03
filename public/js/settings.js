@@ -9,9 +9,9 @@ function viewSettings() {
       <h2>This business</h2>
       <label class="f">Business name<input name="name" required value="${esc(a.name)}"></label>
       <h2 style="margin-top:20px">Email sender</h2>
-      <label class="f">From name<input name="from_name" value="${esc(a.from_name || '')}"></label>
-      <label class="f">From email <span class="hint">must be allowed by your SMTP provider</span><input name="from_email" type="email" value="${esc(a.from_email || '')}"></label>
-      <p class="muted small">Email delivery: <b>${state.me.emailLive ? 'connected (SMTP)' : 'dev mode (Outbox only)'}</b></p>
+      <label class="f">Sender name <span class="hint">what people see in their inbox</span><input name="from_name" value="${esc(a.from_name || '')}" placeholder="${esc(a.name)}"></label>
+      <label class="f">Replies go to <span class="hint">your own email</span><input name="from_email" type="email" value="${esc(a.from_email || '')}"></label>
+      <p class="muted small">${state.me.emailLive ? `Email is <b>connected</b>. Emails are sent from Rilly’s verified address under your sender name, and replies come straight to you.` : 'Email is in <b>test mode</b>: messages are saved to Email → Outbox but not delivered.'}</p>
       <div class="err"></div><button class="btn primary">Save settings</button>
     </form>
     <form class="card" style="max-width:560px;margin-top:16px" data-business>
