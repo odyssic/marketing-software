@@ -181,7 +181,9 @@ ${settings.seoDescription ? `<meta name="description" content="${esc(settings.se
 <style>
 *{box-sizing:border-box}body{margin:0;background:${bg};color:${fg};font:17px/1.6 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
 main{max-width:${width}px;margin:0 auto;padding:48px 20px}
-h1{font-size:2.4rem;line-height:1.15;margin:.4em 0}h2{font-size:1.8rem;line-height:1.2;margin:.5em 0}h3{font-size:1.3rem;margin:.5em 0}
+h1{font-size:clamp(1.8rem,4.5vw,2.4rem);line-height:1.15;margin:.4em 0}h1,h2,h3,p{overflow-wrap:break-word;text-wrap:balance}
+/* Breathing room: every block sits at least 28px from the next. */
+main>*+*{margin-top:28px}main>*:last-child{margin-bottom:8px}.hero:not(.first){margin-top:48px}h2{font-size:1.8rem;line-height:1.2;margin:.5em 0}h3{font-size:1.3rem;margin:.5em 0}
 .txt{margin:.8em 0}img{max-width:100%;height:auto;border-radius:10px}
 .btn{display:inline-block;background:${accent};color:#fff;border:0;padding:15px 30px;border-radius:10px;font:600 1.05rem system-ui,sans-serif;text-decoration:none;cursor:pointer}
 .btn:hover{filter:brightness(1.1)}
@@ -191,7 +193,7 @@ h1{font-size:2.4rem;line-height:1.15;margin:.4em 0}h2{font-size:1.8rem;line-heig
 .video{position:relative;padding-top:56.25%;margin:20px 0}.video iframe{position:absolute;inset:0;width:100%;height:100%;border:0;border-radius:10px}
 hr{border:0;border-top:1px solid rgba(0,0,0,.12);margin:28px 0}
 body{overflow-x:hidden}
-.hero{position:relative;margin:0 calc(50% - 50vw) 40px;padding:64px 20px 110px;text-align:center}
+.hero{position:relative;margin:0 calc(50% - 50vw) 40px;padding:64px 24px 110px;text-align:center}
 .hero.first{margin-top:-48px}.hero h1{max-width:820px;margin:.2em auto;font-size:clamp(2rem,5vw,3.3rem);font-weight:800}
 .hero p{max-width:640px;margin:12px auto 0;font-size:1.15rem;opacity:.92}
 .eyebrow{display:inline-block;letter-spacing:.18em;text-transform:uppercase;font-size:.95rem;padding-bottom:4px;border-bottom:2px solid currentColor;margin-bottom:10px}
@@ -225,7 +227,7 @@ footer.site{border-top:1px solid color-mix(in srgb,${fg} 10%,transparent);margin
 @media(max-width:640px){.burger{display:block}header.site nav{display:none;width:100%;flex-direction:column;gap:10px;padding-top:6px}#mnu:checked~nav{display:flex}}
 </style></head><body>${nav}<main>
 ${body || '<p style="text-align:center;opacity:.5">This page is empty. Add blocks in the editor.</p>'}
-</main>${foot}${preview ? PREVIEW_EDIT_SCRIPT + PREVIEW_DROP_SCRIPT : ''}</body></html>`;
+</main>${foot}${preview ? PREVIEW_EDIT_SCRIPT + PREVIEW_DROP_SCRIPT + PREVIEW_TOOLS_SCRIPT : ''}</body></html>`;
 }
 
 // Click-to-edit in the editor preview: click any text to type over it; the
@@ -233,7 +235,7 @@ ${body || '<p style="text-align:center;opacity:.5">This page is empty. Add block
 // Drag and drop from the builder's block list: while something is dragged
 // over the preview, a line shows where it will land; dropping tells the
 // builder the position. Only drags started in the builder are accepted.
-const PREVIEW_DROP_SCRIPT = `<style>.ph{border:2px dashed #c7d2fe;border-radius:14px;padding:34px 16px;text-align:center;color:#6366f1;background:#f5f7ff;font:500 14px/1.4 -apple-system,system-ui,sans-serif;margin:8px 0;transition:background .15s,border-color .15s}.ph small{display:block;color:#818cf8;font-weight:400;margin-top:2px}.ph.ph-over{background:#e0e7ff;border-color:#6366f1}#ff-drop{position:absolute;left:0;right:0;height:4px;background:#4f46e5;border-radius:2px;box-shadow:0 0 0 3px rgba(79,70,229,.25);pointer-events:none;z-index:99999;display:none}</style>
+const PREVIEW_DROP_SCRIPT = `<style>.ph{border:2px dashed #a9dcd6;border-radius:14px;padding:34px 16px;text-align:center;color:#1F7F78;background:#f3faf9;font:500 14px/1.4 -apple-system,system-ui,sans-serif;margin:8px 0;transition:background .15s,border-color .15s}.ph small{display:block;color:#5b9e97;font-weight:400;margin-top:2px}.ph.ph-over{background:#dff1ee;border-color:#1F7F78}#ff-drop{position:absolute;left:0;right:0;height:4px;background:#4f46e5;border-radius:2px;box-shadow:0 0 0 3px rgba(79,70,229,.25);pointer-events:none;z-index:99999;display:none}</style>
 <script>(function(){var line=document.createElement('div');line.id='ff-drop';document.body.appendChild(line);
 function has(e,t){return Array.prototype.indexOf.call(e.dataTransfer.types,t)>=0;}function ours(e){return has(e,'text/x-fourfold')||has(e,'Files');}
 function spot(y){var bs=document.querySelectorAll('[data-bi]');for(var k=0;k<bs.length;k++){var r=bs[k].getBoundingClientRect();if(y<r.top+r.height/2)return{at:k,top:r.top+scrollY-2};}
@@ -244,6 +246,44 @@ document.addEventListener('dragover',function(e){if(!has(e,'Files'))return;var b
 document.addEventListener('drop',function(e){if(!ours(e))return;e.preventDefault();line.style.display='none';var at=spot(e.clientY).at;
 if(has(e,'Files')){var f=e.dataTransfer.files[0],b=e.target.closest&&e.target.closest('[data-bi]');if(f)parent.postMessage({ff:'photo',at:at,i:b?+b.dataset.bi:-1,file:f},'*');return;}
 parent.postMessage({ff:'drop',at:at,data:e.dataTransfer.getData('text/x-fourfold')},'*');});})();<\/script>`;
+
+// Block toolbar in the editor preview: on hover (or once selected) each block
+// shows Move up, Move down, Duplicate and Delete. Delete/Backspace removes the
+// selected block when you're not typing. The builder does the change (and undo).
+const PREVIEW_TOOLS_SCRIPT = `<style>
+[data-bi]{position:relative}
+.ff-tools{position:absolute;top:6px;right:6px;z-index:9999;display:none;gap:2px;padding:3px;background:#14282B;border-radius:9px;box-shadow:0 4px 14px rgba(0,0,0,.18)}
+[data-bi]:hover>.ff-tools,[data-bi].ff-sel>.ff-tools{display:flex}
+[data-bi].ff-sel{box-shadow:inset 0 0 0 2px #2BA39A}
+.ff-tools button{all:unset;cursor:pointer;width:28px;height:28px;display:grid;place-items:center;border-radius:6px;color:#fff}
+.ff-tools button:hover{background:rgba(255,255,255,.14)}.ff-tools button.grip{cursor:grab}
+#ff-bin{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:99999;display:none;align-items:center;gap:8px;padding:12px 22px;border-radius:99px;background:#fff;color:#b91c1c;border:2px dashed #fca5a5;font:600 14px -apple-system,system-ui,sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.15)}
+#ff-bin svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+#ff-bin.on{display:flex}#ff-bin.over{background:#dc2626;color:#fff;border-color:#dc2626}
+[data-bi].ff-dragging{opacity:.35}.ff-tools button.del:hover{background:#dc2626}
+.ff-tools svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+</style>
+<script>(function(){
+var I={grip:'<circle cx="9" cy="6.5" r="1"/><circle cx="15" cy="6.5" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="17.5" r="1"/><circle cx="15" cy="17.5" r="1"/>',up:'<path d="m6 15 6-6 6 6"/>',down:'<path d="m6 9 6 6 6-6"/>',dup:'<rect x="8.5" y="8.5" width="11" height="11" rx="2"/><path d="M15.5 8.5V6.5a2 2 0 0 0-2-2h-7a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h2"/>',rm:'<path d="M4.5 7h15M9.5 7V5a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v2M6.5 7l1 12.5h9l1-12.5"/>'};
+var L={grip:'Drag to move, or onto the bin to delete',up:'Move up',down:'Move down',dup:'Duplicate',rm:'Delete'};
+var sel=-1;
+document.querySelectorAll('[data-bi]').forEach(function(b){var t=document.createElement('div');t.className='ff-tools';t.setAttribute('contenteditable','false');
+['grip','up','down','dup','rm'].forEach(function(a){var x=document.createElement('button');x.type='button';if(a==='grip'){x.draggable=true;x.className='grip';}x.title=L[a];x.setAttribute('aria-label',L[a]);if(a==='rm')x.className='del';if(a==='grip')x.className='grip';x.dataset.act=a;x.innerHTML='<svg viewBox="0 0 24 24">'+I[a]+'</svg>';t.appendChild(x);});b.appendChild(t);});
+document.addEventListener('click',function(e){var x=e.target.closest('.ff-tools button');if(x){e.preventDefault();e.stopPropagation();parent.postMessage({ff:'act',act:x.dataset.act,i:+x.closest('[data-bi]').dataset.bi},'*');return;}
+var b=e.target.closest('[data-bi]');document.querySelectorAll('.ff-sel').forEach(function(n){n.classList.remove('ff-sel');});if(b){b.classList.add('ff-sel');sel=+b.dataset.bi;}else sel=-1;},true);
+document.addEventListener('keydown',function(e){if(sel<0||e.target.isContentEditable||/INPUT|TEXTAREA|SELECT/.test(e.target.tagName))return;
+if(e.key==='Delete'||e.key==='Backspace'){e.preventDefault();parent.postMessage({ff:'act',act:'rm',i:sel},'*');}
+else if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='z'){e.preventDefault();parent.postMessage({ff:'undo',redo:e.shiftKey},'*');}});
+var bin=document.createElement('div');bin.id='ff-bin';bin.innerHTML='<svg viewBox="0 0 24 24">'+I.rm+'</svg>Drop here to delete';document.body.appendChild(bin);
+var dragging=-1;
+document.addEventListener('dragstart',function(e){var g=e.target.closest&&e.target.closest('.ff-tools .grip');if(!g)return;var b=g.closest('[data-bi]');dragging=+b.dataset.bi;
+e.dataTransfer.setData('text/x-fourfold',JSON.stringify({move:dragging}));e.dataTransfer.setData('text/plain','block');e.dataTransfer.effectAllowed='move';
+try{e.dataTransfer.setDragImage(b,24,24);}catch(_){}b.classList.add('ff-dragging');bin.classList.add('on');});
+document.addEventListener('dragend',function(){dragging=-1;bin.classList.remove('on','over');document.querySelectorAll('.ff-dragging').forEach(function(n){n.classList.remove('ff-dragging');});});
+bin.addEventListener('dragover',function(e){if(dragging<0)return;e.preventDefault();e.stopPropagation();bin.classList.add('over');var l=document.getElementById('ff-drop');if(l)l.style.display='none';});
+bin.addEventListener('dragleave',function(){bin.classList.remove('over');});
+bin.addEventListener('drop',function(e){if(dragging<0)return;e.preventDefault();e.stopPropagation();parent.postMessage({ff:'act',act:'rm',i:dragging},'*');bin.classList.remove('on','over');});
+})();<\/script>`;
 
 const PREVIEW_EDIT_SCRIPT = `<style>[data-f]{outline:1px dashed transparent;outline-offset:3px;cursor:text}[data-f]:hover{outline-color:#818cf8}[data-f][contenteditable]{outline:2px solid #4f46e5}[data-bi]:hover{box-shadow:inset 0 0 0 1px #c7d2fe}</style>
 <script>document.addEventListener('click',function(e){var blk=e.target.closest('[data-bi]');var el=e.target.closest('[data-f]');if(e.target.closest('a,button'))e.preventDefault();if(blk)parent.postMessage({ff:'open',i:+blk.dataset.bi},'*');if(!el||el.isContentEditable)return;e.preventDefault();el.contentEditable='true';el.focus();el.oninput=function(){parent.postMessage({ff:'edit',i:+blk.dataset.bi,f:el.dataset.f,v:el.innerText.replace(/^\\u201c|\\u201d$/g,'').trim()},'*');};el.onkeydown=function(k){if(k.key==='Escape'||(k.key==='Enter'&&el.dataset.f!=='text'&&el.dataset.f!=='quote'&&el.dataset.f!=='subtext')){k.preventDefault();el.blur();}};el.onblur=function(){el.removeAttribute('contenteditable');};},true);<\/script>`;

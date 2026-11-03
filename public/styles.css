@@ -488,3 +488,12 @@ table.leads input:hover, table.leads input:focus { border-color: var(--line); ba
 .logo .lockup { height: 33px; width: auto; display: block; }
 .logo .mark { display: none; }
 .auth .logo .lockup { height: 36px; }
+
+/* Undo button inside a toast */
+#toast .toast-undo { margin-left: 10px; background: none; border: 0; color: #7fd6cc; font: inherit; font-weight: 700; cursor: pointer; padding: 0; text-decoration: underline; }
+#toast { pointer-events: auto; }
+
+/* Bin under the page-content list while a block is dragged */
+.list-bin { display: none; align-items: center; justify-content: center; gap: 8px; margin: 8px 0 4px; padding: 12px; border: 2px dashed #fca5a5; border-radius: 10px; color: #b91c1c; font-weight: 600; font-size: .9rem; }
+.list-bin.on { display: flex; }
+.list-bin.over { background: #dc2626; color: #fff; border-color: #dc2626; }

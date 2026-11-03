@@ -63,6 +63,7 @@ async function viewEditor(stepId) {
     <div class="side">
       <h3>Add a block</h3><div class="palette">${Object.entries(BLOCKS).map(([k, b]) => `<button data-addblock="${k}" draggable="true" title="Click to add at the end, or drag onto the page"><span class="ico">${b.icon}</span>${b.label}</button>`).join('')}</div>
       <h3>Page content</h3><div data-blocks></div>
+      <div class="list-bin" data-bin aria-hidden="true">${icon('trash')} Drop here to delete</div>
       <h3>Page style</h3>
       <div class="colors">
         <label class="f">Background<input type="color" data-s="background" value="${esc(ed.settings.background)}"></label>
@@ -96,6 +97,15 @@ async function viewEditor(stepId) {
     const { b, s } = JSON.parse(undo.past.at(-1));
     ed.blocks = b; ed.settings = s;
     renderBlocks(); changed({}, true); syncUndo();
+  };
+  // "Deleted · Undo": one click brings it back.
+  const undoToast = (msg) => {
+    toast(msg);
+    const t = $('#toast');
+    const b = document.createElement('button');
+    b.className = 'toast-undo'; b.textContent = 'Undo';
+    b.onclick = () => { travel(undo.past, undo.future); t.className = ''; };
+    t.append(' ', b);
   };
   const changed = (extra = {}, fromUndo = false) => {
     if (!fromUndo) setTimeout(remember);
@@ -177,7 +187,9 @@ async function viewEditor(stepId) {
       const copy = { ...ed.blocks[i], id: uid() };
       ed.blocks.splice(i + 1, 0, copy); ed.open = copy.id; structural();
     } else if (d.rm) {
+      const gone = BLOCKS[ed.blocks[Number(d.rm)].type]?.label || 'Block';
       ed.blocks.splice(Number(d.rm), 1); structural();
+      undoToast(`${gone} deleted`);
     } else if (d.align) {
       const [i, a] = d.align.split(':');
       ed.blocks[i].align = a; renderBlocks(); changed();
@@ -220,8 +232,20 @@ async function viewEditor(stepId) {
     e.dataTransfer.setData('text/plain', t.dataset.addblock || 'block');
     e.dataTransfer.effectAllowed = 'copyMove';
     document.body.classList.add('dragging-block');
+    if (data.move !== undefined) $('[data-bin]').classList.add('on');
   });
-  side.addEventListener('dragend', () => { document.body.classList.remove('dragging-block'); listMark(null); });
+  side.addEventListener('dragend', () => { document.body.classList.remove('dragging-block'); listMark(null); $('[data-bin]').classList.remove('on', 'over'); });
+  const bin = $('[data-bin]');
+  bin.addEventListener('dragover', (e) => { if (!e.dataTransfer.types.includes('text/x-fourfold')) return; e.preventDefault(); bin.classList.add('over'); });
+  bin.addEventListener('dragleave', () => bin.classList.remove('over'));
+  bin.addEventListener('drop', (e) => {
+    e.preventDefault(); bin.classList.remove('on', 'over'); document.body.classList.remove('dragging-block');
+    let d; try { d = JSON.parse(e.dataTransfer.getData('text/x-fourfold')); } catch { return; }
+    if (Number.isInteger(d.move) && ed.blocks[d.move]) {
+      const gone = BLOCKS[ed.blocks[d.move].type]?.label || 'Block';
+      ed.blocks.splice(d.move, 1); structural(); undoToast(`${gone} deleted`);
+    }
+  });
   const list = $('[data-blocks]');
   const listSpot = (y) => {
     const rows = [...list.querySelectorAll('.block')];
@@ -298,6 +322,22 @@ async function viewEditor(stepId) {
       const at = Math.max(0, Math.min(Number(d.at) || 0, ed.blocks.length));
       return ed.blocks[d.i]?.type === 'image' ? putPhoto(d.i, d.file) : photoAt(at, d.file);
     }
+    if (d?.ff === 'act' && $('.editor') && ed.blocks[d.i]) {
+      const i = d.i;
+      if (d.act === 'rm') {
+        const gone = BLOCKS[ed.blocks[i].type]?.label || 'Block';
+        ed.blocks.splice(i, 1); structural();
+        undoToast(`${gone} deleted`);
+      } else if (d.act === 'dup') {
+        const copy = { ...ed.blocks[i], id: uid() };
+        ed.blocks.splice(i + 1, 0, copy); ed.open = copy.id; structural();
+      } else if ((d.act === 'up' && i > 0) || (d.act === 'down' && i < ed.blocks.length - 1)) {
+        const j = d.act === 'up' ? i - 1 : i + 1;
+        [ed.blocks[i], ed.blocks[j]] = [ed.blocks[j], ed.blocks[i]]; structural();
+      }
+      return;
+    }
+    if (d?.ff === 'undo' && $('.editor')) return d.redo ? travel(undo.future, undo.past) : travel(undo.past, undo.future);
     if (d?.ff === 'drop' && $('.editor')) { document.body.classList.remove('dragging-block'); return dropAt(d.data, Math.max(0, Math.min(Number(d.at) || 0, ed.blocks.length))); }
     if (!d?.ff || !$('.editor') || !ed.blocks[d.i]) return;
     if (d.ff === 'open' && ed.open !== ed.blocks[d.i].id) { ed.open = ed.blocks[d.i].id; renderBlocks(); }
