@@ -25,6 +25,7 @@ const { registerBounces } = require('./bounces');
 const { rillyEmail } = require('./emailhtml');
 const segments = require('./segments');
 const { registerBookings } = require('./bookings');
+const attribution = require('./attribution');
 
 const slugify = (s) => String(s || '').toLowerCase().normalize('NFKD').replace(/[^\w\s-]/g, '')
   .trim().replace(/[\s_]+/g, '-').replace(/-+/g, '-').slice(0, 60) || 'page';
@@ -198,8 +199,10 @@ function createApp({ dbPath } = {}) {
         meta: { order_id: order.id, product: order.product_name, funnel_id: order.funnel_id },
       });
       if (order.funnel_id && order.step_id) {
-        await t.run("INSERT INTO page_events (account_id, funnel_id, step_id, type, contact_id, variant) VALUES (?, ?, ?, 'sale', ?, ?)",
-          order.account_id, order.funnel_id, order.step_id, contact.id, order.variant || 'a');
+        const osrc = (() => { try { return JSON.parse(order.attribution || 'null'); } catch { return null; } })();
+        await t.run("INSERT INTO page_events (account_id, funnel_id, step_id, type, contact_id, variant, source) VALUES (?, ?, ?, 'sale', ?, ?, ?)",
+          order.account_id, order.funnel_id, order.step_id, contact.id, order.variant || 'a', osrc?.source || '');
+        if (osrc) await t.run("UPDATE contacts SET attribution = ? WHERE id = ? AND attribution = ''", order.attribution, contact.id);
       }
     });
   }
@@ -787,6 +790,17 @@ function createApp({ dbPath } = {}) {
       testimonials: await approvedTestimonials(db, req.accountId), business: (await getAccount(req.accountId)).name }) });
   });
 
+  // Where a funnel's visitors came from, and how each source converts.
+  api.get('/funnels/:id/sources', async (req, res) => {
+    const f = await getFunnel(req.accountId, req.params.id);
+    const rows = await db.all(`SELECT COALESCE(NULLIF(source, ''), 'Unknown') AS source,
+        COUNT(*) FILTER (WHERE type = 'view' AND step_id = ?)::int AS visitors,
+        COUNT(*) FILTER (WHERE type = 'optin')::int AS leads,
+        COUNT(*) FILTER (WHERE type = 'sale')::int AS sales
+      FROM page_events WHERE funnel_id = ? AND created_at > now() - interval '30 days' GROUP BY 1 ORDER BY 2 DESC, 3 DESC LIMIT 12`, f.entry_step_id, f.id);
+    res.json(rows.filter((r) => r.visitors || r.leads || r.sales).map((r) => ({ ...r, rate: r.visitors ? Math.round(((r.leads + r.sales) / r.visitors) * 1000) / 10 : null })));
+  });
+
   // Pipelines & deals
   const getPipeline = async (q, accountId, pipelineId) => {
     const p = await q.get('SELECT * FROM pipelines WHERE id = ? AND account_id = ?', id(pipelineId), accountId);
@@ -1112,7 +1126,7 @@ function createApp({ dbPath } = {}) {
 
   // Booking calendar routes (registered before the API's not-found handler and the public page route).
   const bookings = registerBookings(app, api, { getDb: () => db, HttpError, id, upsertContact, logEvent, messaging, mailer, publicBase,
-    ownerViewing: (...a) => ownerViewing(...a), findPublicStep: (...a) => findPublicStep(...a) });
+    ownerViewing: (...a) => ownerViewing(...a), findPublicStep: (...a) => findPublicStep(...a), attachSource: (...a) => attachSource(...a) });
   api.use((req, res) => res.status(404).json({ error: 'Not found' }));
   app.use('/api', api);
 
@@ -1163,6 +1177,14 @@ function createApp({ dbPath } = {}) {
 
   // ---- One-click upsells: a signed cookie remembers the order just paid. ----
   const buyerToken = (orderId) => `${orderId}.${crypto.createHmac('sha256', secret).update(`buyer:${orderId}`).digest('hex').slice(0, 20)}`;
+  // Where this visitor came from (first touch, kept 90 days).
+  const ownHostList = () => [...new Set([...(process.env.APP_HOSTS || '').split(','), process.env.PUBLIC_URL ? new URL(process.env.PUBLIC_URL).hostname : ''].map((h) => h.trim().toLowerCase()).filter(Boolean))];
+  const visitSource = (req) => attribution.read(auth.parseCookies(req.headers.cookie));
+  const attachSource = async (q, contactId, req) => {
+    const a = visitSource(req);
+    if (a && contactId) await q.run("UPDATE contacts SET attribution = ? WHERE id = ? AND attribution = ''", JSON.stringify(a), contactId);
+    return a;
+  };
   const rememberBuyer = (req, res, order) => res.cookie('ffbuyer', buyerToken(order.id), { httpOnly: true, sameSite: 'lax', secure: req.secure, maxAge: 2 * 3600e3 });
   const buyerOrder = async (req, funnel) => {
     const t = String(cookieVal(req, 'ffbuyer') || '');
@@ -1206,9 +1228,10 @@ function createApp({ dbPath } = {}) {
     const v = req.query.v === 'b' && draft ? 'b' : variantFor(req, res, step);
     const page = pageOf(step, v);
     const buyer = page.blocks.some((x) => x.type === 'pricing') ? await buyerOrder(req, funnel) : null;
+    const src = draft ? null : attribution.remember(req, res, auth.parseCookies(req.headers.cookie), [...ownHostList(), req.hostname.toLowerCase()]);
     const [products] = await Promise.all([
       productsMap(funnel.account_id),
-      draft ? null : db.run("INSERT INTO page_events (account_id, funnel_id, step_id, type, variant) VALUES (?, ?, ?, 'view', ?)", funnel.account_id, funnel.id, step.id, v),
+      draft ? null : db.run("INSERT INTO page_events (account_id, funnel_id, step_id, type, variant, source) VALUES (?, ?, ?, 'view', ?, ?)", funnel.account_id, funnel.id, step.id, v, src?.source || ''),
     ]);
     if (!draft) await funnelKit.decideWinner(step.id);
     if (draft) res.set('X-Robots-Tag', 'noindex');
@@ -1276,8 +1299,9 @@ function createApp({ dbPath } = {}) {
         .catch((e) => console.error('lead magnet email:', e.message));
       await logEvent(db, funnel.account_id, { person_id: contact.id, type: 'note', source: 'funnel', meta: { ...meta, note: `Sent ${what}` } }, { recompute: false });
     }
-    await db.run("INSERT INTO page_events (account_id, funnel_id, step_id, type, contact_id, variant) VALUES (?, ?, ?, 'optin', ?, ?)",
-      funnel.account_id, funnel.id, step.id, contact.id, variantFor(req, null, step));
+    const optSrc = await attachSource(db, contact.id, req);
+    await db.run("INSERT INTO page_events (account_id, funnel_id, step_id, type, contact_id, variant, source) VALUES (?, ?, ?, 'optin', ?, ?, ?)",
+      funnel.account_id, funnel.id, step.id, contact.id, variantFor(req, null, step), optSrc?.source || '');
     await funnelKit.decideWinner(step.id);
     if (nextUrl !== '#') return res.redirect(303, nextUrl);
     res.type('html').send('<!doctype html><meta name="viewport" content="width=device-width"><p style="font:20px system-ui;text-align:center;margin-top:20vh">Thanks! You are subscribed.</p>');
@@ -1305,9 +1329,10 @@ function createApp({ dbPath } = {}) {
     const account = await db.get('SELECT stripe_secret_key FROM accounts WHERE id = ?', funnel.account_id);
     const email = EMAIL_RE.test(String(req.body.email || '').trim()) ? String(req.body.email).trim().toLowerCase() : '';
     const buyer = email ? await upsertContact(db, funnel.account_id, { email, source: 'funnel' }).catch(() => null) : null;
-    const { id: orderId } = await db.get(`INSERT INTO orders (account_id, product_id, product_name, amount_cents, currency, mode, funnel_id, step_id, items, variant, email, contact_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`, funnel.account_id, product.id, bump ? `${product.name} + ${bump.name}` : product.name,
-    product.price_cents + (bump ? bump.price_cents : 0), product.currency, account.stripe_secret_key ? 'stripe' : 'test', funnel.id, step.id, JSON.stringify(items), variantFor(req, null, step), email, buyer?.id || null);
+    const buySrc = buyer ? await attachSource(db, buyer.id, req) : visitSource(req);
+    const { id: orderId } = await db.get(`INSERT INTO orders (account_id, product_id, product_name, amount_cents, currency, mode, funnel_id, step_id, items, variant, email, contact_id, attribution)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`, funnel.account_id, product.id, bump ? `${product.name} + ${bump.name}` : product.name,
+    product.price_cents + (bump ? bump.price_cents : 0), product.currency, account.stripe_secret_key ? 'stripe' : 'test', funnel.id, step.id, JSON.stringify(items), variantFor(req, null, step), email, buyer?.id || null, buySrc ? JSON.stringify(buySrc) : '');
     if (!account.stripe_secret_key) return res.redirect(303, `/checkout/test/${orderId}/${orderToken(orderId)}`);
     try {
       const session = await stripe.createCheckoutSession(account.stripe_secret_key, {

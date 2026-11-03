@@ -102,7 +102,11 @@ function createPeople({ getDb, HttpError, parseTags, id, formatMoney }) {
     return { id: r.id, created: true };
   }
 
-  const personOut = (c) => ({ ...c, tags: JSON.parse(c.tags), unsubscribed: Boolean(c.unsubscribed), name: [c.first_name, c.last_name].filter(Boolean).join(' ') });
+  const personOut = (c) => {
+    let came = null;
+    try { came = c.attribution ? JSON.parse(c.attribution) : null; } catch { /* ignore */ }
+    return { ...c, tags: JSON.parse(c.tags), unsubscribed: Boolean(c.unsubscribed), name: [c.first_name, c.last_name].filter(Boolean).join(' '), came_from: came };
+  };
   const eventOut = (e) => ({ ...e, meta: JSON.parse(e.meta || '{}'), valueLabel: e.value_cents ? formatMoney(e.value_cents, 'usd') : '' });
   const getPerson = async (accountId, personId) => {
     const c = await getDb().get('SELECT * FROM contacts WHERE id = ? AND account_id = ?', id(personId), accountId);

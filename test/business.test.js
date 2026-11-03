@@ -171,3 +171,31 @@ test('imports from other tools: quoted tags, do-not-disturb kept unsubscribed', 
   assert.deepEqual([people['b@example.com'].unsubscribed, people['c@example.com'].unsubscribed, people['d@example.com'].unsubscribed], [true, false, true]);
   assert.deepEqual(people['b@example.com'].tags.sort(), ['customer', 'from-mailchimp', 'repair']);
 });
+
+test('lead source tracking: first-touch source on visits, people and sales; per-funnel report', async () => {
+  const { classify } = require('../src/attribution');
+  assert.equal(classify({ query: { utm_source: 'fb', utm_campaign: 'spring' } }).source, 'Facebook');
+  assert.equal(classify({ referrer: 'https://l.instagram.com/x' }).source, 'Instagram');
+  assert.equal(classify({ referrer: 'https://www.google.com/search?q=x' }).source, 'Google');
+  assert.equal(classify({ referrer: 'https://getrilly.com/f/a', ownHosts: ['getrilly.com'] }).source, 'Direct');
+  const c = client();
+  await c('POST', '/api/auth/signup', { name: 'Sal', email: 'sal@example.com', password: 'password123', workspace: 'Sal Co' });
+  const f = (await c('POST', '/api/funnels', { name: 'Guide', template: 'optin' })).body;
+  assert.equal((await c('POST', `/api/funnels/${f.id}/publish`)).status, 200);
+  const funnel = (await c('GET', `/api/funnels/${f.id}`)).body;
+  const step = funnel.steps.find((s) => s.id === funnel.entry_step_id);
+  const form = step.blocks.find((b) => b.type === 'form');
+  // A visitor from a Facebook ad: the page sets the cookie, the sign-up carries it.
+  const visit = await fetch(`${base}/f/${funnel.slug}?utm_source=facebook&utm_campaign=spring-sale`);
+  const cookie = visit.headers.get('set-cookie').split(';')[0];
+  assert.match(cookie, /^rl_src=/);
+  await fetch(`${base}/f/${funnel.slug}/${step.slug}/optin`, { method: 'POST', redirect: 'manual', headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ block: form.id, email: 'fan@example.com', first_name: 'Fan' }) });
+  // A visitor from Google who doesn't sign up.
+  await fetch(`${base}/f/${funnel.slug}`, { headers: { referer: 'https://www.google.com/' } });
+  const fan = (await c('GET', '/api/contacts?q=fan@example.com')).body[0];
+  assert.deepEqual([fan.came_from.source, fan.came_from.campaign], ['Facebook', 'spring-sale']);
+  const rows = Object.fromEntries((await c('GET', `/api/funnels/${f.id}/sources`)).body.map((r) => [r.source, r]));
+  assert.deepEqual([rows.Facebook.visitors, rows.Facebook.leads, rows.Facebook.rate], [1, 1, 100]);
+  assert.deepEqual([rows.Google.visitors, rows.Google.leads], [1, 0]);
+});

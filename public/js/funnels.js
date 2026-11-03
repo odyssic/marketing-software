@@ -134,6 +134,7 @@ async function viewFunnel(id) {
         ${f.status === 'live' ? '<button class="btn" data-unpublish>Unpublish</button>' : '<button class="btn primary" data-publish>Publish</button>'}</div></div>
     <div class="fstats" data-fstats aria-label="Funnel statistics"></div>
     <div data-leak></div>
+    <div data-sources></div>
     <details class="fu card" data-fu ${f.workflows?.length ? 'open' : ''}>
       <summary><span>${icon('bolt')} <b>Follow-ups</b> <span class="muted small">emails and steps that run after someone goes through this funnel</span></span>
         <span class="muted small" data-fucount>${f.workflows?.length || 0} workflow${f.workflows?.length === 1 ? '' : 's'}</span></summary>
@@ -211,6 +212,18 @@ async function viewFunnel(id) {
     ].join('');
   };
   renderStats(null);
+  // Where visitors came from, in plain words first, then the numbers.
+  api('GET', `/api/funnels/${id}/sources`).then((rows) => {
+    if (!rows.length) return;
+    const best = rows.filter((r) => r.visitors >= 10 && r.rate !== null).sort((a, b) => b.rate - a.rate)[0];
+    const top = rows[0];
+    const line = (r) => `${r.source} brought ${r.visitors} visitor${r.visitors === 1 ? '' : 's'}${r.leads ? `, ${r.leads} lead${r.leads === 1 ? '' : 's'}` : ''}${r.sales ? `, ${r.sales} sale${r.sales === 1 ? '' : 's'}` : ''}${r.rate !== null && (r.leads || r.sales) ? ` (${r.rate}%)` : ''}`;
+    $('[data-sources]').innerHTML = `<details class="fu card src-card" ${rows.length > 1 ? 'open' : ''}><summary><span>${icon('target')} <b>Where visitors came from</b> <span class="muted small">last 30 days</span></span><span class="muted small">${esc(line(top))}</span></summary>
+      <div class="src-body">${best && best !== top ? `<p class="src-tip">${icon('sparkle')} <b>${esc(best.source)}</b> converts best: ${best.rate}% of its visitors sign up or buy.</p>` : ''}
+        <table class="mini"><tr><th>Source</th><th>Visitors</th><th>Leads</th><th>Sales</th><th>Convert</th></tr>
+        ${rows.map((r) => `<tr><td><b>${esc(r.source)}</b></td><td>${r.visitors}</td><td>${r.leads}</td><td>${r.sales}</td><td>${r.rate === null ? '—' : `${r.rate}%`}</td></tr>`).join('')}</table>
+        <p class="hint">Tip: add <code>?utm_source=facebook&amp;utm_campaign=spring-sale</code> to the links in your ads and posts to see each one separately.</p></div></details>`;
+  }).catch(() => {});
   api('GET', `/api/funnels/${id}/email-stats`).then(renderStats).catch(() => {});
 
   // ---------- Follow-ups, laid out as steps you can add to ----------

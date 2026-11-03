@@ -100,7 +100,7 @@ function ics({ uid, start, end, title, description, location, organizer }) {
 }
 const when = (iso, tz) => new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'long', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' }).format(new Date(iso));
 
-function registerBookings(app, api, { getDb, HttpError, id, upsertContact, logEvent, messaging, mailer, publicBase, ownerViewing, findPublicStep }) {
+function registerBookings(app, api, { getDb, HttpError, id, upsertContact, logEvent, messaging, mailer, publicBase, ownerViewing, findPublicStep, attachSource = async () => null }) {
   const db = () => getDb();
   const confirmed = (accountId) => db().all("SELECT starts_at, ends_at FROM bookings WHERE account_id = ? AND status = 'confirmed' AND ends_at > now() - interval '1 day'", accountId);
   const page = (res, status, title, body) => res.status(status).type('html').send(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title>
@@ -147,7 +147,8 @@ function registerBookings(app, api, { getDb, HttpError, id, upsertContact, logEv
       throw e;
     }
     await logEvent(db(), account.id, { person_id: contact.id, type: 'booking', source: 'funnel', meta: { funnel: funnel.name, funnel_id: funnel.id, step_id: step.id, starts_at: slot.start, note: booking.note } });
-    await db().run("INSERT INTO page_events (account_id, funnel_id, step_id, type, contact_id) VALUES (?, ?, ?, 'optin', ?)", account.id, funnel.id, step.id, contact.id);
+    const src = await attachSource(db(), contact.id, req);
+    await db().run("INSERT INTO page_events (account_id, funnel_id, step_id, type, contact_id, source) VALUES (?, ?, ?, 'optin', ?, ?)", account.id, funnel.id, step.id, contact.id, src?.source || '');
     await sendConfirmation(account, booking, s).catch((e) => console.error('booking email:', e.message));
     res.json({ ok: true, start: slot.start, end: slot.end, next: nextUrl === '#' ? null : nextUrl });
   });

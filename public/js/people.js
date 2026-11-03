@@ -84,7 +84,7 @@ async function viewPerson(personId) {
   shell('people', `
     <div class="head"><div><a href="#/people" class="small">← People</a>
       <h1 style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">${esc(personName(p))} ${stagePill(p.stage)}</h1>
-      <div class="muted">${[p.email && esc(p.email), p.phone && esc(p.phone), `first came from <b>${esc(p.source)}</b>`, `added ${fmtDate(p.created_at)}`].filter(Boolean).join(' · ')}</div></div>
+      <div class="muted">${[p.email && esc(p.email), p.phone && esc(p.phone), p.came_from ? `came from <b>${esc(p.came_from.source)}</b>${p.came_from.campaign ? ` · “${esc(p.came_from.campaign)}”` : ''}` : `first came from <b>${esc(p.source)}</b>`, `added ${fmtDate(p.created_at)}`].filter(Boolean).join(' · ')}</div></div>
       <div class="row"><button class="btn" data-log>+ Log activity</button><button class="btn" data-addt>${icon('quote')} Add testimonial</button><button class="btn" data-edit>Edit</button></div></div>
     <div class="flowline">${STAGES.map(([k, l]) => `<div class="${k} ${STAGES.findIndex((s) => s[0] === k) <= STAGES.findIndex((s) => s[0] === p.stage) ? 'on' : ''}">${esc(l.replace(/s$/, ''))}</div>`).join('')}</div>
     <div class="grid two">
