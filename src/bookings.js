@@ -11,6 +11,8 @@ const DEFAULTS = {
   tz: 'America/New_York', days: [1, 2, 3, 4, 5], start: '09:00', end: '17:00',
   length: 30, buffer: 0, notice_hours: 12, horizon_days: 21,
   title: 'Free consultation', location: 'Phone or video call. I’ll send the details.',
+  breaks: [], // daily, e.g. [{ start: '12:00', end: '13:00' }]
+  busy: [], // one-off, [{ id, start: ISO, end: ISO, label }]
 };
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -41,8 +43,10 @@ function zonedDate(date, tz) {
 function settingsOf(account) {
   let s = {};
   try { s = JSON.parse(account.booking || '{}') || {}; } catch { /* defaults */ }
-  return { ...DEFAULTS, ...s, configured: Boolean(account.booking) };
+  // Hours count as set once they've been saved (busy times alone don't switch booking on).
+  return { ...DEFAULTS, ...s, configured: Boolean(s.start) };
 }
+const stored = (account) => { try { return JSON.parse(account.booking || '{}') || {}; } catch { return {}; } };
 function cleanSettings(b = {}) {
   const n = (v, lo, hi, d) => (Number.isFinite(+v) ? Math.min(hi, Math.max(lo, Math.round(+v))) : d);
   const out = {
@@ -51,6 +55,7 @@ function cleanSettings(b = {}) {
     start: HHMM.test(b.start) ? b.start : DEFAULTS.start, end: HHMM.test(b.end) ? b.end : DEFAULTS.end,
     length: n(b.length, 10, 240, 30), buffer: n(b.buffer, 0, 120, 0), notice_hours: n(b.notice_hours, 0, 720, 12), horizon_days: n(b.horizon_days, 1, 120, 21),
     title: String(b.title || DEFAULTS.title).trim().slice(0, 100), location: String(b.location || '').trim().slice(0, 300),
+    breaks: (Array.isArray(b.breaks) ? b.breaks : []).filter((x) => HHMM.test(x?.start) && HHMM.test(x?.end) && x.end > x.start).slice(0, 3).map((x) => ({ start: x.start, end: x.end })),
   };
   if (out.end <= out.start) throw Object.assign(new Error('The day has to end after it starts'), { status: 400 });
   return out;
@@ -59,6 +64,8 @@ function cleanSettings(b = {}) {
 // Open times: every slot in the working hours, minus notice, minus bookings (and their buffers).
 function slotsFor(s, booked, now = new Date()) {
   const out = [];
+  // Busy times (one-off) count like bookings.
+  const blocked = [...booked, ...(s.busy || []).map((b) => ({ starts_at: b.start, ends_at: b.end }))];
   const earliest = now.getTime() + s.notice_hours * 3600e3;
   const step = (s.length + s.buffer) * 60e3;
   const [sh, sm] = s.start.split(':').map(Number), [eh, em] = s.end.split(':').map(Number);
@@ -67,10 +74,16 @@ function slotsFor(s, booked, now = new Date()) {
     if (!s.days.includes(day.wd)) continue;
     const dayStart = zonedToUtc(day.y, day.m, day.d, sh, sm, s.tz).getTime();
     const dayEnd = zonedToUtc(day.y, day.m, day.d, eh, em, s.tz).getTime();
+    // Daily breaks (lunch etc.) in this day's local time.
+    const breaks = (s.breaks || []).map((br) => {
+      const [bh, bm] = br.start.split(':').map(Number), [xh, xm] = br.end.split(':').map(Number);
+      return [zonedToUtc(day.y, day.m, day.d, bh, bm, s.tz).getTime(), zonedToUtc(day.y, day.m, day.d, xh, xm, s.tz).getTime()];
+    });
     for (let t = dayStart; t + s.length * 60e3 <= dayEnd; t += step) {
       if (t < earliest) continue;
       const end = t + s.length * 60e3;
-      const clash = booked.some((b) => t < new Date(b.ends_at).getTime() + s.buffer * 60e3 && end + s.buffer * 60e3 > new Date(b.starts_at).getTime());
+      if (breaks.some(([a, z]) => t < z && end > a)) continue;
+      const clash = blocked.some((b) => t < new Date(b.ends_at).getTime() + s.buffer * 60e3 && end + s.buffer * 60e3 > new Date(b.starts_at).getTime());
       if (!clash) out.push({ start: new Date(t).toISOString(), end: new Date(end).toISOString() });
     }
   }
@@ -254,9 +267,41 @@ function registerBookings(app, api, { getDb, HttpError, id, upsertContact, logEv
     let s;
     try { s = cleanSettings(req.body); } catch (e) { throw new HttpError(e.status || 400, e.message); }
     if (!s.days.length) throw new HttpError(400, 'Pick at least one day');
+    const prev = settingsOf(await db().get('SELECT booking FROM accounts WHERE id = ?', req.accountId));
+    s.busy = (prev.busy || []).filter((b) => new Date(b.end) > new Date());
     await db().run('UPDATE accounts SET booking = ? WHERE id = ?', JSON.stringify(s), req.accountId);
     res.json({ ok: true, settings: { ...s, configured: true } });
   });
+  // Busy times: a date with a from/until (or the whole day) in the owner's time zone.
+  api.post('/bookings/busy', async (req, res) => {
+    const account = await db().get('SELECT booking FROM accounts WHERE id = ?', req.accountId);
+    const s = settingsOf(account);
+    const m = String(req.body?.date || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!m) throw new HttpError(400, 'Pick a date');
+    const allDay = Boolean(req.body?.all_day);
+    const from = allDay ? '00:00' : String(req.body?.from || ''), to = allDay ? '23:59' : String(req.body?.to || '');
+    if (!HHMM.test(from) || !HHMM.test(to) || to <= from) throw new HttpError(400, 'The busy time has to end after it starts');
+    const [y, mo, d] = m.slice(1).map(Number);
+    const days = Math.min(60, Math.max(1, Number(req.body?.days) || 1)); // a few days off in a row
+    const busy = (s.busy || []).filter((b) => new Date(b.end) > new Date());
+    for (let i = 0; i < days; i++) {
+      const day = new Date(Date.UTC(y, mo - 1, d + i));
+      const [fy, fm, fd] = [day.getUTCFullYear(), day.getUTCMonth() + 1, day.getUTCDate()];
+      const [fh, fmin] = from.split(':').map(Number), [th, tmin] = to.split(':').map(Number);
+      busy.push({ id: crypto.randomBytes(6).toString('hex'), start: zonedToUtc(fy, fm, fd, fh, fmin, s.tz).toISOString(), end: zonedToUtc(fy, fm, fd, th, tmin, s.tz).toISOString(), label: String(req.body?.label || '').trim().slice(0, 80) });
+    }
+    busy.sort((a, b) => a.start.localeCompare(b.start));
+    await db().run('UPDATE accounts SET booking = ? WHERE id = ?', JSON.stringify({ ...stored(account), busy: busy.slice(-300) }), req.accountId);
+    res.status(201).json({ busy });
+  });
+  api.delete('/bookings/busy/:bid', async (req, res) => {
+    const account = await db().get('SELECT booking FROM accounts WHERE id = ?', req.accountId);
+    const s = settingsOf(account);
+    const busy = (s.busy || []).filter((b) => b.id !== req.params.bid);
+    await db().run('UPDATE accounts SET booking = ? WHERE id = ?', JSON.stringify({ ...stored(account), busy }), req.accountId);
+    res.json({ busy });
+  });
+
   api.post('/bookings/:id/cancel', async (req, res) => {
     const bk = await db().get('SELECT * FROM bookings WHERE id = ? AND account_id = ?', id(req.params.id), req.accountId);
     if (!bk) throw new HttpError(404, 'Booking not found');

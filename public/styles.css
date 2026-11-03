@@ -628,3 +628,7 @@ svg.rot90 { transform: rotate(90deg); }
 .cal-dchip span { display: inline-block; padding: 6px 11px; border: 1px solid var(--line); border-radius: 99px; cursor: pointer; font-size: .85rem; }
 .cal-dchip input:checked + span { background: var(--brand); border-color: var(--brand); color: #fff; }
 @media (max-width: 1000px) { .cal-grid { grid-template-columns: 1fr; } }
+
+.cal-side { display: grid; gap: 16px; }
+.cal-busy h2 { margin-top: 0; }
+.cal-busy-form { border-top: 1px solid var(--line); margin-top: 10px; padding-top: 12px; }

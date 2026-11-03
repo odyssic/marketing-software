@@ -37,6 +37,10 @@ test('open times follow the owner’s hours and time zone, including daylight sa
   const busy = [{ starts_at: '2026-12-07T14:30:00Z', ends_at: '2026-12-07T15:00:00Z' }];
   const monday = slotsFor({ ...s, length: 30, buffer: 15 }, busy, now).filter((x) => x.start.startsWith('2026-12-07')).map((x) => x.start.slice(11, 16));
   assert.ok(!monday.includes('14:30') && !monday.includes('14:45'));
+  // A daily lunch break and a one-off busy time remove those slots.
+  const lunch = slotsFor({ ...s, end: '14:00', breaks: [{ start: '12:00', end: '13:00' }], busy: [{ start: '2026-12-07T14:00:00Z', end: '2026-12-07T15:00:00Z' }] }, [], now)
+    .filter((x) => x.start.startsWith('2026-12-07')).map((x) => x.start.slice(11, 16));
+  assert.deepEqual(lunch, ['15:00', '15:30', '16:00', '16:30', '18:00', '18:30']); // 9–10 busy, 12–13 lunch (New York)
   assert.match(ics({ uid: 'b1', start: slots[0].start, end: slots[0].end, title: 'Call, with; care', description: 'line\nnext' }), /SUMMARY:Call\\, with\\; care[\s\S]*DESCRIPTION:line\\nnext/);
 });
 
