@@ -40,8 +40,13 @@ async function viewCalendar(tab) {
       <div class="cal-side"><form class="card cal-hours" data-hours>
         <h2>Your available hours</h2>
         <label class="f">Time zone<select name="tz">${zones.map((z) => `<option value="${esc(z)}" ${z === tz ? 'selected' : ''}>${esc(z.replace(/_/g, ' '))}</option>`).join('')}</select></label>
-        <div class="f">Days<div class="cal-days">${WEEKDAYS.map((d, i) => `<label class="cal-dchip"><input type="checkbox" name="day" value="${i}" ${s.days.includes(i) ? 'checked' : ''}><span>${d}</span></label>`).join('')}</div></div>
-        <div class="colors" style="grid-template-columns:1fr 1fr"><label class="f">From<input type="time" name="start" value="${esc(s.start)}" step="900"></label><label class="f">Until<input type="time" name="end" value="${esc(s.end)}" step="900"></label></div>
+        <div class="f">Open times <span class="hint">each day can have its own, or more than one stretch</span>
+          <div class="wk" data-week>${[1, 2, 3, 4, 5, 6, 0].map((d) => {
+            const ranges = s.hours ? s.hours[d] || [] : s.days.includes(d) ? [[s.start, s.end]] : [];
+            return `<div class="wk-day" data-wd="${d}"><label class="wk-on"><input type="checkbox" ${ranges.length ? 'checked' : ''}><b>${WEEKDAYS[d]}</b></label>
+              <div class="wk-ranges">${(ranges.length ? ranges : [['09:00', '17:00']]).map((r) => `<span class="wk-r"><input type="time" value="${esc(r[0])}" step="900" aria-label="From"><span>–</span><input type="time" value="${esc(r[1])}" step="900" aria-label="Until"><button type="button" class="btn sm icon" data-rmr title="Remove" aria-label="Remove these times">${icon('x')}</button></span>`).join('')}
+                <button type="button" class="btn sm" data-addr>${icon('plus')} Add times</button><span class="muted small wk-closed">Closed</span></div></div>`;
+          }).join('')}</div></div>
         <div class="colors" style="grid-template-columns:1fr 1fr"><label class="f">Daily break <span class="hint">optional</span><input type="time" name="break_start" value="${esc(s.breaks?.[0]?.start || '')}" step="900"></label>
           <label class="f">Break ends<input type="time" name="break_end" value="${esc(s.breaks?.[0]?.end || '')}" step="900"></label></div>
         <div class="colors" style="grid-template-columns:1fr 1fr">
@@ -72,12 +77,34 @@ async function viewCalendar(tab) {
   $('[data-hours]').onsubmit = async (e) => {
     e.preventDefault();
     const f = e.target;
-    const body = { tz: f.tz.value, days: $$('[name=day]:checked', f).map((c) => Number(c.value)), start: f.start.value, end: f.end.value, length: Number(f.length.value),
+    const hours = {};
+    $$('.wk-day', f).forEach((row) => {
+      if (!$('.wk-on input', row).checked) return;
+      hours[row.dataset.wd] = $$('.wk-r', row).map((r) => { const [a, z] = $$('input', r); return [a.value, z.value]; }).filter(([a, z]) => a && z);
+    });
+    const body = { tz: f.tz.value, hours, length: Number(f.length.value),
       buffer: Number(f.buffer.value), notice_hours: Number(f.notice_hours.value), horizon_days: Number(f.horizon_days.value), title: f.title.value, location: f.location.value,
       breaks: f.break_start.value && f.break_end.value ? [{ start: f.break_start.value, end: f.break_end.value }] : [] };
     try { await api('PUT', '/api/bookings/settings', body); toast('Hours saved. Visitors can book now'); viewCalendar(tab); }
     catch (err) { $('.err', f).textContent = err.message; }
   };
+  // The week editor: switch days on/off, add or remove stretches of time.
+  const week = $('[data-week]');
+  const sync = () => $$('.wk-day', week).forEach((row) => row.classList.toggle('off', !$('.wk-on input', row).checked));
+  sync();
+  week.addEventListener('change', (e) => { if (e.target.closest('.wk-on')) sync(); });
+  week.addEventListener('click', (e) => {
+    const add = e.target.closest('[data-addr]'), rm = e.target.closest('[data-rmr]');
+    if (add) {
+      const row = add.closest('.wk-day'), last = $$('.wk-r', row).at(-1);
+      const from = last ? $$('input', last)[1].value || '13:00' : '09:00';
+      const [h, m] = from.split(':').map(Number), to = `${String(Math.min(23, h + 2)).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+      add.insertAdjacentHTML('beforebegin', `<span class="wk-r"><input type="time" value="${from}" step="900" aria-label="From"><span>–</span><input type="time" value="${to}" step="900" aria-label="Until"><button type="button" class="btn sm icon" data-rmr title="Remove" aria-label="Remove these times">${icon('x')}</button></span>`);
+    } else if (rm) {
+      const row = rm.closest('.wk-day');
+      if ($$('.wk-r', row).length > 1) rm.closest('.wk-r').remove(); else { $('.wk-on input', row).checked = false; sync(); }
+    }
+  });
   const bf = $('[data-busy]');
   bf.all_day.onchange = () => { $('[data-times]', bf).hidden = bf.all_day.checked; };
   bf.onsubmit = async (e) => {

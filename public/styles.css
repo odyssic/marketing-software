@@ -656,3 +656,15 @@ svg.rot90 { transform: rotate(90deg); }
 .pc-meta { font-size: .75rem; color: var(--muted); }
 .pv-toggle { margin: 0; }
 @media (max-width: 520px) { .pcards { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; } }
+
+/* Calendar: open times per weekday */
+.wk { display: grid; gap: 8px; margin-top: 6px; }
+.wk-day { display: grid; grid-template-columns: 70px 1fr; gap: 8px; align-items: start; padding: 6px 0; border-top: 1px solid var(--line); }
+.wk-on { display: flex; gap: 6px; align-items: center; padding-top: 6px; cursor: pointer; }
+.wk-ranges { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.wk-r { display: inline-flex; gap: 4px; align-items: center; }
+.wk-r input { width: 124px; padding: 6px 6px; font-size: .88rem; }
+.wk-day { grid-template-columns: 62px 1fr; }
+.wk-closed { display: none; padding-top: 6px; }
+.wk-day.off .wk-r, .wk-day.off [data-addr] { display: none; }
+.wk-day.off .wk-closed { display: inline; }

@@ -41,6 +41,14 @@ test('open times follow the owner’s hours and time zone, including daylight sa
   const lunch = slotsFor({ ...s, end: '14:00', breaks: [{ start: '12:00', end: '13:00' }], busy: [{ start: '2026-12-07T14:00:00Z', end: '2026-12-07T15:00:00Z' }] }, [], now)
     .filter((x) => x.start.startsWith('2026-12-07')).map((x) => x.start.slice(11, 16));
   assert.deepEqual(lunch, ['15:00', '15:30', '16:00', '16:30', '18:00', '18:30']); // 9–10 busy, 12–13 lunch (New York)
+  // Different hours per day, with two stretches on Monday.
+  const { cleanSettings } = require('../src/bookings');
+  const per = cleanSettings({ tz: 'America/New_York', hours: { 1: [['14:00', '15:00'], ['09:00', '10:00']], 6: [['10:00', '11:00']] }, length: 30, notice_hours: 0, horizon_days: 7 });
+  assert.deepEqual(per.days, [1, 6]);
+  const mon = slotsFor(per, [], now).filter((x) => x.start.startsWith('2026-12-07')).map((x) => x.start.slice(11, 16));
+  assert.deepEqual(mon, ['14:00', '14:30', '19:00', '19:30']); // 9–10 and 2–3 New York
+  assert.ok(slotsFor(per, [], now).some((x) => x.start.startsWith('2026-12-12T15'))); // Saturday 10:00
+  assert.ok(!slotsFor(per, [], now).some((x) => x.start.startsWith('2026-12-08'))); // Tuesday closed
   assert.match(ics({ uid: 'b1', start: slots[0].start, end: slots[0].end, title: 'Call, with; care', description: 'line\nnext' }), /SUMMARY:Call\\, with\\; care[\s\S]*DESCRIPTION:line\\nnext/);
 });
 

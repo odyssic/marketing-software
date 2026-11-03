@@ -57,7 +57,20 @@ function cleanSettings(b = {}) {
     title: String(b.title || DEFAULTS.title).trim().slice(0, 100), location: String(b.location || '').trim().slice(0, 300),
     breaks: (Array.isArray(b.breaks) ? b.breaks : []).filter((x) => HHMM.test(x?.start) && HHMM.test(x?.end) && x.end > x.start).slice(0, 3).map((x) => ({ start: x.start, end: x.end })),
   };
-  if (out.end <= out.start) throw Object.assign(new Error('The day has to end after it starts'), { status: 400 });
+  // Different hours per day: { 1: [['09:00','12:00'], ['14:00','17:00']], 6: [['10:00','14:00']] }.
+  if (b.hours && typeof b.hours === 'object') {
+    const hours = {};
+    for (let d = 0; d <= 6; d++) {
+      const ranges = (Array.isArray(b.hours[d]) ? b.hours[d] : []).filter((r) => Array.isArray(r) && HHMM.test(r[0]) && HHMM.test(r[1]) && r[1] > r[0])
+        .map((r) => [r[0], r[1]]).sort((x, y) => x[0].localeCompare(y[0])).slice(0, 6);
+      if (ranges.length) hours[d] = ranges;
+    }
+    out.hours = hours;
+    out.days = Object.keys(hours).map(Number);
+    if (out.days.length) { out.start = Object.values(hours).flat().map((r) => r[0]).sort()[0]; out.end = Object.values(hours).flat().map((r) => r[1]).sort().at(-1); }
+    return out;
+  }
+  if (out.end <= out.start && !(b.hours && typeof b.hours === 'object')) throw Object.assign(new Error('The day has to end after it starts'), { status: 400 });
   return out;
 }
 
@@ -68,10 +81,12 @@ function slotsFor(s, booked, now = new Date()) {
   const blocked = [...booked, ...(s.busy || []).map((b) => ({ starts_at: b.start, ends_at: b.end }))];
   const earliest = now.getTime() + s.notice_hours * 3600e3;
   const step = (s.length + s.buffer) * 60e3;
-  const [sh, sm] = s.start.split(':').map(Number), [eh, em] = s.end.split(':').map(Number);
+  // The day's open stretches: per-day hours if set, else one from/until on the chosen days.
+  const rangesFor = (wd) => (s.hours ? s.hours[wd] || [] : s.days.includes(wd) ? [[s.start, s.end]] : []);
   for (let i = 0; i <= s.horizon_days && out.length < 400; i++) {
     const day = zonedDate(new Date(now.getTime() + i * 86400e3), s.tz);
-    if (!s.days.includes(day.wd)) continue;
+    for (const [rs, re] of rangesFor(day.wd)) {
+    const [sh, sm] = rs.split(':').map(Number), [eh, em] = re.split(':').map(Number);
     const dayStart = zonedToUtc(day.y, day.m, day.d, sh, sm, s.tz).getTime();
     const dayEnd = zonedToUtc(day.y, day.m, day.d, eh, em, s.tz).getTime();
     // Daily breaks (lunch etc.) in this day's local time.
@@ -86,8 +101,9 @@ function slotsFor(s, booked, now = new Date()) {
       const clash = blocked.some((b) => t < new Date(b.ends_at).getTime() + s.buffer * 60e3 && end + s.buffer * 60e3 > new Date(b.starts_at).getTime());
       if (!clash) out.push({ start: new Date(t).toISOString(), end: new Date(end).toISOString() });
     }
+    }
   }
-  return out;
+  return out.sort((a, b) => a.start.localeCompare(b.start));
 }
 
 // A calendar file, so the visitor can add the call in one tap.
