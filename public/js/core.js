@@ -1,4 +1,4 @@
-/* Fourfold dashboard: a small hash-routed single-page app, no build step.
+/* Rilly dashboard: a small hash-routed single-page app, no build step.
    Files load in order (see index.html); this one holds shared helpers. */
 'use strict';
 
@@ -81,6 +81,7 @@ async function renderAuth(mode) {
   const setup = mode === 'setup';
   app.innerHTML = `<div class="auth"><form class="card">
     <div class="logo">${LOGO}${BRAND}</div>
+    <p class="tagline">${TAGLINE}</p>
     <h1>${setup ? 'Set up your marketing home' : 'Welcome back'}</h1>
     <p class="muted">${setup ? 'One owner, about an hour a week. You’ll sign in with a link sent to this email.'
       : mode === 'link' ? 'We’ll email you a link to sign in. No password needed.' : 'Sign in with your password.'}</p>
@@ -119,9 +120,10 @@ async function renderAuth(mode) {
 }
 
 // ---------------- Shell ----------------
-const BRAND = 'Fourfold';
+const BRAND = 'Rilly';
+const TAGLINE = 'Simple Marketing.';
 // Four squares, one per growth lever: lead gen, conversion, upsell, continuity.
-const LOGO = '<svg viewBox="0 0 32 32" aria-hidden="true"><rect x="3" y="3" width="12" height="12" rx="3.5" fill="#0ea5e9"/><rect x="17" y="3" width="12" height="12" rx="3.5" fill="#8b5cf6"/><rect x="3" y="17" width="12" height="12" rx="3.5" fill="#f59e0b"/><rect x="17" y="17" width="12" height="12" rx="3.5" fill="#10b981"/></svg>';
+const LOGO = '<svg viewBox="0 0 32 32" aria-hidden="true"><rect x="2" y="2" width="28" height="28" rx="8" fill="#4f46e5"/><path d="M11.5 23V9h5.2c2.9 0 4.8 1.6 4.8 4.1 0 1.9-1.1 3.3-2.9 3.8L22 23" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const NAV = [
   ['', icon('dashboard'), 'Dashboard'],
   ['pages', icon('page'), 'Pages'],

@@ -1,4 +1,6 @@
-# Fourfold
+# Rilly
+
+**Simple Marketing.**
 
 A simple, all-in-one marketing platform for small businesses. It starts with the core of
 **systeme.io** (funnels, contacts, email) and is built to grow toward **GoHighLevel**

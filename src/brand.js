@@ -1,2 +1,2 @@
 // Product name in one place (server side). The dashboard's copy is BRAND in public/js/core.js.
-module.exports = { NAME: 'Fourfold' };
+module.exports = { NAME: 'Rilly', TAGLINE: 'Simple Marketing.' };

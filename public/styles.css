@@ -95,7 +95,8 @@ pre.mail { white-space: pre-wrap; font: .85rem/1.5 ui-monospace, monospace; back
 .auth { min-height: 100vh; display: grid; place-items: center; padding: 20px; background: linear-gradient(135deg, #eef2ff, #f6f7fb); }
 .auth .card { width: 100%; max-width: 400px; padding: 32px; }
 .auth h1 { margin-bottom: 4px; }
-.auth .logo { color: var(--text); padding: 0 0 18px; }
+.auth .logo { color: var(--text); padding: 0 0 4px; }
+.auth .tagline { margin: 0 0 18px; color: #6b7280; font-size: .9rem; }
 .err { color: var(--danger); font-size: .88rem; min-height: 1.2em; margin: 4px 0 10px; }
 
 /* Modal */

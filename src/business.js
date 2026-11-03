@@ -1,4 +1,4 @@
-// Kinds of business Fourfold is set up for. The type only changes starting
+// Kinds of business Rilly is set up for. The type only changes starting
 // points and what's shown: which follow-ups a new workspace gets, whether it
 // starts with a deals board (and its stages), which sections are visible,
 // and what people are called. Everything stays available in Settings.
