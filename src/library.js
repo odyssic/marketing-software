@@ -20,6 +20,30 @@ function registerLibrary(api, { getDb, HttpError, id, ownHost, clearDomainCache 
     }));
   });
 
+  // Funnels and websites as groups, each with its pages in the order visitors
+  // move through them (start page, then each "Yes / Next"), plus 30-day numbers.
+  api.get('/page-groups', async (req, res) => {
+    const funnels = await db().all(`SELECT f.id, f.name, f.slug, f.kind, f.status, f.entry_step_id, f.created_at,
+        (SELECT COUNT(*)::int FROM workflows w WHERE w.funnel_id = f.id) AS followups
+      FROM funnels f WHERE f.account_id = ? ORDER BY f.id DESC`, req.accountId);
+    const steps = await db().all(`SELECT s.id, s.funnel_id, s.name, s.slug, s.position, s.blocks, s.settings, s.next_step_id, s.no_step_id,
+        s.variant_blocks IS NOT NULL AS testing,
+        (SELECT COUNT(*)::int FROM page_events e WHERE e.step_id = s.id AND e.type = 'view' AND e.created_at > now() - interval '30 days') AS views,
+        (SELECT COUNT(*)::int FROM page_events e WHERE e.step_id = s.id AND e.type IN ('optin', 'sale') AND e.created_at > now() - interval '30 days') AS leads
+      FROM funnel_steps s JOIN funnels f ON f.id = s.funnel_id WHERE f.account_id = ? ORDER BY s.position, s.id`, req.accountId);
+    const parse = (v) => (typeof v === 'string' ? JSON.parse(v || 'null') : v);
+    res.json(funnels.map((f) => {
+      const mine = steps.filter((s) => s.funnel_id === f.id).map((s) => ({ ...s, blocks: parse(s.blocks) || [], settings: parse(s.settings) || {}, testing: Boolean(s.testing) }));
+      const byId = Object.fromEntries(mine.map((s) => [s.id, s]));
+      const order = [], seen = new Set();
+      // Websites keep menu order; funnels follow the path from the start page.
+      for (let s = f.kind === 'website' ? null : byId[f.entry_step_id]; s && !seen.has(s.id); s = byId[s.next_step_id]) { order.push(s); seen.add(s.id); }
+      for (const s of mine) if (!seen.has(s.id)) order.push(s);
+      const views = order[0]?.views || 0, leads = order.reduce((n, s) => n + s.leads, 0);
+      return { ...f, pages: order, views, leads, rate: views ? Math.round((leads / views) * 1000) / 10 : null };
+    }));
+  });
+
   // ---------- One domain for the whole account ----------
   api.put('/account/domain', async (req, res) => {
     let domain = String(req.body?.domain ?? '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '') || null;

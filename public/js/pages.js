@@ -8,27 +8,48 @@ const PAGES_TABS = (on) => `<div class="tabs" style="margin-top:-6px">${[['', 'A
 async function viewPages() {
   const params = new URLSearchParams(location.hash.split('?')[1] || '');
   const q = (params.get('q') || '').toLowerCase();
-  const all = await api('GET', '/api/pages');
-  const pages = q ? all.filter((p) => `${p.name} ${p.funnel_name} ${p.address}`.toLowerCase().includes(q)) : all;
+  const all = await api('GET', '/api/page-groups');
+  // A search keeps a group if its name or any of its pages match.
+  const groups = q ? all.filter((g) => `${g.name} ${g.pages.map((p) => `${p.name} ${p.slug}`).join(' ')}`.toLowerCase().includes(q)) : all;
+  const link = (g, p, i) => publicUrl(`/f/${g.slug}${i === 0 && g.kind !== 'website' ? '' : `/${p.slug}`}`);
   shell('pages', `
-    <div class="head"><div><h1>Pages</h1><div class="muted">Every page in one place, whoever built it: websites, funnels, templates or AI.</div></div>
+    <div class="head"><div><h1>Pages</h1><div class="muted">Your funnels and websites, each shown as the pages visitors move through.</div></div>
       <div class="row"><button class="btn" data-newsite>+ Website</button><button class="btn primary" data-newfunnel>+ Funnel</button></div></div>
     ${PAGES_TABS('pages')}
-    <input data-q placeholder="Search pages…" value="${esc(q)}" style="max-width:340px;margin-bottom:14px">
-    ${pages.length ? `<div class="card table-wrap"><table>
-      <tr><th>Page</th><th>Part of</th><th>Address</th><th>Status</th><th>Visits</th><th>Leads</th><th>Edited</th><th></th></tr>
-      ${pages.map((p) => `<tr><td><strong>${esc(p.name)}</strong>${p.testing ? ' <span class="pill">A/B</span>' : ''}</td>
-        <td><a href="#/${p.kind === 'website' ? 'websites' : 'funnels'}/${p.funnel_id}">${esc(p.funnel_name)}</a> <span class="muted small">${p.kind === 'website' ? 'website' : 'funnel'}</span></td>
-        <td class="muted small">${esc(p.address)}</td><td>${p.status === 'live' ? '<span class="pill ok">Live</span>' : '<span class="pill warn">Draft</span>'}</td>
-        <td>${p.views}</td><td>${p.leads}</td><td class="muted small">${fmtDate(p.updated_at)}</td>
-        <td style="text-align:right;white-space:nowrap"><a class="btn sm primary" href="#/editor/${p.id}">Edit</a>
-          <a class="btn sm" href="${esc(p.address.startsWith('http') ? p.address : publicUrl(p.address))}" target="_blank" rel="noopener">View ${icon('external')}</a></td></tr>`).join('')}
-    </table></div>` : `<div class="card empty"><div class="big">${icon('page')}</div><h2>${q ? 'No matching pages' : 'No pages yet'}</h2>
+    <input data-q placeholder="Search funnels and pages…" value="${esc(q)}" style="max-width:340px;margin-bottom:14px">
+    ${groups.length ? groups.map((g) => `<section class="pgroup card">
+      <header class="pg-head">
+        <div><a class="pg-name" href="#/${g.kind === 'website' ? 'websites' : 'funnels'}/${g.id}">${esc(g.name)}</a>
+          <span class="muted small">${g.kind === 'website' ? 'Website' : 'Funnel'} · ${g.pages.length} page${g.pages.length === 1 ? '' : 's'}${g.followups ? ` · ${g.followups} follow-up${g.followups === 1 ? '' : 's'}` : ''}</span></div>
+        ${g.status === 'live' ? '<span class="pill ok">Live</span>' : '<span class="pill warn">Draft</span>'}
+        <div class="pg-stats"><span><b>${g.views}</b> visitors</span><span><b>${g.leads}</b> leads &amp; sales</span><span><b>${g.rate === null ? '—' : `${g.rate}%`}</b> convert</span><span class="muted small">last 30 days</span></div>
+        <a class="btn sm" href="#/${g.kind === 'website' ? 'websites' : 'funnels'}/${g.id}">${g.kind === 'website' ? 'Open site' : 'Open map'}</a>
+      </header>
+      <div class="pg-strip">${g.pages.map((p, i) => `${i && g.kind !== 'website' ? `<span class="pg-arrow" aria-hidden="true">${icon('arrowRight')}</span>` : ''}
+        <figure class="pg-page">
+          <a class="pg-thumb" href="#/editor/${p.id}" title="Edit “${esc(p.name)}”"><iframe tabindex="-1" aria-hidden="true" sandbox="" loading="lazy" data-pthumb="${p.id}"></iframe>
+            ${i === 0 && g.kind !== 'website' ? '<span class="pg-start">Start</span>' : ''}${p.testing ? '<span class="pg-ab">A/B</span>' : ''}</a>
+          <figcaption><b>${esc(p.name)}</b><span class="muted small">${p.views} views${p.leads ? ` · ${p.leads} ${p.leads === 1 ? 'lead' : 'leads'}` : ''}</span>
+            <span class="pg-links"><a href="#/editor/${p.id}">Edit</a> · <a href="${esc(link(g, p, i))}" target="_blank" rel="noopener">View</a></span></figcaption>
+        </figure>`).join('')}</div>
+    </section>`).join('') : `<div class="card empty"><div class="big">${icon('page')}</div><h2>${q ? 'Nothing matches' : 'No pages yet'}</h2>
       <p>${q ? 'Try a different search.' : 'Start a website for your business, or a funnel for one offer.'}</p></div>`}`);
   let t; $('[data-q]').oninput = (e) => { clearTimeout(t); t = setTimeout(() => { location.hash = `#/pages?q=${encodeURIComponent(e.target.value)}`; }, 350); };
   if (q) { const el = $('[data-q]'); el.focus(); el.setSelectionRange(q.length, q.length); }
   $('[data-newsite]').onclick = newWebsite;
   $('[data-newfunnel]').onclick = newFunnel;
+  // Page pictures, a few at a time.
+  const queue = groups.flatMap((g) => g.pages);
+  const next = async () => {
+    const p = queue.shift();
+    if (!p || !$('.pgroup')) return;
+    try {
+      const { html } = await api('POST', '/api/preview', { blocks: p.blocks, settings: p.settings, name: p.name });
+      const fr = $(`[data-pthumb="${p.id}"]`); if (fr) fr.srcdoc = html;
+    } catch { /* the card still works without its picture */ }
+    return next();
+  };
+  for (let i = 0; i < 4; i++) next();
 }
 
 // ---------------- Testimonials (real records only) ----------------

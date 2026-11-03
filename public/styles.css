@@ -24,7 +24,7 @@ h2 { font-size: 1.1rem; margin: 0 0 12px; }
 .boot { display: grid; place-items: center; height: 100vh; color: var(--muted); }
 
 /* Layout */
-.shell { display: grid; grid-template-columns: 232px 1fr; min-height: 100vh; }
+.shell { display: grid; grid-template-columns: 232px 1fr; min-height: 100vh; background: linear-gradient(to right, var(--ink) 232px, transparent 232px); }
 .sidebar { background: var(--ink); color: #d1d5db; padding: 20px 14px; display: flex; flex-direction: column; gap: 4px; position: sticky; top: 0; height: 100vh; }
 .logo { display: flex; align-items: center; gap: 10px; color: #fff; font-weight: 700; font-size: 1.1rem; padding: 4px 10px 18px; }
 .logo svg { width: 28px; height: 28px; }
@@ -149,7 +149,7 @@ pre.mail { white-space: pre-wrap; font: .85rem/1.5 ui-monospace, monospace; back
 .stage.mobile iframe { width: 390px; }
 
 @media (max-width: 900px) {
-  .shell { grid-template-columns: 1fr; }
+  .shell { grid-template-columns: 1fr; background: none; }
   /* Phones: the sidebar becomes a compact top bar that scrolls sideways. */
   .sidebar { position: sticky; top: 0; z-index: 30; height: auto; flex-direction: row; align-items: center; flex-wrap: nowrap; padding: 8px 10px; gap: 6px; overflow-x: auto; scrollbar-width: none; }
   .sidebar::-webkit-scrollbar { display: none; }
@@ -497,3 +497,29 @@ table.leads input:hover, table.leads input:focus { border-color: var(--line); ba
 .list-bin { display: none; align-items: center; justify-content: center; gap: 8px; margin: 8px 0 4px; padding: 12px; border: 2px dashed #fca5a5; border-radius: 10px; color: #b91c1c; font-weight: 600; font-size: .9rem; }
 .list-bin.on { display: flex; }
 .list-bin.over { background: #dc2626; color: #fff; border-color: #dc2626; }
+
+/* Page picture inside a funnel-map card: the page at 1200px wide, scaled to fit. */
+.nthumb { display: block; margin: 2px 12px 8px; height: 128px; overflow: hidden; border: 1px solid var(--line); border-radius: 8px; background: #fff; position: relative; cursor: pointer; }
+.nthumb iframe { position: absolute; top: 0; left: 0; width: 760px; height: 480px; border: 0; transform: scale(.268); transform-origin: 0 0; pointer-events: none; }
+.nthumb:hover { border-color: var(--brand); }
+
+/* Pages: each funnel or website as a strip of page pictures */
+.pgroup { margin-bottom: 16px; padding: 16px 18px; }
+.pg-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+.pg-head > div:first-child { display: flex; flex-direction: column; margin-right: 4px; }
+.pg-name { font-weight: 700; font-size: 1.05rem; color: var(--text); text-decoration: none; }
+.pg-name:hover { color: var(--brand); }
+.pg-stats { display: flex; gap: 14px; align-items: baseline; margin-left: auto; font-size: .85rem; color: var(--muted); flex-wrap: wrap; }
+.pg-stats b { color: var(--text); font-size: 1rem; }
+.pg-strip { display: flex; align-items: center; gap: 10px; overflow-x: auto; padding: 4px 2px 8px; scroll-snap-type: x proximity; }
+.pg-page { margin: 0; flex: none; width: 200px; scroll-snap-align: start; }
+.pg-thumb { display: block; position: relative; height: 136px; overflow: hidden; border: 1px solid var(--line); border-radius: 10px; background: #fff; box-shadow: 0 1px 2px rgba(16,24,40,.05); }
+.pg-thumb:hover { border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
+.pg-thumb iframe { position: absolute; top: 0; left: 0; width: 760px; height: 520px; border: 0; transform: scale(.263); transform-origin: 0 0; pointer-events: none; }
+.pg-start, .pg-ab { position: absolute; top: 6px; left: 6px; background: var(--brand); color: #fff; font-size: .65rem; font-weight: 700; padding: 2px 7px; border-radius: 99px; letter-spacing: .04em; text-transform: uppercase; }
+.pg-ab { left: auto; right: 6px; background: var(--ink); }
+.pg-page figcaption { display: flex; flex-direction: column; gap: 1px; padding: 8px 2px 0; font-size: .88rem; }
+.pg-page figcaption b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pg-links { font-size: .8rem; }
+.pg-links a { color: var(--brand); }
+.pg-arrow { flex: none; color: #9aa9ad; font-size: 1.3rem; margin-top: -44px; }

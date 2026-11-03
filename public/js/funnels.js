@@ -67,7 +67,8 @@ async function newFunnel() {
 // the next page right there.
 const NODE_W = 230;
 const COL_GAP = 60;
-const ROW_GAP = 120;
+const ROW_GAP = 90;
+const NODE_H = 300; // card height with its page picture
 const PORTS = { yes: { key: 'next_step_id', at: 0.27, label: '✓ Yes / Next' }, no: { key: 'no_step_id', at: 0.75, label: '✕ No thanks' } };
 
 // Lays the funnel out top-down as a tree. A page sits one row below the
@@ -104,7 +105,7 @@ function tidyLayout(steps, entryId) {
       const cols = owned.map(place);
       col = cols.length ? (Math.min(...cols) + Math.max(...cols)) / 2 : leaf++;
     }
-    pos[id] = { x: col * (NODE_W + COL_GAP), y: depth[id] * (150 + ROW_GAP) };
+    pos[id] = { x: col * (NODE_W + COL_GAP), y: depth[id] * (NODE_H + ROW_GAP) };
     return col;
   };
   for (const r of roots) if (!pos[r] && owner[r] === null) place(r);
@@ -192,6 +193,28 @@ async function viewFunnel(id) {
   const pageIcon = (s) => (s.blocks.some((b) => b.type === 'pricing') ? icon('card') : s.blocks.some((b) => b.type === 'form') ? icon('mail') : icon('page'));
   const pageKind = (s) => (s.blocks.some((b) => b.type === 'pricing') ? 'Sales page' : s.blocks.some((b) => b.type === 'form') ? 'Opt-in page' : 'Page');
 
+  // Page pictures: each page rendered once, then reused on every redraw.
+  m.thumbs = {};
+  const loadThumbs = async () => {
+    await Promise.all(m.steps.map(async (s) => {
+      if (m.thumbs[s.id]) return;
+      try {
+        const { html } = await api('POST', '/api/preview', { blocks: s.blocks, settings: s.settings, name: s.name });
+        m.thumbs[s.id] = html;
+        const fr = $(`[data-thumb="${s.id}"]`, nodesEl);
+        if (fr) fr.srcdoc = html;
+      } catch { /* the card still works without its picture */ }
+    }));
+    // Older funnels were laid out for shorter cards: tidy once if any now overlap.
+    const overlap = m.steps.some((a) => m.steps.some((b) => a !== b && Math.abs(a.x - b.x) < NODE_W && b.y > a.y && b.y < a.y + (nodeEl(a.id)?.offsetHeight || NODE_H) + 20));
+    if (overlap) {
+      const pos = tidyLayout(m.steps, m.entry);
+      m.steps.forEach((s) => Object.assign(s, pos[s.id]));
+      renderNodes(); fit();
+      save({ steps: m.steps.map((s) => ({ id: s.id, x: s.x, y: s.y })) });
+    }
+  };
+
   function renderNodes() {
     nodesEl.innerHTML = m.steps.map((s) => `
       <div class="node ${s.id === m.entry ? 'start' : ''} ${m.flow?.leak?.step_id === s.id ? 'leaky' : ''}" data-node="${s.id}" style="left:${s.x}px;top:${s.y}px;width:${NODE_W}px;${m.flow ? `border-top:4px solid ${LEVER_UI[m.flow.levers[s.id]]?.color || 'var(--line)'}` : ''}">
@@ -202,6 +225,7 @@ async function viewFunnel(id) {
         <div class="nhead"><span class="nicon">${pageIcon(s)}</span><div style="min-width:0"><div class="nname">${esc(s.name)}</div>
           <div class="nkind">${pageKind(s)} · /${esc(s.slug)}</div></div>
           <button class="nmenu" data-menu="${s.id}" title="More">${icon('more')}</button></div>
+        <a class="nthumb" href="#/editor/${s.id}" title="Edit this page" draggable="false"><iframe tabindex="-1" aria-hidden="true" sandbox="" loading="lazy" data-thumb="${s.id}"${m.thumbs?.[s.id] ? ` srcdoc="${esc(m.thumbs[s.id])}"` : ''}></iframe></a>
         <div class="nstats"><span><b>${s.views}</b> views</span><span><b>${s.optins}</b> opt-ins</span><span><b>${s.sales}</b> sales</span></div>
         <div class="nact"><a class="btn sm primary" href="#/editor/${s.id}">Edit page</a>
           <a class="btn sm" href="${esc(publicUrl(`/f/${f.slug}/${s.slug}`))}" target="_blank" rel="noopener">View ${icon('external')}</a></div>
@@ -329,7 +353,7 @@ async function viewFunnel(id) {
     const key = PORTS[d.port].key;
     if (!d.moved) { // click on an exit
       renderEdges();
-      if (!d.s[key]) addPage({ x: d.s.x + (d.port === 'no' ? NODE_W + COL_GAP : 0), y: d.s.y + 150 + ROW_GAP }, d.s.id, d.port);
+      if (!d.s[key]) addPage({ x: d.s.x + (d.port === 'no' ? NODE_W + COL_GAP : 0), y: d.s.y + NODE_H + ROW_GAP }, d.s.id, d.port);
       return;
     }
     const over = document.elementFromPoint(e.clientX, e.clientY)?.closest('[data-node]');
@@ -414,6 +438,7 @@ async function viewFunnel(id) {
   };
 
   renderNodes();
+  loadThumbs();
   fit();
 }
 
