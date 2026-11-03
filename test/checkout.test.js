@@ -138,3 +138,27 @@ test('Stripe webhook verifies signatures and fulfils the order', async () => {
   assert.equal((await post(`t=${t},v1=${sig}`)).status, 200);
   assert.equal((await c('GET', '/api/orders')).body[0].status, 'paid');
 });
+
+test('abandoned checkout: one reminder after an hour, none if they paid, none when switched off', async () => {
+  process.env.ALLOW_TIME_TRAVEL = '1';
+  const { c, funnel, block } = await setupSeller('recover@example.com');
+  const html = (await client()('GET', `/f/${funnel.slug}`)).body;
+  assert.match(html, /name="email"[^>]*required/); // the card asks for an email first
+  // Walks away after entering an email.
+  await client()('POST', `/f/${funnel.slug}/pricing/buy`, null, { form: { block: block.id, email: 'Walker@Example.com' } });
+  // Pays straight through.
+  const v = client();
+  const buy = await v('POST', `/f/${funnel.slug}/pricing/buy`, null, { form: { block: block.id, email: 'payer@example.com' } });
+  await v('POST', buy.headers.get('location'), null, { form: { email: 'payer@example.com', name: 'Pat Payer' } });
+  const soon = new Date(Date.now() + 30 * 60e3).toISOString(), later = new Date(Date.now() + 90 * 60e3).toISOString();
+  assert.equal((await c('POST', '/api/jobs/run', { now: soon })).body.recovered, 0); // not before an hour
+  assert.equal((await c('POST', '/api/jobs/run', { now: later })).body.recovered, 1);
+  assert.equal((await c('POST', '/api/jobs/run', { now: later })).body.recovered, 0); // only once
+  const mail = (await c('GET', '/api/outbox')).body.filter((m) => /still waiting/.test(m.subject));
+  assert.deepEqual(mail.map((m) => m.to_email), ['walker@example.com']);
+  assert.match(mail[0].body, new RegExp(`/f/${funnel.slug}/pricing`));
+  // Switched off: nobody gets one.
+  await c('PUT', '/api/account/recovery', { on: false });
+  await client()('POST', `/f/${funnel.slug}/pricing/buy`, null, { form: { block: block.id, email: 'other@example.com' } });
+  assert.equal((await c('POST', '/api/jobs/run', { now: new Date(Date.now() + 2 * 3600e3).toISOString() })).body.recovered, 0);
+});

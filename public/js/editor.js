@@ -14,7 +14,8 @@ const BLOCKS = {
     ['billingText', 'text', 'Text under the price', null, 'Leave empty to use the product’s billing (e.g. one-time payment)'],
     ['note', 'text', 'Highlight line'], ['featuresTitle', 'text', 'Features heading'], ['features', 'textarea', 'Features (one per line)'],
     ['buttonLabel', 'text', 'Button text'], ['buttonSubtext', 'text', 'Small text in button'], ['buttonColor', 'color', 'Button color'],
-    ['bumpProductId', 'product', 'Order bump (a one-time add-on ticked at checkout)'], ['bumpLabel', 'text', 'Order bump checkbox text', null, 'e.g. Yes, add the matching coasters']] },
+    ['bumpProductId', 'product', 'Order bump (a one-time add-on ticked at checkout)'], ['bumpLabel', 'text', 'Order bump checkbox text', null, 'e.g. Yes, add the matching coasters'],
+    ['askEmail', 'check', 'Ask for their email first (fills in checkout, and sends one reminder if they don’t finish)']] },
   // Only real, approved testimonials (People → Testimonials) can be shown.
   testimonial: { label: 'Testimonial', icon: icon('quote'), defaults: { testimonialId: null }, fields: [['testimonialId', 'testimonial', 'Testimonial from your records']] },
   reviews: { label: 'Reviews', icon: icon('star'), defaults: { limit: 3 }, fields: [['limit', 'number', 'How many to show (newest approved first)']] },
@@ -150,7 +151,8 @@ async function viewEditor(stepId) {
         <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" hidden data-photofile="${i}"></div>
         <input type="text" ${attrs} value="${esc(v)}" placeholder="…or paste an image link (https://…)" style="margin-top:6px"></div>`;
     }
-    if (kind === 'check') return `<label class="check"><input type="checkbox" ${attrs} ${v ? 'checked' : ''}>${label}</label>`;
+    // "Ask for email" is on unless switched off, including on older pricing cards.
+    if (kind === 'check') return `<label class="check"><input type="checkbox" ${attrs} ${(key === 'askEmail' ? b[key] !== false : v) ? 'checked' : ''}>${label}</label>`;
     if (kind === 'align') return `<div class="f">${label}<div class="aligns">${['left', 'center', 'right'].map((a) => `<button type="button" data-align="${i}:${a}" class="${(v || 'center') === a ? 'on' : ''}">${a}</button>`).join('')}</div></div>`;
     return `<label class="f">${label}${hint ? ` <span class="hint">${esc(hint)}</span>` : ''}<input type="${kind}" ${attrs} value="${esc(v)}"></label>`;
   };

@@ -65,12 +65,14 @@ function viewSettings() {
         <input name="webhookSecret" type="password" autocomplete="off" placeholder="${state.me.payments.webhookSecretSet ? 'Saved. Paste a new one to replace it' : 'whsec_…'}"></label>
       <p class="hint">In Stripe, add a webhook endpoint for <b>checkout.session.completed</b> pointing to:</p>
       <div class="copy" style="margin-bottom:12px"><input readonly value="${esc(state.me.payments.webhookUrl)}"><button type="button" class="btn" data-copy="${esc(state.me.payments.webhookUrl)}">Copy</button></div>
+      <label class="check" style="margin:4px 0 12px"><input type="checkbox" data-recover ${state.me.account.recover_checkouts === 0 ? '' : 'checked'}> Remind people who start checking out but don’t finish <span class="muted small">(one email, an hour later)</span></label>
       <div class="err"></div>
       <div class="row"><button class="btn primary">Save payment settings</button>
         ${state.me.payments.connected ? '<button type="button" class="btn danger" data-disconnect>Disconnect</button>' : ''}</div>
     </form>`);
   bindCopy();
   $('[data-newsub]').onclick = newSubAccount;
+  $('[data-recover]').onchange = async (e) => { await api('PUT', '/api/account/recovery', { on: e.target.checked }); state.me = await api('GET', '/api/me'); toast(e.target.checked ? 'Checkout reminders on' : 'Checkout reminders off'); };
   const bizForm = $('[data-business]');
   // Picking a type suggests its usual sections; the boxes can still be changed.
   bizForm.business_type.onchange = () => {

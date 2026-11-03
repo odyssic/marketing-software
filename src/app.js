@@ -1085,6 +1085,10 @@ function createApp({ dbPath } = {}) {
   registerLibrary(api, { getDb: () => db, HttpError, id, ownHost, clearDomainCache: () => domainCache.clear() });
   registerPrint(api, app, { getDb: () => db, HttpError, id, logEvent, publicBase, toCsv: people.toCsv });
   registerAccounts(api, { getDb: () => db, HttpError, id, seed: (accountId) => workflows.seedDefaults(accountId) });
+  api.put('/account/recovery', async (req, res) => {
+    await db.run('UPDATE accounts SET recover_checkouts = ? WHERE id = ?', req.body?.on ? 1 : 0, req.accountId);
+    res.json({ ok: true });
+  });
   // What kind of business this is, and which optional sections show.
   api.put('/account/business', async (req, res) => {
     const sets = [], vals = [];
@@ -1282,13 +1286,15 @@ function createApp({ dbPath } = {}) {
     const bump = bumpProduct && bumpProduct.billing === 'one_time' && bumpProduct.currency === product.currency ? bumpProduct : null;
     const items = [{ name: product.name, qty: 1, price_cents: product.price_cents }, ...(bump ? [{ name: bump.name, qty: 1, price_cents: bump.price_cents, bump: true }] : [])];
     const account = await db.get('SELECT stripe_secret_key FROM accounts WHERE id = ?', funnel.account_id);
-    const { id: orderId } = await db.get(`INSERT INTO orders (account_id, product_id, product_name, amount_cents, currency, mode, funnel_id, step_id, items, variant)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`, funnel.account_id, product.id, bump ? `${product.name} + ${bump.name}` : product.name,
-    product.price_cents + (bump ? bump.price_cents : 0), product.currency, account.stripe_secret_key ? 'stripe' : 'test', funnel.id, step.id, JSON.stringify(items), variantFor(req, null, step));
+    const email = EMAIL_RE.test(String(req.body.email || '').trim()) ? String(req.body.email).trim().toLowerCase() : '';
+    const buyer = email ? await upsertContact(db, funnel.account_id, { email, source: 'funnel' }).catch(() => null) : null;
+    const { id: orderId } = await db.get(`INSERT INTO orders (account_id, product_id, product_name, amount_cents, currency, mode, funnel_id, step_id, items, variant, email, contact_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`, funnel.account_id, product.id, bump ? `${product.name} + ${bump.name}` : product.name,
+    product.price_cents + (bump ? bump.price_cents : 0), product.currency, account.stripe_secret_key ? 'stripe' : 'test', funnel.id, step.id, JSON.stringify(items), variantFor(req, null, step), email, buyer?.id || null);
     if (!account.stripe_secret_key) return res.redirect(303, `/checkout/test/${orderId}/${orderToken(orderId)}`);
     try {
       const session = await stripe.createCheckoutSession(account.stripe_secret_key, {
-        product, extra: bump, orderId,
+        product, extra: bump, orderId, email: email || undefined,
         successUrl: `${baseUrl(req)}/checkout/success/${orderId}?session_id={CHECKOUT_SESSION_ID}`,
         cancelUrl: `${baseUrl(req)}${back}`,
       });
@@ -1452,11 +1458,37 @@ ${order.status === 'paid' ? '<p>This order is already paid.</p>' : `<label>Name<
     res.status(status).send(status === 500 ? 'Something went wrong' : esc(err.message));
   });
 
+  // Abandoned checkouts: an hour after someone starts paying and doesn't finish,
+  // one friendly email with a link back to the page. Never if they bought it
+  // since, never twice, never to people who unsubscribed (sendToPerson checks).
+  async function recoverCheckouts(now = new Date()) {
+    const due = await db.all(`SELECT o.*, f.slug AS funnel_slug, s.slug AS step_slug FROM orders o
+        JOIN accounts a ON a.id = o.account_id AND a.recover_checkouts = 1
+        LEFT JOIN funnels f ON f.id = o.funnel_id LEFT JOIN funnel_steps s ON s.id = o.step_id
+      WHERE o.status = 'pending' AND o.email <> '' AND o.contact_id IS NOT NULL AND o.recovery_sent_at IS NULL
+        AND o.created_at <= ? AND o.created_at > ?`, new Date(now.getTime() - 3600e3).toISOString(), new Date(now.getTime() - 48 * 3600e3).toISOString());
+    let sent = 0;
+    for (const o of due) {
+      const claimed = await db.get('UPDATE orders SET recovery_sent_at = ? WHERE id = ? AND recovery_sent_at IS NULL RETURNING id', now.toISOString(), o.id);
+      if (!claimed || !o.funnel_slug) continue;
+      const bought = await db.get("SELECT 1 FROM orders WHERE account_id = ? AND email = ? AND product_id IS NOT DISTINCT FROM ? AND status = 'paid' AND created_at >= ?", o.account_id, o.email, o.product_id, o.created_at);
+      if (bought) continue;
+      const [account, person] = await Promise.all([db.get('SELECT * FROM accounts WHERE id = ?', o.account_id), db.get('SELECT * FROM contacts WHERE id = ?', o.contact_id)]);
+      if (!person) continue;
+      const link = `${publicBase()}/f/${o.funnel_slug}${o.step_slug ? `/${o.step_slug}` : ''}`;
+      const r = await messaging.sendToPerson({ account, person, subject: `Your ${o.product_name} is still waiting`,
+        preheader: 'Pick up where you left off, or reply with any questions.',
+        body: `Hi {{first_name|there}},\n\nYou started checking out ${o.product_name} but didn’t quite finish. If something got in the way or you have a question, just reply to this email.\n\nPick up where you left off: ${link}\n\n${account.from_name || account.name}` });
+      if (r.status === 'sent' || r.status === 'logged') sent++;
+    }
+    return { recovered: sent };
+  }
+
   // Background jobs (workflow runner). Called by server.js every minute and by
   // the scheduled Netlify function.
   app.runJobs = async (now = new Date()) => {
     await init();
-    return { ...(await workflows.processDue({ now })), ...(await digest.sendDue(now)), ...(await bookings.sendReminders(now)) };
+    return { ...(await workflows.processDue({ now })), ...(await digest.sendDue(now)), ...(await bookings.sendReminders(now)), ...(await recoverCheckouts(now)) };
   };
   app.messaging = messaging; // for tests (signing tracking links)
 
