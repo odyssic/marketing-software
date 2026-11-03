@@ -16,7 +16,7 @@ async function viewPeople() {
   const count = (s) => all.filter((c) => c.stage === s).length;
   const link = (over) => `#/people?${new URLSearchParams({ q, tag, stage, ...over })}`;
   shell('people', `
-    <div class="head"><div><h1>People</h1><div class="muted">One record per person, across your store, newsletter, podcast and inquiries.</div></div>
+    <div class="head"><div><h1>People</h1><div class="muted">One record per person: all your ${esc(state.me.account.people_word || 'people')}, leads and subscribers in one place.</div></div>
       <div class="row"><a class="btn" href="#/people/testimonials">${icon('quote')} Testimonials</a><a class="btn" href="/api/export.zip">${icon('download')} Export</a>
       <button class="btn primary" data-leads>${icon('plus')} Add leads</button></div></div>
     <div class="stagebar">

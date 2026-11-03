@@ -63,6 +63,14 @@ function modal(title, inner, { submit = 'Save', onSubmit, danger } = {}) {
 }
 const confirmBox = (title, text, submit = 'Delete') => modal(title, `<p class="muted">${esc(text)}</p>`, { submit, danger: true });
 
+// Kinds of business (mirrors src/business.js): sets starting follow-ups,
+// whether there's a deals board, and which sections show. Changeable in Settings.
+const BUSINESS_TYPES_UI = [
+  ['shop', 'Shop or maker'], ['services', 'Services (trades, consulting, agency)'], ['coach', 'Coach, course or creator'],
+  ['local', 'Local business (restaurant, salon, studio)'], ['nonprofit', 'Nonprofit or community'], ['other', 'Something else'],
+];
+const BUSINESS_OPTIONS = BUSINESS_TYPES_UI.map(([k, l]) => `<option value="${k}">${l}</option>`).join('');
+
 // ---------------- Auth ----------------
 // Single owner. A new install asks the owner to set up; after that, sign in
 // with an emailed link (or a password, if one was set).
@@ -77,7 +85,8 @@ async function renderAuth(mode) {
     <p class="muted">${setup ? 'One owner, about an hour a week. You’ll sign in with a link sent to this email.'
       : mode === 'link' ? 'We’ll email you a link to sign in. No password needed.' : 'Sign in with your password.'}</p>
     ${setup ? `<label class="f">Your name<input name="name" required autocomplete="name"></label>
-      <label class="f">Business name <span class="hint">(optional)</span><input name="workspace"></label>` : ''}
+      <label class="f">Business name <span class="hint">(optional)</span><input name="workspace"></label>
+      <label class="f">What kind of business?<select name="business_type">${BUSINESS_OPTIONS}</select></label>` : ''}
     <label class="f">Email<input name="email" type="email" required autocomplete="email"></label>
     ${mode === 'password' ? '<label class="f">Password<input name="password" type="password" required autocomplete="current-password"></label>' : ''}
     ${setup ? '<label class="f">Password <span class="hint">(optional, a backup to email links)</span><input name="password" type="password" minlength="8" autocomplete="new-password"></label>' : ''}
@@ -118,7 +127,7 @@ const NAV = [
   ['pages', icon('page'), 'Pages'],
   ['workflows', icon('bolt'), 'Workflows'],
   ['people', icon('people'), 'People'],
-  ['pipelines', icon('trend'), 'Pipelines'],
+  ['pipelines', icon('trend'), 'Deals'],
   ['products', icon('bag'), 'Products'],
   ['email', icon('mail'), 'Email'],
   ['settings', icon('gear'), 'Settings'],
@@ -131,7 +140,7 @@ function shell(section, html) {
       <div class="logo">${LOGO}${BRAND}</div>
       <div class="acct-wrap"><button class="acct" data-acct aria-haspopup="menu" aria-expanded="false" title="Switch sub-account">
         <span class="av">${esc(initials(state.me.account.name))}</span><span class="nm">${esc(state.me.account.name)}</span><span class="car">${icon('chevronDown')}</span></button></div>
-      <nav class="nav">${NAV.map(([k, i, l]) => `<a href="#/${k}" class="${section === k ? 'active' : ''}"><span class="ico">${i}</span>${l}</a>`).join('')}</nav>
+      <nav class="nav">${NAV.filter(([k]) => !(state.me.account.hidden_sections || []).includes(k)).map(([k, i, l]) => `<a href="#/${k}" class="${section === k ? 'active' : ''}"><span class="ico">${i}</span>${l}</a>`).join('')}</nav>
       <div class="foot"><div class="muted">${esc(state.me.user.email)}</div><button data-logout>Sign out</button></div>
     </aside>
     <main class="main">${html}</main></div>`;
@@ -174,7 +183,8 @@ async function switchAccount(accountId) {
 }
 async function newSubAccount() {
   const r = await modal('New sub-account', `<p class="muted small">A separate workspace for another business: its own people, funnels, emails and dashboard. No limit on how many.</p>
-    <label class="f">Business name<input name="name" required placeholder="e.g. Corner Bakery"></label>`,
+    <label class="f">Business name<input name="name" required placeholder="e.g. Corner Bakery"></label>
+    <label class="f">What kind of business?<select name="business_type">${BUSINESS_OPTIONS}</select></label>`,
   { submit: 'Create and switch', onSubmit: (v) => api('POST', '/api/accounts', { ...v, switch: true }) });
   if (r) { state.me = await api('GET', '/api/me'); toast(`Created ${state.me.account.name}`); location.hash = '#/'; route(); }
 }

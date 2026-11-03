@@ -187,7 +187,8 @@ TEMPLATES.site_followup = {
   },
 };
 
-const DEFAULT_SET = ['care', 'review', 'referral', 'winback']; // seeded (off) in every new workspace
+const DEFAULT_SET = ['care', 'review', 'referral', 'winback']; // seeded (off) when no business type is set
+const { typeOf } = require('./business');
 
 function createWorkflows({ getDb, HttpError, id, people, messaging, getAccount }) {
   const parse = (w) => ({ ...w, graph: JSON.parse(w.graph || '{}') });
@@ -206,11 +207,20 @@ function createWorkflows({ getDb, HttpError, id, people, messaging, getAccount }
   }
 
   // Every workspace starts with the four standard follow-ups, switched off.
+  // Which ones depends on the kind of business; services and coaches also
+  // get a deals board with stages that fit how they sell.
   async function seedDefaults(accountId) {
     const db = getDb();
-    const claimed = await db.get('UPDATE accounts SET workflows_seeded = 1 WHERE id = ? AND workflows_seeded = 0 RETURNING id', accountId);
+    const claimed = await db.get('UPDATE accounts SET workflows_seeded = 1 WHERE id = ? AND workflows_seeded = 0 RETURNING id, business_type', accountId);
     if (!claimed) return;
-    for (const key of DEFAULT_SET) await create(accountId, { template: key });
+    const type = claimed.business_type ? typeOf(claimed.business_type) : null;
+    for (const key of type?.workflows || DEFAULT_SET) await create(accountId, { template: key });
+    if (type?.pipeline && !await db.get('SELECT 1 FROM pipelines WHERE account_id = ?', accountId)) {
+      await db.tx(async (t) => {
+        const p = await t.get('INSERT INTO pipelines (account_id, name) VALUES (?, ?) RETURNING id', accountId, type.pipeline.name);
+        for (const [i, name] of type.pipeline.stages.entries()) await t.run('INSERT INTO pipeline_stages (pipeline_id, name, position) VALUES (?, ?, ?)', p.id, name, i);
+      });
+    }
   }
 
   // ---------- Enrolment ----------

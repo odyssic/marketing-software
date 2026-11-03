@@ -347,6 +347,9 @@ CREATE TABLE IF NOT EXISTS workflow_log (
 CREATE INDEX IF NOT EXISTS idx_wflog_workflow ON workflow_log(workflow_id, node_id);
 
 ALTER TABLE accounts ADD COLUMN IF NOT EXISTS workflows_seeded INT NOT NULL DEFAULT 0;
+-- What kind of business this is (src/business.js) and the sections it hides.
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS business_type TEXT NOT NULL DEFAULT '';
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS hidden_sections TEXT NOT NULL DEFAULT '';
 -- Email tracking: which workflow or campaign sent it, and when it was opened or clicked.
 ALTER TABLE email_log ADD COLUMN IF NOT EXISTS workflow_id INT;
 ALTER TABLE email_log ADD COLUMN IF NOT EXISTS campaign_id INT;

@@ -3,7 +3,9 @@
 // the active workspace; switching just repoints it.
 const auth = require('./auth');
 
-function registerAccounts(api, { getDb, HttpError, id }) {
+const { cleanType } = require('./business');
+
+function registerAccounts(api, { getDb, HttpError, id, seed = async () => {} }) {
   const myAccounts = (userId) => getDb().all(`SELECT a.id, a.name, m.role, a.created_at,
       (SELECT COUNT(*)::int FROM contacts c WHERE c.account_id = a.id) AS people,
       (SELECT COUNT(*)::int FROM funnels f WHERE f.account_id = a.id) AS funnels
@@ -23,10 +25,11 @@ function registerAccounts(api, { getDb, HttpError, id }) {
     const name = String(req.body?.name || '').trim().slice(0, 100);
     if (!name) throw new HttpError(400, 'Name the business');
     const accountId = await getDb().tx(async (t) => {
-      const a = await t.get('INSERT INTO accounts (name, from_name, from_email) VALUES (?, ?, ?) RETURNING id', name, name, req.user.email);
+      const a = await t.get('INSERT INTO accounts (name, from_name, from_email, business_type) VALUES (?, ?, ?, ?) RETURNING id', name, name, req.user.email, cleanType(req.body?.business_type));
       await t.run("INSERT INTO memberships (user_id, account_id, role) VALUES (?, ?, 'owner')", req.user.id, a.id);
       return a.id;
     });
+    await seed(accountId);
     if (req.body?.switch) await auth.switchAccount(getDb(), req, accountId);
     res.status(201).json({ id: accountId });
   });

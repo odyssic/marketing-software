@@ -14,6 +14,14 @@ function viewSettings() {
       <p class="muted small">Email delivery: <b>${state.me.emailLive ? 'connected (SMTP)' : 'dev mode (Outbox only)'}</b></p>
       <div class="err"></div><button class="btn primary">Save settings</button>
     </form>
+    <form class="card" style="max-width:560px;margin-top:16px" data-business>
+      <h2>Kind of business</h2>
+      <p class="muted small">Sets the starting follow-ups and which sections you see. Nothing is deleted when you change it.</p>
+      <label class="f">This business is a<select name="business_type"><option value="">— Choose —</option>${BUSINESS_TYPES_UI.map(([k, l]) => `<option value="${k}" ${a.business_type === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+      <div class="f">Show in the menu
+        ${[['pipelines', 'Deals', 'a board for quotes, jobs or clients you win one at a time'], ['products', 'Products', 'things you sell with checkout'], ['email', 'Email', 'newsletters and broadcasts']].map(([k, l, h]) => `<label class="check"><input type="checkbox" name="show" value="${k}" ${(a.hidden_sections || []).includes(k) ? '' : 'checked'}> <b>${l}</b> <span class="muted small">${h}</span></label>`).join('')}</div>
+      <button class="btn primary">Save</button>
+    </form>
     <form class="card" style="max-width:560px;margin-top:16px" data-voice>
       <h2>Your voice</h2>
       <p class="muted small">Paste 3 to 5 things you’ve written (an email, a product description, a post). Drafts copy your tone, not your words. ${state.me.aiLive ? '' : '<b>AI drafting isn’t connected</b> (set ANTHROPIC_API_KEY on the server), so drafts are templates for now.'}</p>
@@ -63,6 +71,18 @@ function viewSettings() {
     </form>`);
   bindCopy();
   $('[data-newsub]').onclick = newSubAccount;
+  const bizForm = $('[data-business]');
+  // Picking a type suggests its usual sections; the boxes can still be changed.
+  bizForm.business_type.onchange = () => {
+    const t = state.me.businessTypes.find((x) => x.key === bizForm.business_type.value);
+    if (t) $$('[name="show"]', bizForm).forEach((c) => { c.checked = !t.hide.includes(c.value); });
+  };
+  bizForm.onsubmit = async (e) => {
+    e.preventDefault();
+    const shown = $$('[name="show"]:checked', bizForm).map((c) => c.value);
+    await api('PUT', '/api/account/business', { business_type: bizForm.business_type.value, hidden_sections: ['pipelines', 'products', 'email'].filter((k) => !shown.includes(k)) });
+    state.me = await api('GET', '/api/me'); toast('Saved'); viewSettings();
+  };
   Promise.all([api('GET', '/api/websites'), api('GET', '/api/funnels')]).then(([sites, funnels]) => {
     $('[data-homes]').innerHTML += [...sites, ...funnels].map((x) => `<option value="${x.id}" ${a.home_funnel_id === x.id ? 'selected' : ''}>${esc(x.name)} (${x.kind === 'website' ? 'website' : 'funnel'})</option>`).join('');
   });

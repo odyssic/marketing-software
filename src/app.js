@@ -20,6 +20,7 @@ const { registerFunnelKit } = require('./funnelkit');
 const { SITE_TEMPLATES } = require('./sites');
 const { registerLibrary, approvedTestimonials } = require('./library');
 const { registerUploads } = require('./uploads');
+const business = require('./business');
 
 const slugify = (s) => String(s || '').toLowerCase().normalize('NFKD').replace(/[^\w\s-]/g, '')
   .trim().replace(/[\s_]+/g, '-').replace(/-+/g, '-').slice(0, 60) || 'page';
@@ -239,8 +240,8 @@ function createApp({ dbPath } = {}) {
       ids = await db.tx(async (t) => {
         const u = await t.get('INSERT INTO users (email, name, password_hash) VALUES (?, ?, ?) RETURNING id',
           email, name.trim(), password ? auth.hashPassword(password) : '');
-        const a = await t.get('INSERT INTO accounts (name, from_name, from_email) VALUES (?, ?, ?) RETURNING id',
-          workspace?.trim() || `${name.trim()}'s business`, name.trim(), email);
+        const a = await t.get('INSERT INTO accounts (name, from_name, from_email, business_type) VALUES (?, ?, ?, ?) RETURNING id',
+          workspace?.trim() || `${name.trim()}'s business`, name.trim(), email, business.cleanType(req.body?.business_type));
         await t.run('INSERT INTO memberships (user_id, account_id) VALUES (?, ?)', u.id, a.id);
         return { userId: u.id, accountId: a.id };
       });
@@ -249,6 +250,7 @@ function createApp({ dbPath } = {}) {
       throw e;
     }
     await auth.createSession(db, req, res, ids.userId, ids.accountId);
+    await workflows.seedDefaults(ids.accountId); // starting follow-ups (and deals board) for this kind of business
     res.status(201).json({ ok: true });
   });
 
@@ -296,7 +298,8 @@ function createApp({ dbPath } = {}) {
   api.get('/me', async (req, res) => {
     const { stripe_secret_key: key, stripe_webhook_secret: whsec, ...account } = await db.get('SELECT * FROM accounts WHERE id = ?', req.accountId);
     res.json({
-      user: req.user, account, emailLive: mailer.isLive(), aiLive: require('./ai').isLive(), baseUrl: baseUrl(req),
+      user: req.user, account: { ...account, hidden_sections: business.hiddenSections(account), people_word: business.typeOf(account.business_type).people },
+      businessTypes: business.publicTypes(), emailLive: mailer.isLive(), aiLive: require('./ai').isLive(), baseUrl: baseUrl(req),
       accounts: await db.all(`SELECT a.id, a.name FROM memberships m JOIN accounts a ON a.id = m.account_id
         WHERE m.user_id = ? ORDER BY a.name, a.id`, req.user.id),
       payments: {
@@ -975,7 +978,19 @@ function createApp({ dbPath } = {}) {
   registerUploads(app, api, { getDb: () => db, HttpError, baseUrl });
   registerLibrary(api, { getDb: () => db, HttpError, id, ownHost, clearDomainCache: () => domainCache.clear() });
   registerPrint(api, app, { getDb: () => db, HttpError, id, logEvent, publicBase, toCsv: people.toCsv });
-  registerAccounts(api, { getDb: () => db, HttpError, id });
+  registerAccounts(api, { getDb: () => db, HttpError, id, seed: (accountId) => workflows.seedDefaults(accountId) });
+  // What kind of business this is, and which optional sections show.
+  api.put('/account/business', async (req, res) => {
+    const sets = [], vals = [];
+    if (req.body?.business_type !== undefined) { sets.push('business_type = ?'); vals.push(business.cleanType(req.body.business_type)); }
+    if (Array.isArray(req.body?.hidden_sections)) {
+      sets.push('hidden_sections = ?');
+      vals.push(JSON.stringify([...new Set(req.body.hidden_sections.filter((x) => business.OPTIONAL_SECTIONS[x]))]));
+    }
+    if (!sets.length) throw new HttpError(400, 'Nothing to change');
+    await db.run(`UPDATE accounts SET ${sets.join(', ')} WHERE id = ?`, ...vals, req.accountId);
+    res.json({ ok: true });
+  });
   registerDashboard(api, { getDb: () => db, HttpError, leversFor, formatMoney, getAccount, weeklyMove: (accountId) => moves.current(accountId) });
 
   api.use((req, res) => res.status(404).json({ error: 'Not found' }));
