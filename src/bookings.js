@@ -92,7 +92,7 @@ function registerBookings(app, api, { getDb, HttpError, id, upsertContact, logEv
   const confirmed = (accountId) => db().all("SELECT starts_at, ends_at FROM bookings WHERE account_id = ? AND status = 'confirmed' AND ends_at > now() - interval '1 day'", accountId);
   const page = (res, status, title, body) => res.status(status).type('html').send(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title>
     <style>body{font:16px/1.55 -apple-system,system-ui,sans-serif;color:#14282B;background:#F4F7F6;margin:0;padding:40px 16px}.c{max-width:460px;margin:0 auto;background:#fff;border:1px solid #E3E9E8;border-radius:16px;padding:28px}
-    h1{font-size:1.4rem;margin:0 0 12px}.m{color:#5B6B70}button{background:#1F7F78;color:#fff;border:0;border-radius:10px;padding:12px 20px;font:600 1rem system-ui;cursor:pointer}button.d{background:#b91c1c}</style></head><body><div class="c">${body}</div></body></html>`);
+    h1{font-size:1.4rem;margin:0 0 12px}.m{color:#5B6B70}details{border-top:1px solid #E3E9E8;padding:12px 0}summary{cursor:pointer;font-weight:600;color:#1F7F78}.col{display:grid;gap:10px;margin-top:10px}.col label{display:grid;gap:4px;font-size:.9rem}input,select,textarea{padding:11px 12px;border:1px solid #d1d5db;border-radius:10px;font:inherit}.ok{background:#e6f4f2;color:#14524d;padding:10px 12px;border-radius:10px}button{background:#1F7F78;color:#fff;border:0;border-radius:10px;padding:12px 20px;font:600 1rem system-ui;cursor:pointer}button.d{background:#b91c1c}</style></head><body><div class="c">${body}</div></body></html>`);
   const escH = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
   // ---------- Public: open times and booking ----------
@@ -139,16 +139,17 @@ function registerBookings(app, api, { getDb, HttpError, id, upsertContact, logEv
     res.json({ ok: true, start: slot.start, end: slot.end, next: nextUrl === '#' ? null : nextUrl });
   });
 
-  async function sendConfirmation(account, bk, s) {
+  async function sendConfirmation(account, bk, s, { movedFrom = null } = {}) {
     const base = publicBase();
     const manage = `${base}/b/${bk.token}`;
     const whenTxt = when(bk.starts_at, s.tz);
-    const text = `Hi ${bk.name.split(' ')[0]},\n\nYou’re booked: ${s.title}\n${whenTxt} (${s.length} minutes)\n${s.location ? `\n${s.location}\n` : ''}\nNeed to change it? ${manage}\n\n${account.from_name || account.name}`;
+    const text = `Hi ${bk.name.split(' ')[0]},\n\n${movedFrom ? `Your booking has moved from ${when(movedFrom, s.tz)}.\n\n` : ''}You’re booked: ${s.title}\n${whenTxt} (${s.length} minutes)\n${s.location ? `\n${s.location}\n` : ''}\nNeed to change the time or cancel? ${manage}\n\n${account.from_name || account.name}`;
     await messaging.sendTransactional({ account, to: bk.email, contactId: bk.contact_id, subject: `Booked: ${s.title}, ${whenTxt}`, text,
       attachments: [{ filename: 'booking.ics', content: ics({ uid: `booking-${bk.id}`, start: bk.starts_at, end: bk.ends_at, title: `${s.title} with ${account.name}`, description: `${s.location}\n\nManage: ${manage}`, location: s.location, organizer: account.name }), contentType: 'text/calendar; charset=utf-8' }] });
-    await messaging.sendToOwner({ account, subject: `New booking: ${bk.name}, ${whenTxt}`,
+    await messaging.sendToOwner({ account, subject: `${movedFrom ? 'Moved' : 'New booking'}: ${bk.name}, ${whenTxt}`,
       body: `${bk.name} <${bk.email}>${bk.phone ? `\n${bk.phone}` : ''} booked ${s.title}\n${whenTxt}${bk.note ? `\n\nNote: ${bk.note}` : ''}\n\nCalendar: ${base}/#/calendar`,
-      html: rillyEmail({ base, title: `New booking: ${bk.name}`, preheader: whenTxt, blocks: [
+      html: rillyEmail({ base, title: `${movedFrom ? 'Booking moved' : 'New booking'}: ${bk.name}`, preheader: whenTxt, blocks: [
+        ...(movedFrom ? [{ p: `Was ${when(movedFrom, s.tz)}.` }] : []),
         { rows: [['When', whenTxt], ['Who', bk.name], ['Email', bk.email], ...(bk.phone ? [['Phone', bk.phone]] : [])] },
         ...(bk.note ? [{ p: `“${bk.note}”` }] : []), { button: ['Open your calendar', `${base}/#/calendar`] }] }) });
   }
@@ -160,9 +161,25 @@ function registerBookings(app, api, { getDb, HttpError, id, upsertContact, logEv
     if (!bk) return page(res, 404, 'Not found', '<h1>Booking not found</h1><p class="m">This link may be old or mistyped.</p>');
     const s = settingsOf({ booking: bk.acct_booking });
     if (bk.status === 'cancelled') return page(res, 200, 'Cancelled', `<h1>This booking is cancelled</h1><p class="m">${escH(s.title)} with ${escH(bk.acct_name)}, ${escH(when(bk.starts_at, s.tz))}.</p>`);
-    return page(res, 200, 'Your booking', `<h1>${escH(s.title)}</h1><p><b>${escH(when(bk.starts_at, s.tz))}</b><br><span class="m">with ${escH(bk.acct_name)} · ${s.length} minutes</span></p>
-      ${s.location ? `<p class="m">${escH(s.location)}</p>` : ''}<form method="post" action="/b/${escH(bk.token)}/cancel" onsubmit="return confirm('Cancel this booking?')"><button class="d">Cancel this booking</button></form>
-      <p class="m" style="margin-top:18px;font-size:.9rem">Want a different time? Cancel, then book again from the same page.</p>`);
+    if (new Date(bk.starts_at) < new Date()) return page(res, 200, 'Your booking', `<h1>${escH(s.title)}</h1><p class="m">This was on ${escH(when(bk.starts_at, s.tz))}.</p>`);
+    const open = slotsFor(s, (await confirmed(bk.account_id)).filter((x) => new Date(x.starts_at).getTime() !== new Date(bk.starts_at).getTime()));
+    const saved = req.query.saved ? `<p class="ok">${req.query.saved === 'time' ? 'Your new time is booked. A confirmation is on its way.' : 'Saved.'}</p>` : '';
+    return page(res, 200, 'Your booking', `${saved}<h1>${escH(s.title)}</h1><p><b>${escH(when(bk.starts_at, s.tz))}</b><br><span class="m">with ${escH(bk.acct_name)} · ${s.length} minutes</span></p>
+      ${s.location ? `<p class="m">${escH(s.location)}</p>` : ''}
+      <details ${req.query.change ? 'open' : ''}><summary>Change the time</summary>
+        <form method="post" action="/b/${escH(bk.token)}/move" class="col"><label>New time <span class="m">(your time zone is detected below)</span>
+          <select name="start" required data-slots='${escH(JSON.stringify(open.map((x) => x.start)))}'><option value="">Loading times…</option></select></label>
+          <button>Move my booking</button></form></details>
+      <details><summary>Change my details</summary>
+        <form method="post" action="/b/${escH(bk.token)}/details" class="col">
+          <label>Name<input name="name" value="${escH(bk.name)}" required></label>
+          <label>Phone<input name="phone" value="${escH(bk.phone)}"></label>
+          <label>Note<textarea name="note" rows="3">${escH(bk.note)}</textarea></label>
+          <button>Save</button></form></details>
+      <form method="post" action="/b/${escH(bk.token)}/cancel" onsubmit="return confirm('Cancel this booking?')" style="margin-top:18px"><button class="d">Cancel this booking</button></form>
+      <script>(function(){var sel=document.querySelector('select[data-slots]');var list=JSON.parse(sel.dataset.slots);
+        sel.innerHTML=list.length?'<option value="">Pick a new time</option>'+list.map(function(s){return '<option value="'+s+'">'+new Date(s).toLocaleString(undefined,{weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})+'</option>'}).join(''):'<option value="">No other open times right now</option>';
+        var p=document.createElement('p');p.className='m';p.style.fontSize='.85rem';p.textContent='Times shown in '+Intl.DateTimeFormat().resolvedOptions().timeZone.replace(/_/g,' ');sel.parentNode.after(p);})();<\/script>`);
   });
   app.post('/b/:token/cancel', express.urlencoded({ extended: false, limit: '1kb' }), async (req, res) => {
     const bk = await byToken(req.params.token);
@@ -170,6 +187,31 @@ function registerBookings(app, api, { getDb, HttpError, id, upsertContact, logEv
     const done = await cancel(bk, 'visitor');
     const s = settingsOf({ booking: bk.acct_booking });
     return page(res, 200, 'Cancelled', `<h1>${done ? 'Cancelled' : 'Already cancelled'}</h1><p class="m">${escH(s.title)}, ${escH(when(bk.starts_at, s.tz))}. ${done ? 'We’ve let them know.' : ''}</p>`);
+  });
+
+  app.post('/b/:token/move', express.urlencoded({ extended: false, limit: '1kb' }), async (req, res) => {
+    const bk = await byToken(req.params.token);
+    if (!bk || bk.status !== 'confirmed' || new Date(bk.starts_at) < new Date()) return page(res, 404, 'Not found', '<h1>This booking can’t be changed</h1>');
+    const account = await db().get('SELECT * FROM accounts WHERE id = ?', bk.account_id);
+    const s = settingsOf(account);
+    const asked = new Date(String(req.body.start || ''));
+    const others = (await confirmed(bk.account_id)).filter((x) => new Date(x.starts_at).getTime() !== new Date(bk.starts_at).getTime());
+    const slot = Number.isNaN(asked.getTime()) ? null : slotsFor(s, others).find((x) => x.start === asked.toISOString());
+    if (!slot) return res.redirect(303, `/b/${bk.token}?change=1`);
+    const old = bk.starts_at;
+    try { await db().run('UPDATE bookings SET starts_at = ?, ends_at = ?, reminded_at = NULL WHERE id = ?', slot.start, slot.end, bk.id); }
+    catch (e) { if (String(e.code) === '23505' || /unique/i.test(e.message)) return res.redirect(303, `/b/${bk.token}?change=1`); throw e; }
+    const moved = { ...bk, starts_at: slot.start, ends_at: slot.end };
+    await logEvent(db(), account.id, { person_id: bk.contact_id, type: 'note', source: 'funnel', meta: { note: `Moved their booking from ${when(old, s.tz)} to ${when(slot.start, s.tz)}` } }).catch(() => {});
+    await sendConfirmation(account, moved, s, { movedFrom: old }).catch((e) => console.error('booking email:', e.message));
+    res.redirect(303, `/b/${bk.token}?saved=time`);
+  });
+  app.post('/b/:token/details', express.urlencoded({ extended: false, limit: '4kb' }), async (req, res) => {
+    const bk = await byToken(req.params.token);
+    if (!bk || bk.status !== 'confirmed') return page(res, 404, 'Not found', '<h1>This booking can’t be changed</h1>');
+    const name = String(req.body.name || '').trim().slice(0, 120) || bk.name;
+    await db().run('UPDATE bookings SET name = ?, phone = ?, note = ? WHERE id = ?', name, String(req.body.phone || '').slice(0, 40), String(req.body.note || '').slice(0, 2000), bk.id);
+    res.redirect(303, `/b/${bk.token}?saved=details`);
   });
 
   async function cancel(bk, by) {

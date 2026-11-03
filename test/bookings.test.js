@@ -91,12 +91,22 @@ test('booking: hours, open times, book, no double-booking, emails, workflow, rem
   assert.equal((await c('POST', '/api/jobs/run', { now: dayBefore })).body.reminders, 0);
   assert.ok((await c('GET', '/api/outbox')).body.some((m) => m.to_email === 'al@example.com' && m.subject.startsWith('Reminder: Intro call')));
 
-  // The visitor cancels from the link in their email; the time opens up again.
+  // The visitor moves their booking to another open time from the link in their email.
   const token = conf.body.match(/\/b\/([\w-]+)/)[1];
+  assert.match((await c('GET', `/b/${token}`)).body, /Change the time/);
+  const later = (await c('GET', `/f/${funnel.slug}/slots`)).body.slots.find((x) => x.start > slot.start);
+  const mv = await fetch(`${base}/b/${token}/move`, { method: 'POST', redirect: 'manual', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: `start=${encodeURIComponent(later.start)}` });
+  assert.equal(mv.status, 303);
+  assert.equal((await c('GET', '/api/bookings')).body.bookings[0].starts_at.replace('.000', ''), later.start.replace('.000', ''));
+  assert.ok((await c('GET', '/api/outbox')).body.some((m) => m.to_email === 'bea@example.com' && m.subject.startsWith('Moved: Al Visitor')));
+  assert.ok((await c('GET', `/f/${funnel.slug}/slots`)).body.slots.some((x) => x.start === slot.start)); // old time free again
+  await fetch(`${base}/b/${token}/details`, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: 'name=Al%20V&phone=555-0199&note=Bring%20the%20ribbon' });
+  assert.equal((await c('GET', '/api/bookings')).body.bookings[0].note, 'Bring the ribbon');
+  // The visitor cancels from the same link; the time opens up again.
   assert.match((await c('GET', `/b/${token}`)).body, /Cancel this booking/);
   assert.match((await fetch(`${base}/b/${token}/cancel`, { method: 'POST' }).then((r) => r.text())), /Cancelled/);
-  assert.ok((await c('GET', `/f/${funnel.slug}/slots`)).body.slots.some((x) => x.start === slot.start));
-  assert.ok((await c('GET', '/api/outbox')).body.some((m) => m.to_email === 'bea@example.com' && m.subject.startsWith('Cancelled: Al Visitor')));
+  assert.ok((await c('GET', `/f/${funnel.slug}/slots`)).body.slots.some((x) => x.start === later.start));
+  assert.ok((await c('GET', '/api/outbox')).body.some((m) => m.to_email === 'bea@example.com' && m.subject.startsWith('Cancelled: Al')));
   assert.equal((await c('GET', '/api/bookings')).body.bookings.length, 0);
 
   // Another business can't see or cancel these.
