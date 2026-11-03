@@ -131,6 +131,7 @@ const NAV = [
   ['pages', icon('page'), 'Pages'],
   ['workflows', icon('bolt'), 'Workflows'],
   ['people', icon('people'), 'People'],
+  ['calendar', icon('calendar'), 'Calendar'],
   ['pipelines', icon('trend'), 'Deals'],
   ['products', icon('bag'), 'Products'],
   ['email', icon('mail'), 'Email'],

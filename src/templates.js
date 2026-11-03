@@ -170,6 +170,26 @@ const TEMPLATES = {
       },
     ],
   },
+  // Visitors pick a time from the owner's calendar (Calendar → your hours).
+  booking: {
+    label: 'Book a call',
+    description: 'Visitors pick an open time from your calendar and book. They get a confirmation and a reminder; you get a notice.',
+    workflows: [],
+    steps: () => [
+      {
+        name: 'Book', slug: 'book', settings: { accent: '#1f7f78' },
+        blocks: [
+          { id: id(), type: 'heading', text: 'Book a free call', align: 'center' },
+          { id: id(), type: 'text', text: 'Pick a time that suits you. You’ll get a confirmation straight away and a reminder the day before.', align: 'center' },
+          { id: id(), type: 'booking', heading: '', buttonLabel: 'Confirm my call', collectPhone: true, askNote: true, tag: 'booked' },
+        ],
+      },
+      {
+        name: 'Booked', slug: 'booked', settings: { accent: '#1f7f78' },
+        blocks: [{ id: id(), type: 'heading', text: 'You’re booked. Talk soon!', align: 'center' }, { id: id(), type: 'text', text: 'Your confirmation is in your inbox, with a link to change the time if you need to.', align: 'center' }],
+      },
+    ],
+  },
   blank: {
     label: 'Blank',
     description: 'One empty page to build from scratch.',

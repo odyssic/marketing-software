@@ -102,7 +102,7 @@ async function describeFunnel({ account, sentence, options }) {
 }
 const guessTemplate = (sentence, keys) => {
   const s = sentence.toLowerCase();
-  const pick = /newsletter|letter|subscribe/.test(s) ? 'newsletter' : /consult|book|call|appointment|quote|session/.test(s) ? 'consult'
+  const pick = /newsletter|letter|subscribe/.test(s) ? 'newsletter' : /book|call|appointment|session|schedule|calendar/.test(s) ? 'booking' : /consult|quote|estimate|inquir/.test(s) ? 'consult'
     : /upsell|upgrade|one-time offer|downsell/.test(s) ? 'upsell' : /free|guide|download|checklist|sample|lead magnet|ebook/.test(s) ? 'optin'
       : /sell|buy|launch|course|product|kit|\$\d/.test(s) ? 'sales' : 'optin';
   // A short name from the sentence, cut at a whole word.

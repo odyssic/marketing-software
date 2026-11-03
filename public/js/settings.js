@@ -19,7 +19,7 @@ function viewSettings() {
       <p class="muted small">Sets the starting follow-ups and which sections you see. Nothing is deleted when you change it.</p>
       <label class="f">This business is a<select name="business_type"><option value="">— Choose —</option>${BUSINESS_TYPES_UI.map(([k, l]) => `<option value="${k}" ${a.business_type === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
       <div class="f">Show in the menu
-        ${[['pipelines', 'Deals', 'a board for quotes, jobs or clients you win one at a time'], ['products', 'Products', 'things you sell with checkout'], ['email', 'Email', 'newsletters and broadcasts']].map(([k, l, h]) => `<label class="check"><input type="checkbox" name="show" value="${k}" ${(a.hidden_sections || []).includes(k) ? '' : 'checked'}> <b>${l}</b> <span class="muted small">${h}</span></label>`).join('')}</div>
+        ${[['calendar', 'Calendar', 'people book calls or appointments from your pages'], ['pipelines', 'Deals', 'a board for quotes, jobs or clients you win one at a time'], ['products', 'Products', 'things you sell with checkout'], ['email', 'Email', 'newsletters and broadcasts']].map(([k, l, h]) => `<label class="check"><input type="checkbox" name="show" value="${k}" ${(a.hidden_sections || []).includes(k) ? '' : 'checked'}> <b>${l}</b> <span class="muted small">${h}</span></label>`).join('')}</div>
       <button class="btn primary">Save</button>
     </form>
     <form class="card" style="max-width:560px;margin-top:16px" data-voice>
@@ -80,7 +80,7 @@ function viewSettings() {
   bizForm.onsubmit = async (e) => {
     e.preventDefault();
     const shown = $$('[name="show"]:checked', bizForm).map((c) => c.value);
-    await api('PUT', '/api/account/business', { business_type: bizForm.business_type.value, hidden_sections: ['pipelines', 'products', 'email'].filter((k) => !shown.includes(k)) });
+    await api('PUT', '/api/account/business', { business_type: bizForm.business_type.value, hidden_sections: ['calendar', 'pipelines', 'products', 'email'].filter((k) => !shown.includes(k)) });
     state.me = await api('GET', '/api/me'); toast('Saved'); viewSettings();
   };
   Promise.all([api('GET', '/api/websites'), api('GET', '/api/funnels')]).then(([sites, funnels]) => {

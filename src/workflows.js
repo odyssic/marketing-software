@@ -14,6 +14,7 @@ const TRIGGERS = {
   tag_added: 'Gets a tag',
   subscribe: 'Subscribes to a newsletter',
   inquiry: 'Sends an inquiry',
+  booking: 'Books a call',
   silent: 'Goes quiet (no activity for a while)',
   manual: 'Added by hand',
 };
@@ -240,7 +241,7 @@ function createWorkflows({ getDb, HttpError, id, people, messaging, getAccount }
 
   // Called for every logged event. Only fresh events start workflows.
   async function onEvent(accountId, e) {
-    if (!e.person_id || !['signup', 'purchase', 'subscribe', 'inquiry'].includes(e.type)) return;
+    if (!e.person_id || !['signup', 'purchase', 'subscribe', 'inquiry', 'booking'].includes(e.type)) return;
     if (e.occurred_at && Date.now() - new Date(e.occurred_at).getTime() > FRESH_MS) return;
     for (const w of await activeWithTrigger(accountId, e.type)) {
       const t = w.graph.nodes[w.graph.root].config;

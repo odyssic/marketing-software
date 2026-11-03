@@ -70,8 +70,8 @@ const personForm = (c = {}) => `
     <input name="region" value="${esc(c.region)}" placeholder="State"><input name="postal" value="${esc(c.postal)}" placeholder="ZIP"><input name="country" value="${esc(c.country)}" placeholder="Country"></div>
   <label class="f">Tags <span class="hint">comma separated</span><input name="tags" value="${esc((c.tags || []).join(', '))}"></label>`;
 
-const EVENT_ICON = { signup: icon('pencil'), inquiry: icon('chat'), purchase: icon('bag'), subscribe: icon('inbox'), unsubscribe: icon('door'), open: icon('eye'), click: icon('cursor'), listen: icon('headphones'), scan: icon('camera'), visit: icon('globe'), note: icon('note') };
-const EVENT_LABEL = { signup: 'Signed up', inquiry: 'Inquiry', purchase: 'Bought', subscribe: 'Subscribed', unsubscribe: 'Unsubscribed', open: 'Opened an email', click: 'Clicked a link', listen: 'Listened', scan: 'Scanned a QR code', visit: 'Visited', note: 'Note' };
+const EVENT_ICON = { booking: icon('calendar'), signup: icon('pencil'), inquiry: icon('chat'), purchase: icon('bag'), subscribe: icon('inbox'), unsubscribe: icon('door'), open: icon('eye'), click: icon('cursor'), listen: icon('headphones'), scan: icon('camera'), visit: icon('globe'), note: icon('note') };
+const EVENT_LABEL = { booking: 'Booked a call', signup: 'Signed up', inquiry: 'Inquiry', purchase: 'Bought', subscribe: 'Subscribed', unsubscribe: 'Unsubscribed', open: 'Opened an email', click: 'Clicked a link', listen: 'Listened', scan: 'Scanned a QR code', visit: 'Visited', note: 'Note' };
 const eventText = (e) => {
   const m = e.meta || {};
   const bits = [m.items || m.product, m.funnel && `funnel “${m.funnel}”`, m.format && `${m.format}`, m.campaign, m.url, m.note].filter(Boolean);

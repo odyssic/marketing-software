@@ -24,6 +24,7 @@ const business = require('./business');
 const { registerBounces } = require('./bounces');
 const { rillyEmail } = require('./emailhtml');
 const segments = require('./segments');
+const { registerBookings } = require('./bookings');
 
 const slugify = (s) => String(s || '').toLowerCase().normalize('NFKD').replace(/[^\w\s-]/g, '')
   .trim().replace(/[\s_]+/g, '-').replace(/-+/g, '-').slice(0, 60) || 'page';
@@ -72,7 +73,7 @@ function createApp({ dbPath } = {}) {
     if (a) domainCache.set(host, { account: a, at: Date.now() });
     return a || null;
   };
-  const PASS = /^\/(t|s|u|hooks|checkout|stripe|unsubscribe|f)\//;
+  const PASS = /^\/(t|s|u|b|hooks|checkout|stripe|unsubscribe|f)\//;
   app.use(async (req, res, next) => {
     let host = String(req.hostname || '').toLowerCase();
     let path = req.path;
@@ -1098,6 +1099,9 @@ function createApp({ dbPath } = {}) {
   });
   registerDashboard(api, { getDb: () => db, HttpError, leversFor, formatMoney, getAccount, weeklyMove: (accountId) => moves.current(accountId) });
 
+  // Booking calendar routes (registered before the API's not-found handler and the public page route).
+  const bookings = registerBookings(app, api, { getDb: () => db, HttpError, id, upsertContact, logEvent, messaging, mailer, publicBase,
+    ownerViewing: (...a) => ownerViewing(...a), findPublicStep: (...a) => findPublicStep(...a) });
   api.use((req, res) => res.status(404).json({ error: 'Not found' }));
   app.use('/api', api);
 
@@ -1452,7 +1456,7 @@ ${order.status === 'paid' ? '<p>This order is already paid.</p>' : `<label>Name<
   // the scheduled Netlify function.
   app.runJobs = async (now = new Date()) => {
     await init();
-    return { ...(await workflows.processDue({ now })), ...(await digest.sendDue(now)) };
+    return { ...(await workflows.processDue({ now })), ...(await digest.sendDue(now)), ...(await bookings.sendReminders(now)) };
   };
   app.messaging = messaging; // for tests (signing tracking links)
 

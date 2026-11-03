@@ -115,6 +115,25 @@ function renderBlock(b, ctx, index) {
       const src = youtubeEmbed(b.url);
       return src ? `<div class="video"><iframe src="${src}" allowfullscreen loading="lazy" title="Video"></iframe></div>` : (ctx.preview ? `<div class="ph">Video: paste a YouTube link in the panel on the left</div>` : '');
     }
+    case 'booking': {
+      // Open times load from the server and show in the visitor's own time zone.
+      const live = ctx.formAction && ctx.formAction !== '#';
+      const book = live ? ctx.formAction.replace(/\/optin$/, '/book') : '';
+      const slots = live ? ctx.formAction.replace(/\/[^/]+\/optin$/, '/slots') : '';
+      return `<div class="booking" data-book="${esc(book)}" data-slots="${esc(slots)}" data-next="${esc(ctx.nextUrl || '#')}" data-phone="${b.collectPhone ? 1 : ''}" data-note="${b.askNote === false ? '' : 1}" data-btn="${esc(b.buttonLabel || 'Confirm booking')}">
+        ${b.heading ? `<h2${f('heading')}>${esc(b.heading)}</h2>` : ''}
+        <p class="bk-meta"></p>
+        <div class="bk-days" role="tablist" aria-label="Choose a day"></div>
+        <div class="bk-times" aria-live="polite"><p class="bk-msg">Loading open times…</p></div>
+        <p class="bk-tz"></p>
+        <form class="bk-form" hidden><p class="bk-picked"></p>
+          <input name="name" placeholder="Your name" required autocomplete="name"><input name="email" type="email" placeholder="Your email" required autocomplete="email">
+          ${b.collectPhone ? '<input name="phone" type="tel" placeholder="Phone (optional)" autocomplete="tel">' : ''}
+          ${b.askNote === false ? '' : '<textarea name="note" rows="3" placeholder="Anything I should know before we talk? (optional)"></textarea>'}
+          <input class="hp" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
+          <button class="btn" type="submit">${esc(b.buttonLabel || 'Confirm booking')}</button><p class="bk-err" role="alert"></p></form>
+        <div class="bk-done" hidden></div></div>`;
+    }
     case 'form': {
       const fields = [
         b.collectName ? '<input name="first_name" placeholder="First name" autocomplete="given-name">' : '',
@@ -227,7 +246,7 @@ footer.site{border-top:1px solid color-mix(in srgb,${fg} 10%,transparent);margin
 @media(max-width:640px){.burger{display:block}header.site nav{display:none;width:100%;flex-direction:column;gap:10px;padding-top:6px}#mnu:checked~nav{display:flex}}
 </style></head><body>${nav}<main>
 ${body || '<p style="text-align:center;opacity:.5">This page is empty. Add blocks in the editor.</p>'}
-</main>${foot}${preview ? PREVIEW_EDIT_SCRIPT + PREVIEW_DROP_SCRIPT + PREVIEW_TOOLS_SCRIPT : ''}</body></html>`;
+</main>${foot}${(blocks || []).some((b) => b.type === 'booking') ? BOOKING_SCRIPT : ''}${preview ? PREVIEW_EDIT_SCRIPT + PREVIEW_DROP_SCRIPT + PREVIEW_TOOLS_SCRIPT : ''}</body></html>`;
 }
 
 // Click-to-edit in the editor preview: click any text to type over it; the
@@ -246,6 +265,50 @@ document.addEventListener('dragover',function(e){if(!has(e,'Files'))return;var b
 document.addEventListener('drop',function(e){if(!ours(e))return;e.preventDefault();line.style.display='none';var at=spot(e.clientY).at;
 if(has(e,'Files')){var f=e.dataTransfer.files[0],b=e.target.closest&&e.target.closest('[data-bi]');if(f)parent.postMessage({ff:'photo',at:at,i:b?+b.dataset.bi:-1,file:f},'*');return;}
 parent.postMessage({ff:'drop',at:at,data:e.dataTransfer.getData('text/x-fourfold')},'*');});})();<\/script>`;
+
+// The booking widget: days with open times, then times, then name and email.
+// Without a server (the editor preview) it shows sample times and doesn't book.
+const BOOKING_SCRIPT = `<style>
+.booking{text-align:center}.bk-meta{opacity:.75;margin:0 0 14px}
+.bk-days{display:flex;gap:8px;overflow-x:auto;padding:4px 2px 10px;justify-content:flex-start;scroll-snap-type:x proximity}
+.bk-days button,.bk-times button{border:1px solid color-mix(in srgb,currentColor 18%,transparent);background:transparent;color:inherit;border-radius:10px;cursor:pointer;font:inherit}
+.bk-days button{flex:none;min-width:64px;padding:8px 10px;display:flex;flex-direction:column;align-items:center;scroll-snap-align:start}
+.bk-days button small{opacity:.7;font-size:.75rem;text-transform:uppercase;letter-spacing:.04em}.bk-days button b{font-size:1.2rem}
+.bk-times{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px;margin:6px 0}
+.bk-times button{padding:10px 6px;font-weight:600}
+.bk-days button.on,.bk-times button.on,.bk-days button:hover,.bk-times button:hover{border-color:var(--bk-accent);color:var(--bk-accent)}
+.bk-days button.on{background:color-mix(in srgb,var(--bk-accent) 10%,transparent)}
+.bk-msg,.bk-tz{opacity:.7;font-size:.85rem;grid-column:1/-1}
+.bk-form{display:grid;gap:10px;max-width:420px;margin:14px auto 0;text-align:left}.bk-form input,.bk-form textarea{padding:13px 14px;border:1px solid #d1d5db;border-radius:10px;font:inherit}
+.bk-form .btn{width:100%}.bk-picked{font-weight:600;text-align:center;margin:0}.bk-err{color:#b91c1c;font-size:.9rem;margin:0}
+.bk-done{padding:22px;border-radius:14px;background:color-mix(in srgb,var(--bk-accent) 8%,transparent)}.bk-done h3{margin:0 0 6px}
+</style><script>(function(){document.querySelectorAll('.booking').forEach(function(el){
+var acc=getComputedStyle(document.querySelector('.btn')||el).backgroundColor||'#1F7F78';el.style.setProperty('--bk-accent',acc);
+var tz=Intl.DateTimeFormat().resolvedOptions().timeZone,days=el.querySelector('.bk-days'),times=el.querySelector('.bk-times'),form=el.querySelector('.bk-form'),picked=null,byDay={};
+var fmtDay=function(d){return d.toLocaleDateString(undefined,{year:'numeric',month:'2-digit',day:'2-digit'})};
+var fmtTime=function(d){return d.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'})};
+var fmtLong=function(d){return d.toLocaleString(undefined,{weekday:'long',month:'long',day:'numeric',hour:'numeric',minute:'2-digit'})};
+el.querySelector('.bk-tz').textContent='Times are shown in your time zone ('+tz.replace(/_/g,' ')+').';
+var demo=function(){var out=[],n=new Date();for(var i=1;out.length<40&&i<20;i++){var d=new Date(n.getFullYear(),n.getMonth(),n.getDate()+i);if(d.getDay()%6===0)continue;for(var h=9;h<17;h++){var s=new Date(d.getFullYear(),d.getMonth(),d.getDate(),h,0);out.push({start:s.toISOString()});}}return{title:'Sample times (preview)',length:30,slots:out};};
+var show=function(data){var meta=el.querySelector('.bk-meta');meta.textContent=[data.title,data.length?data.length+' minutes':'',data.location].filter(Boolean).join(' · ');
+ if(!data.slots.length){times.innerHTML='<p class="bk-msg">No open times right now. Please check back soon.</p>';return;}
+ data.slots.forEach(function(s){var d=new Date(s.start),k=fmtDay(d);(byDay[k]=byDay[k]||[]).push(d);});
+ Object.keys(byDay).forEach(function(k,i){var d=byDay[k][0],b=document.createElement('button');b.type='button';b.setAttribute('role','tab');
+  b.innerHTML='<small></small><b></b><small></small>';b.children[0].textContent=d.toLocaleDateString(undefined,{weekday:'short'});b.children[1].textContent=d.getDate();b.children[2].textContent=d.toLocaleDateString(undefined,{month:'short'});
+  b.onclick=function(){days.querySelectorAll('button').forEach(function(x){x.classList.toggle('on',x===b)});pick(k)};days.appendChild(b);if(i===0)b.click();});};
+var pick=function(k){times.innerHTML='';form.hidden=true;byDay[k].forEach(function(d){var b=document.createElement('button');b.type='button';b.textContent=fmtTime(d);
+ b.onclick=function(){times.querySelectorAll('button').forEach(function(x){x.classList.toggle('on',x===b)});picked=d;form.hidden=false;form.querySelector('.bk-picked').textContent=fmtLong(d);form.querySelector('input[name=name]').focus();};times.appendChild(b);});};
+if(el.dataset.slots){fetch(el.dataset.slots,{credentials:'same-origin'}).then(function(r){return r.json()}).then(show).catch(function(){times.innerHTML='<p class="bk-msg">Couldn’t load open times. Please refresh.</p>';});}else show(demo());
+form.onsubmit=function(e){e.preventDefault();if(!picked)return;var err=form.querySelector('.bk-err');err.textContent='';
+ if(!el.dataset.book){alert('Booking is turned off in the preview. Publish the page to take real bookings.');return;}
+ var btn=form.querySelector('button[type=submit]');btn.disabled=true;btn.textContent='Booking…';
+ var v={start:picked.toISOString()};new FormData(form).forEach(function(val,key){v[key]=val});
+ fetch(el.dataset.book,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(v),credentials:'same-origin'}).then(function(r){return r.json().then(function(j){return{ok:r.ok,j:j}})}).then(function(x){
+  if(!x.ok){err.textContent=x.j.error||'Something went wrong. Please try again.';btn.disabled=false;btn.textContent=el.dataset.btn;if(/taken/.test(x.j.error||''))location.reload();return;}
+  var done=el.querySelector('.bk-done');done.innerHTML='<h3>You’re booked!</h3><p></p><p style="opacity:.75;margin:0">A confirmation is on its way to your inbox.</p>';done.querySelector('p').textContent=fmtLong(new Date(x.j.start));
+  done.hidden=false;form.hidden=true;times.hidden=true;days.hidden=true;el.querySelector('.bk-tz').hidden=true;
+  if(x.j.next)setTimeout(function(){location.href=x.j.next},2500);}).catch(function(){err.textContent='Couldn’t reach the server. Please try again.';btn.disabled=false;btn.textContent=el.dataset.btn;});};
+});})();<\/script>`;
 
 // Block toolbar in the editor preview: on hover (or once selected) each block
 // shows Move up, Move down, Duplicate and Delete. Delete/Backspace removes the

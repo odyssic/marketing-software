@@ -174,8 +174,10 @@ test('describe-to-build: one sentence picks a template, writes the copy, and add
   // AI off: keyword guess, template copy kept.
   delete process.env.ANTHROPIC_API_KEY;
   const g = (await c('POST', '/api/funnels/describe', { sentence: 'Book a free consultation call for kitchen remodels.' })).body;
-  assert.equal(g.template, 'consult');
+  assert.equal(g.template, 'booking'); // "book a ... call" → the calendar booking page
   assert.equal(g.drafted, false);
+  const q = (await c('POST', '/api/funnels/describe', { sentence: 'Free quotes for kitchen remodels' })).body;
+  assert.equal(q.template, 'consult'); // quote requests → the request form
   assert.equal(g.name, 'Book a free consultation call for'); // up to 40 characters, whole words
 });
 

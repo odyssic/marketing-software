@@ -5,7 +5,7 @@
 const BUSINESS_TYPES = {
   shop: {
     label: 'Shop or maker', hint: 'Sells products online or at markets',
-    people: 'customers', hide: ['pipelines'],
+    people: 'customers', hide: ['pipelines', 'calendar'],
     workflows: ['care', 'review', 'referral', 'winback'],
   },
   services: {
@@ -27,7 +27,7 @@ const BUSINESS_TYPES = {
   },
   nonprofit: {
     label: 'Nonprofit or community', hint: 'Supporters, members, donors, volunteers',
-    people: 'supporters', hide: ['pipelines'],
+    people: 'supporters', hide: ['pipelines', 'calendar'],
     workflows: ['welcome', 'newsletter', 'winback'],
   },
   other: {
@@ -37,7 +37,7 @@ const BUSINESS_TYPES = {
     pipeline: { name: 'Sales', stages: ['New lead', 'Contacted', 'Proposal sent', 'Won'] },
   },
 };
-const OPTIONAL_SECTIONS = { pipelines: 'Deals', products: 'Products', email: 'Email' };
+const OPTIONAL_SECTIONS = { calendar: 'Calendar', pipelines: 'Deals', products: 'Products', email: 'Email' };
 const typeOf = (key) => BUSINESS_TYPES[key] || BUSINESS_TYPES.other;
 const cleanType = (key) => (BUSINESS_TYPES[key] ? key : '');
 // Hidden sections as stored; falls back to the type's defaults until changed.

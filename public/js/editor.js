@@ -37,6 +37,9 @@ const BLOCKS = {
     fields: [['items', 'textarea', 'Cards (one per line: Title | description)']] },
   info: { label: 'Business info', icon: icon('info'), defaults: { hours: 'Mon–Fri 9am–5pm', address: '', phone: '', email: '' },
     fields: [['hours', 'text', 'Hours'], ['address', 'text', 'Address'], ['phone', 'text', 'Phone'], ['email', 'text', 'Email']] },
+  booking: { label: 'Booking', icon: icon('calendar'), defaults: { heading: 'Pick a time that suits you', buttonLabel: 'Confirm booking', collectPhone: false, askNote: true, tag: 'booked' },
+    fields: [['heading', 'text', 'Heading'], ['buttonLabel', 'text', 'Button text'], ['collectPhone', 'check', 'Ask for a phone number (optional for them)'],
+      ['askNote', 'check', 'Let them add a note'], ['tag', 'text', 'Tag people who book', null, 'e.g. booked']] },
   spacer: { label: 'Spacer', icon: icon('spacer'), defaults: { height: 40 }, fields: [['height', 'number', 'Height (px)']] },
   divider: { label: 'Divider', icon: icon('divider'), defaults: {}, fields: [] },
 };

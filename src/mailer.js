@@ -32,10 +32,10 @@ function senderFor({ name, replyTo } = {}) {
   return out;
 }
 
-async function sendEmail({ from, replyTo, to, subject, text, html, headers }) {
+async function sendEmail({ from, replyTo, to, subject, text, html, headers, attachments }) {
   const t = getTransport();
   if (!t) return { status: 'logged' };
-  await t.sendMail({ from, to, subject, text, ...(replyTo ? { replyTo } : {}), ...(html ? { html } : {}), ...(headers ? { headers } : {}) });
+  await t.sendMail({ from, to, subject, text, ...(replyTo ? { replyTo } : {}), ...(html ? { html } : {}), ...(headers ? { headers } : {}), ...(attachments ? { attachments } : {}) });
   return { status: 'sent' };
 }
 

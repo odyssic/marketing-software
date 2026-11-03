@@ -65,6 +65,15 @@ function createMessaging({ getDb, getSecret, publicBase, logEvent }) {
     }
   }
 
+  // Service emails from the business (booking confirmations, reminders):
+  // sent even to people who unsubscribed from marketing, no tracking.
+  async function sendTransactional({ account, to, contactId = null, subject, text, attachments }) {
+    const html = toHtml(text, 'tx', publicBase()).replace(/<img src="[^"]*\/t\/o\/[^"]*"[^>]*>/, '').replace(/href="[^"]*\/t\/c\/tx\?u=([^"]*)"/g, (_, u) => `href="${decodeURIComponent(u)}"`);
+    const r = await mailer.sendEmail({ ...fromFor(account), to, subject, text, html, attachments });
+    await getDb().run('INSERT INTO email_log (account_id, contact_id, to_email, subject, body, status) VALUES (?, ?, ?, ?, ?, ?)', account.id, contactId, to, subject, text, r.status);
+    return r;
+  }
+
   // A test copy for the owner: real sender and layout, sample merge values,
   // "[Test]" in the subject, and no tracking, so it never counts in results.
   async function sendTest({ account, to, name, subject, body, preheader = '' }) {
@@ -120,7 +129,7 @@ function createMessaging({ getDb, getSecret, publicBase, logEvent }) {
     });
   }
 
-  return { sendToPerson, sendTest, sendToOwner, registerTracking, merge, unsubToken, sign, verify };
+  return { sendToPerson, sendTest, sendTransactional, sendToOwner, registerTracking, merge, unsubToken, sign, verify };
 }
 
 module.exports = { createMessaging, merge };

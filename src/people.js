@@ -4,7 +4,7 @@
 const { zip } = require('./zip');
 
 const STAGES = ['audience', 'lead', 'customer', 'regular'];
-const EVENT_TYPES = ['signup', 'inquiry', 'purchase', 'subscribe', 'unsubscribe', 'open', 'click', 'listen', 'scan', 'visit', 'note'];
+const EVENT_TYPES = ['signup', 'inquiry', 'booking', 'purchase', 'subscribe', 'unsubscribe', 'open', 'click', 'listen', 'scan', 'visit', 'note'];
 const SOURCES = ['store', 'newsletter', 'podcast', 'inquiry', 'funnel', 'etsy', 'paypal', 'stripe', 'print', 'social', 'referral', 'event', 'manual', 'import', 'deal', 'other'];
 const ADDRESS = ['address1', 'address2', 'city', 'region', 'postal', 'country'];
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -49,7 +49,7 @@ function createPeople({ getDb, HttpError, parseTags, id, formatMoney }) {
         ELSE 'audience' END
       FROM (SELECT p.id,
           (SELECT COUNT(*) FROM events e WHERE e.person_id = p.id AND e.type = 'purchase') AS purchases,
-          (SELECT COUNT(*) FROM events e WHERE e.person_id = p.id AND e.type IN ('signup', 'inquiry', 'subscribe', 'open', 'click')) AS lead_events,
+          (SELECT COUNT(*) FROM events e WHERE e.person_id = p.id AND e.type IN ('signup', 'inquiry', 'booking', 'subscribe', 'open', 'click')) AS lead_events,
           (SELECT COUNT(*) FROM subscriptions s WHERE s.person_id = p.id AND s.status = 'active') AS active_subs
         FROM contacts p WHERE p.id IN (SELECT (jsonb_array_elements_text(?::jsonb))::int)) x
       WHERE c.id = x.id`, JSON.stringify(ids));
