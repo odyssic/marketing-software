@@ -7,7 +7,7 @@
 const crypto = require('node:crypto');
 const { LEVER_KEYS } = require('./levers');
 
-const STEP_TYPES = ['wait', 'email', 'condition', 'tag', 'subscribe', 'notify', 'deal'];
+const STEP_TYPES = ['wait', 'email', 'sms', 'condition', 'tag', 'subscribe', 'notify', 'deal'];
 const TRIGGERS = {
   signup: 'Signs up (any form or funnel)',
   purchase: 'Buys something',
@@ -64,6 +64,7 @@ function cleanConfig(type, c) {
     };
     case 'wait': return { days: int(c.days, 0, 3650, 1), hours: int(c.hours, 0, 23, 0) };
     case 'email': return { subject: str(c.subject, 300), body: str(c.body, 20000) };
+    case 'sms': return { body: str(c.body, 640) };
     case 'condition': return { check: CONDITIONS[c.check] ? c.check : 'purchased', value: str(c.value, 60).trim().toLowerCase() };
     case 'tag': return { add: str(c.add, 300), remove: str(c.remove, 300) };
     case 'subscribe': return { product: str(c.product, 100).trim() || 'Newsletter' };
@@ -81,6 +82,7 @@ function problems(graph) {
   if (!t.next) out.push('Add at least one step after the trigger.');
   for (const n of Object.values(graph.nodes)) {
     if (n.type === 'email' && (!n.config.subject.trim() || !n.config.body.trim())) out.push('Every email needs a subject and a message.');
+    if (n.type === 'sms' && !n.config.body.trim()) out.push('Every text needs a message.');
     if (n.type === 'condition' && ['has_tag', 'stage_is'].includes(n.config.check) && !n.config.value) out.push('A condition is missing what to check for.');
     if (n.type === 'deal' && !n.config.pipeline_id) out.push('Pick a pipeline for the “Create deal” step.');
     if (n.type === 'tag' && !n.config.add.trim() && !n.config.remove.trim()) out.push('A “Tag” step needs a tag to add or remove.');
@@ -317,6 +319,12 @@ function createWorkflows({ getDb, HttpError, id, people, messaging, getAccount }
       }
       case 'email': {
         const r = await messaging.sendToPerson({ account, person, subject: c.subject, body: c.body, workflowId: w.id });
+        return { next: node.next, outcome: r.status === 'skipped' ? 'skipped' : r.status === 'failed' ? 'failed' : 'sent', detail: r.reason || '' };
+      }
+      case 'sms': {
+        // Only people who said yes to texts (or texted first); waits out quiet hours.
+        const r = await messaging.sendText({ account, contact: person, body: messaging.merge(c.body, person, account), kind: 'marketing', now });
+        if (r.status === 'quiet') return { stay: true, wake: r.until, outcome: 'waiting', detail: 'quiet hours (texts go out 8am to 9pm)' };
         return { next: node.next, outcome: r.status === 'skipped' ? 'skipped' : r.status === 'failed' ? 'failed' : 'sent', detail: r.reason || '' };
       }
       case 'condition': {

@@ -83,7 +83,7 @@ function createPeople({ getDb, HttpError, parseTags, id, formatMoney }) {
       phone: String(p.phone || '').trim(),
       ...Object.fromEntries(ADDRESS.map((k) => [k, String(p[k] || '').trim()])),
     };
-    if (!email && !fields.first_name && !fields.last_name) throw new HttpError(400, 'A person needs an email or a name');
+    if (!email && !fields.first_name && !fields.last_name && !fields.phone) throw new HttpError(400, 'A person needs an email, a name or a phone number');
     const existing = email && await q.get('SELECT * FROM contacts WHERE account_id = ? AND email = ?', accountId, email);
     if (existing) {
       const merged = parseTags([...JSON.parse(existing.tags), ...parseTags(p.tags)]);

@@ -22,7 +22,7 @@ function verifySvix({ secret, id, timestamp, signature, body, now = Date.now() }
   });
 }
 
-function registerBounces(app, { getDb, logEvent }) {
+function registerBounces(app, { getDb, logEvent, onReceived }) {
   app.post('/hooks/email', express.raw({ type: () => true, limit: '256kb' }), async (req, res) => {
     const secret = process.env.EMAIL_WEBHOOK_SECRET;
     if (!secret) return res.status(503).json({ error: 'Email webhook is not set up (EMAIL_WEBHOOK_SECRET)' });
@@ -31,6 +31,7 @@ function registerBounces(app, { getDb, logEvent }) {
     if (!ok) return res.status(401).json({ error: 'Bad signature' });
     let evt;
     try { evt = JSON.parse(body); } catch { return res.status(400).json({ error: 'Bad JSON' }); }
+    if (evt.type === 'email.received' && onReceived) return res.json(await onReceived(evt.data || {}));
     const kind = evt.type === 'email.bounced' ? 'bounced' : evt.type === 'email.complained' ? 'complained' : null;
     if (!kind) return res.json({ ignored: evt.type || 'unknown' });
 

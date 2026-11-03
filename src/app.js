@@ -28,6 +28,7 @@ const { registerBookings } = require('./bookings');
 const attribution = require('./attribution');
 const { registerInvoices } = require('./invoices');
 const { registerSetup } = require('./setup');
+const { registerTexting } = require('./texting');
 
 const slugify = (s) => String(s || '').toLowerCase().normalize('NFKD').replace(/[^\w\s-]/g, '')
   .trim().replace(/[\s_]+/g, '-').replace(/-+/g, '-').slice(0, 60) || 'page';
@@ -1156,6 +1157,7 @@ function createApp({ dbPath } = {}) {
   });
   registerDashboard(api, { getDb: () => db, HttpError, leversFor, formatMoney, getAccount, weeklyMove: (accountId) => moves.current(accountId) });
 
+  const texting = registerTexting(app, api, { getDb: () => db, HttpError, id, upsertContact, logEvent, messaging, publicBase, getSecret: () => secret });
   registerSetup(api, { getDb: () => db, HttpError, createFunnel, TEMPLATES, getAccount });
   const invoices = registerInvoices(app, api, { getDb: () => db, HttpError, id, upsertContact, messaging, publicBase, stripe, orderToken: (...a) => orderToken(...a),
     ownerViewing: (req, x) => ownerViewing(req, x) });
@@ -1176,7 +1178,7 @@ function createApp({ dbPath } = {}) {
   });
 
   messaging.registerTracking(app);
-  registerBounces(app, { getDb: () => db, logEvent });
+  registerBounces(app, { getDb: () => db, logEvent, onReceived: (data) => texting.receiveEmail(data) });
 
   // ---------- Public funnel pages ----------
   const findPublicStep = async (funnelSlug, stepSlug) => {
@@ -1316,6 +1318,7 @@ function createApp({ dbPath } = {}) {
       await logEvent(db, funnel.account_id, { person_id: contact.id, type: 'note', source: 'funnel', meta: { ...meta, note: `Left a review${req.body.share === '1' ? ' (may be shown)' : ' (private)'}: ${words.slice(0, 300)}` } });
     } else if (purpose === 'inquiry') {
       await logEvent(db, funnel.account_id, { person_id: contact.id, type: 'inquiry', source: 'funnel', meta: { ...meta, note: String(req.body.message || '').slice(0, 2000) } });
+      await texting.noteInquiry(funnel.account_id, contact.id, String(req.body.message || '').slice(0, 2000) || `Sent the “${funnel.name}” form`);
     } else {
       await logEvent(db, funnel.account_id, { person_id: contact.id, type: 'signup', source: 'funnel', meta });
     }

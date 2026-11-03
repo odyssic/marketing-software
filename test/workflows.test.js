@@ -31,7 +31,8 @@ async function signup(email) {
 const inDays = (d) => new Date(Date.now() + d * 864e5).toISOString();
 const daysAgo = (d) => inDays(-d);
 const run = (c, now) => c('POST', '/api/jobs/run', now ? { now } : {});
-const outbox = async (c) => (await c('GET', '/api/outbox')).body;
+// The weekly digest to the owner can land on a simulated day; these tests are about workflow mail.
+const outbox = async (c) => (await c('GET', '/api/outbox')).body.filter((m) => !/^Your week/.test(m.subject));
 
 test('every workspace starts with the four standard follow-ups, switched off', async () => {
   const c = await signup('wf-seed@example.com');
@@ -178,7 +179,7 @@ test('graph validation, activation checks, deal step and workspace isolation', a
   const { id } = (await c('POST', '/api/workflows', { template: 'blank' })).body;
   const g = (await c('GET', `/api/workflows/${id}`)).body.graph;
   assert.equal((await c('PUT', `/api/workflows/${id}`, { graph: { root: 'x', nodes: {} } })).status, 400);
-  assert.equal((await c('PUT', `/api/workflows/${id}`, { graph: { ...g, nodes: { ...g.nodes, [g.root]: { ...g.nodes[g.root], next: 'a' }, a: { type: 'sms', config: {} } } } })).status, 400);
+  assert.equal((await c('PUT', `/api/workflows/${id}`, { graph: { ...g, nodes: { ...g.nodes, [g.root]: { ...g.nodes[g.root], next: 'a' }, a: { type: 'fax', config: {} } } } })).status, 400);
   // The same step can't sit in two places.
   const loop = { root: g.root, nodes: { [g.root]: { type: 'trigger', config: {}, next: 'c' }, c: { type: 'condition', config: {}, yes: 'e', no: 'e' }, e: { type: 'email', config: {} } } };
   assert.equal((await c('PUT', `/api/workflows/${id}`, { graph: loop })).status, 400);
