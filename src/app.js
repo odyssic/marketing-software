@@ -21,6 +21,7 @@ const { SITE_TEMPLATES } = require('./sites');
 const { registerLibrary, approvedTestimonials } = require('./library');
 const { registerUploads } = require('./uploads');
 const business = require('./business');
+const { registerBounces } = require('./bounces');
 
 const slugify = (s) => String(s || '').toLowerCase().normalize('NFKD').replace(/[^\w\s-]/g, '')
   .trim().replace(/[\s_]+/g, '-').replace(/-+/g, '-').slice(0, 60) || 'page';
@@ -69,7 +70,7 @@ function createApp({ dbPath } = {}) {
     if (a) domainCache.set(host, { account: a, at: Date.now() });
     return a || null;
   };
-  const PASS = /^\/(t|s|u|checkout|stripe|unsubscribe|f)\//;
+  const PASS = /^\/(t|s|u|hooks|checkout|stripe|unsubscribe|f)\//;
   app.use(async (req, res, next) => {
     let host = String(req.hostname || '').toLowerCase();
     let path = req.path;
@@ -1007,6 +1008,7 @@ function createApp({ dbPath } = {}) {
   });
 
   messaging.registerTracking(app);
+  registerBounces(app, { getDb: () => db, logEvent });
 
   // ---------- Public funnel pages ----------
   const findPublicStep = async (funnelSlug, stepSlug) => {
