@@ -37,3 +37,17 @@ function bindPurposeTags(groups, after) {
     after?.();
   }; });
 }
+
+// Copy a funnel or website (pages, links, layout, follow-ups). Opens the copy
+// unless `stay` is set, in which case the current view refreshes.
+async function duplicateFunnel(g, { stay = false } = {}) {
+  const kind = g.kind === 'website' ? 'website' : 'funnel';
+  const v = await modal(`Duplicate this ${kind}`, `<p class="muted small">Copies every page, how they connect${kind === 'funnel' ? ', and its follow-up emails (switched off)' : ''}. The copy starts as a draft.</p>
+    <label class="f">Name of the copy<input name="name" required value="${esc(`${g.name} (copy)`)}"></label>`, { submit: 'Duplicate' });
+  if (!v) return;
+  try {
+    const r = await api('POST', `/api/funnels/${g.id}/duplicate`, { name: v.name });
+    toast(`Made “${v.name}”`);
+    if (stay && location.hash.startsWith('#/pages')) viewPages(); else location.hash = `#/${kind === 'website' ? 'websites' : 'funnels'}/${r.id}`;
+  } catch (err) { toast(err.message, true); }
+}

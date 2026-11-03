@@ -48,3 +48,31 @@ test('the kind of business sets starting follow-ups, the deals board and visible
   assert.equal((await c('PUT', '/api/account/business', { business_type: 'spaceship' })).status, 200);
   assert.equal((await c('GET', '/api/me')).body.account.business_type, '');
 });
+
+test('duplicating a funnel copies its pages, links, purpose and follow-ups, as a draft', async () => {
+  const c = client();
+  await c('POST', '/api/auth/signup', { name: 'Dee', email: 'dup@example.com', password: 'password123', workspace: 'Dup Co' });
+  const f = (await c('POST', '/api/funnels', { name: 'Guide', template: 'optin' })).body;
+  await c('PUT', `/api/funnels/${f.id}`, { purpose: 'leads' });
+  const src = (await c('GET', `/api/funnels/${f.id}`)).body;
+  const r = await c('POST', `/api/funnels/${f.id}/duplicate`, { name: 'Guide v2' });
+  assert.equal(r.status, 201);
+  const copy = (await c('GET', `/api/funnels/${r.body.id}`)).body;
+  assert.equal(copy.name, 'Guide v2');
+  assert.equal(copy.status, 'draft');
+  assert.equal(copy.purpose, 'leads');
+  assert.notEqual(copy.slug, src.slug);
+  assert.deepEqual(copy.steps.map((s) => [s.name, s.slug]), src.steps.map((s) => [s.name, s.slug]));
+  assert.ok(copy.steps.every((s) => !src.steps.some((o) => o.id === s.id))); // new pages, not shared
+  const entry = copy.steps.find((s) => s.id === copy.entry_step_id);
+  assert.equal(entry.name, src.steps.find((s) => s.id === src.entry_step_id).name);
+  assert.ok(copy.steps.find((s) => s.id === entry.next_step_id)); // links point inside the copy
+  assert.equal(copy.workflows.length, src.workflows.length);
+  assert.ok(copy.workflows.every((w) => w.status === 'draft' && w.name.startsWith('Guide v2: ')));
+  // Editing the copy leaves the original alone.
+  await c('PUT', `/api/steps/${entry.id}`, { name: 'Changed', blocks: [], settings: {} });
+  assert.notEqual((await c('GET', `/api/funnels/${f.id}`)).body.steps.find((s) => s.id === src.entry_step_id).name, 'Changed');
+  const other = client();
+  await other('POST', '/api/auth/signup', { name: 'O', email: 'dup-other@example.com', password: 'password123', workspace: 'Other' });
+  assert.equal((await other('POST', `/api/funnels/${f.id}/duplicate`, {})).status, 404);
+});

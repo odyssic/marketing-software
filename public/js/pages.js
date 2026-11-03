@@ -24,7 +24,8 @@ async function viewPages() {
         ${purposeTag(g)}
         ${g.status === 'live' ? '<span class="pill ok">Live</span>' : '<span class="pill warn">Draft</span>'}
         <div class="pg-stats"><span><b>${g.views}</b> visitors</span><span><b>${g.leads}</b> leads &amp; sales</span><span><b>${g.rate === null ? '—' : `${g.rate}%`}</b> convert</span><span class="muted small">last 30 days</span></div>
-        <a class="btn sm" href="#/${g.kind === 'website' ? 'websites' : 'funnels'}/${g.id}">${g.kind === 'website' ? 'Open site' : 'Open map'}</a>
+        <span class="row" style="gap:6px"><button class="btn sm" data-gdup="${g.id}" title="Duplicate">${icon('copy')} Duplicate</button>
+          <a class="btn sm" href="#/${g.kind === 'website' ? 'websites' : 'funnels'}/${g.id}">${g.kind === 'website' ? 'Open site' : 'Open map'}</a></span>
       </header>
       <div class="pg-strip">${g.pages.map((p, i) => `${i && g.kind !== 'website' ? `<span class="pg-arrow" aria-hidden="true">${icon('arrowRight')}</span>` : ''}
         <figure class="pg-page">
@@ -40,6 +41,7 @@ async function viewPages() {
   $('[data-newsite]').onclick = newWebsite;
   $('[data-newfunnel]').onclick = newFunnel;
   bindPurposeTags(groups, viewPages);
+  $$('[data-gdup]').forEach((b) => { b.onclick = () => duplicateFunnel(groups.find((g) => String(g.id) === b.dataset.gdup), { stay: true }); });
   // Page pictures, a few at a time.
   const queue = groups.flatMap((g) => g.pages);
   const next = async () => {

@@ -570,6 +570,39 @@ function createApp({ dbPath } = {}) {
     }
     return { id: funnelId, workflows: wfIds };
   }
+  // Duplicate a funnel or website: every page (with its blocks, style, links
+  // and map position), the start page, its purpose, and its follow-ups,
+  // pointed at the copy. The copy starts as a draft; follow-ups start off.
+  api.post('/funnels/:id/duplicate', async (req, res) => {
+    const src = await getFunnel(req.accountId, req.params.id);
+    const name = String(req.body?.name || '').trim().slice(0, 120) || `${src.name} (copy)`;
+    const newId = await db.tx(async (t) => {
+      const f = await t.get("INSERT INTO funnels (account_id, name, slug, status, kind, purpose) VALUES (?, ?, ?, 'draft', ?, ?) RETURNING id",
+        req.accountId, name, await uniqueFunnelSlug(t, name), src.kind || 'funnel', src.purpose || '');
+      const steps = await t.all('SELECT * FROM funnel_steps WHERE funnel_id = ? ORDER BY position, id', src.id);
+      const map = {};
+      for (const s of steps) {
+        const r = await t.get(`INSERT INTO funnel_steps (funnel_id, name, slug, position, blocks, settings, x, y)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`, f.id, s.name, s.slug, s.position, s.blocks, s.settings, s.x, s.y);
+        map[s.id] = r.id;
+      }
+      for (const s of steps) {
+        await t.run('UPDATE funnel_steps SET next_step_id = ?, no_step_id = ? WHERE id = ?', map[s.next_step_id] ?? null, map[s.no_step_id] ?? null, map[s.id]);
+      }
+      await t.run('UPDATE funnels SET entry_step_id = ? WHERE id = ?', map[src.entry_step_id] ?? null, f.id);
+      const wfs = await t.all('SELECT * FROM workflows WHERE funnel_id = ? AND account_id = ? ORDER BY id', src.id, req.accountId);
+      for (const w of wfs) {
+        const g = JSON.parse(w.graph || '{}');
+        for (const n of Object.values(g.nodes || {})) if (n.config && Number(n.config.funnel_id) === src.id) n.config.funnel_id = f.id;
+        const wname = w.name.startsWith(`${src.name}: `) ? `${name}: ${w.name.slice(src.name.length + 2)}` : `${w.name} (copy)`;
+        await t.run("INSERT INTO workflows (account_id, name, lever, status, template, funnel_id, graph) VALUES (?, ?, ?, 'draft', ?, ?, ?)",
+          req.accountId, wname.slice(0, 120), w.lever, w.template, f.id, JSON.stringify(g));
+      }
+      return f.id;
+    });
+    res.status(201).json({ id: newId });
+  });
+
   // Puts drafted words into the first page (headline, text, button) and the last (thank-you).
   function applyCopy(steps, copy) {
     const first = steps[0].blocks, last = steps.at(-1).blocks;

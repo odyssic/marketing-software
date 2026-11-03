@@ -130,7 +130,7 @@ async function viewFunnel(id) {
       <h1 style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">${esc(f.name)} ${f.status === 'live' ? '<span class="pill ok">Live</span>' : '<span class="pill warn">Draft</span>'} ${purposeTag(f)}</h1></div>
       <div class="row"><div class="copy" style="min-width:320px"><input readonly value="${esc(link)}" aria-label="Funnel link">
         <button class="btn" data-copy="${esc(link)}">Copy</button><a class="btn" href="${esc(link)}" target="_blank" rel="noopener">Open ${icon('external')}</a></div>
-        <button class="btn" data-rename>Settings</button><button class="btn danger" data-del>Delete</button>
+        <button class="btn" data-rename>Settings</button><button class="btn" data-dup title="Make a copy of this funnel, its pages and follow-ups">${icon('copy')} Duplicate</button><button class="btn danger" data-del>Delete</button>
         ${f.status === 'live' ? '<button class="btn" data-unpublish>Unpublish</button>' : '<button class="btn primary" data-publish>Publish</button>'}</div></div>
     <div class="fstats" data-fstats aria-label="Funnel statistics"></div>
     <div data-leak></div>
@@ -152,6 +152,7 @@ async function viewFunnel(id) {
     </div>`);
   bindCopy();
   bindPurposeTags([f], () => viewFunnel(id));
+  $('[data-dup]').onclick = () => duplicateFunnel(f);
 
   const m = { steps: f.steps, entry: f.entry_step_id, zoom: 1, panX: 40, panY: 40 };
   const mapEl = $('.map'), world = $('.world'), svg = $('.edges'), nodesEl = $('.nodes');
