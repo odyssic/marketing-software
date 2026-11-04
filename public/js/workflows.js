@@ -74,7 +74,7 @@ async function newWorkflow() {
   $$('[data-tpl]', bg).forEach((b) => { b.onclick = async () => {
     const r = await api('POST', '/api/workflows', { template: b.dataset.tpl });
     close();
-    location.hash = `#/workflows/${r.id}`;
+    location.hash = `#/flows/followup/${r.id}`;
   }; });
   $('[data-tpl]', bg).focus();
 }
@@ -87,7 +87,7 @@ async function viewWorkflow(workflowId) {
   Object.assign(wf, { w, pipelines, funnels, selected: wf.w?.id === w.id ? wf.selected : w.graph.root });
   if (!w.graph.nodes[wf.selected]) wf.selected = w.graph.root;
   app.innerHTML = `<div class="wfb">
-    <div class="bar"><a class="btn sm" href="#/workflows">← Workflows</a>
+    <div class="bar"><a class="btn sm" href="${w.funnel_id ? `#/funnels/${w.funnel_id}` : `#/flows/followup/${w.id}`}">← Back to the flow</a>
       <div class="title"><input data-name value="${esc(w.name)}" aria-label="Workflow name"></div>
       <select data-lever aria-label="Growth lever" class="sm-select">${['lead', 'conversion', 'upsell', 'continuity'].map((k) => `<option value="${k}" ${w.lever === k ? 'selected' : ''}>${esc(LEVER_UI[k].label)}</option>`).join('')}</select>
       <span class="saved" data-saved>Saved</span>

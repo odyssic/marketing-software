@@ -2,8 +2,8 @@
 
 // ---------------- Pages ----------------
 // One place for every page, whoever built it: website, funnel, template or AI.
-const PAGES_TABS = (on) => `<div class="tabs" style="margin-top:-6px">${[['', 'All pages'], ['websites', 'Websites'], ['funnels', 'Pageflows'], ['members', 'Members areas']]
-  .map(([k, l]) => `<a href="#/${k || 'pages'}" class="${on === (k || 'pages') ? 'active' : ''}">${l}</a>`).join('')}</div>`;
+// Old screens share the Flows tabs.
+const PAGES_TABS = (on) => flowTabs(({ pages: '', websites: 'websites', funnels: 'pageflows', members: 'members' })[on] ?? '');
 
 async function viewPages() {
   const params = new URLSearchParams(location.hash.split('?')[1] || '');

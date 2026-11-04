@@ -53,7 +53,7 @@ async function viewWebsite(id) {
   const pages = [...f.steps].sort((a, b) => a.position - b.position || a.id - b.id);
   const isArea = f.kind === 'members';
   shell('pages', `${PAGES_TABS(isArea ? 'members' : 'websites')}
-    <div class="head"><div>${isArea ? '<a href="#/members" class="small">← Members areas</a>' : '<a href="#/websites" class="small">← Websites</a>'}
+    <div class="head"><div><a href="#/flows?show=${isArea ? 'members' : 'websites'}" class="small">← Flows</a>
       <h1 style="display:flex;gap:10px;align-items:center">${esc(f.name)} ${f.status === 'live' ? '<span class="pill ok">Live</span>' : '<span class="pill warn">Draft</span>'}</h1>
       <div class="muted small">${esc(link)}</div></div>
       <div class="row"><a class="btn" href="${esc(publicUrl(`/f/${f.slug}`))}" target="_blank" rel="noopener">${isArea ? 'Preview as a member' : 'View site'} ${icon('external')}</a><button class="btn" data-settings>Settings</button><button class="btn danger" data-delsite>Delete</button>
@@ -118,9 +118,9 @@ async function viewWebsite(id) {
   // Delete with Undo: the site disappears now and is removed after a few seconds.
   $('[data-delsite]').onclick = () => {
     const back = location.hash;
-    location.hash = isArea ? '#/members' : '#/pages';
+    location.hash = '#/flows';
     deleteWithUndo(`“${f.name}” deleted`, { url: `/api/funnels/${id}`, hide: () => () => { location.hash = back; },
-      done: () => { if (location.hash === '#/pages') viewPages(); else if (location.hash === '#/members') viewMembersAreas(); } });
+      done: () => { if (location.hash.startsWith('#/flows')) viewFlows(); } });
   };
   const un = $('[data-unpublish]');
   if (un) un.onclick = async () => { await api('POST', `/api/funnels/${id}/unpublish`); viewWebsite(id); undoToast('Website unpublished', async () => { await api('POST', `/api/funnels/${id}/publish`).catch((e) => toast(e.message, true)); viewWebsite(id); }); };

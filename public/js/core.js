@@ -160,6 +160,28 @@ function addressSuggest(input) {
   input.addEventListener('blur', () => setTimeout(close, 150));
 }
 
+// The phone's Back button (or swipe) closes an open popup instead of leaving
+// the page. Opening a popup (.modal-bg) adds a history step with the same
+// address. Closing it with a button takes that step back off, unless the app
+// has already moved on to another page; a leftover step is skipped later.
+(() => {
+  let open = 0, skip = 0;
+  new MutationObserver(() => {
+    const n = $$('.modal-bg').length;
+    for (; open < n; open++) history.pushState({ rillyModal: true }, '', location.href);
+    if (open > n) {
+      open = n;
+      setTimeout(() => { if (history.state?.rillyModal && $$('.modal-bg').length < 1) { skip++; history.back(); } }, 0);
+    }
+  }).observe(document.body, { childList: true });
+  addEventListener('popstate', (e) => {
+    if (skip) { skip--; e.stopImmediatePropagation(); return; }
+    const top = $$('.modal-bg').pop();
+    if (top) { e.stopImmediatePropagation(); const x = $('[data-x]', top); if (x) x.click(); else top.remove(); return; }
+    if (e.state?.rillyModal) history.back(); // a leftover popup step: keep going back
+  }, true);
+})();
+
 const fmtDate = (s) => (s ? new Date(s).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '');
 const fullName = (c) => [c.first_name, c.last_name].filter(Boolean).join(' ');
 const tagsHtml = (tags) => tags.map((t) => `<span class="tag">${esc(t)}</span>`).join('');
@@ -260,8 +282,7 @@ const LOGO_INK = '<img class="lockup" src="/brand/rilly-lockup-ink.svg" alt="Ril
 const NAV = [
   ['', icon('dashboard'), 'Dashboard'],
   ['inbox', icon('chat'), 'Inbox'],
-  ['pages', icon('page'), 'Pages'],
-  ['workflows', icon('bolt'), 'Workflows'],
+  ['flows', icon('branch'), 'Flows'],
   ['people', icon('people'), 'People'],
   ['calendar', icon('calendar'), 'Calendar'],
   ['pipelines', icon('trend'), 'Deals'],
@@ -270,6 +291,8 @@ const NAV = [
   ['settings', icon('gear'), 'Settings'],
 ];
 
+// Pages, pageflows, websites, members areas and workflows all live under Flows.
+const FLOW_SECTIONS = ['flows', 'pages', 'workflows', 'funnels', 'websites', 'members'];
 function shell(section, html) {
   const initials = (n) => n.split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase();
   app.innerHTML = `<div class="shell">
@@ -277,7 +300,7 @@ function shell(section, html) {
       <div class="logo">${LOGO}</div>
       <div class="acct-wrap"><button class="acct" data-acct aria-haspopup="menu" aria-expanded="false" title="Switch sub-account">
         <span class="av">${esc(initials(state.me.account.name))}</span><span class="nm">${esc(state.me.account.name)}</span><span class="car">${icon('chevronDown')}</span></button></div>
-      <nav class="nav">${NAV.filter(([k]) => !(state.me.account.hidden_sections || []).includes(k)).map(([k, i, l]) => `<a href="#/${k}" class="${section === k ? 'active' : ''}"><span class="ico">${i}</span>${l}${k === 'inbox' ? '<span class="nav-badge" data-unread hidden></span>' : ''}</a>`).join('')}</nav>
+      <nav class="nav">${NAV.filter(([k]) => !(state.me.account.hidden_sections || []).includes(k)).map(([k, i, l]) => `<a href="#/${k}" class="${(FLOW_SECTIONS.includes(section) ? 'flows' : section) === k ? 'active' : ''}"><span class="ico">${i}</span>${l}${k === 'inbox' ? '<span class="nav-badge" data-unread hidden></span>' : ''}</a>`).join('')}</nav>
       <div class="foot"><div class="muted">${esc(state.me.user.email)}</div><button data-logout>Sign out</button></div>
     </aside>
     <main class="main">${html}</main></div>`;

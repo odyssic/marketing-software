@@ -919,3 +919,28 @@ a.fc-more { display: block; text-decoration: none; }
 .viz-table { margin: 10px 0 4px; font-size: .88rem; }
 .viz-table summary { color: var(--brand); }
 .viz-table table { margin-top: 8px; }
+
+/* Flows */
+.ff-strip { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 4px 2px 2px; }
+.ff-chip { display: inline-flex; gap: 6px; align-items: center; border: 1px solid var(--line); border-radius: 10px; padding: 7px 10px; font-size: .84rem; background: #fff; max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ff-chip svg { width: 15px; height: 15px; color: var(--brand); flex: none; }
+.ff-chip.start { background: var(--brand-soft); border-color: #a9dcd6; font-weight: 600; }
+.ff-chip b { font-weight: 600; }
+.ff-canvas { padding: 18px; overflow-x: auto; background-image: radial-gradient(#d8dedd 1px, transparent 1px); background-size: 18px 18px; }
+.ff-row { display: flex; align-items: center; gap: 10px; min-width: max-content; padding: 6px 4px 10px; }
+.ff-step { width: 220px; background: #fff; border: 1.5px solid #b9e0db; border-radius: 12px; padding: 10px 12px; display: grid; gap: 4px; text-align: left; font: inherit; color: var(--text); box-shadow: 0 2px 8px rgba(20,40,43,.06); align-self: center; }
+.ff-step.start { background: var(--brand-soft); cursor: pointer; }
+.ff-step.wait { width: 150px; border-style: dashed; }
+.ff-step.split { width: 260px; }
+.ffs-top { display: flex; gap: 6px; align-items: center; font-size: .72rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .03em; }
+.ffs-top svg { width: 15px; height: 15px; color: var(--brand); }
+.ffs-top span { flex: 1; }
+.ffs-x { border: 0; background: none; color: var(--muted); cursor: pointer; padding: 2px; min-width: 24px; min-height: 24px; border-radius: 6px; }
+.ffs-x:hover { background: #f1f3f4; color: var(--danger); }
+.ffs-x svg { width: 14px; height: 14px; }
+.ffs-side { display: grid; grid-template-columns: 34px 1fr; gap: 2px 6px; font-size: .82rem; padding: 6px 0; border-top: 1px solid var(--line); }
+.ffs-side b { grid-row: span 2; } .ffs-side.yes b { color: #15803d; } .ffs-side.no b { color: var(--muted); }
+.ffs-side .fc-edit, .ffs-side .muted { grid-column: 2; }
+.ff-plus { position: static; transform: none; flex: none; }
+.banner.shared { display: flex; gap: 8px; align-items: flex-start; background: #f2faf8; border-color: #c4e6e1; color: var(--text); }
+.banner.shared svg { width: 16px; height: 16px; color: var(--brand); flex: none; margin-top: 3px; }

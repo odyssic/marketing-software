@@ -129,7 +129,7 @@ async function viewFunnel(id) {
   const f = await api('GET', `/api/funnels/${id}`);
   const link = publicUrl(`/f/${f.slug}`);
   shell('pages', `${PAGES_TABS('funnels')}
-    <div class="head" style="margin-bottom:14px"><div><a href="#/funnels" class="small">← All pageflows</a>
+    <div class="head" style="margin-bottom:14px"><div><a href="#/flows?show=pageflows" class="small">← Flows</a>
       <h1 style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">${esc(f.name)} ${f.status === 'live' ? '<span class="pill ok">Live</span>' : '<span class="pill warn">Draft</span>'} ${purposeTag(f)}</h1></div>
       <div class="row"><div class="copy" style="min-width:320px"><input readonly value="${esc(link)}" aria-label="Funnel link">
         <button class="btn" data-copy="${esc(link)}">Copy</button><a class="btn" href="${esc(link)}" target="_blank" rel="noopener">Open ${icon('external')}</a></div>
@@ -137,6 +137,7 @@ async function viewFunnel(id) {
         ${f.status === 'live' ? '<button class="btn" data-unpublish>Unpublish</button>' : '<button class="btn primary" data-publish>Publish</button>'}</div></div>
     <div class="fstats" data-fstats aria-label="Funnel statistics"></div>
     <div data-leak></div>
+    <div data-shared></div>
     <div data-sources></div>
     <details class="fu card" data-fu hidden>
       <summary><span>${icon('bolt')} <b>Follow-ups</b> <span class="muted small">emails and steps that run after someone goes through this pageflow</span></span>
@@ -229,6 +230,11 @@ async function viewFunnel(id) {
         <p class="hint">Tip: add <code>?utm_source=facebook&amp;utm_campaign=spring-sale</code> to the links in your ads and posts to see each one separately.</p></div></details>`;
   }).catch(() => {});
   api('GET', `/api/funnels/${id}/email-stats`).then(renderStats).catch(() => {});
+  sharedFollowupsFor(Number(id)).then((list) => {
+    const box = $('[data-shared]');
+    if (!box || !list.length) return;
+    box.innerHTML = `<div class="banner shared">${icon('bolt')} <span>Also runs for people here: ${list.map((w) => `<a href="#/flows/followup/${w.id}">${esc(w.name)}</a> <span class="muted small">(${esc((w.triggerLabel || '').toLowerCase())}${w.triggerFunnel ? '' : ', on any page'})</span>`).join(', ')}. Change it once and it changes everywhere.</span></div>`;
+  });
 
   // ---------- Follow-ups, laid out as steps you can add to ----------
   const FU_ICON = { trigger: 'bolt', wait: 'clock', email: 'mail', condition: 'branch', tag: 'tag', subscribe: 'inbox', notify: 'bell', deal: 'briefcase' };
@@ -791,8 +797,8 @@ async function viewFunnel(id) {
     if (r) { toast('Saved'); reload(); }
   };
   $('[data-del]').onclick = async () => {
-    location.hash = '#/pages';
-    deleteWithUndo(`“${f.name}” deleted`, { url: `/api/funnels/${id}`, hide: () => () => { location.hash = `#/funnels/${id}`; }, done: () => { if (location.hash === '#/pages') viewPages(); } });
+    location.hash = '#/flows';
+    deleteWithUndo(`“${f.name}” deleted`, { url: `/api/funnels/${id}`, hide: () => () => { location.hash = `#/funnels/${id}`; }, done: () => { if (location.hash === '#/flows') viewFlows(); } });
   };
 
   renderNodes();

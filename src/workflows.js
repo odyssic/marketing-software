@@ -416,7 +416,17 @@ function createWorkflows({ getDb, HttpError, id, people, messaging, getAccount }
       const steps = Object.values(w.graph.nodes || {});
       // What starts it, exactly (used to spot two live follow-ups that fire on the same thing).
       const triggerKey = [t.event, t.funnel_id || '', t.tag || '', t.product || ''].join('|');
-      return { trigger: t.event, triggerKey, triggerLabel: TRIGGERS[t.event], emails: steps.filter((n) => n.type === 'email').length, steps: steps.length - 1 };
+      // The first few steps in order, for picture strips in lists (stops at a split).
+      const preview = [];
+      for (let k = w.graph.nodes?.[w.graph.root]?.next, guard = 0; k && guard < 8; guard++) {
+        const n = w.graph.nodes[k]; if (!n) break;
+        const c = n.config || {};
+        preview.push({ type: n.type, text: n.type === 'email' ? c.subject : n.type === 'sms' ? c.body : n.type === 'wait' ? `${c.days || 0} day${c.days === 1 ? '' : 's'}${c.hours ? ` ${c.hours}h` : ''}`
+          : n.type === 'condition' ? CONDITIONS[c.check] : n.type === 'tag' ? [c.add && `+${c.add}`, c.remove && `-${c.remove}`].filter(Boolean).join(' ') : n.type === 'notify' ? c.message : n.type === 'subscribe' ? c.product : n.type === 'deal' ? c.title : '' });
+        if (n.type === 'condition') break;
+        k = n.next;
+      }
+      return { trigger: t.event, triggerKey, triggerLabel: TRIGGERS[t.event], triggerFunnel: t.funnel_id || null, triggerTag: t.tag || '', emails: steps.filter((n) => n.type === 'email').length, steps: steps.length - 1, preview };
     };
 
     api.get('/workflows', async (req, res) => {

@@ -10,7 +10,7 @@ async function viewProducts(tab) {
   const p = state.me.payments;
   shell('products', `
     <div class="head"><div><h1>Products</h1><div class="muted">What you sell, and the orders that come in.</div></div>
-      ${orders ? '' : '<button class="btn primary" data-new>+ New product</button>'}</div>
+      ${orders || !items.length ? '' : '<button class="btn primary" data-new>+ New product</button>'}</div>
     ${p.connected ? (p.testKey ? '<div class="banner">Stripe is connected with a <b>test</b> key: checkouts use Stripe’s test cards and no real money moves.</div>' : '')
       : '<div class="banner"><b>Test mode:</b> Stripe isn’t connected, so checkouts are simulated and no card is charged. <a href="#/settings">Connect Stripe</a> to take real payments.</div>'}
     ${productTabs(orders ? 'orders' : 'products')}
@@ -25,7 +25,7 @@ async function viewProducts(tab) {
     <label class="f">Photo <span class="hint">link to an image (https://…), shown on buy buttons</span><input name="image_url" value="${esc(pr.image_url || '')}" placeholder="https://"></label>
     <label class="f">Tag buyers with <span class="hint">buyers are always tagged “customer” too</span><input name="tag" value="${esc(pr.tag)}" placeholder="e.g. bought-course"></label>`;
   if (orders) return;
-  $('[data-new-empty]')?.addEventListener('click', () => $('[data-new]').click());
+  // One "New product" button: in the header once there are products, in the middle until then.
   $('[data-new]').onclick = async () => {
     const r = await modal('New product', form(), { submit: 'Create product', onSubmit: (v) => api('POST', '/api/products', v) });
     if (r) {
@@ -54,7 +54,7 @@ const productsHtml = (items) => (items.length ? `<div class="card table-wrap"><t
     <td>${esc(pr.priceLabel)}</td><td>${BILLING_LABEL[pr.billing]}</td><td>${pr.tag ? tagsHtml(pr.tag.split(',')) : ''}</td><td>${pr.sales}</td></tr>`).join('')}
   </table></div>` : `<div class="card empty"><div class="big">${icon('bag')}</div><h2>No products yet</h2>
   <p>Add what you sell and its price. Then put it on any page with a Pricing block, and Rilly handles checkout and receipts.</p>
-  <button class="btn primary" data-new-empty>+ New product</button></div>`);
+  <button class="btn primary" data-new>+ New product</button></div>`);
 
 const ordersHtml = (items) => (items.length ? `<div class="card table-wrap"><table>
   <tr><th>Order</th><th>Product</th><th>Buyer</th><th>Amount</th><th>Status</th><th>Date</th></tr>

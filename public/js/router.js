@@ -10,7 +10,14 @@ async function route() {
   try {
     if (section === 'setup') return viewSetup();
     if (section === 'inbox') return viewInbox(id);
-    if (section === 'funnels' && id === 'new') { await viewFunnels(); await newFunnel(); }
+    if (section === 'flows' && id === 'followup') return viewFollowupFlow(path.split('/')[2]);
+    if (section === 'flows') return viewFlows();
+    // Older addresses still work: lists open the matching Flows tab.
+    if (section === 'pages' && !id) { location.replace('#/flows'); return; }
+    if (section === 'workflows' && !id) { location.replace('#/flows?show=followups'); return; }
+    if (['websites', 'members'].includes(section) && !id) { location.replace(`#/flows?show=${section}`); return; }
+    if (section === 'funnels' && !id) { location.replace('#/flows?show=pageflows'); return; }
+    if (section === 'funnels' && id === 'new') { await viewFlows(); await newFunnel(); }
     else if (section === 'funnels' && id) await viewFunnel(id);
     else if (section === 'funnels') await viewFunnels();
     else if (section === 'editor') await viewEditor(id);
