@@ -861,3 +861,10 @@ a.fc-more { display: block; text-decoration: none; }
 .split-b .seg label { display: inline-flex; gap: 4px; align-items: center; padding: 4px 10px; font-size: .85rem; cursor: pointer; }
 .split-b [data-b] { display: grid; gap: 6px; }
 .split-b input:not([type=radio]), .split-b textarea { margin: 0; }
+
+/* Address suggestions */
+.addr-list { position: absolute; left: 0; right: 0; top: 100%; z-index: 30; background: #fff; border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 8px 24px rgba(20,40,43,.12); margin-top: 4px; overflow: hidden; }
+.addr-opt { display: flex; gap: 8px; align-items: center; padding: 10px 12px; cursor: pointer; font-size: .92rem; min-height: 24px; }
+.addr-opt svg { width: 15px; height: 15px; color: var(--muted); flex: none; }
+.addr-opt:hover, .addr-opt.on { background: var(--brand-soft); }
+.addr-src { font-size: .7rem; color: var(--muted); padding: 4px 12px 6px; text-align: right; }

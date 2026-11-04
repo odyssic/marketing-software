@@ -102,7 +102,7 @@ function viewSettings() {
     await api('PUT', '/api/account/business', { business_type: bizForm.business_type.value, hidden_sections: ['calendar', 'pipelines', 'products', 'email'].filter((k) => !shown.includes(k)) });
     state.me = await api('GET', '/api/me'); toast('Saved'); viewSettings();
   };
-  Promise.all([api('GET', '/api/websites'), api('GET', '/api/funnels')]).then(([sites, funnels]) => {
+  Promise.all([api('GET', '/api/websites'), api('GET', '/api/funnels')]).finally(() => setTimeout(() => trackDirty($('[data-domain]')))).then(([sites, funnels]) => {
     $('[data-homes]').innerHTML += [...sites, ...funnels].map((x) => `<option value="${x.id}" ${a.home_funnel_id === x.id ? 'selected' : ''}>${esc(x.name)} (${x.kind === 'website' ? 'website' : 'funnel'})</option>`).join('');
   });
   $('[data-domain]').onsubmit = async (e) => {
@@ -152,8 +152,8 @@ function viewSettings() {
       toast('Settings saved'); viewSettings();
     } catch (err) { $('.err').textContent = err.message; }
   };
+  ['[data-form]', '[data-business]', '[data-reviews]', '[data-voice]', '[data-stripe]'].forEach((sel) => trackDirty($(sel)));
   loadTextingSettings();
-
 }
 
 // Texting and calls: the workspace's number, where calls ring, the missed-call text,
@@ -164,7 +164,12 @@ async function loadTextingSettings() {
   let t;
   try { t = await api('GET', '/api/account/texting'); } catch { form.innerHTML = '<h2>Texting and calls</h2><p class="muted small">Couldn’t load.</p>'; return; }
   const b = t.brand || {};
-  const bf = (k, label, ph = '', hint = '') => `<label class="f">${label}${hint ? ` <span class="hint">${hint}</span>` : ''}<input name="b_${k}" value="${esc(b[k] || '')}" placeholder="${esc(ph)}"></label>`;
+  // Sensible starting values from what Rilly already knows; the browser can autofill the rest.
+  const site = state.me.account.domain ? `https://${state.me.account.domain}` : '';
+  const start = { contact_name: state.me.user.name || '', contact_email: state.me.user.email || '', contact_phone: t.forward_to || '', website: site, legal_name: state.me.account.name };
+  const AC = { legal_name: 'organization', address: 'street-address', website: 'url', contact_name: 'name', contact_email: 'email', contact_phone: 'tel' };
+  const TYPE = { website: 'url', contact_email: 'email', contact_phone: 'tel' };
+  const bf = (k, label, ph = '', hint = '') => `<label class="f">${label}${hint ? ` <span class="hint">${hint}</span>` : ''}<input name="b_${k}" value="${esc(b[k] ?? start[k] ?? '')}" placeholder="${esc(ph)}"${AC[k] ? ` autocomplete="${AC[k]}"` : ''}${TYPE[k] ? ` type="${TYPE[k]}"` : ''}></label>`;
   form.innerHTML = `<h2>Texting and calls</h2>
     <p class="small">Status: ${t.live && t.sms_number ? '<span class="pill ok">on</span> texts and calls go through your number' : t.sms_number ? '<span class="pill warn">test mode</span> texts are saved in the Inbox but not sent yet' : '<span class="pill">not set up</span>'}</p>
     <p class="muted small">Give customers one number to text or call. Texts and calls land in your Inbox; when you miss a call, ${BRAND} texts them straight back so you don’t lose the job.</p>
@@ -180,6 +185,9 @@ async function loadTextingSettings() {
     </details>
     ${t.live ? `<details class="hint"><summary>Connecting the number</summary><p>In Twilio, set the number’s “A message comes in” webhook to <code>${esc(t.hooks.sms)}</code> and “A call comes in” to <code>${esc(t.hooks.voice)}</code> (both HTTP POST).</p></details>` : ''}
     <div class="err"></div><button class="btn primary">Save texting</button>`;
+  addressSuggest($('[name=b_address]', form));
+  // Pre-filled suggestions that were never saved count as something to save.
+  trackDirty(form, { dirty: !Object.keys(b).length && Object.values(start).some(Boolean) && Boolean(t.sms_number) });
   form.onsubmit = async (e) => {
     e.preventDefault();
     const v = Object.fromEntries(new FormData(form));

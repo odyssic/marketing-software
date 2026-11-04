@@ -11,7 +11,27 @@ const state = { me: null };
 // Double-click protection for every form: while a submitted form's requests are
 // running, more submits are ignored and its buttons are greyed out.
 let inflight = 0;
-const settle = () => { if (inflight > 0) return; $$('form[data-busy]').forEach((f) => { delete f.dataset.busy; $$('button[data-busydis]', f).forEach((b) => { b.disabled = false; delete b.dataset.busydis; }); }); };
+const settle = () => {
+  if (inflight > 0) return;
+  $$('form[data-busy]').forEach((f) => {
+    delete f.dataset.busy;
+    $$('button[data-busydis]', f).forEach((b) => { b.disabled = false; delete b.dataset.busydis; });
+    // Saved without an error: what's there now is the new "nothing to save" point.
+    if (f._resnap && !$('.err', f)?.textContent) f._resnap();
+  });
+};
+// Save buttons stay greyed out until something in their form actually changes.
+function trackDirty(form, { dirty = false } = {}) {
+  if (!form) return;
+  const snap = () => JSON.stringify($$('input, select, textarea', form).filter((i) => i.name && i.type !== 'file').map((i) => (i.type === 'checkbox' || i.type === 'radio' ? i.checked : i.value)));
+  let base = dirty ? null : snap();
+  const btns = () => $$('button:not([type=button]):not([data-busydis])', form);
+  const check = () => { const changed = snap() !== base; btns().forEach((b) => { b.disabled = !changed; b.title = changed ? '' : 'Nothing to save yet'; }); };
+  form._resnap = () => { base = snap(); check(); };
+  form.addEventListener('input', check);
+  form.addEventListener('change', check);
+  check();
+}
 document.addEventListener('submit', (e) => {
   const f = e.target;
   if (f.dataset.busy) { e.preventDefault(); e.stopImmediatePropagation(); return; }
@@ -89,6 +109,55 @@ async function refreshUnread() {
     const b = $('[data-unread]');
     if (b) { b.hidden = !unread; b.textContent = unread > 9 ? '9+' : String(unread); b.setAttribute('aria-label', `${unread} unread`); }
   } catch { /* badge is optional */ }
+}
+
+const US_STATES = Object.fromEntries('Alabama AL,Alaska AK,Arizona AZ,Arkansas AR,California CA,Colorado CO,Connecticut CT,Delaware DE,District of Columbia DC,Florida FL,Georgia GA,Hawaii HI,Idaho ID,Illinois IL,Indiana IN,Iowa IA,Kansas KS,Kentucky KY,Louisiana LA,Maine ME,Maryland MD,Massachusetts MA,Michigan MI,Minnesota MN,Mississippi MS,Missouri MO,Montana MT,Nebraska NE,Nevada NV,New Hampshire NH,New Jersey NJ,New Mexico NM,New York NY,North Carolina NC,North Dakota ND,Ohio OH,Oklahoma OK,Oregon OR,Pennsylvania PA,Rhode Island RI,South Carolina SC,South Dakota SD,Tennessee TN,Texas TX,Utah UT,Vermont VT,Virginia VA,Washington WA,West Virginia WV,Wisconsin WI,Wyoming WY,Puerto Rico PR'
+  .split(',').map((x) => [x.slice(0, -3), x.slice(-2)]));
+// Address suggestions as you type: pick one to fill the whole address.
+// Uses Photon (OpenStreetMap data, free, no account); only the typed text is sent.
+function addressSuggest(input) {
+  if (!input || input.dataset.suggest) return;
+  input.dataset.suggest = '1';
+  input.setAttribute('autocomplete', 'street-address');
+  input.setAttribute('role', 'combobox'); input.setAttribute('aria-autocomplete', 'list'); input.setAttribute('aria-expanded', 'false');
+  const list = document.createElement('div');
+  list.className = 'addr-list'; list.setAttribute('role', 'listbox'); list.hidden = true;
+  input.parentElement.style.position = 'relative';
+  input.after(list);
+  let timer, items = [], at = -1, seq = 0;
+  const fmt = (p) => [[p.housenumber, p.street || (p.type !== 'city' ? p.name : '')].filter(Boolean).join(' '), p.city || p.town || p.village || p.county, [(p.countrycode === 'US' && US_STATES[p.state]) || p.state, p.postcode].filter(Boolean).join(' '), p.countrycode && p.countrycode !== 'US' ? p.country : '']
+    .filter(Boolean).join(', ');
+  const close = () => { list.hidden = true; at = -1; input.setAttribute('aria-expanded', 'false'); };
+  const pick = (i) => { if (!items[i]) return; input.value = items[i]; close(); input.dispatchEvent(new Event('input', { bubbles: true })); };
+  const show = () => {
+    list.innerHTML = items.map((t, i) => `<div role="option" class="addr-opt ${i === at ? 'on' : ''}" data-i="${i}" aria-selected="${i === at}">${icon('globe')}<span>${esc(t)}</span></div>`).join('') + '<div class="addr-src">Addresses from OpenStreetMap</div>';
+    list.hidden = !items.length; input.setAttribute('aria-expanded', String(!list.hidden));
+  };
+  input.addEventListener('input', (e) => {
+    if (!e.isTrusted) return;
+    clearTimeout(timer);
+    const q = input.value.trim();
+    if (q.length < 4) { items = []; close(); return; }
+    timer = setTimeout(async () => {
+      const mine = ++seq;
+      try {
+        const r = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=5&lang=en&lat=39.5&lon=-98.35`);
+        const j = await r.json();
+        if (mine !== seq) return;
+        items = [...new Set((j.features || []).map((f) => fmt(f.properties)).filter((t) => /\d/.test(t) || t.includes(',')))].slice(0, 5);
+        at = -1; show();
+      } catch { /* suggestions are optional */ }
+    }, 280);
+  });
+  input.addEventListener('keydown', (e) => {
+    if (list.hidden) return;
+    if (e.key === 'ArrowDown') { at = Math.min(items.length - 1, at + 1); show(); e.preventDefault(); }
+    else if (e.key === 'ArrowUp') { at = Math.max(0, at - 1); show(); e.preventDefault(); }
+    else if (e.key === 'Enter' && at >= 0) { pick(at); e.preventDefault(); }
+    else if (e.key === 'Escape') close();
+  });
+  list.addEventListener('mousedown', (e) => { const o = e.target.closest('[data-i]'); if (o) { e.preventDefault(); pick(Number(o.dataset.i)); } });
+  input.addEventListener('blur', () => setTimeout(close, 150));
 }
 
 const fmtDate = (s) => (s ? new Date(s).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '');
