@@ -182,6 +182,26 @@ function addressSuggest(input) {
   }, true);
 })();
 
+// ⋯ More: rarely used actions in one small menu. Each item clicks a hidden
+// button that keeps its usual handler, so nothing behaves differently.
+function bindMoreMenus(root = document) {
+  $$('[data-more]', root).forEach((btn) => {
+    btn.setAttribute('aria-haspopup', 'menu'); btn.setAttribute('aria-expanded', 'false');
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      const menu = btn.nextElementSibling;
+      const open = menu.hidden;
+      $$('.more-menu').forEach((m) => { m.hidden = true; });
+      menu.hidden = !open; btn.setAttribute('aria-expanded', String(open));
+      if (open) { $('button, a', menu)?.focus(); setTimeout(() => addEventListener('pointerdown', function off(ev) { if (!menu.contains(ev.target) && ev.target !== btn) { menu.hidden = true; btn.setAttribute('aria-expanded', 'false'); removeEventListener('pointerdown', off, true); } }, true)); }
+    };
+    btn.nextElementSibling.addEventListener('click', (e) => { if (e.target.closest('button, a')) { btn.nextElementSibling.hidden = true; btn.setAttribute('aria-expanded', 'false'); } });
+    btn.nextElementSibling.addEventListener('keydown', (e) => { if (e.key === 'Escape') { btn.nextElementSibling.hidden = true; btn.focus(); } });
+  });
+}
+const moreMenu = (items) => `<span class="more-wrap"><button type="button" class="btn icon" data-more aria-label="More actions" title="More">${icon('more')}</button>
+  <span class="more-menu nodemenu" role="menu" hidden>${items}</span></span>`;
+
 const fmtDate = (s) => (s ? new Date(s).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '');
 const fullName = (c) => [c.first_name, c.last_name].filter(Boolean).join(' ');
 const tagsHtml = (tags) => tags.map((t) => `<span class="tag">${esc(t)}</span>`).join('');
@@ -285,7 +305,6 @@ const NAV = [
   ['flows', icon('branch'), 'Flows'],
   ['people', icon('people'), 'People'],
   ['calendar', icon('calendar'), 'Calendar'],
-  ['pipelines', icon('trend'), 'Deals'],
   ['products', icon('bag'), 'Products'],
   ['email', icon('mail'), 'Email'],
   ['settings', icon('gear'), 'Settings'],
@@ -293,6 +312,8 @@ const NAV = [
 
 // Pages, pageflows, websites, members areas and workflows all live under Flows.
 const FLOW_SECTIONS = ['flows', 'pages', 'workflows', 'funnels', 'websites', 'members'];
+// Sections shown under another menu item (Deals is a board inside People).
+const NAV_HOME = { pipelines: 'people' };
 function shell(section, html) {
   const initials = (n) => n.split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase();
   app.innerHTML = `<div class="shell">
@@ -300,7 +321,7 @@ function shell(section, html) {
       <div class="logo">${LOGO}</div>
       <div class="acct-wrap"><button class="acct" data-acct aria-haspopup="menu" aria-expanded="false" title="Switch sub-account">
         <span class="av">${esc(initials(state.me.account.name))}</span><span class="nm">${esc(state.me.account.name)}</span><span class="car">${icon('chevronDown')}</span></button></div>
-      <nav class="nav">${NAV.filter(([k]) => !(state.me.account.hidden_sections || []).includes(k)).map(([k, i, l]) => `<a href="#/${k}" class="${(FLOW_SECTIONS.includes(section) ? 'flows' : section) === k ? 'active' : ''}"><span class="ico">${i}</span>${l}${k === 'inbox' ? '<span class="nav-badge" data-unread hidden></span>' : ''}</a>`).join('')}</nav>
+      <nav class="nav">${NAV.filter(([k]) => !(state.me.account.hidden_sections || []).includes(k)).map(([k, i, l]) => `<a href="#/${k}" class="${(FLOW_SECTIONS.includes(section) ? 'flows' : NAV_HOME[section] || section) === k ? 'active' : ''}"><span class="ico">${i}</span>${l}${k === 'inbox' ? '<span class="nav-badge" data-unread hidden></span>' : ''}</a>`).join('')}</nav>
       <div class="foot"><div class="muted">${esc(state.me.user.email)}</div><button data-logout>Sign out</button></div>
     </aside>
     <main class="main">${html}</main></div>`;

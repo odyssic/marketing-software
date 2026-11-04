@@ -56,8 +56,8 @@ async function viewWebsite(id) {
     <div class="head"><div><a href="#/flows?show=${isArea ? 'members' : 'websites'}" class="small">← Flows</a>
       <h1 style="display:flex;gap:10px;align-items:center">${esc(f.name)} ${f.status === 'live' ? '<span class="pill ok">Live</span>' : '<span class="pill warn">Draft</span>'}</h1>
       <div class="muted small">${esc(link)}</div></div>
-      <div class="row"><a class="btn" href="${esc(publicUrl(`/f/${f.slug}`))}" target="_blank" rel="noopener">${isArea ? 'Preview as a member' : 'View site'} ${icon('external')}</a><button class="btn" data-settings>Settings</button><button class="btn danger" data-delsite>Delete</button>
-        ${f.status === 'live' ? '<button class="btn" data-unpublish>Unpublish</button>' : '<button class="btn primary" data-publish>Publish</button>'}</div></div>
+      <div class="row"><a class="btn" href="${esc(publicUrl(`/f/${f.slug}`))}" target="_blank" rel="noopener">${isArea ? 'Preview as a member' : 'View site'} ${icon('external')}</a>${moreMenu(`<button role="menuitem" data-settings>${icon('gear')} Settings</button>${f.status === 'live' ? `<button role="menuitem" data-unpublish>${icon('pause')} Unpublish</button>` : ''}<button role="menuitem" class="danger" data-delsite>${icon('trash')} Delete</button>`)}
+        ${f.status === 'live' ? '' : '<button class="btn primary" data-publish>Publish</button>'}</div></div>
     ${f.workflows?.length ? `<div class="wf-strip"><span class="muted small">${icon('bolt')} Email follow-up:</span>${f.workflows.map((w) => `<a class="chip" href="#/workflows/${w.id}">${esc(w.name.replace(`${f.name}: `, ''))} <span class="pill ${w.status === 'active' ? 'ok' : ''}">${w.status === 'active' ? 'Live' : 'Off'}</span></a>`).join('')}
       <span class="muted small">${f.status === 'live' ? 'Replies to every contact form instantly and checks in after 2 days.' : 'Turns on when you publish: an instant reply to every contact form, and a check-in after 2 days.'}</span></div>` : ''}
     <div class="card table-wrap"><table>
@@ -115,6 +115,7 @@ async function viewWebsite(id) {
     const r = await api('POST', `/api/funnels/${id}/publish`);
     toast(r.followups ? 'Your website is live, and its email follow-up is on' : 'Your website is live!'); viewWebsite(id);
   };
+  bindMoreMenus();
   // Delete with Undo: the site disappears now and is removed after a few seconds.
   $('[data-delsite]').onclick = () => {
     const back = location.hash;

@@ -18,7 +18,7 @@ async function viewPipeline(pipelineId) {
   const pipelines = await api('GET', '/api/pipelines');
   if (!pipelines.length) {
     shell('pipelines', `
-      <div class="head"><div><h1>Deals</h1><div class="muted">For sales you win one at a time (a quote, a job, a new client). Each column is a step; drag a deal along as it moves.</div></div></div>
+      <div class="head"><div><a href="#/people" class="small">← People</a><h1>Deals</h1><div class="muted">For sales you win one at a time (a quote, a job, a new client). Each column is a step; drag a deal along as it moves.</div></div></div>
       <div class="card empty"><div class="big">${icon('trend')}</div><h2>No pipeline yet</h2>
         <p>A pipeline is a board of stages, like <i>${DEFAULT_STAGES.map(esc).join(' → ')}</i>. Add a deal for each opportunity and drag it along as it moves forward.</p>
         <button class="btn primary" data-new>Create your first pipeline</button></div>`);
@@ -35,7 +35,7 @@ async function viewPipeline(pipelineId) {
   const base = `#/pipelines/${p.id}`;
 
   shell('pipelines', `
-    <div class="head"><div>
+    <div class="head"><div><a href="#/people" class="small">← People</a>
         ${pipelines.length > 1 ? `<select data-switch class="pipe-switch">${pipelines.map((x) => `<option value="${x.id}" ${x.id === p.id ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select>`
           : `<h1>${esc(p.name)}</h1>`}
         <div class="muted">${open.length} open deal${open.length === 1 ? '' : 's'} worth <b>${esc(totalsLabel(open))}</b></div></div>

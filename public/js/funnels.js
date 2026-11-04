@@ -131,11 +131,15 @@ async function viewFunnel(id) {
   shell('pages', `${PAGES_TABS(f.kind === 'website' ? 'websites' : 'funnels')}
     <div class="head" style="margin-bottom:14px"><div><a href="#/flows?show=${f.kind === 'website' ? 'websites' : 'pageflows'}" class="small">← Flows</a>
       <h1 style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">${esc(f.name)} ${f.status === 'live' ? '<span class="pill ok">Live</span>' : '<span class="pill warn">Draft</span>'} ${purposeTag(f)}</h1></div>
-      <div class="row"><div class="copy" style="min-width:320px"><input readonly value="${esc(link)}" aria-label="Funnel link">
-        <button class="btn" data-copy="${esc(link)}">Copy</button><a class="btn" href="${esc(link)}" target="_blank" rel="noopener">Open ${icon('external')}</a></div>
-        <button class="btn" data-rename>Settings</button><button class="btn" data-dup title="Make a copy of this pageflow, its pages and follow-ups">${icon('copy')} Duplicate</button><button class="btn danger" data-del>Delete</button>
-        ${f.status === 'live' ? '<button class="btn" data-unpublish>Unpublish</button>' : '<button class="btn primary" data-publish>Publish</button>'}</div></div>
-    <div class="fstats" data-fstats aria-label="Funnel statistics"></div>
+      <div class="row">
+        <a class="btn" href="${esc(link)}" target="_blank" rel="noopener">${icon('external')} View</a>
+        <button class="btn" data-copy="${esc(link)}" title="${esc(link)}">${icon('copy')} Copy link</button>
+        ${moreMenu(`<button role="menuitem" data-rename>${icon('gear')} Settings and address</button>
+          <button role="menuitem" data-dup>${icon('copy')} Duplicate</button>
+          ${f.status === 'live' ? `<button role="menuitem" data-unpublish>${icon('pause')} Unpublish</button>` : ''}
+          <button role="menuitem" class="danger" data-del>${icon('trash')} Delete</button>`)}
+        ${f.status === 'live' ? '' : '<button class="btn primary" data-publish>Publish</button>'}</div></div>
+    <div class="fline" data-fstats aria-label="How this flow is doing"></div>
     <div data-leak></div>
     <div data-shared></div>
     <div data-sources></div>
@@ -157,6 +161,7 @@ async function viewFunnel(id) {
     </div>`);
   bindCopy();
   bindPurposeTags([f], () => viewFunnel(id));
+  bindMoreMenus();
   $('[data-dup]').onclick = () => duplicateFunnel(f);
 
   const m = { steps: f.steps, entry: f.entry_step_id, zoom: 1, panX: 40, panY: 40 };
@@ -213,14 +218,13 @@ async function viewFunnel(id) {
     const entry = m.steps.find((s) => s.id === m.entry) || m.steps[0];
     const visitors = entry?.views || 0;
     const optins = m.steps.reduce((n, s) => n + s.optins, 0), sales = m.steps.reduce((n, s) => n + s.sales, 0);
-    const tile = (label, value, sub) => `<div class="fstat"><span class="fs-v">${value}</span><span class="fs-l">${label}</span>${sub ? `<span class="fs-s">${sub}</span>` : ''}</div>`;
+    const bit = (value, label, title) => `<span title="${esc(title)}"><b>${value}</b> ${label}</span>`;
     $('[data-fstats]').innerHTML = [
-      tile('Visitors', visitors, 'on the start page'),
-      tile('Opt-in rate', pct(optins, visitors), `${optins} opt-in${optins === 1 ? '' : 's'}`),
-      tile('Sale rate', pct(sales, visitors), `${sales} sale${sales === 1 ? '' : 's'}`),
-      mail ? tile('Emails opened', pct(mail.opened, mail.sent), `${mail.sent} sent`) : '',
-      mail ? tile('Emails clicked', pct(mail.clicked, mail.sent), `${mail.clicked} click${mail.clicked === 1 ? '' : 's'}`) : '',
-    ].join('');
+      bit(visitors, `visitor${visitors === 1 ? '' : 's'}`, 'on the start page'),
+      bit(pct(optins, visitors), `signed up (${optins})`, 'of visitors'),
+      bit(pct(sales, visitors), `bought (${sales})`, 'of visitors'),
+      mail && mail.sent ? bit(pct(mail.opened, mail.sent), `opened the emails (${mail.sent} sent)`, `${mail.clicked} clicked`) : '',
+    ].filter(Boolean).join('<span class="sep" aria-hidden="true">·</span>') + '<span class="muted small">all time</span>';
   };
   renderStats(null);
   // Where visitors came from, in plain words first, then the numbers.

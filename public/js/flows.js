@@ -153,12 +153,14 @@ async function viewFollowupFlow(id) {
       <h1 style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span data-ffname>${esc(w.name)}</span>
         <label class="switch" title="${w.status === 'active' ? 'On: turn off' : 'Off: turn on'}"><input type="checkbox" data-fftoggle ${w.status === 'active' ? 'checked' : ''} aria-label="${w.status === 'active' ? 'On' : 'Off'}"><span></span></label>
         <span class="muted small">${w.status === 'active' ? 'On: runs every time its trigger happens' : 'Off: nothing sends'}</span></h1></div>
-      <div class="row"><button class="btn" data-ffrename>Rename</button><a class="btn" href="#/workflows/${id}">Advanced editor</a><button class="btn danger" data-ffdelete>Delete</button></div></div>
+      <div class="row">${moreMenu(`<button role="menuitem" data-ffrename>${icon('pencil')} Rename</button><a role="menuitem" href="#/workflows/${id}">${icon('branch')} Advanced editor</a>
+        <button role="menuitem" class="danger" data-ffdelete>${icon('trash')} Delete</button>`)}</div></div>
     <div class="ff-canvas card"><div class="ff-row">
       <button type="button" class="ff-step start" data-fftrigger><div class="ffs-top">${icon('bolt')}<span>Starts when</span></div><div class="fc-subj">Someone ${esc(triggerText)}</div><span class="fc-edit">${icon('pencil')} Change</span></button>
       ${plus(g.root)}${steps}
     </div></div>
     <p class="muted small">Tap <b>+</b> to add an email, a text, a wait or a yes/no split. Changes save straight away${w.status === 'active' ? ' and apply to people from their next step' : ''}.</p>`);
+  bindMoreMenus();
   const save = async (graph, msg) => { try { await api('PUT', `/api/workflows/${id}`, { graph }); if (msg) toast(msg); viewFollowupFlow(id); } catch (e) { toast(e.message, true); } };
   $('[data-fftoggle]').onchange = async (e) => {
     try { await api('PUT', `/api/workflows/${id}/status`, { status: e.target.checked ? 'active' : 'paused' }); toast(e.target.checked ? 'On: it runs every time its trigger happens' : 'Off: nothing will send'); viewFollowupFlow(id); }

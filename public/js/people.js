@@ -21,7 +21,7 @@ async function viewPeople() {
   const link = (over) => `#/people?${new URLSearchParams({ q, tag, stage, segment, ...over })}`;
   shell('people', `
     <div class="head"><div><h1>People</h1><div class="muted">One record per person: all your ${esc(state.me.account.people_word || 'people')}, leads and subscribers in one place.</div></div>
-      <div class="row"><a class="btn" href="#/people/testimonials">${icon('quote')} Testimonials</a><a class="btn" href="/api/export.zip">${icon('download')} Export</a>
+      <div class="row">${(state.me.account.hidden_sections || []).includes('pipelines') ? '' : `<a class="btn" href="#/pipelines">${icon('trend')} Deals board</a>`}<a class="btn" href="#/people/testimonials">${icon('quote')} Testimonials</a><a class="btn" href="/api/export.zip">${icon('download')} Export</a>
       ${!all.length && !q && !tag && !stage && !segment ? '' : `<button class="btn primary" data-leads>${icon('plus')} Add leads</button>`}</div></div>
     <div class="stagebar">
       <a href="${link({ stage: '' })}" class="${stage ? '' : 'active'}"><b>${all.length}</b>Everyone</a>

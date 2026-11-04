@@ -978,3 +978,16 @@ a.fc-more { display: block; text-decoration: none; }
 
 .pc-tags { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; margin-top: 2px; }
 .pc-tags .tag { font-size: .72rem; }
+
+/* Simplify: one calm stats line, rare actions under ⋯ */
+.fline { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: baseline; margin: -4px 0 12px; color: var(--muted); font-size: .92rem; }
+.fline b { color: var(--text); font-size: 1.05rem; }
+.fline .sep { color: #c3cacc; }
+.more-wrap { position: relative; display: inline-flex; }
+.more-menu { position: absolute; top: calc(100% + 4px); right: 0; left: auto; z-index: 30; min-width: 210px; }
+.more-menu[hidden] { display: none; }
+.more-menu a { text-decoration: none; color: inherit; }
+.more-menu a { display: flex; gap: 8px; align-items: center; padding: 8px 10px; border-radius: 6px; font-size: .88rem; }
+.more-menu a:hover { background: #f3f4f6; }
+.more-menu button { display: flex; gap: 8px; align-items: center; }
+.more-menu svg { width: 16px; height: 16px; flex: none; }
