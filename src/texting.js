@@ -53,7 +53,7 @@ async function twilioSend({ from, to, body, statusCallback }) {
     body: new URLSearchParams({ From: from, To: to, Body: body, ...(statusCallback ? { StatusCallback: statusCallback } : {}) }),
   });
   const j = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(j.message || `Twilio error ${res.status}`);
+  if (!res.ok) throw Object.assign(new Error(j.message || `Twilio error ${res.status}`), { code: j.code });
   return j.sid;
 }
 
@@ -103,7 +103,7 @@ function registerTexting(app, api, { getDb, HttpError, id, upsertContact, logEve
       try {
         external = await twilioSend({ from: account.sms_number, to, body, statusCallback: `${(process.env.PUBLIC_URL || publicBase()).replace(/\/$/, '')}/hooks/sms/status` });
         status = 'sent';
-      } catch (e) { status = 'failed'; reason = e.message; }
+      } catch (e) { status = e.code ? `failed:${e.code}` : 'failed'; reason = e.message; }
     }
     await record({ account_id: account.id, contact_id: contact.id, channel: 'sms', direction: 'out', from: account.sms_number, to, body, status, external_id: external });
     return { status, reason };
@@ -169,7 +169,9 @@ function registerTexting(app, api, { getDb, HttpError, id, upsertContact, logEve
   app.post('/hooks/sms/status', form, async (req, res) => {
     if (!guard(req, res)) return;
     const st = String(req.body.MessageStatus || '');
-    if (req.body.MessageSid && ['delivered', 'undelivered', 'failed'].includes(st)) await db().run('UPDATE messages SET status = ? WHERE external_id = ?', st, req.body.MessageSid);
+    // Keep the carrier's error code (e.g. "undelivered:30034") so the Inbox can say why.
+    const code = /^\d{3,6}$/.test(String(req.body.ErrorCode || '')) ? `:${req.body.ErrorCode}` : '';
+    if (req.body.MessageSid && ['sent', 'delivered', 'undelivered', 'failed'].includes(st)) await db().run("UPDATE messages SET status = ? WHERE external_id = ? AND status NOT LIKE 'delivered%'", st === 'delivered' || st === 'sent' ? st : `${st}${code}`, req.body.MessageSid);
     res.status(204).end();
   });
 
@@ -235,7 +237,7 @@ function registerTexting(app, api, { getDb, HttpError, id, upsertContact, logEve
       if (body.length > 640) throw new HttpError(400, 'Keep texts under 640 characters (about 4 texts)');
       const r = await sendText({ account, contact, body });
       if (r.status === 'skipped') throw new HttpError(409, `Can’t text them: ${r.reason}`);
-      if (r.status === 'failed') throw new HttpError(502, `The text didn’t send: ${r.reason}`);
+      if (String(r.status).startsWith('failed')) throw new HttpError(502, `The text didn’t send: ${r.reason}`);
       return res.json({ ok: true, status: r.status });
     }
     if (!contact.email) throw new HttpError(409, 'They don’t have an email address');

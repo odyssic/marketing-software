@@ -321,13 +321,13 @@ function createWorkflows({ getDb, HttpError, id, people, messaging, getAccount }
       }
       case 'email': {
         const r = await messaging.sendToPerson({ account, person, subject: c.subject, body: c.body, workflowId: w.id });
-        return { next: node.next, outcome: r.status === 'skipped' ? 'skipped' : r.status === 'failed' ? 'failed' : 'sent', detail: r.reason || '' };
+        return { next: node.next, outcome: r.status === 'skipped' ? 'skipped' : String(r.status).startsWith('failed') ? 'failed' : 'sent', detail: r.reason || '' };
       }
       case 'sms': {
         // Only people who said yes to texts (or texted first); waits out quiet hours.
         const r = await messaging.sendText({ account, contact: person, body: messaging.merge(c.body, person, account), kind: 'marketing', now });
         if (r.status === 'quiet') return { stay: true, wake: r.until, outcome: 'waiting', detail: 'quiet hours (texts go out 8am to 9pm)' };
-        return { next: node.next, outcome: r.status === 'skipped' ? 'skipped' : r.status === 'failed' ? 'failed' : 'sent', detail: r.reason || '' };
+        return { next: node.next, outcome: r.status === 'skipped' ? 'skipped' : String(r.status).startsWith('failed') ? 'failed' : 'sent', detail: r.reason || '' };
       }
       case 'condition': {
         const yes = await evaluate(c.check, c.value, run, person);

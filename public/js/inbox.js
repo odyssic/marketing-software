@@ -15,6 +15,25 @@ const ago = (t) => {
 };
 // +15550123456 → (555) 012-3456; other countries stay as they are.
 const fmtPhone = (p) => { const m = String(p || '').match(/^\+1(\d{3})(\d{3})(\d{4})$/); return m ? `(${m[1]}) ${m[2]}-${m[3]}` : String(p || ''); };
+// Why a text didn't arrive, in plain words (Twilio error codes).
+const SMS_WHY = {
+  30034: 'carriers block texts until your number is registered for business texting (Twilio → Messaging → A2P 10DLC)',
+  30032: 'your toll-free number needs verifying before it can text',
+  30007: 'the carrier filtered it as possible spam',
+  30003: 'their phone is off or out of service',
+  30005: 'that number doesn’t exist or can’t get texts',
+  30006: 'that number is a landline or can’t get texts',
+  30004: 'they’ve blocked texts from this number',
+  21610: 'they replied STOP to this number',
+  21608: 'on a Twilio trial you can only text numbers you’ve verified',
+};
+const smsStatus = (st) => {
+  const [s, code] = String(st || '').split(':');
+  if (s === 'logged') return ' · test mode, not sent';
+  if (s === 'delivered') return ' · delivered';
+  if (s === 'failed' || s === 'undelivered') return ` · didn’t deliver${SMS_WHY[code] ? `: ${SMS_WHY[code]}` : code ? ` (error ${code})` : ''}`;
+  return '';
+};
 const whoOf = (c) => [c.first_name, c.last_name].filter(Boolean).join(' ') || fmtPhone(c.phone) || c.email || 'Someone';
 
 async function viewInbox(contactId) {
@@ -52,7 +71,7 @@ async function renderThread(contactId, texting) {
   const bubble = (m) => (m.channel === 'call'
     ? `<div class="ib-m event">${icon('phone')} ${esc(m.body)} · ${time(m.created_at)}</div>`
     : `<div class="ib-m ${m.direction}">${m.subject && m.channel === 'email' ? `<span class="subj">${esc(m.subject)}</span>` : ''}${esc(m.body)}
-        <span class="meta">${CH_WORD[m.channel]} · ${time(m.created_at)}${m.status === 'logged' ? ' · test mode, not sent' : m.status === 'failed' || m.status === 'undelivered' ? ' · didn’t deliver' : ''}</span></div>`);
+        <span class="meta">${CH_WORD[m.channel]} · ${time(m.created_at)}${m.channel === 'sms' ? smsStatus(m.status) : ''}</span></div>`);
   box.innerHTML = `
     <div class="ib-head"><a class="btn sm ghost" href="#/inbox" aria-label="Back to all conversations">${icon('arrowRight')}</a>${avatarHtml(c, 40)}
       <div class="who"><b>${esc(whoOf(c))}</b><div class="muted small">${[fmtPhone(c.phone), c.email].filter(Boolean).map(esc).join(' · ')}${c.sms_opt_out ? ' · replied STOP to texts' : ''}</div></div>
