@@ -100,6 +100,8 @@ async function viewEditor(stepId) {
       <div class="pal-row" role="group" aria-label="Colour palettes">${PALETTES.map((p) => `<button type="button" class="pal ${ed.settings.palette === p.name ? 'on' : ''}" data-pal="${p.name}" title="${p.name}" aria-label="${p.name} palette" aria-pressed="${ed.settings.palette === p.name}">
         <span style="background:${p.bg}"></span><span style="background:${p.band}"></span><span style="background:${p.accent}"></span><small>${p.name}</small></button>`).join('')}</div>
       <button type="button" class="btn sm ghost" data-palall style="margin:-2px 0 10px">${icon('sparkle')} Use these colours on every page</button>
+      <details class="more-page"><summary>More page settings</summary>
+      <h3 style="margin-top:10px">Your own colours</h3>
       <div class="colors">
         <label class="f">Background<input type="color" data-s="background" value="${esc(ed.settings.background)}"></label>
         <label class="f">Text<input type="color" data-s="textColor" value="${esc(ed.settings.textColor)}"></label>
@@ -109,6 +111,7 @@ async function viewEditor(stepId) {
       <label class="f">Browser tab title<input data-s="seoTitle" value="${esc(ed.settings.seoTitle || '')}" placeholder="${esc(step.name)}"></label>
       <label class="f">Description<textarea data-s="seoDescription" rows="2">${esc(ed.settings.seoDescription || '')}</textarea></label>
       <label class="f">Page URL<input data-slug value="${esc(step.slug)}"></label>
+      </details>
     </div>
     <div class="stage"><iframe title="Page preview" sandbox="allow-same-origin allow-scripts allow-modals"></iframe></div></div>`;
 

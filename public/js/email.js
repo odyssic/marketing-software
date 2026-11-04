@@ -1,19 +1,25 @@
 'use strict';
 
 // ---------------- Email ----------------
+// One "New" button: an email, or turn a post into emails and posts, or something printed.
+const newEmailMenu = () => `<span class="more-wrap"><button type="button" class="btn primary" data-more>${icon('plus')} New</button>
+  <span class="more-menu nodemenu" role="menu" hidden><a role="menuitem" href="#/email/new">${icon('mail')} Email</a>
+  <a role="menuitem" href="#/email/repurpose">${icon('sparkle')} Turn a post into emails &amp; social posts</a>
+  <a role="menuitem" href="#/email/print">${icon('note')} Printed mailer or QR code</a></span></span>`;
 async function viewEmail(tab) {
   const outbox = tab === 'outbox', camps = tab === 'campaigns';
   const [items, tags, segs] = await Promise.all([api('GET', outbox ? '/api/outbox' : camps ? '/api/campaigns' : '/api/broadcasts'), api('GET', '/api/tags'), api('GET', '/api/segments').catch(() => [])]);
   SEG_LABELS = Object.fromEntries(segs.map((s) => [s.key, s.label]));
   shell('email', `
-    <div class="head"><div><h1>Email</h1><div class="muted">Send newsletters and announcements to your contacts.</div></div>
-      ${!outbox && !camps && !items.length ? '' : `<button class="btn primary" data-compose>${icon('plus')} New email</button>`}</div>
+    <div class="head"><div>${outbox || camps ? '<a href="#/email" class="small">← Email</a>' : ''}<h1>${outbox ? 'Outbox' : camps ? 'Weekly moves' : 'Email'}</h1>
+      <div class="muted">${outbox ? 'Every email Rilly has sent for you, newest first.' : camps ? 'The small weekly moves suggested on your dashboard, and how they did.' : 'Newsletters and announcements to your people.'}</div></div>
+      ${outbox || camps || !items.length ? '' : newEmailMenu()}</div>
     ${state.me.emailLive ? '' : '<div class="banner"><b>Test mode:</b> no email service is connected, so emails are saved to the Outbox instead of being delivered.</div>'}
-    <div class="tabs"><a href="#/email" class="${outbox || camps ? '' : 'active'}">Broadcasts</a><a href="#/email/campaigns" class="${camps ? 'active' : ''}">Weekly moves</a><a href="#/email/repurpose">Repurpose</a><a href="#/email/print">Print &amp; QR</a><a href="#/email/outbox" class="${outbox ? 'active' : ''}">Outbox</a></div>
-    ${outbox ? outboxHtml(items) : camps ? campaignsHtml(items) : broadcastsHtml(items)}`);
+    ${outbox ? outboxHtml(items) : camps ? campaignsHtml(items) : broadcastsHtml(items)}
+    ${outbox || camps ? '' : `<p class="muted small email-more">Also: <a href="#/email/campaigns">Weekly moves</a> · <a href="#/email/outbox">Outbox (every email sent)</a></p>`}`);
+  bindMoreMenus();
   bindRowLinks();
 
-  const compose = $('[data-compose]'); if (compose) compose.onclick = () => { location.hash = '#/email/new'; };
   $$('[data-send]').forEach((b) => { b.onclick = async () => {
     const bc = items.find((x) => x.id === Number(b.dataset.send));
     if (!await modal('Send broadcast?', `<p>“${esc(bc.subject)}” will go to <b>${bc.tag ? `contacts tagged “${esc(bc.tag)}”` : 'all subscribed contacts'}</b>. This can’t be undone.</p>`, { submit: 'Send now' })) return;
@@ -45,7 +51,7 @@ const broadcastsHtml = (items) => (items.length ? `<div class="bc-list">${items.
       : `<div class="bc-actions"><a class="btn sm" href="#/email/${b.id}">Edit</a><button class="btn sm primary" data-send="${b.id}">Send</button>
         <button class="btn sm danger icon" data-delb="${b.id}" title="Delete draft" aria-label="Delete draft">${icon('trash')}</button></div>`}
   </article>`).join('')}</div>` : `<div class="card empty"><div class="big">${icon('mail')}</div><h2>No emails yet</h2><p>Start with one short note: some news, an offer or a useful tip. You’ll see a preview and can send yourself a test before it goes to anyone.</p>
-    <a class="btn primary" href="#/email/new">${icon('plus')} New email</a></div>`);
+    ${newEmailMenu()}</div>`);
 
 const outboxHtml = (items) => (items.length ? `<div class="card table-wrap"><table>
   <tr><th>To</th><th>Subject</th><th>Status</th><th>When</th></tr>

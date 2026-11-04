@@ -39,13 +39,13 @@ function viewSettings() {
       <label class="f">Tone notes <span class="hint">e.g. “warm, a bit dry, never salesy, short sentences”</span><input name="notes" value="${esc(a.voice_notes || '')}"></label>
       <button class="btn primary">Save voice</button>
     </form>
-    <div class="card" style="max-width:560px;margin-top:16px">
+    <div class="card" style="max-width:560px;margin-top:16px" data-digestcard>
       <h2>Weekly digest</h2>
       <p class="muted small">The only alert ${BRAND} sends: one email a week with what happened this week, how each area is doing, this week’s move and any inquiries older than 14 days. No push notifications.</p>
       <div class="row"><label class="f" style="margin:0">Send it on<select data-digestday>${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map((d, i) => `<option value="${i}" ${a.digest_day === i ? 'selected' : ''}>${d}</option>`).join('')}</select></label>
         <button class="btn" data-digestpreview type="button">Preview</button><button class="btn" data-digestsend type="button">Send me one now</button></div>
     </div>
-    <div class="card" style="max-width:560px;margin-top:16px"><h2>Email signatures</h2>
+    <div class="card" style="max-width:560px;margin-top:16px" data-sigcard><h2>Email signatures</h2>
       <p class="muted small">Design a signature once and it goes on your emails: newsletters, follow-ups and Inbox replies.</p>
       <div data-sigsummary class="muted small">Loading…</div>
       <button type="button" class="btn" data-sigmanage style="margin-top:8px">${icon('pencil')} Make or edit signatures</button></div>
@@ -65,7 +65,7 @@ function viewSettings() {
       <p class="muted small">One workspace per business. Each has its own people, pageflows, emails and dashboard.</p>
       <div data-sublist class="muted small">Loading…</div>
     </div>
-    <div class="card" style="max-width:560px;margin-top:16px">
+    <div class="card" style="max-width:560px;margin-top:16px" data-datacard>
       <h2>Your data</h2>
       <p class="muted small">Download everything (people, events, orders, subscriptions, campaigns, pageflows, deals) at any time.</p>
       <div class="row"><a class="btn" href="/api/export.zip">${icon('download')} Every table as CSV (.zip)</a><a class="btn" href="/api/export.json">${icon('download')} Everything as JSON</a></div>
@@ -165,6 +165,7 @@ function viewSettings() {
   sigSummary();
   $('[data-sigmanage]').onclick = async () => { const s = await loadSignatures(true); if (s.list.length) manageSignatures(sigSummary); else { await editSignature(); sigSummary(); } };
   ['[data-form]', '[data-business]', '[data-reviews]', '[data-voice]', '[data-stripe]'].forEach((sel) => trackDirty($(sel)));
+  groupSettings();
   loadTextingSettings();
 }
 
@@ -209,4 +210,39 @@ async function loadTextingSettings() {
       toast('Texting saved'); loadTextingSettings();
     } catch (err) { $('.err', form).textContent = err.message; }
   };
+}
+
+// Settings in a few short sections with an index, instead of one long scroll.
+const SETTINGS_SECTIONS = [
+  ['business', 'Business', ['[data-form]', '[data-business]', '[data-voice]']],
+  ['email', 'Email', ['[data-sigcard]', '[data-digestcard]', '[data-reviews]']],
+  ['texting', 'Texting and calls', ['[data-texting]']],
+  ['payments', 'Payments', ['[data-stripe]']],
+  ['address', 'Website address', ['[data-domain]']],
+  ['workspaces', 'Workspaces and data', ['[data-subs]', '[data-datacard]']],
+];
+function groupSettings() {
+  const main = $('.main');
+  const cards = SETTINGS_SECTIONS.map(([, , sels]) => sels.map((x) => $(x)).filter(Boolean));
+  const first = cards.flat()[0];
+  if (!first) return;
+  const wrap = document.createElement('div');
+  wrap.className = 'set-layout';
+  wrap.innerHTML = `<nav class="set-index" aria-label="Settings sections">${SETTINGS_SECTIONS.map(([id, label]) => `<a href="#set-${id}" data-setlink="${id}">${label}</a>`).join('')}</nav><div class="set-body"></div>`;
+  first.before(wrap);
+  const body = $('.set-body', wrap);
+  SETTINGS_SECTIONS.forEach(([id, label], i) => {
+    const sec = document.createElement('section');
+    sec.id = `set-${id}`; sec.className = 'set-sec';
+    sec.innerHTML = `<h2 class="set-h">${label}</h2>`;
+    cards[i].forEach((c) => { c.style.marginTop = ''; sec.append(c); });
+    body.append(sec);
+  });
+  // Anything not in a section stays at the end.
+  $$('.main > .card, .main > form.card').forEach((c) => body.append(c));
+  // Index links scroll without changing the page address.
+  $$('[data-setlink]', wrap).forEach((a) => { a.onclick = (e) => { e.preventDefault(); $(`#set-${a.dataset.setlink}`).scrollIntoView({ behavior: 'smooth', block: 'start' }); }; });
+  const io = new IntersectionObserver((es) => es.forEach((en) => { if (en.isIntersecting) $$('[data-setlink]', wrap).forEach((a) => a.classList.toggle('on', `set-${a.dataset.setlink}` === en.target.id)); }), { rootMargin: '-20% 0px -70% 0px' });
+  $$('.set-sec', body).forEach((x) => io.observe(x));
+  void main;
 }

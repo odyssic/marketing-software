@@ -127,7 +127,7 @@ const hideTip = (el) => { const t = $('.viz-tip', el.closest('.chart')); if (t) 
 
 function revenueChart(el, m) {
   const s = m.series, cur = m.currency, showPrev = m.range !== 'all';
-  const maxV = Math.max(1, ...s.map((d) => Math.max(d.revenue, showPrev ? d.prevRevenue : 0)));
+  const maxV = Math.max(...s.map((d) => Math.max(d.revenue, showPrev ? d.prevRevenue : 0))) || 10000; // $100 scale until there are sales
   const f = frame(el, maxV, (v) => shortMoney(v, cur), s.length);
   const bw = Math.max(2, Math.min(28, f.step - 2)); // 2px gap between bars
   const bars = s.map((d, i) => {
@@ -144,7 +144,7 @@ function revenueChart(el, m) {
 
 function peopleChart(el, m) {
   const s = m.series;
-  const maxV = Math.max(1, ...s.map((d) => Math.max(d.leads, d.customers)));
+  const maxV = Math.max(...s.map((d) => Math.max(d.leads, d.customers))) || 4;
   const f = frame(el, maxV, (v) => String(Math.round(v)), s.length);
   const line = (k, color) => `<polyline points="${s.map((d, i) => `${f.x(i)},${f.y(d[k])}`).join(' ')}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
   el.innerHTML = `<svg viewBox="0 0 ${f.W} ${f.H}" width="100%" height="${f.H}" role="img" aria-label="New leads and new customers per ${m.unit}">${f.grid}

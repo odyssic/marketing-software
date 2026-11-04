@@ -991,3 +991,37 @@ a.fc-more { display: block; text-decoration: none; }
 .more-menu a:hover { background: #f3f4f6; }
 .more-menu button { display: flex; gap: 8px; align-items: center; }
 .more-menu svg { width: 16px; height: 16px; flex: none; }
+.email-more { margin-top: 14px; }
+.head .more-wrap .more-menu { min-width: 260px; }
+
+/* Settings: sections with an index */
+.set-layout { display: grid; grid-template-columns: 200px minmax(0, 620px); gap: 28px; align-items: start; }
+.set-index { position: sticky; top: 16px; display: grid; gap: 2px; }
+.set-index a { padding: 8px 12px; border-radius: 8px; color: var(--text); text-decoration: none; font-weight: 500; }
+.set-index a:hover { background: #eef2f1; }
+.set-index a.on { background: var(--brand-soft); color: var(--brand); font-weight: 600; }
+.set-sec { scroll-margin-top: 12px; margin-bottom: 26px; display: grid; gap: 14px; }
+.set-sec .card { max-width: none !important; margin: 0 !important; }
+.set-h { font-size: 1.15rem; margin: 6px 0 0; }
+@media (max-width: 860px) {
+  .set-layout { grid-template-columns: 1fr; gap: 12px; }
+  .set-index { position: static; display: flex; overflow-x: auto; gap: 6px; padding-bottom: 4px; }
+  .set-index a { white-space: nowrap; border: 1px solid var(--line); background: #fff; }
+}
+
+/* Dashboard: where to grow next, in one card */
+.card.grow { padding: 16px 18px; display: grid; gap: 14px; }
+.grow-areas { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px 18px; border-top: 1px solid var(--line); padding-top: 12px; }
+@media (max-width: 760px) { .grow-areas { grid-template-columns: 1fr; } }
+.grow-row { display: grid; grid-template-columns: auto auto auto 1fr; grid-template-rows: auto auto; gap: 2px 8px; align-items: center; text-align: left; border: 0; background: none; padding: 8px 6px; border-radius: 8px; cursor: pointer; font: inherit; color: var(--text); }
+.grow-row:hover { background: #f3f6f5; }
+.grow-row .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--c); }
+.grow-row .gbar { height: 6px; background: #eef1f0; border-radius: 3px; overflow: hidden; min-width: 60px; }
+.grow-row .gbar i { display: block; height: 100%; background: var(--c); border-radius: 3px; }
+.grow-row .gbar .muted { white-space: nowrap; }
+.grow-row > .muted { grid-column: 2 / -1; }
+.grow-row:has(.gbar .muted) .gbar { background: none; height: auto; }
+.grow-more { margin-top: 12px; }
+.grow-more > summary { color: var(--brand); font-weight: 600; padding: 6px 0; }
+.more-page { margin-top: 6px; border-top: 1px solid var(--line); padding-top: 8px; }
+.more-page > summary { font-weight: 600; color: var(--brand); padding: 6px 0; }

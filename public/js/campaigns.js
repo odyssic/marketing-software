@@ -8,7 +8,7 @@ async function viewCampaign(campaignId) {
   const sent = c.status === 'sent';
   const editable = !sent && c.status !== 'sending';
   shell('email', `
-    <div class="head"><div><a href="#/email/campaigns" class="small">← Campaigns</a>
+    <div class="head"><div><a href="#/email/campaigns" class="small">← Weekly moves</a>
       <h1 style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">${esc(c.move.title || c.title || 'Campaign')}</h1>
       <div class="row" style="gap:6px;margin-top:4px">${leverPill(c.lever)}<span class="pill ${sent ? 'ok' : c.status === 'skipped' ? 'warn' : ''}">${esc(c.status)}</span>
         ${c.week ? `<span class="muted small">week of ${fmtDate(c.week)}</span>` : ''}</div></div></div>
@@ -85,8 +85,7 @@ function bindMoveTile(el, m) {
 async function viewPrint() {
   const [lists, links, camps] = await Promise.all([api('GET', '/api/print/lists'), api('GET', '/api/links'), api('GET', '/api/campaigns')]);
   shell('email', `
-    <div class="head"><div><h1>Email</h1><div class="muted">Send newsletters and announcements to your contacts.</div></div></div>
-    <div class="tabs"><a href="#/email">Broadcasts</a><a href="#/email/campaigns">Weekly moves</a><a href="#/email/repurpose">Repurpose</a><a href="#/email/print" class="active">Print &amp; QR</a><a href="#/email/outbox">Outbox</a></div>
+    <div class="head"><div><a href="#/email" class="small">← Email</a><h1>Print &amp; QR</h1><div class="muted">Mailing labels for your print list, and short links with QR codes for flyers and packaging.</div></div></div>
     <div class="grid two">
       <div class="card"><h2>Print newsletter mailing list</h2>
         ${lists.length ? lists.map((l) => `<div class="li"><span><b>${esc(l.product)}</b><br><span class="muted small">${l.subscribers} print subscriber${l.subscribers === 1 ? '' : 's'}${l.missing_address ? ` · <span style="color:#a16207">${l.missing_address} missing an address (left off labels)</span>` : ''}</span></span>
@@ -123,8 +122,7 @@ async function viewPrint() {
 // One essay or episode → an email, a product listing, two social posts and show notes.
 function viewRepurpose() {
   shell('email', `
-    <div class="head"><div><h1>Email</h1><div class="muted">Send newsletters and announcements to your contacts.</div></div></div>
-    <div class="tabs"><a href="#/email">Broadcasts</a><a href="#/email/campaigns">Weekly moves</a><a href="#/email/repurpose" class="active">Repurpose</a><a href="#/email/print">Print &amp; QR</a><a href="#/email/outbox">Outbox</a></div>
+    <div class="head"><div><a href="#/email" class="small">← Email</a><h1>Repurpose</h1><div class="muted">One piece of writing into an email, social posts and more.</div></div></div>
     <form class="card" data-rp>
       <h2>Turn one piece into five</h2>
       <p class="muted small">Paste an essay, a blog post or a podcast transcript. You’ll get drafts for an email, a product listing, two social posts and show notes, in your voice. ${state.me.aiLive ? '' : '<b>AI drafting isn’t connected</b>, so these will be templates built from your first lines.'}</p>

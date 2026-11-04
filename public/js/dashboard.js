@@ -35,25 +35,37 @@ function renderDashboard() {
   shell('', `
     <div class="head"><div><h1>Hi ${esc(state.me.user.name.split(' ')[0])}</h1>
       <div class="muted">${esc(state.me.account.name)} · focus this week: <b style="color:${LEVER_UI[focus].color}">${esc(LEVER_UI[focus].label)}</b>${dash.levers.pinned ? ' (pinned)' : ''}</div></div>
-      <button class="btn ${dash.customize ? 'primary' : ''}" data-customize>${dash.customize ? 'Done' : icon('gear') + ' Customize'}</button></div>
+</div>
     ${dash.noPages && !dash.customize ? `<div class="card setup-nudge"><div><b>Get your first page live in about two minutes</b>
       <div class="muted small">Tell us what kind of business this is. We’ll build the page, booking hours and follow-ups.</div></div>
       <a class="btn primary" href="#/setup">Set it up</a></div>` : ''}
     ${dash.customize ? '' : '<section data-metrics aria-label="Business numbers"></section>'}
     ${!dash.customize && dash.week?.length ? `<section class="card week"><h2>This week, in plain words</h2><ul>${dash.week.map((l) => `<li>${esc(l)}</li>`).join('')}</ul></section>` : ''}
     <h2 class="section-h" style="margin-top:26px">Where to grow next</h2>
+    ${dash.customize ? '' : `<section class="card grow">
+      <div data-growmove><div class="skeleton"></div></div>
+      <div class="grow-areas">${['lead', 'conversion', 'upsell', 'continuity'].map((k) => { const l = dash.levers.levers[k] || {}; return `<button type="button" class="grow-row" data-growlever="${k}" style="--c:${LEVER_UI[k].color}">
+        <i class="dot"></i><b>${esc(LEVER_UI[k].label)}</b>${k === focus ? '<span class="pill" style="margin-left:4px">focus</span>' : ''}
+        <span class="gbar">${l.score === null || l.score === undefined ? '<span class="muted small">too early to tell</span>' : `<i style="width:${Math.max(4, l.score)}%"></i>`}</span>
+        <span class="muted small">${esc([l.valueLabel, l.changeLabel].filter(Boolean).join(' · '))}</span></button>`; }).join('')}</div>
+    </section>`}
+    <details class="grow-more" ${dash.customize || dash.moreOpen ? 'open' : ''}><summary>See all charts${dash.customize ? '' : ' and customize'}</summary>
+    <div class="row" style="justify-content:flex-end;margin:6px 0 10px"><button class="btn ${dash.customize ? 'primary' : ''}" data-customize>${dash.customize ? 'Done' : icon('gear') + ' Customize'}</button></div>
     <div class="leverbar" role="tablist">${Object.entries(LEVER_UI).map(([k, l]) => `<button role="tab" aria-selected="${k === lv}" data-lever="${k}" style="--c:${l.color}" class="${k === lv ? 'on' : ''}"><i class="dot"></i>
       ${k !== 'all' && dash.levers.levers[k]?.score !== null && dash.levers.levers[k]?.score !== undefined ? `<span class="sc">${dash.levers.levers[k].score}</span>` : ''}${esc(l.label)}${k === focus ? ' <span class="focus-dot" title="Focus here">●</span>' : ''}</button>`).join('')}</div>
     ${dash.customize ? `<div class="tray"><span class="muted small">Hidden tiles:</span>
       ${tiles.filter((t) => t.hidden).map((t) => `<button class="chip" data-restore="${t.tile_id}">${icon('plus')} ${esc(meta(t.tile_id)?.title || t.tile_id)}</button>`).join('') || '<span class="muted small">none. Hide a tile with ✕ to park it here.</span>'}</div>` : ''}
     <div class="tiles ${dash.customize ? 'editing' : ''}" style="--lever:${lv === 'all' ? 'var(--brand)' : LEVER_UI[lv].color}">
-      ${tiles.filter((t) => !t.hidden).map((t) => `<section class="tile ${t.width}" data-tile="${t.tile_id}">
+      ${tiles.filter((t) => !t.hidden && (dash.customize || !['move', 'health'].includes(t.tile_id))).map((t) => `<section class="tile ${t.width}" data-tile="${t.tile_id}">
         <header><h2>${esc(meta(t.tile_id)?.title || t.tile_id)}</h2>
           ${dash.customize ? `<div class="tctl"><button class="handle" title="Drag to move" aria-label="Drag to move">${icon('grip')}</button>
             <button data-width title="Change width">${t.width === 'full' ? '½' : icon('resize')}</button><button data-hide title="Hide">${icon('x')}</button></div>` : ''}</header>
         <div class="tbody"><div class="skeleton"></div></div></section>`).join('')}
-    </div>`);
+    </div></details>`);
   renderMetrics();
+  fillGrowCard();
+  const more = $('.grow-more'); if (more) more.addEventListener('toggle', () => { dash.moreOpen = more.open; if (more.open) fillTiles(); });
+  $$('[data-growlever]').forEach((b) => { b.onclick = () => { dash.moreOpen = true; switchLever(b.dataset.growlever); }; });
 
   $$('[data-lever]').forEach((b) => { b.onclick = () => switchLever(b.dataset.lever); });
   $('[data-customize]').onclick = async () => {
@@ -219,3 +231,17 @@ function bindCustomize() {
 
 const stat = (label, value, sub) => `<div class="card stat"><div class="label">${label}</div><div class="value">${value}</div><div class="sub">${sub}</div></div>`;
 const bindRowLinks = () => $$('[data-go]').forEach((r) => { r.onclick = () => { location.hash = r.dataset.go; }; });
+
+// This week's move, in the "Where to grow next" card.
+async function fillGrowCard() {
+  const box = $('[data-growmove]');
+  if (!box) return;
+  const key = 'move:all';
+  if (!(key in dash.data)) {
+    try { const got = await api('GET', '/api/tiles?lever=all&ids=move'); dash.data[key] = got.move; } catch { box.innerHTML = ''; return; }
+  }
+  const d = dash.data[key];
+  if (!$('[data-growmove]')) return;
+  box.innerHTML = renderTile('move', d);
+  if (typeof bindMoveTile === 'function') bindMoveTile(box, d?.data);
+}
