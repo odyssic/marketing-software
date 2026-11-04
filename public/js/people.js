@@ -20,7 +20,7 @@ async function viewPeople() {
   shell('people', `
     <div class="head"><div><h1>People</h1><div class="muted">One record per person: all your ${esc(state.me.account.people_word || 'people')}, leads and subscribers in one place.</div></div>
       <div class="row"><a class="btn" href="#/people/testimonials">${icon('quote')} Testimonials</a><a class="btn" href="/api/export.zip">${icon('download')} Export</a>
-      <button class="btn primary" data-leads>${icon('plus')} Add leads</button></div></div>
+      ${!all.length && !q && !tag && !stage && !segment ? '' : `<button class="btn primary" data-leads>${icon('plus')} Add leads</button>`}</div></div>
     <div class="stagebar">
       <a href="${link({ stage: '' })}" class="${stage ? '' : 'active'}"><b>${all.length}</b>Everyone</a>
       ${STAGES.map(([k, l]) => `<a href="${link({ stage: k })}" class="${stage === k ? 'active' : ''} ${k}"><b>${count(k)}</b>${l}</a>`).join('<span class="arrow">→</span>')}

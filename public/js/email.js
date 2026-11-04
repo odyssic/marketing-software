@@ -7,13 +7,13 @@ async function viewEmail(tab) {
   SEG_LABELS = Object.fromEntries(segs.map((s) => [s.key, s.label]));
   shell('email', `
     <div class="head"><div><h1>Email</h1><div class="muted">Send newsletters and announcements to your contacts.</div></div>
-      <button class="btn primary" data-compose>${icon('plus')} New email</button></div>
+      ${!outbox && !camps && !items.length ? '' : `<button class="btn primary" data-compose>${icon('plus')} New email</button>`}</div>
     ${state.me.emailLive ? '' : '<div class="banner"><b>Test mode:</b> no email service is connected, so emails are saved to the Outbox instead of being delivered.</div>'}
     <div class="tabs"><a href="#/email" class="${outbox || camps ? '' : 'active'}">Broadcasts</a><a href="#/email/campaigns" class="${camps ? 'active' : ''}">Weekly moves</a><a href="#/email/repurpose">Repurpose</a><a href="#/email/print">Print &amp; QR</a><a href="#/email/outbox" class="${outbox ? 'active' : ''}">Outbox</a></div>
     ${outbox ? outboxHtml(items) : camps ? campaignsHtml(items) : broadcastsHtml(items)}`);
   bindRowLinks();
 
-  $('[data-compose]').onclick = () => { location.hash = '#/email/new'; };
+  const compose = $('[data-compose]'); if (compose) compose.onclick = () => { location.hash = '#/email/new'; };
   $$('[data-send]').forEach((b) => { b.onclick = async () => {
     const bc = items.find((x) => x.id === Number(b.dataset.send));
     if (!await modal('Send broadcast?', `<p>“${esc(bc.subject)}” will go to <b>${bc.tag ? `contacts tagged “${esc(bc.tag)}”` : 'all subscribed contacts'}</b>. This can’t be undone.</p>`, { submit: 'Send now' })) return;

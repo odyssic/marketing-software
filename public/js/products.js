@@ -80,7 +80,7 @@ async function viewInvoices() {
   const paid30 = invoices.filter((x) => x.status === 'paid' && x.paid_at && Date.now() - new Date(x.paid_at) < 30 * 864e5).reduce((n, x) => n + x.total_cents, 0);
   shell('products', `
     <div class="head"><div><h1>Products</h1><div class="muted">Bill a client, or share a link anyone can pay.</div></div>
-      <div class="row"><button class="btn" data-newlink>${icon('link')} New payment link</button><button class="btn primary" data-newinv>+ New invoice</button></div></div>
+      <div class="row">${links.length ? `<button class="btn" data-newlink>${icon('link')} New payment link</button>` : ''}${invoices.length ? '<button class="btn primary" data-newinv>+ New invoice</button>' : ''}</div></div>
     ${p.connected ? '' : '<div class="banner"><b>Test mode:</b> Stripe isn’t connected, so payments are simulated. <a href="#/settings">Connect Stripe</a> to get paid for real.</div>'}
     ${productTabs('invoices')}
     ${invoices.length ? `<div class="stat-strip">

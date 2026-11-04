@@ -34,7 +34,7 @@ async function viewFlows() {
 
   shell('flows', `
     <div class="head"><div><h1>Flows</h1><div class="muted">Everything that brings people in and follows up with them: your pages, the emails between them, and follow-ups that start on their own.</div></div>
-      <button class="btn primary" data-newflow>${icon('plus')} New</button></div>
+      ${!groupsAll.length && !wfs.filter((w) => !w.funnel_id).length ? '' : `<button class="btn primary" data-newflow>${icon('plus')} New</button>`}</div>
     ${flowTabs(show)}
     <input data-q placeholder="Search flows, pages and emails…" value="${esc(q)}" style="max-width:340px;margin-bottom:14px" aria-label="Search">
     ${groups.map((g) => `<section class="pgroup card">
@@ -69,11 +69,11 @@ async function viewFlows() {
       </section>`).join('')}` : ''}
     ${!groups.length && !standalone.length ? `<div class="card empty"><div class="big">${icon('branch')}</div><h2>${q ? 'Nothing matches' : 'Nothing here yet'}</h2>
       <p>${q ? 'Try a different search.' : show === 'followups' ? 'A follow-up starts on its own when something happens: someone buys, goes quiet, or gets a tag.' : 'Answer three quick questions and Rilly builds your first page with its follow-ups.'}</p>
-      ${q ? '' : show === 'followups' ? '<button class="btn primary" data-newfu>New follow-up</button>' : '<a class="btn primary" href="#/setup">Build my first page</a>'}</div>` : ''}`);
+      ${q || (show === 'followups' ? false : groupsAll.length || wfs.some((w) => !w.funnel_id)) ? '' : show === 'followups' ? '<button class="btn primary" data-newfu>New follow-up</button>' : '<button class="btn primary" data-newflow>Make my first flow</button>'}</div>` : ''}`);
 
   let t; $('[data-q]').oninput = (e) => { clearTimeout(t); t = setTimeout(() => { const p = new URLSearchParams(); if (show) p.set('show', show); if (e.target.value) p.set('q', e.target.value); location.hash = `#/flows${p.toString() ? `?${p}` : ''}`; }, 350); };
   if (q) { const el = $('[data-q]'); el.focus(); el.setSelectionRange(q.length, q.length); }
-  $('[data-newflow]').onclick = newFlow;
+  $$('[data-newflow]').forEach((b) => { b.onclick = newFlow; });
   const nf = $('[data-newfu]'); if (nf) nf.onclick = newWorkflow;
   bindPurposeTags(groups, viewFlows);
   $$('[data-gdup]').forEach((b) => { b.onclick = () => duplicateFunnel(groups.find((g) => String(g.id) === b.dataset.gdup), { stay: true }); });
@@ -95,11 +95,13 @@ async function viewFlows() {
 // One "New" button: what are you making?
 async function newFlow() {
   const r = await modal('What do you want to make?', `<div class="choices">
-    <label class="choice"><input type="radio" name="kind" value="pageflow" checked hidden><span class="ci">${icon('arrowRight')}</span><span><b>Pageflow</b><small>A page or a few in a row, for one goal: collect leads, take bookings, sell something</small></span></label>
+    <label class="choice"><input type="radio" name="kind" value="wizard" checked hidden><span class="ci">${icon('sparkle')}</span><span><b>Build it for me</b><small>Three quick questions and Rilly makes a page with its follow-ups</small></span></label>
+    <label class="choice"><input type="radio" name="kind" value="pageflow" hidden><span class="ci">${icon('arrowRight')}</span><span><b>Pageflow</b><small>A page or a few in a row, for one goal: collect leads, take bookings, sell something</small></span></label>
     <label class="choice"><input type="radio" name="kind" value="website" hidden><span class="ci">${icon('globe')}</span><span><b>Website</b><small>Your business site: pages with a menu</small></span></label>
     <label class="choice"><input type="radio" name="kind" value="followup" hidden><span class="ci">${icon('bolt')}</span><span><b>Follow-up</b><small>Emails or texts that start on their own: when someone buys, goes quiet, gets a tag</small></span></label>
     <label class="choice"><input type="radio" name="kind" value="members" hidden><span class="ci">${icon('door')}</span><span><b>Members area</b><small>Lessons and downloads only members can open</small></span></label></div>`, { submit: 'Next' });
   if (!r) return;
+  if (r.kind === 'wizard') { location.hash = '#/setup'; return; }
   if (r.kind === 'pageflow') return newFunnel();
   if (r.kind === 'website') return newWebsite();
   if (r.kind === 'followup') return newWorkflow();
