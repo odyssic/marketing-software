@@ -38,14 +38,14 @@ async function viewPeople() {
         <b class="pc-name">${esc(personName(c))}</b>
         <span class="pc-sub">${esc(c.email || c.phone || 'no email')}</span>
         <span class="pc-row">${stagePill(c.stage)}${c.unsubscribed ? '<span class="pill warn">unsubscribed</span>' : ''}</span>
-        <span class="pc-meta">${[c.came_from?.source, c.city].filter(Boolean).map(esc).join(' · ') || '&nbsp;'}</span>
+        <span class="pc-meta" title="How they came in">${esc(cameFrom(c)) || '&nbsp;'}</span>
       </a>`).join('')}</div>`
     : people.length ? `<div class="card table-wrap"><table>
-      <tr><th>Name</th><th>Email</th><th>Stage</th><th>City</th><th>Tags</th><th>First source</th><th>Added</th></tr>
+      <tr><th>Name</th><th>Email</th><th>Stage</th><th>City</th><th>Tags</th><th>Came in through</th><th>Added</th></tr>
       ${people.map((c) => `<tr class="click" data-go="#/people/${c.id}"><td><span class="row" style="gap:10px;flex-wrap:nowrap">${avatarHtml(c, 30)}<strong>${esc(personName(c))}</strong></span></td>
         <td>${esc(c.email) || '<span class="muted">no email</span>'} ${c.unsubscribed ? '<span class="pill warn">unsubscribed</span>' : ''}</td>
         <td>${stagePill(c.stage)}</td><td>${esc(c.city)}</td>
-        <td>${tagsHtml(c.tags)}</td><td class="muted small">${esc(c.source)}</td><td class="muted small">${fmtDate(c.created_at)}</td></tr>`).join('')}
+        <td>${tagsHtml(c.tags)}</td><td class="muted small">${esc(cameFrom(c))}</td><td class="muted small">${fmtDate(c.created_at)}</td></tr>`).join('')}
     </table></div>` : `<div class="card empty"><div class="big">${icon('people')}</div><h2>${q || tag || stage || segment ? 'No matches' : 'No people yet'}</h2>
       <p>${q || tag || stage || segment ? 'Try a different search.' : 'Upload a spreadsheet, paste a list or a photo of a sign-up sheet, or add someone by hand.'}</p>
       ${q || tag || stage || segment ? '' : '<button class="btn primary" data-leads>' + icon('plus') + ' Add leads</button>'}</div>`}`);
@@ -78,7 +78,13 @@ const personForm = (c = {}) => `
   <input name="address2" value="${esc(c.address2)}" placeholder="Apt, suite (optional)" style="margin:-6px 0 8px">
   <div class="colors" style="grid-template-columns:2fr 1fr 1fr 1fr;margin-bottom:8px"><input name="city" value="${esc(c.city)}" placeholder="City">
     <input name="region" value="${esc(c.region)}" placeholder="State"><input name="postal" value="${esc(c.postal)}" placeholder="ZIP"><input name="country" value="${esc(c.country)}" placeholder="Country"></div>
-  <label class="f">Tags <span class="hint">comma separated</span><input name="tags" value="${esc((c.tags || []).join(', '))}"></label>`;
+  <label class="f">Tags <span class="hint">comma separated</span><input name="tags" value="${esc((c.tags || []).join(', '))}"></label>
+  ${c.id ? `<label class="f">Came in through <span class="hint">filled in automatically; change it if you know better</span><input name="entry" value="${esc(c.entry || '')}"></label>`
+    : `<label class="f">How you met them <span class="hint">optional</span><input name="entry" list="how-met" placeholder="e.g. Trade show, Referral from Ana, Walk-in"></label>
+  <datalist id="how-met">${['Referral', 'Walk-in', 'Phone call', 'Trade show', 'Market or event', 'Instagram DM', 'Facebook', 'Word of mouth', 'Existing customer'].map((x) => `<option value="${x}">`).join('')}</datalist>`}`;
+
+// Where someone came from, in a few words: "Glaze guide → Opt-in page · from Instagram".
+const cameFrom = (c) => [c.entry, c.came_from?.source && c.came_from.source !== 'Direct' ? `from ${c.came_from.source}${c.came_from.campaign ? ` (“${c.came_from.campaign}”)` : ''}` : ''].filter(Boolean).join(' · ');
 
 const EVENT_ICON = { booking: icon('calendar'), signup: icon('pencil'), inquiry: icon('chat'), purchase: icon('bag'), subscribe: icon('inbox'), unsubscribe: icon('door'), open: icon('eye'), click: icon('cursor'), listen: icon('headphones'), scan: icon('camera'), visit: icon('globe'), note: icon('note') };
 const EVENT_LABEL = { booking: 'Booked a call', signup: 'Signed up', inquiry: 'Inquiry', purchase: 'Bought', subscribe: 'Subscribed', unsubscribe: 'Unsubscribed', open: 'Opened an email', click: 'Clicked a link', listen: 'Listened', scan: 'Scanned a QR code', visit: 'Visited', note: 'Note' };
@@ -95,7 +101,7 @@ async function viewPerson(personId) {
     <div class="head"><div><a href="#/people" class="small">← People</a>
       <h1 style="display:flex;align-items:center;gap:14px;flex-wrap:wrap"><button type="button" class="av-btn" data-photo title="Add or change their photo" aria-label="Add or change their photo">${avatarHtml(p, 64)}<span class="av-edit">${icon('camera')}</span></button>${esc(personName(p))} ${stagePill(p.stage)}</h1>
       <input type="file" accept="image/*" hidden data-photofile>
-      <div class="muted">${[p.email && esc(p.email), p.phone && esc(p.phone), p.came_from ? `came from <b>${esc(p.came_from.source)}</b>${p.came_from.campaign ? ` · “${esc(p.came_from.campaign)}”` : ''}` : `first came from <b>${esc(p.source)}</b>`, `added ${fmtDate(p.created_at)}`].filter(Boolean).join(' · ')}</div></div>
+      <div class="muted">${[p.email && esc(p.email), p.phone && esc(p.phone), cameFrom(p) ? `came in through <b>${esc(cameFrom(p))}</b>` : '', `added ${fmtDate(p.created_at)}`].filter(Boolean).join(' · ')}</div></div>
       <div class="row"><button class="btn" data-log>+ Log activity</button><button class="btn" data-addt>${icon('quote')} Add testimonial</button><button class="btn" data-edit>Edit</button></div></div>
     <div class="flowline">${STAGES.map(([k, l]) => `<div class="${k} ${STAGES.findIndex((s) => s[0] === k) <= STAGES.findIndex((s) => s[0] === p.stage) ? 'on' : ''}">${esc(l.replace(/s$/, ''))}</div>`).join('')}</div>
     <div class="grid two">

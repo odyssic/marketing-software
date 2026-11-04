@@ -53,7 +53,7 @@ function registerInvoices(app, api, { getDb, HttpError, id, upsertContact, messa
       clientName = String(b.client_name || '').trim().slice(0, 120);
       if (!EMAIL_RE.test(clientEmail)) throw new HttpError(400, 'Add the client’s email so we can send it');
       const [first, ...rest] = clientName.split(/\s+/);
-      contactId = (await upsertContact(db(), req.accountId, { email: clientEmail, first_name: first || '', last_name: rest.join(' '), source: 'manual' })).id;
+      contactId = (await upsertContact(db(), req.accountId, { email: clientEmail, first_name: first || '', last_name: rest.join(' '), source: 'manual', entry: 'Added by hand (sent an invoice)' })).id;
     }
     const due = /^\d{4}-\d{2}-\d{2}$/.test(String(b.due_date || '')) ? b.due_date : null;
     const currency = /^[a-z]{3}$/.test(String(b.currency || '')) ? b.currency : 'usd';

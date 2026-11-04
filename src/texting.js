@@ -115,7 +115,7 @@ function registerTexting(app, api, { getDb, HttpError, id, upsertContact, logEve
   async function personByPhone(account, phone) {
     const p = await db().get("SELECT * FROM contacts WHERE account_id = ? AND phone <> '' AND right(regexp_replace(phone, '\\D', '', 'g'), 10) = ? ORDER BY id LIMIT 1", account.id, last10(phone));
     if (p) return p;
-    const { id: cid } = await upsertContact(db(), account.id, { email: '', phone, source: 'other' });
+    const { id: cid } = await upsertContact(db(), account.id, { email: '', phone, source: 'other', entry: 'Texted or called your number' });
     return db().get('SELECT * FROM contacts WHERE id = ?', cid);
   }
   const accountByNumber = (to) => db().get("SELECT * FROM accounts WHERE sms_number <> '' AND right(regexp_replace(sms_number, '\\D', '', 'g'), 10) = ? ORDER BY id LIMIT 1", last10(to));

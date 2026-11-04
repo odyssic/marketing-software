@@ -195,7 +195,7 @@ function createApp({ dbPath } = {}) {
       const contact = await upsertContact(t, order.account_id, {
         email: email || order.email, first_name: name.split(' ')[0] || '',
         last_name: name.split(' ').slice(1).join(' '),
-        tags: ['customer', ...parseTags(product?.tag)], source: 'funnel',
+        tags: ['customer', ...parseTags(product?.tag)], source: 'funnel', entry: order.source === 'invoice' ? `Paid: ${order.product_name}` : `Bought: ${order.product_name}`,
       });
       await t.run(`UPDATE orders SET status = 'paid', paid_at = now(), contact_id = ?, email = ?,
         stripe_session_id = COALESCE(?, stripe_session_id), stripe_customer = COALESCE(?, stripe_customer),
@@ -436,7 +436,8 @@ function createApp({ dbPath } = {}) {
   });
 
   api.post('/contacts', async (req, res) => {
-    const r = await upsertContact(db, req.accountId, { ...req.body, source: req.body?.source || 'manual' });
+    const how = String(req.body?.entry || '').trim().slice(0, 120);
+    const r = await upsertContact(db, req.accountId, { ...req.body, source: req.body?.source || 'manual', entry: how ? `Added by hand: ${how}` : 'Added by hand' });
     if (!r.created) throw new HttpError(409, 'A person with this email already exists');
     res.status(201).json(contactOut(await db.get('SELECT * FROM contacts WHERE id = ?', r.id)));
   });
@@ -467,6 +468,7 @@ function createApp({ dbPath } = {}) {
         ${ADDRESS.map((k) => `${k} = ?`).join(', ')} WHERE id = ?`, email, val('first_name'), val('last_name'),
       val('phone'), JSON.stringify(b.tags !== undefined ? parseTags(b.tags) : JSON.parse(c.tags)),
       b.unsubscribed !== undefined ? Number(Boolean(b.unsubscribed)) : c.unsubscribed, ...ADDRESS.map(val), c.id);
+      if (b.entry !== undefined) await db.run('UPDATE contacts SET entry = ? WHERE id = ?', String(b.entry).trim().slice(0, 160), c.id);
       if (b.photo_url !== undefined) {
         const url = String(b.photo_url || '').trim();
         if (url && !/^https?:\/\//i.test(url)) throw new HttpError(400, 'Use an uploaded photo or a web link');
@@ -863,7 +865,7 @@ function createApp({ dbPath } = {}) {
     if (b.contact_email !== undefined && String(b.contact_email).trim()) {
       const [first = '', ...rest] = String(b.contact_name || '').trim().split(/\s+/);
       contactId = (await upsertContact(q, accountId, {
-        email: b.contact_email, first_name: first, last_name: rest.join(' '), source: 'deal',
+        email: b.contact_email, first_name: first, last_name: rest.join(' '), source: 'deal', entry: 'Added with a deal',
       })).id;
     } else if (b.contact_id !== undefined || b.contact_email !== undefined) {
       contactId = null;
@@ -1305,7 +1307,7 @@ function createApp({ dbPath } = {}) {
     try {
       contact = await upsertContact(db, funnel.account_id, {
         email: req.body.email, first_name: String(req.body.first_name || ''), phone: String(req.body.phone || ''),
-        tags: parseTags(block.tag), source: 'funnel',
+        tags: parseTags(block.tag), source: 'funnel', entry: `${funnel.name} → ${step.name}`,
       });
     } catch (e) {
       if (e.status === 400) return res.status(400).type('html').send(`<!doctype html><p style="font:18px system-ui;text-align:center;margin-top:20vh">Please enter a valid email. <a href="${esc(back)}">Go back</a></p>`);
@@ -1378,7 +1380,7 @@ function createApp({ dbPath } = {}) {
     const items = [{ name: product.name, qty: 1, price_cents: product.price_cents }, ...(bump ? [{ name: bump.name, qty: 1, price_cents: bump.price_cents, bump: true }] : [])];
     const account = await db.get('SELECT stripe_secret_key FROM accounts WHERE id = ?', funnel.account_id);
     const email = EMAIL_RE.test(String(req.body.email || '').trim()) ? String(req.body.email).trim().toLowerCase() : '';
-    const buyer = email ? await upsertContact(db, funnel.account_id, { email, source: 'funnel' }).catch(() => null) : null;
+    const buyer = email ? await upsertContact(db, funnel.account_id, { email, source: 'funnel', entry: `${funnel.name} → ${step.name} (checkout)` }).catch(() => null) : null;
     const buySrc = buyer ? await attachSource(db, buyer.id, req) : visitSource(req);
     const { id: orderId } = await db.get(`INSERT INTO orders (account_id, product_id, product_name, amount_cents, currency, mode, funnel_id, step_id, items, variant, email, contact_id, attribution)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`, funnel.account_id, product.id, bump ? `${product.name} + ${bump.name}` : product.name,

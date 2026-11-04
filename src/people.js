@@ -5,6 +5,12 @@ const { zip } = require('./zip');
 
 const STAGES = ['audience', 'lead', 'customer', 'regular'];
 const EVENT_TYPES = ['signup', 'inquiry', 'booking', 'purchase', 'subscribe', 'unsubscribe', 'open', 'click', 'listen', 'scan', 'visit', 'note'];
+// What to say when nothing more specific is known about how someone came in.
+const ENTRY_DEFAULT = {
+  manual: 'Added by hand', import: 'Imported (spreadsheet)', store: 'Imported orders', etsy: 'Imported from Etsy', paypal: 'Imported from PayPal',
+  stripe: 'Imported from Stripe', newsletter: 'Imported subscribers', print: 'Imported (print list)', deal: 'Added with a deal', funnel: 'One of your pages',
+  inquiry: 'Sent an inquiry', podcast: 'Podcast', social: 'Social media', referral: 'Referred by someone', event: 'Met at an event',
+};
 const SOURCES = ['store', 'newsletter', 'podcast', 'inquiry', 'funnel', 'etsy', 'paypal', 'stripe', 'print', 'social', 'referral', 'event', 'manual', 'import', 'deal', 'other'];
 const ADDRESS = ['address1', 'address2', 'city', 'region', 'postal', 'country'];
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -85,6 +91,8 @@ function createPeople({ getDb, HttpError, parseTags, id, formatMoney }) {
     };
     if (!email && !fields.first_name && !fields.last_name && !fields.phone) throw new HttpError(400, 'A person needs an email, a name or a phone number');
     const existing = email && await q.get('SELECT * FROM contacts WHERE account_id = ? AND email = ?', accountId, email);
+    const entry = String(p.entry || ENTRY_DEFAULT[cleanSource(p.source)] || '').trim().slice(0, 160);
+    if (existing && entry && !existing.entry) await q.run("UPDATE contacts SET entry = ? WHERE id = ? AND entry = ''", entry, existing.id);
     if (existing) {
       const merged = parseTags([...JSON.parse(existing.tags), ...parseTags(p.tags)]);
       const cols = Object.keys(fields);
@@ -95,9 +103,9 @@ function createPeople({ getDb, HttpError, parseTags, id, formatMoney }) {
       return { id: existing.id, created: false };
     }
     const cols = Object.keys(fields);
-    const r = await q.get(`INSERT INTO contacts (account_id, email, tags, source, ${cols.join(', ')})
-      VALUES (?, ?, ?, ?, ${cols.map(() => '?').join(', ')}) RETURNING id`,
-    accountId, email, JSON.stringify(parseTags(p.tags)), cleanSource(p.source), ...cols.map((k) => fields[k]));
+    const r = await q.get(`INSERT INTO contacts (account_id, email, tags, source, entry, ${cols.join(', ')})
+      VALUES (?, ?, ?, ?, ?, ${cols.map(() => '?').join(', ')}) RETURNING id`,
+    accountId, email, JSON.stringify(parseTags(p.tags)), cleanSource(p.source), entry, ...cols.map((k) => fields[k]));
     await tagsAdded(q, accountId, r.id, parseTags(p.tags));
     return { id: r.id, created: true };
   }
@@ -106,7 +114,9 @@ function createPeople({ getDb, HttpError, parseTags, id, formatMoney }) {
     let came = null;
     try { came = c.attribution ? JSON.parse(c.attribution) : null; } catch { /* ignore */ }
     const avatar_hash = c.email ? require('node:crypto').createHash('sha256').update(String(c.email).trim().toLowerCase()).digest('hex') : '';
-    return { ...c, tags: JSON.parse(c.tags), unsubscribed: Boolean(c.unsubscribed), name: [c.first_name, c.last_name].filter(Boolean).join(' '), came_from: came, avatar_hash };
+    // "Came in through" (the first page, text, import or by hand) and "from" (the channel, e.g. Instagram).
+    const entry = c.entry || ENTRY_DEFAULT[c.source] || '';
+    return { ...c, tags: JSON.parse(c.tags), unsubscribed: Boolean(c.unsubscribed), name: [c.first_name, c.last_name].filter(Boolean).join(' '), came_from: came, entry, avatar_hash };
   };
   const eventOut = (e) => ({ ...e, meta: JSON.parse(e.meta || '{}'), valueLabel: e.value_cents ? formatMoney(e.value_cents, 'usd') : '' });
   const getPerson = async (accountId, personId) => {

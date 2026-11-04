@@ -151,7 +151,7 @@ function registerBookings(app, api, { getDb, HttpError, id, upsertContact, logEv
     const blocks = JSON.parse(step.blocks || '[]');
     const block = blocks.find((x) => x.type === 'booking') || {};
     const [first, ...rest] = name.split(/\s+/);
-    const contact = await upsertContact(db(), account.id, { email, first_name: first, last_name: rest.join(' '), phone: String(b.phone || '').slice(0, 40), tags: block.tag ? [String(block.tag).toLowerCase()] : [], source: 'funnel' });
+    const contact = await upsertContact(db(), account.id, { email, first_name: first, entry: `${funnel.name} → booked a time`, last_name: rest.join(' '), phone: String(b.phone || '').slice(0, 40), tags: block.tag ? [String(block.tag).toLowerCase()] : [], source: 'funnel' });
     const token = crypto.randomBytes(18).toString('base64url');
     let booking;
     try {

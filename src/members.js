@@ -153,7 +153,7 @@ function registerMembers(app, api, { getDb, HttpError, id, upsertContact, messag
     const email = String(req.body?.email || '').trim().toLowerCase();
     if (!EMAIL_RE.test(email)) throw new HttpError(400, 'Add their email address');
     const [first, ...rest] = String(req.body?.name || '').trim().split(/\s+/);
-    const { id: cid } = await upsertContact(db(), req.accountId, { email, first_name: first || '', last_name: rest.join(' '), tags: ['member'], source: 'manual' });
+    const { id: cid } = await upsertContact(db(), req.accountId, { email, first_name: first || '', last_name: rest.join(' '), tags: ['member'], source: 'manual', entry: `Added by hand (members area: ${f.name})` });
     await grant(f, cid, 'added by hand');
     if (req.body?.send !== false) await sendAccess(f, await db().get('SELECT * FROM contacts WHERE id = ?', cid), { first: true });
     res.status(201).json({ ok: true, contact_id: cid });
