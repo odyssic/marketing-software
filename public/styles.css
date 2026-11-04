@@ -969,3 +969,12 @@ a.fc-more { display: block; text-decoration: none; }
 .sig-list { display: grid; gap: 10px; margin-bottom: 12px; }
 .sig-item { border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: grid; gap: 8px; }
 .sig-mini { background: #fff; border-radius: 8px; padding: 4px 0; overflow-x: auto; }
+
+.one-person { display: flex; gap: 6px; align-items: center; margin-top: -4px; }
+.one-person input { flex: 1; margin: 0; }
+
+.map.site .ports, .map.site .node-in { display: none; }
+.map.site .node { padding-bottom: 6px; }
+
+.pc-tags { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; margin-top: 2px; }
+.pc-tags .tag { font-size: .72rem; }

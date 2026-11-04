@@ -4,7 +4,9 @@
 const STAGES = [['audience', 'Audience'], ['lead', 'Leads'], ['customer', 'Customers'], ['regular', 'Regulars']];
 const STAGE_LABEL = { audience: 'Audience', lead: 'Lead', customer: 'Customer', regular: 'Regular' };
 const stagePill = (s) => `<span class="stage ${esc(s)}">${esc(STAGE_LABEL[s] || s)}</span>`;
-const personName = (c) => fullName(c) || c.email || 'Unnamed';
+// Someone known only by a phone number goes by that number, nicely formatted.
+const prettyPhone = (p) => { const m = String(p || '').match(/^\+1(\d{3})(\d{3})(\d{4})$/); return m ? `(${m[1]}) ${m[2]}-${m[3]}` : String(p || ''); };
+const personName = (c) => fullName(c) || c.email || prettyPhone(c.phone) || 'Unnamed';
 const addressLines = (c) => [c.address1, c.address2, [c.city, c.region].filter(Boolean).join(', ') + (c.postal ? ` ${c.postal}` : ''), c.country]
   .map((x) => String(x || '').trim()).filter(Boolean);
 
@@ -36,8 +38,9 @@ async function viewPeople() {
     ${people.length && peopleView() === 'cards' ? `<div class="pcards">${people.map((c) => `<a class="pcard" href="#/people/${c.id}">
         ${avatarHtml(c, 56)}
         <b class="pc-name">${esc(personName(c))}</b>
-        <span class="pc-sub">${esc(c.email || c.phone || 'no email')}</span>
+        <span class="pc-sub">${esc(fullName(c) ? c.email || prettyPhone(c.phone) || 'no email' : c.email && c.phone ? prettyPhone(c.phone) : '')}</span>
         <span class="pc-row">${stagePill(c.stage)}${c.unsubscribed ? '<span class="pill warn">unsubscribed</span>' : ''}</span>
+        ${c.tags?.length ? `<span class="pc-tags">${c.tags.slice(0, 4).map((t) => `<span class="tag">${esc(t)}</span>`).join('')}${c.tags.length > 4 ? `<span class="muted small">+${c.tags.length - 4}</span>` : ''}</span>` : ''}
         <span class="pc-meta" title="How they came in">${esc(cameFrom(c)) || '&nbsp;'}</span>
       </a>`).join('')}</div>`
     : people.length ? `<div class="card table-wrap"><table>
@@ -102,7 +105,7 @@ async function viewPerson(personId) {
       <h1 style="display:flex;align-items:center;gap:14px;flex-wrap:wrap"><button type="button" class="av-btn" data-photo title="Add or change their photo" aria-label="Add or change their photo">${avatarHtml(p, 64)}<span class="av-edit">${icon('camera')}</span></button>${esc(personName(p))} ${stagePill(p.stage)}</h1>
       <input type="file" accept="image/*" hidden data-photofile>
       <div class="muted">${[p.email && esc(p.email), p.phone && esc(p.phone), cameFrom(p) ? `came in through <b>${esc(cameFrom(p))}</b>` : '', `added ${fmtDate(p.created_at)}`].filter(Boolean).join(' · ')}</div></div>
-      <div class="row"><button class="btn" data-log>+ Log activity</button><button class="btn" data-addt>${icon('quote')} Add testimonial</button><button class="btn" data-edit>Edit</button></div></div>
+      <div class="row">${p.email && !p.unsubscribed ? `<a class="btn primary" href="#/email/new?to=${p.id}">${icon('mail')} Email</a>` : ''}<button class="btn" data-log>+ Log activity</button><button class="btn" data-addt>${icon('quote')} Add testimonial</button><button class="btn" data-edit>Edit</button></div></div>
     <div class="flowline">${STAGES.map(([k, l]) => `<div class="${k} ${STAGES.findIndex((s) => s[0] === k) <= STAGES.findIndex((s) => s[0] === p.stage) ? 'on' : ''}">${esc(l.replace(/s$/, ''))}</div>`).join('')}</div>
     <div class="grid two">
       <div class="card"><h2>Timeline</h2>

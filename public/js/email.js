@@ -83,6 +83,10 @@ async function viewCompose(bid) {
     api('GET', '/api/tags'), api('GET', '/api/contacts').catch(() => []), api('GET', '/api/segments').catch(() => [])]);
   const groups = [...new Set(segs.map((s) => s.group))];
   const toVal = b.segment ? `seg:${b.segment}` : b.tag ? `tag:${b.tag}` : '';
+  // Emailing one person: from ?to=<id> (People → Email them) or a saved draft.
+  const personLabel = (c) => `${fullName(c) || c.email} <${c.email}>`;
+  const oneId = Number((b.segment || '').match(/^person:(\d+)$/)?.[1] || qs.get('to') || 0);
+  let onePerson = oneId ? people.find((c) => c.id === oneId) : null;
   const locked = !['draft', 'scheduled'].includes(b.status);
   const acct = state.me.account;
   const sigs = await loadSignatures();
@@ -99,8 +103,12 @@ async function viewCompose(bid) {
       <form class="cmp-form" data-form>
         <label class="f">To<select name="to" ${locked ? 'disabled' : ''}><option value="">Everyone subscribed</option>
           ${groups.map((g) => `<optgroup label="${esc(g)}">${segs.filter((s) => s.group === g).map((s) => `<option value="seg:${esc(s.key)}" ${toVal === `seg:${s.key}` ? 'selected' : ''}>${esc(s.label)} (${s.count})</option>`).join('')}</optgroup>`).join('')}
-          ${tags.length ? `<optgroup label="Tags">${tags.map((t) => `<option value="tag:${esc(t.tag)}" ${toVal === `tag:${t.tag}` ? 'selected' : ''}>Tagged “${esc(t.tag)}” (${t.count})</option>`).join('')}</optgroup>` : ''}</select>
+          ${tags.length ? `<optgroup label="Tags">${tags.map((t) => `<option value="tag:${esc(t.tag)}" ${toVal === `tag:${t.tag}` ? 'selected' : ''}>Tagged “${esc(t.tag)}” (${t.count})</option>`).join('')}</optgroup>` : ''}
+          <optgroup label="One person">${onePerson ? `<option value="seg:person:${onePerson.id}" selected>${esc(personLabel(onePerson))}</option>` : ''}<option value="pick">Choose someone, or type an email…</option></optgroup></select>
           <span class="hint" data-count>Counting…</span></label>
+        <div class="f one-person" data-onebox hidden><input data-onein list="one-people" placeholder="Start typing a name or email" autocomplete="off" aria-label="Who to email">
+          <datalist id="one-people">${people.filter((c) => c.email && !c.unsubscribed).slice(0, 2000).map((c) => `<option value="${esc(c.email)}">${esc(fullName(c) || c.email)}</option>`).join('')}</datalist>
+          <button type="button" class="btn sm primary" data-oneok>Use</button><button type="button" class="btn sm ghost" data-onecancel>Cancel</button></div>
         <div class="f"><span class="lbl-row">Subject <span class="hint" data-sublen></span>${locked ? '' : fieldSelect('subject')}</span><input name="subject" maxlength="300" value="${esc(b.subject)}" placeholder="${b.resendOf ? `A new angle on “${esc(b.resendOf)}”` : 'A short, specific promise'}" ${locked ? 'disabled' : ''}></div>
         <div class="f"><span class="lbl-row">Preview text <span class="hint">the grey line after the subject in the inbox</span>${locked ? '' : fieldSelect('preheader')}</span><input name="preheader" maxlength="200" value="${esc(b.preheader || '')}" placeholder="Adds context so more people open" ${locked ? 'disabled' : ''}></div>
         <div class="f">Message
@@ -183,6 +191,32 @@ async function viewCompose(bid) {
     const at = form.body.value.indexOf('['); form.body.focus(); if (at >= 0) form.body.setSelectionRange(at, form.body.value.indexOf(']', at) + 1);
   }; });
   form.addEventListener('input', () => { dirty = true; render(); });
+  // "One person": pick a contact or type any email (a new address is added to People).
+  const oneBox = $('[data-onebox]'), oneIn = $('[data-onein]');
+  let lastTo = form.to.value;
+  form.to.addEventListener('change', () => {
+    if (form.to.value === 'pick') { oneBox.hidden = false; oneIn.focus(); form.to.value = lastTo; return; }
+    lastTo = form.to.value;
+  });
+  const usePerson = async () => {
+    const raw = oneIn.value.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(raw)) { toast('Pick someone from the list or type a full email address', true); return; }
+    let c = people.find((x) => (x.email || '').toLowerCase() === raw);
+    if (!c) {
+      const r = await api('POST', '/api/contacts', { email: raw, entry: 'Emailed directly' }).catch((e) => { toast(e.message, true); return null; });
+      if (!r) return;
+      c = { id: r.id, email: raw, first_name: '', last_name: '' }; people.push(c);
+    }
+    if (c.unsubscribed) { toast(`${c.email} has unsubscribed, so they can’t be emailed`, true); return; }
+    $('[name=to] optgroup[label="One person"] option[value^="seg:person:"]')?.remove();
+    const opt = document.createElement('option'); opt.value = `seg:person:${c.id}`; opt.textContent = personLabel(c);
+    $('[name=to] optgroup[label="One person"]').prepend(opt);
+    form.to.value = opt.value; lastTo = opt.value; oneBox.hidden = true; oneIn.value = '';
+    dirty = true; count(); render();
+  };
+  $('[data-oneok]').onclick = usePerson;
+  oneIn.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); usePerson(); } });
+  $('[data-onecancel]').onclick = () => { oneBox.hidden = true; };
   form.to.addEventListener('change', count);
   $$('[data-dev]').forEach((btn) => { btn.onclick = () => {
     $$('[data-dev]').forEach((x) => x.classList.toggle('on', x === btn));

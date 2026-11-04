@@ -28,6 +28,9 @@ const BC = {
   bc_click: { label: (s) => `Clicked “${s}”`, sql: 'clicked_at IS NOT NULL' },
 };
 const parseKey = (key) => {
+  // One person: "person:42" (email a single contact).
+  const p = String(key || '').match(/^person:(\d{1,9})$/);
+  if (p) return { kind: 'person', personId: Number(p[1]) };
   const m = String(key || '').match(/^(bc_noopen|bc_open|bc_click):(\d{1,9})$/);
   return m ? { kind: m[1], broadcastId: Number(m[2]) } : SEGMENTS[key] ? { kind: key } : null;
 };
@@ -37,6 +40,10 @@ const isSegment = (key) => Boolean(parseKey(key));
 async function members(db, accountId, key, { emailable = false } = {}) {
   const k = parseKey(key);
   if (!k) return [];
+  if (k.personId) {
+    const c = await db.get(`SELECT id FROM contacts WHERE account_id = ? AND id = ?${emailable ? " AND unsubscribed = 0 AND email <> ''" : ''}`, accountId, k.personId);
+    return c ? [c.id] : [];
+  }
   // The db wrapper uses ? placeholders; the definitions use $1, so swap them in.
   const sql = k.broadcastId
     ? `SELECT contact_id AS id FROM email_log WHERE account_id = ? AND broadcast_id = ? AND contact_id IS NOT NULL AND ${BC[k.kind].sql}`

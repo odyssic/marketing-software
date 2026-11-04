@@ -128,8 +128,8 @@ function tidyLayout(steps, entryId) {
 async function viewFunnel(id) {
   const f = await api('GET', `/api/funnels/${id}`);
   const link = publicUrl(`/f/${f.slug}`);
-  shell('pages', `${PAGES_TABS('funnels')}
-    <div class="head" style="margin-bottom:14px"><div><a href="#/flows?show=pageflows" class="small">← Flows</a>
+  shell('pages', `${PAGES_TABS(f.kind === 'website' ? 'websites' : 'funnels')}
+    <div class="head" style="margin-bottom:14px"><div><a href="#/flows?show=${f.kind === 'website' ? 'websites' : 'pageflows'}" class="small">← Flows</a>
       <h1 style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">${esc(f.name)} ${f.status === 'live' ? '<span class="pill ok">Live</span>' : '<span class="pill warn">Draft</span>'} ${purposeTag(f)}</h1></div>
       <div class="row"><div class="copy" style="min-width:320px"><input readonly value="${esc(link)}" aria-label="Funnel link">
         <button class="btn" data-copy="${esc(link)}">Copy</button><a class="btn" href="${esc(link)}" target="_blank" rel="noopener">Open ${icon('external')}</a></div>
@@ -144,7 +144,7 @@ async function viewFunnel(id) {
         <span class="muted small" data-fucount>${f.workflows?.length || 0} workflow${f.workflows?.length === 1 ? '' : 's'}</span></summary>
       <div data-fulist><p class="muted small" style="margin:8px 0">Loading…</p></div>
     </details>
-    <div class="map" tabindex="0">
+    <div class="map ${f.kind === 'website' ? 'site' : ''}" tabindex="0">
       <div class="map-tools">
         <button class="btn primary sm" data-addpage>+ Add page</button>
         <button class="btn sm" data-tidy title="Arrange pages as a tidy tree">${icon('sparkle')} Tidy up</button>
@@ -152,7 +152,7 @@ async function viewFunnel(id) {
         <button class="btn sm icon" data-zoom="-1" title="Zoom out">${icon('minus')}</button><span class="zoomlbl" data-zoomlbl>100%</span>
         <button class="btn sm icon" data-zoom="1" title="Zoom in">+</button><button class="btn sm" data-fit>Fit</button>
       </div>
-      <div class="map-help">Your flow: pages and the emails between them · Tap <b>+</b> on a link to add an email, a text or a page · Drag cards to move them · Drag the background to pan</div>
+      <div class="map-help">${f.kind === 'website' ? 'Your website: pages in menu order, with the emails that follow its forms · Use a page’s ⋯ menu to move it or hide it from the menu · Tap <b>+</b> after a form page to add an email or text' : 'Your flow: pages and the emails between them · Tap <b>+</b> on a link to add an email, a text or a page · Drag cards to move them · Drag the background to pan'}</div>
       <div class="world"><svg class="edges"></svg><div class="nodes"></div></div>
     </div>`);
   bindCopy();
@@ -193,10 +193,16 @@ async function viewFunnel(id) {
   };
   const save = (body) => api('PUT', `/api/funnels/${id}/map`, body).catch((err) => toast(err.message, true));
   const reload = () => viewFunnel(id);
+  // Websites read left to right in menu order (pages are reached from the menu, not by links);
+  // pageflows are laid out as a tree that follows their links.
+  const isSite = f.kind === 'website';
+  const layout = () => (isSite
+    ? Object.fromEntries([...m.steps].sort((a, b) => a.position - b.position || a.id - b.id).map((st, i) => [st.id, { x: i * (NODE_W + COL_GAP), y: 0 }]))
+    : tidyLayout(m.steps, m.entry));
 
   // First visit (or pages made before the map existed): lay out automatically.
   if (m.steps.some((s) => s.x === null || s.y === null)) {
-    const pos = tidyLayout(m.steps, m.entry);
+    const pos = layout();
     m.steps.forEach((s) => Object.assign(s, pos[s.id]));
     save({ steps: m.steps.map((s) => ({ id: s.id, x: s.x, y: s.y })) });
   }
@@ -277,7 +283,13 @@ async function viewFunnel(id) {
       const cfg = w.graph.nodes[w.graph.root]?.config || {};
       const ev = cfg.event;
       const pinned = cfg.step_id && pages.find((s) => s.id === cfg.step_id);
-      const at = pinned ? pinned : ev === 'purchase' ? pages.find((s) => has(s, ['pricing'])) : ['signup', 'inquiry', 'subscribe', 'booking'].includes(ev) ? pages.find((s) => has(s, ['form', 'booking'])) : null;
+      // The page where that thing happens: its form's purpose decides (an inquiry form, a sign-up form...).
+      const formFor = (purposes) => pages.find((s) => s.blocks.some((b) => b.type === 'form' && purposes.includes(String(b.purpose || 'Sign up').toLowerCase())));
+      const at = pinned ? pinned : ev === 'purchase' ? pages.find((s) => has(s, ['pricing']))
+        : ev === 'inquiry' ? formFor(['inquiry']) || pages.find((s) => has(s, ['form']))
+          : ev === 'booking' ? pages.find((s) => has(s, ['booking']))
+            : ev === 'subscribe' ? formFor(['newsletter']) || formFor(['sign up'])
+              : ev === 'signup' ? formFor(['sign up', 'newsletter']) || pages.find((s) => has(s, ['form', 'booking'])) : null;
       const page = at || pages[0];
       if (page) (m.fuAt[page.id] = m.fuAt[page.id] || []).push(w);
     }
@@ -303,7 +315,7 @@ async function viewFunnel(id) {
       if (!v) return;
       const fresh = await api('GET', `/api/funnels/${id}`);
       m.steps = fresh.steps;
-      const pos = tidyLayout(m.steps, m.entry);
+      const pos = layout();
       m.steps.forEach((x) => Object.assign(x, pos[x.id]));
       await save({ steps: m.steps.map((x) => ({ id: x.id, x: x.x, y: x.y })) });
       toast('Page added. Click “Edit page” to design it.');
@@ -526,7 +538,7 @@ async function viewFunnel(id) {
     const ids = byId();
     const vertical = m.steps.some((s) => ids[s.next_step_id] && ids[s.next_step_id].y > s.y + hOf(s) * 0.6 && Math.abs(ids[s.next_step_id].x - s.x) < NODE_W);
     if (overlap || vertical) {
-      const pos = tidyLayout(m.steps, m.entry);
+      const pos = layout();
       m.steps.forEach((s) => Object.assign(s, pos[s.id]));
       renderNodes(); fit();
       save({ steps: m.steps.map((s) => ({ id: s.id, x: s.x, y: s.y })) });
@@ -586,8 +598,8 @@ async function viewFunnel(id) {
         if (fu) buttons += `<div class="fu-chip" data-chip="${s.id}" style="left:${mid.x}px;top:${mid.y}px">${fu}</div>`;
         if (p === 'yes') buttons += `<button class="edge-add" style="left:${mid.x}px;top:${fu ? mid.y + chipHalf(s.id) + 20 : mid.y + 26}px" data-edgeadd="${s.id}" ${fu ? `data-below="${s.id}"` : ''} title="Add an email, a text or a page here" aria-label="Add an email, a text or a page here">${icon('plus')}</button>`;
       }
-      // Follow-ups after the last page sit just to its right.
-      if (!ids[s.next_step_id]) {
+      // Follow-ups after the last page sit just to its right (on websites: after pages that collect people).
+      if (!ids[s.next_step_id] && (f.kind !== 'website' || followupChip(s.id) || s.blocks.some((x) => ['form', 'booking', 'pricing'].includes(x.type)))) {
         const fu = followupChip(s.id);
         const a = anchor(s, 'yes');
         if (fu) buttons += `<div class="fu-chip end" data-chip="${s.id}" style="left:${a.x + 24}px;top:${a.y}px">${fu}</div>`;
@@ -749,7 +761,7 @@ async function viewFunnel(id) {
     if (ds.addpage !== undefined) {
       addPage({ x: Math.round((mapEl.clientWidth / 2 - m.panX) / m.zoom - NODE_W / 2), y: Math.round((mapEl.clientHeight / 2 - m.panY) / m.zoom - 80) });
     } else if (ds.tidy !== undefined) {
-      const pos = tidyLayout(m.steps, m.entry);
+      const pos = layout();
       m.steps.forEach((s) => Object.assign(s, pos[s.id]));
       renderNodes(); fit();
       save({ steps: m.steps.map((s) => ({ id: s.id, x: s.x, y: s.y })) });
@@ -769,13 +781,30 @@ async function viewFunnel(id) {
       menu = document.createElement('div');
       menu.className = 'nodemenu';
       menu.dataset.for = ds.menu;
-      menu.innerHTML = `${s.id === m.entry ? '' : '<button data-act="start">' + icon('play') + ' Make this the start page</button>'}
+      menu.innerHTML = `${f.kind === 'website' ? `<button data-act="left">${icon('arrowRight')} Move left in the menu</button><button data-act="right">${icon('arrowRight')} Move right in the menu</button>
+        <button data-act="hide">${icon('eye')} ${s.settings?.hideInMenu ? 'Show in the menu' : 'Hide from the menu'}</button>`
+        : s.id === m.entry ? '' : '<button data-act="start">' + icon('play') + ' Make this the start page</button>'}
         <button data-act="rename">${icon('pencil')} Rename / change URL</button><button data-act="delete" class="danger">${icon('trash')} Delete page</button>`;
       t.closest('.node').append(menu);
       menu.onclick = async (ev) => {
         const act = ev.target.dataset.act;
         closeMenu();
         if (act === 'start') { m.entry = s.id; renderNodes(); await save({ entry_step_id: s.id }); toast('Visitors now start on this page'); }
+        if (act === 'left' || act === 'right') {
+          const order = [...m.steps].sort((x, y) => x.position - y.position || x.id - y.id).map((x) => x.id);
+          const i = order.indexOf(s.id), j = i + (act === 'left' ? -1 : 1);
+          if (j < 0 || j >= order.length) { toast(act === 'left' ? 'Already first in the menu' : 'Already last in the menu'); return; }
+          [order[i], order[j]] = [order[j], order[i]];
+          await api('PUT', `/api/websites/${id}/order`, { ids: order });
+          order.forEach((sid, k) => { byId()[sid].position = k; });
+          const pos = layout(); m.steps.forEach((x) => Object.assign(x, pos[x.id]));
+          await save({ steps: m.steps.map((x) => ({ id: x.id, x: x.x, y: x.y })) });
+          return reload();
+        }
+        if (act === 'hide') {
+          await api('PUT', `/api/steps/${s.id}`, { name: s.name, settings: { ...s.settings, hideInMenu: !s.settings?.hideInMenu } });
+          toast(s.settings?.hideInMenu ? 'Back in the menu' : 'Hidden from the menu (still reachable by link)'); return reload();
+        }
         if (act === 'rename') {
           const r = await modal('Page settings', `<label class="f">Name<input name="name" required value="${esc(s.name)}"></label>
             <label class="f">URL <span class="hint">/f/${esc(f.slug)}/<b>this-part</b></span><input name="slug" required value="${esc(s.slug)}"></label>`,
