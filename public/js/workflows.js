@@ -27,15 +27,20 @@ const leverPill = (k) => `<span class="lever-tag" style="--c:${LEVER_UI[k]?.colo
 
 async function viewWorkflows() {
   const list = await api('GET', '/api/workflows');
+  // Live follow-ups that start on exactly the same thing: one person would get both.
+  const same = {};
+  list.filter((w) => w.status === 'active').forEach((w) => { (same[w.triggerKey] = same[w.triggerKey] || []).push(w); });
+  const twins = (w) => (w.status === 'active' ? (same[w.triggerKey] || []).filter((x) => x.id !== w.id) : []);
   shell('workflows', `
-    <div class="head"><div><h1>Workflows</h1><div class="muted">Follow-ups that run themselves. Triggers, waits and emails live together on one map.</div></div>
+    <div class="head"><div><h1>Workflows</h1><div class="muted">Follow-ups that run themselves. <b>On</b> means it’s running: every time its trigger happens, from any page or import, it starts for that person. <b>Off</b> means nothing sends.</div></div>
       <button class="btn primary" data-new>+ New workflow</button></div>
     <div class="wf-grid">${list.map((w) => `<article class="wf-card" data-open="${w.id}" tabindex="0">
       <div class="row" style="justify-content:space-between;align-items:flex-start;flex-wrap:nowrap">
-        <div><div class="row" style="gap:6px;margin-bottom:6px">${leverPill(w.lever)}${w.status === 'active' ? '<span class="pill ok">Live</span>' : w.status === 'paused' ? '<span class="pill warn">Paused</span>' : '<span class="pill">Off</span>'}</div>
+        <div><div class="row" style="gap:6px;margin-bottom:6px">${leverPill(w.lever)}${w.status === 'active' ? '<span class="pill ok">On · running</span>' : '<span class="pill">Off</span>'}</div>
           <h3>${esc(w.name)}</h3></div>
         <label class="switch" title="${w.status === 'active' ? 'Turn off' : 'Turn on'}"><input type="checkbox" data-toggle="${w.id}" ${w.status === 'active' ? 'checked' : ''}><span></span></label></div>
-      <p class="muted small">${icon('bolt')} When someone ${esc((w.triggerLabel || '').toLowerCase())}</p>
+      <p class="muted small">${icon('bolt')} ${w.status === 'active' ? 'Runs when someone' : 'Would run when someone'} ${esc((w.triggerLabel || '').toLowerCase())}</p>
+      ${twins(w).length ? `<p class="wf-twin">${icon('alert')} Also on: “${esc(twins(w)[0].name)}”${twins(w).length > 1 ? ` and ${twins(w).length - 1} more` : ''} starts on the same thing, so people get both. Turn one off?</p>` : ''}
       <div class="wf-meta"><span>${icon('mail')} ${w.emails} email${w.emails === 1 ? '' : 's'}</span><span>${w.steps} step${w.steps === 1 ? '' : 's'}</span>
         <span>${w.active_runs} in progress</span><span>${w.emails_sent} sent</span></div></article>`).join('')}</div>`);
   $$('[data-open]').forEach((c) => {
@@ -45,7 +50,7 @@ async function viewWorkflows() {
   $$('[data-toggle]').forEach((t) => { t.onchange = async () => {
     try {
       await api('PUT', `/api/workflows/${t.dataset.toggle}/status`, { status: t.checked ? 'active' : 'paused' });
-      toast(t.checked ? 'Workflow is live' : 'Workflow paused');
+      toast(t.checked ? 'On: it runs every time its trigger happens' : 'Off: nothing will send');
       viewWorkflows();
     } catch (err) { t.checked = !t.checked; toast(err.message, true); }
   }; });

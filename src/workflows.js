@@ -414,7 +414,9 @@ function createWorkflows({ getDb, HttpError, id, people, messaging, getAccount }
     const summary = (w) => {
       const t = w.graph.nodes?.[w.graph.root]?.config || {};
       const steps = Object.values(w.graph.nodes || {});
-      return { trigger: t.event, triggerLabel: TRIGGERS[t.event], emails: steps.filter((n) => n.type === 'email').length, steps: steps.length - 1 };
+      // What starts it, exactly (used to spot two live follow-ups that fire on the same thing).
+      const triggerKey = [t.event, t.funnel_id || '', t.tag || '', t.product || ''].join('|');
+      return { trigger: t.event, triggerKey, triggerLabel: TRIGGERS[t.event], emails: steps.filter((n) => n.type === 'email').length, steps: steps.length - 1 };
     };
 
     api.get('/workflows', async (req, res) => {

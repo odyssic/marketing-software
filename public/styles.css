@@ -868,3 +868,6 @@ a.fc-more { display: block; text-decoration: none; }
 .addr-opt svg { width: 15px; height: 15px; color: var(--muted); flex: none; }
 .addr-opt:hover, .addr-opt.on { background: var(--brand-soft); }
 .addr-src { font-size: .7rem; color: var(--muted); padding: 4px 12px 6px; text-align: right; }
+
+.wf-twin { display: flex; gap: 6px; align-items: flex-start; font-size: .82rem; color: #854d0e; background: #fef9e7; border-radius: 8px; padding: 6px 8px; margin: 4px 0 8px; }
+.wf-twin svg { width: 15px; height: 15px; flex: none; margin-top: 2px; }
