@@ -39,7 +39,9 @@ function renderDashboard() {
     ${dash.noPages && !dash.customize ? `<div class="card setup-nudge"><div><b>Get your first page live in about two minutes</b>
       <div class="muted small">Tell us what kind of business this is. We’ll build the page, booking hours and follow-ups.</div></div>
       <a class="btn primary" href="#/setup">Set it up</a></div>` : ''}
-    ${!dash.customize && dash.week?.length ? `<section class="card week"><h2>This week</h2><ul>${dash.week.map((l) => `<li>${esc(l)}</li>`).join('')}</ul></section>` : ''}
+    ${dash.customize ? '' : '<section data-metrics aria-label="Business numbers"></section>'}
+    ${!dash.customize && dash.week?.length ? `<section class="card week"><h2>This week, in plain words</h2><ul>${dash.week.map((l) => `<li>${esc(l)}</li>`).join('')}</ul></section>` : ''}
+    <h2 class="section-h" style="margin-top:26px">Where to grow next</h2>
     <div class="leverbar" role="tablist">${Object.entries(LEVER_UI).map(([k, l]) => `<button role="tab" aria-selected="${k === lv}" data-lever="${k}" style="--c:${l.color}" class="${k === lv ? 'on' : ''}"><i class="dot"></i>
       ${k !== 'all' && dash.levers.levers[k]?.score !== null && dash.levers.levers[k]?.score !== undefined ? `<span class="sc">${dash.levers.levers[k].score}</span>` : ''}${esc(l.label)}${k === focus ? ' <span class="focus-dot" title="Focus here">●</span>' : ''}</button>`).join('')}</div>
     ${dash.customize ? `<div class="tray"><span class="muted small">Hidden tiles:</span>
@@ -51,6 +53,7 @@ function renderDashboard() {
             <button data-width title="Change width">${t.width === 'full' ? '½' : icon('resize')}</button><button data-hide title="Hide">${icon('x')}</button></div>` : ''}</header>
         <div class="tbody"><div class="skeleton"></div></div></section>`).join('')}
     </div>`);
+  renderMetrics();
 
   $$('[data-lever]').forEach((b) => { b.onclick = () => switchLever(b.dataset.lever); });
   $('[data-customize]').onclick = async () => {

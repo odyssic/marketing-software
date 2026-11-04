@@ -30,6 +30,7 @@ const { registerInvoices } = require('./invoices');
 const { registerSetup } = require('./setup');
 const { registerTexting } = require('./texting');
 const { registerMembers } = require('./members');
+const { registerMetrics } = require('./metrics');
 
 const slugify = (s) => String(s || '').toLowerCase().normalize('NFKD').replace(/[^\w\s-]/g, '')
   .trim().replace(/[\s_]+/g, '-').replace(/-+/g, '-').slice(0, 60) || 'page';
@@ -1164,6 +1165,7 @@ function createApp({ dbPath } = {}) {
   });
   registerDashboard(api, { getDb: () => db, HttpError, leversFor, formatMoney, getAccount, weeklyMove: (accountId) => moves.current(accountId) });
 
+  registerMetrics(api, { getDb: () => db });
   const members = registerMembers(app, api, { getDb: () => db, HttpError, id, upsertContact, messaging, publicBase, getSecret: () => secret,
     createFunnel: (...x) => createFunnel(...x), getFunnel: (...x) => getFunnel(...x) });
   const texting = registerTexting(app, api, { getDb: () => db, HttpError, id, upsertContact, logEvent, messaging, publicBase, getSecret: () => secret });
