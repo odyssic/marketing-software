@@ -8,7 +8,26 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '
 const app = $('#app');
 const state = { me: null };
 
+// Double-click protection for every form: while a submitted form's requests are
+// running, more submits are ignored and its buttons are greyed out.
+let inflight = 0;
+const settle = () => { if (inflight > 0) return; $$('form[data-busy]').forEach((f) => { delete f.dataset.busy; $$('button[data-busydis]', f).forEach((b) => { b.disabled = false; delete b.dataset.busydis; }); }); };
+document.addEventListener('submit', (e) => {
+  const f = e.target;
+  if (f.dataset.busy) { e.preventDefault(); e.stopImmediatePropagation(); return; }
+  f.dataset.busy = '1';
+  setTimeout(() => {
+    $$('button:not([type=button]):not(:disabled)', f).forEach((b) => { b.disabled = true; b.dataset.busydis = '1'; });
+    // Nothing was sent (e.g. a validation message): unlock straight away.
+    setTimeout(settle, 60);
+  });
+}, true);
+
 async function api(method, url, body) {
+  inflight++;
+  try { return await apiCall(method, url, body); } finally { inflight--; setTimeout(settle, 0); }
+}
+async function apiCall(method, url, body) {
   const res = await fetch(url, {
     method,
     headers: { 'Content-Type': 'application/json' },
@@ -232,7 +251,7 @@ async function switchAccount(accountId) {
   route();
 }
 async function newSubAccount() {
-  const r = await modal('New sub-account', `<p class="muted small">A separate workspace for another business: its own people, funnels, emails and dashboard. No limit on how many.</p>
+  const r = await modal('New sub-account', `<p class="muted small">A separate workspace for another business: its own people, pageflows, emails and dashboard. No limit on how many.</p>
     <label class="f">Business name<input name="name" required placeholder="e.g. Corner Bakery"></label>
     <label class="f">What kind of business?<select name="business_type">${BUSINESS_OPTIONS}</select></label>`,
   { submit: 'Create and switch', onSubmit: (v) => api('POST', '/api/accounts', { ...v, switch: true }) });

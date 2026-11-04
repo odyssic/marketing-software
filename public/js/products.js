@@ -30,7 +30,7 @@ async function viewProducts(tab) {
     const r = await modal('New product', form(), { submit: 'Create product', onSubmit: (v) => api('POST', '/api/products', v) });
     if (r) {
       toast('Product created');
-      if (await modal('Sell it on a page?', '<p class="muted">Create a pricing page funnel for this product now? You can edit everything after.</p>', { submit: 'Create pricing page' })) {
+      if (await modal('Sell it on a page?', '<p class="muted">Create a pricing page pageflow for this product now? You can edit everything after.</p>', { submit: 'Create pricing page' })) {
         const f = await api('POST', '/api/funnels', { name: `${(await api('GET', '/api/products')).find((x) => x.id === r.id).name} pricing`, template: 'pricing' });
         location.hash = `#/funnels/${f.id}`;
       } else viewProducts();

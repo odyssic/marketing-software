@@ -4,14 +4,14 @@
 async function viewFunnels() {
   const funnels = await api('GET', '/api/funnels');
   shell('pages', `${PAGES_TABS('funnels')}
-    <div class="head"><div><h1>Funnels</h1><div class="muted">Landing pages that turn visitors into contacts.</div></div>
-      <button class="btn primary" data-new>+ New funnel</button></div>
+    <div class="head"><div><h1>Pageflows</h1><div class="muted">Landing pages that turn visitors into contacts.</div></div>
+      <button class="btn primary" data-new>+ New pageflow</button></div>
     ${funnels.length ? `<div class="card table-wrap"><table>
       <tr><th>Name</th><th>Pages</th><th>Views</th><th>Opt-ins</th><th>Conversion</th><th>Created</th></tr>
       ${funnels.map((f) => `<tr class="click" data-go="#/funnels/${f.id}"><td><strong>${esc(f.name)}</strong><div class="muted small">/f/${esc(f.slug)}</div></td>
         <td>${f.steps}</td><td>${f.views}</td><td>${f.optins}</td><td>${f.views ? Math.round((f.optins / f.views) * 1000) / 10 : 0}%</td><td>${fmtDate(f.created_at)}</td></tr>`).join('')}
-    </table></div>` : `<div class="card empty"><div class="big">${icon('magnet')}</div><h2>No funnels yet</h2>
-      <p>Pick a template and you’ll have a live page in under a minute.</p><button class="btn primary" data-new>Create your first funnel</button></div>`}`);
+    </table></div>` : `<div class="card empty"><div class="big">${icon('magnet')}</div><h2>No pageflows yet</h2>
+      <p>Pick a template and you’ll have a live page in under a minute.</p><button class="btn primary" data-new>Create your first pageflow</button></div>`}`);
   bindRowLinks();
   $$('[data-new]').forEach((b) => { b.onclick = newFunnel; });
 }
@@ -20,18 +20,18 @@ async function newFunnel() {
   const templates = await api('GET', '/api/templates');
   const bg = document.createElement('div');
   bg.className = 'modal-bg';
-  bg.innerHTML = `<form class="modal wide"><h2>New funnel</h2>
+  bg.innerHTML = `<form class="modal wide"><h2>New pageflow</h2>
     <div class="describe"><label class="f" style="margin:0">Describe it in one sentence <span class="hint">we’ll pick the pages and write the words${state.me.aiLive ? ' in your voice' : ''}</span>
       <textarea data-sentence rows="2" placeholder="e.g. A free glaze guide for beginner potters that leads to my $49 starter kit"></textarea></label>
       <div class="row" style="margin-top:8px"><button type="button" class="btn primary" data-describe>${icon('sparkle')} Build it for me</button><span class="err" data-derr style="margin:0"></span></div></div>
     <div class="or"><span>or pick a template</span></div>
-    <label class="f">Funnel name<input name="name" placeholder="e.g. Free glaze guide"></label>
+    <label class="f">Pageflow name<input name="name" placeholder="e.g. Free glaze guide"></label>
     <div class="f" style="margin-bottom:6px;font-size:.85rem;font-weight:500">Start from</div>
     <div class="tpl-grid" role="radiogroup">${templates.map((t, i) => `<label class="tpl ${i === 0 ? 'on' : ''}"><input type="radio" name="template" value="${t.key}" ${i === 0 ? 'checked' : ''} class="sr">
       <b>${esc(t.label)}</b><span class="muted small">${esc(t.description)}</span>
       <span class="small">${t.pages} page${t.pages === 1 ? '' : 's'}${t.workflows.length ? ` · ${icon('bolt')} ${t.workflows.map(esc).join(', ')}` : ''}</span></label>`).join('')}</div>
     <p class="hint">Follow-up workflows are created switched off, so you can review the emails first.</p>
-    <div class="err"></div><div class="actions"><button type="button" class="btn" data-x>Cancel</button><button class="btn primary">Create funnel</button></div></form>`;
+    <div class="err"></div><div class="actions"><button type="button" class="btn" data-x>Cancel</button><button class="btn primary">Create pageflow</button></div></form>`;
   document.body.append(bg);
   const close = () => { bg.remove(); if (location.hash === '#/funnels/new') location.hash = '#/funnels'; };
   bg.addEventListener('mousedown', (e) => { if (e.target === bg) close(); });
@@ -50,11 +50,11 @@ async function newFunnel() {
   };
   $('form', bg).onsubmit = async (e) => {
     e.preventDefault();
-    if (!$('[name=name]', bg).value.trim()) { $('.err:not([data-derr])', bg).textContent = 'Name the funnel, or describe it above'; $('[name=name]', bg).focus(); return; }
+    if (!$('[name=name]', bg).value.trim()) { $('.err:not([data-derr])', bg).textContent = 'Name the pageflow, or describe it above'; $('[name=name]', bg).focus(); return; }
     try {
       const r = await api('POST', '/api/funnels', Object.fromEntries(new FormData(e.target)));
       bg.remove();
-      toast(r.workflows?.length ? `Funnel created with ${r.workflows.length} follow-up workflow${r.workflows.length === 1 ? '' : 's'}` : 'Funnel created');
+      toast(r.workflows?.length ? `Pageflow created with ${r.workflows.length} follow-up workflow${r.workflows.length === 1 ? '' : 's'}` : 'Pageflow created');
       location.hash = `#/funnels/${r.id}`;
     } catch (err) { $('.err', bg).textContent = err.message; }
   };
@@ -69,7 +69,7 @@ const NODE_W = 230;
 // The map reads left to right, like the page strips on the Pages screen:
 // each step is a column; "No thanks" branches sit below. The gap between
 // columns leaves room for the follow-up emails that run in between.
-const COL_GAP = 210;
+const COL_GAP = 280;
 const ROW_GAP = 60;
 const NODE_H = 300; // card height with its page picture
 const PORTS = { yes: { key: 'next_step_id', at: 0.27, label: '✓ Yes / Next' }, no: { key: 'no_step_id', at: 0.75, label: '✕ No thanks' } };
@@ -129,17 +129,17 @@ async function viewFunnel(id) {
   const f = await api('GET', `/api/funnels/${id}`);
   const link = publicUrl(`/f/${f.slug}`);
   shell('pages', `${PAGES_TABS('funnels')}
-    <div class="head" style="margin-bottom:14px"><div><a href="#/funnels" class="small">← All funnels</a>
+    <div class="head" style="margin-bottom:14px"><div><a href="#/funnels" class="small">← All pageflows</a>
       <h1 style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">${esc(f.name)} ${f.status === 'live' ? '<span class="pill ok">Live</span>' : '<span class="pill warn">Draft</span>'} ${purposeTag(f)}</h1></div>
       <div class="row"><div class="copy" style="min-width:320px"><input readonly value="${esc(link)}" aria-label="Funnel link">
         <button class="btn" data-copy="${esc(link)}">Copy</button><a class="btn" href="${esc(link)}" target="_blank" rel="noopener">Open ${icon('external')}</a></div>
-        <button class="btn" data-rename>Settings</button><button class="btn" data-dup title="Make a copy of this funnel, its pages and follow-ups">${icon('copy')} Duplicate</button><button class="btn danger" data-del>Delete</button>
+        <button class="btn" data-rename>Settings</button><button class="btn" data-dup title="Make a copy of this pageflow, its pages and follow-ups">${icon('copy')} Duplicate</button><button class="btn danger" data-del>Delete</button>
         ${f.status === 'live' ? '<button class="btn" data-unpublish>Unpublish</button>' : '<button class="btn primary" data-publish>Publish</button>'}</div></div>
     <div class="fstats" data-fstats aria-label="Funnel statistics"></div>
     <div data-leak></div>
     <div data-sources></div>
-    <details class="fu card" data-fu ${f.workflows?.length ? 'open' : ''}>
-      <summary><span>${icon('bolt')} <b>Follow-ups</b> <span class="muted small">emails and steps that run after someone goes through this funnel</span></span>
+    <details class="fu card" data-fu hidden>
+      <summary><span>${icon('bolt')} <b>Follow-ups</b> <span class="muted small">emails and steps that run after someone goes through this pageflow</span></span>
         <span class="muted small" data-fucount>${f.workflows?.length || 0} workflow${f.workflows?.length === 1 ? '' : 's'}</span></summary>
       <div data-fulist><p class="muted small" style="margin:8px 0">Loading…</p></div>
     </details>
@@ -151,7 +151,7 @@ async function viewFunnel(id) {
         <button class="btn sm icon" data-zoom="-1" title="Zoom out">${icon('minus')}</button><span class="zoomlbl" data-zoomlbl>100%</span>
         <button class="btn sm icon" data-zoom="1" title="Zoom in">+</button><button class="btn sm" data-fit>Fit</button>
       </div>
-      <div class="map-help">Drag cards to move them · Drag from <b class="y">✓ Yes</b> or <b class="n">✕ No</b> to connect or create a page · Drag the background to pan</div>
+      <div class="map-help">Your flow: pages and the emails between them · Tap <b>+</b> on a link to add an email, a text or a page · Drag cards to move them · Drag the background to pan</div>
       <div class="world"><svg class="edges"></svg><div class="nodes"></div></div>
     </div>`);
   bindCopy();
@@ -182,8 +182,8 @@ async function viewFunnel(id) {
       modal('Fix these before publishing', `<p class="muted small">Checked before going live so customers never hit a broken page.</p>${list(pre.problems)}`, { submit: 'OK' });
       return;
     }
-    if (!await modal('Publish this funnel?', `<p>Everything checks out${pre.problems.length ? ', with a note or two:' : '.'}</p>${list(pre.problems)}<p class="muted small">Your pages go live at the funnel link. You can unpublish any time.</p>`, { submit: 'Publish' })) return;
-    try { await api('POST', `/api/funnels/${id}/publish`); toast('Published! Your funnel is live'); viewFunnel(id); } catch (err) { toast(err.message, true); }
+    if (!await modal('Publish this pageflow?', `<p>Everything checks out${pre.problems.length ? ', with a note or two:' : '.'}</p>${list(pre.problems)}<p class="muted small">Your pages go live at the pageflow link. You can unpublish any time.</p>`, { submit: 'Publish' })) return;
+    try { await api('POST', `/api/funnels/${id}/publish`); toast('Published! Your pageflow is live'); viewFunnel(id); } catch (err) { toast(err.message, true); }
   };
   const unpub = $('[data-unpublish]');
   if (unpub) unpub.onclick = async () => {
@@ -268,12 +268,99 @@ async function viewFunnel(id) {
     const has = (s, types) => s.blocks.some((b) => types.includes(b.type));
     m.fuAt = {};
     for (const w of list) {
-      const ev = w.graph.nodes[w.graph.root]?.config?.event;
-      const at = ev === 'purchase' ? pages.find((s) => has(s, ['pricing'])) : ['signup', 'inquiry', 'subscribe', 'booking'].includes(ev) ? pages.find((s) => has(s, ['form', 'booking'])) : null;
+      const cfg = w.graph.nodes[w.graph.root]?.config || {};
+      const ev = cfg.event;
+      const pinned = cfg.step_id && pages.find((s) => s.id === cfg.step_id);
+      const at = pinned ? pinned : ev === 'purchase' ? pages.find((s) => has(s, ['pricing'])) : ['signup', 'inquiry', 'subscribe', 'booking'].includes(ev) ? pages.find((s) => has(s, ['form', 'booking'])) : null;
       const page = at || pages[0];
       if (page) (m.fuAt[page.id] = m.fuAt[page.id] || []).push(w);
     }
   }
+  // Roughly half the height of a page's follow-up cards, to sit the + just below them.
+  const chipHalf = (stepId) => (m.fuAt?.[stepId] || []).reduce((n, w) => n + 70 + 96 * Math.min(3, chain(w).filter(([, x]) => x.type === 'email' || x.type === 'sms').length) + (chain(w).at(-1)?.[1].type === 'condition' ? 90 : 0), 0) / 2;
+  const STEP_UI_LABEL = { wait: 'Wait', tag: 'Tag', subscribe: 'Subscribe', notify: 'Notify me', deal: 'Create deal', condition: 'Another split' };
+
+  // The + on a link: an email or text in this page's follow-up (made if there isn't one), or a page in between.
+  async function addHere(stepId, between) {
+    const s = byId()[stepId];
+    const r = await modal(`After “${s.name}”`, `<div class="choices">
+      <label class="choice"><input type="radio" name="kind" value="email" checked hidden><span class="ci">${icon('mail')}</span><span><b>Send an email</b><small>To people who go through this page</small></span></label>
+      <label class="choice"><input type="radio" name="kind" value="sms" hidden><span class="ci">${icon('chat')}</span><span><b>Send a text</b><small>Only to people who said yes to texts</small></span></label>
+      <label class="choice"><input type="radio" name="kind" value="wait" hidden><span class="ci">${icon('clock')}</span><span><b>Wait</b><small>Pause a few days before the next step</small></span></label>
+      <label class="choice"><input type="radio" name="kind" value="split" hidden><span class="ci">${icon('branch')}</span><span><b>Yes / no split</b><small>e.g. if they opened the email send one thing, if not another</small></span></label>
+      ${between ? `<label class="choice"><input type="radio" name="kind" value="page" hidden><span class="ci">${icon('page')}</span><span><b>Add a page here</b><small>In between, before “${esc(byId()[s.next_step_id]?.name || '')}”</small></span></label>` : ''}</div>`, { submit: 'Next' });
+    if (!r) return;
+    if (r.kind === 'page') {
+      const t = byId()[s.next_step_id];
+      const v = await modal('Add a page', '<label class="f">Page name<input name="name" required placeholder="e.g. Special offer"></label>',
+        { submit: 'Add page', onSubmit: (x) => api('POST', `/api/funnels/${id}/steps`, { name: x.name, from: s.id, port: 'yes', insert: true, x: Math.round((s.x + t.x) / 2), y: s.y + 40 }) });
+      if (!v) return;
+      const fresh = await api('GET', `/api/funnels/${id}`);
+      m.steps = fresh.steps;
+      const pos = tidyLayout(m.steps, m.entry);
+      m.steps.forEach((x) => Object.assign(x, pos[x.id]));
+      await save({ steps: m.steps.map((x) => ({ id: x.id, x: x.x, y: x.y })) });
+      toast('Page added. Click “Edit page” to design it.');
+      return reload();
+    }
+    let w = m.fuAt?.[stepId]?.[0];
+    if (!w) {
+      // A follow-up that starts when someone uses this page: buys on a sales page, books, asks, or signs up.
+      const has = (t) => s.blocks.some((b) => b.type === t);
+      const form = s.blocks.find((b) => b.type === 'form');
+      const event = has('pricing') ? 'purchase' : has('booking') ? 'booking' : String(form?.purpose || '').toLowerCase() === 'inquiry' ? 'inquiry' : 'signup';
+      const made = await api('POST', '/api/workflows', { template: 'blank', name: `${f.name}: After ${s.name}`, funnel_id: id });
+      w = await api('GET', `/api/workflows/${made.id}`);
+      w.graph.nodes[w.graph.root].config = { event, funnel_id: id, repeat: event !== 'signup', step_id: s.id };
+      await api('PUT', `/api/workflows/${made.id}`, { graph: w.graph });
+      f.workflows = (await api('GET', `/api/funnels/${id}`)).workflows;
+    }
+    const steps = chain(w);
+    const last = steps[steps.length - 1];
+    if (last[1].type === 'condition') { toast('This follow-up already splits. Add to its Yes or No path on the full follow-up.'); location.hash = `#/workflows/${w.id}`; return; }
+    if (r.kind === 'split') return addSplit(w, last[0]);
+    await addStep(w, last[0], r.kind);
+  }
+
+  // A yes/no split at the end of a follow-up: wait, check, then one message for yes and one for no.
+  async function addSplit(w, after) {
+    const branch = (k, title, def) => `<fieldset class="split-b"><legend>${title}</legend>
+      <div class="seg" role="group">${[['none', 'Nothing'], ['email', 'Email'], ['sms', 'Text']].map(([v, l]) => `<label><input type="radio" name="${k}_kind" value="${v}" ${v === def ? 'checked' : ''}> ${l}</label>`).join('')}</div>
+      <div data-b="${k}"><input name="${k}_subject" placeholder="Email subject" value="${k === 'no' ? 'Did you see this, {{first_name|there}}?' : ''}">
+      <textarea name="${k}_body" rows="3" placeholder="Message">Hi {{first_name|there}},\n\n</textarea></div></fieldset>`;
+    const pending = modal('Yes / no split', `
+      <div class="colors" style="grid-template-columns:auto 1fr;align-items:end"><label class="f">Wait first (days)<input name="days" type="number" min="0" max="365" value="2"></label>
+      <label class="f">Then check<select name="check">${['opened', 'clicked', 'purchased_since', 'has_tag'].map((k) => `<option value="${k}">${esc(CONDITION_UI[k])}</option>`).join('')}</select></label></div>
+      <label class="f" data-tagrow hidden>Tag<input name="value" placeholder="e.g. vip"></label>
+      ${branch('yes', 'If yes', 'none')}${branch('no', 'If no', 'email')}`, { submit: 'Add split' });
+    const bg = $$('.modal-bg').pop();
+    const sync = () => {
+      for (const k of ['yes', 'no']) {
+        const kind = $(`[name=${k}_kind]:checked`, bg).value, box = $(`[data-b=${k}]`, bg);
+        box.hidden = kind === 'none';
+        $(`[name=${k}_subject]`, box).hidden = kind !== 'email';
+      }
+      $('[data-tagrow]', bg).hidden = $('[name=check]', bg).value !== 'has_tag';
+    };
+    bg.addEventListener('change', sync); sync();
+    const v = await pending;
+    if (!v) return;
+    const g = w.graph, nk = () => `n${Math.random().toString(36).slice(2, 8)}`;
+    const leaf = (k) => {
+      const kind = v[`${k}_kind`];
+      if (kind === 'none' || !String(v[`${k}_body`] || '').trim()) return null;
+      const key = nk();
+      g.nodes[key] = kind === 'email' ? { type: 'email', config: { subject: v[`${k}_subject`] || 'A quick note', body: v[`${k}_body`] }, next: null } : { type: 'sms', config: { body: v[`${k}_body`] }, next: null };
+      return key;
+    };
+    const ck = nk();
+    g.nodes[ck] = { type: 'condition', config: { check: v.check, value: String(v.value || '').trim().toLowerCase() }, yes: leaf('yes'), no: leaf('no') };
+    let first = ck;
+    if (Number(v.days) > 0) { first = nk(); g.nodes[first] = { type: 'wait', config: { days: Number(v.days), hours: 0 }, next: ck }; }
+    g.nodes[after].next = first;
+    if (await saveGraph(w, g)) toast('Split added');
+  }
+
   // The emails a follow-up sends, as "Right away · Welcome", "Day 2 · The story behind…".
   function followupChip(stepId) {
     const list = m.fuAt?.[stepId];
@@ -281,22 +368,47 @@ async function viewFunnel(id) {
     return list.map((w) => {
       let days = 0;
       const rows = [];
-      for (const [, n] of chain(w)) {
+      for (const [k, n] of chain(w)) {
         if (n.type === 'wait') days += Number(n.config.days || 0) + Number(n.config.hours || 0) / 24;
-        if (n.type === 'email' || n.type === 'sms') rows.push([days < 0.5 ? 'Right away' : `Day ${Math.round(days)}`, n.type === 'sms' ? `Text: ${readable(n.config.body)}` : readable(n.config.subject) || 'Untitled email']);
+        if (n.type === 'email' || n.type === 'sms') {
+          // The first real line of the message, skipping the greeting.
+          const lines = readable(n.config.body).split('\n').map((x) => x.trim()).filter((x) => x && !/^(hi|hello|hey|dear)\b.{0,30},?$/i.test(x));
+          rows.push({ key: k, when: days < 0.5 ? 'Right away' : `Day ${Math.round(days)}`, sms: n.type === 'sms', title: n.type === 'sms' ? 'Text message' : readable(n.config.subject) || 'Untitled email', preview: (n.type === 'sms' ? readable(n.config.body) : lines[0] || '').slice(0, 140) });
+        }
       }
-      if (!rows.length) return '';
-      const word = rows.some((r) => r[1].startsWith('Text:')) ? 'message' : 'email';
-      return `<button type="button" class="fu-card ${w.status === 'active' ? 'on' : 'off'}" data-fuopen="${w.id}" title="${w.status === 'active' ? 'Live' : 'Off'}: open this follow-up">
-        <span class="fc-t">${icon('mail')} ${rows.length} ${word}${rows.length === 1 ? '' : 's'} ${w.status === 'active' ? '' : '<i>off</i>'}</span>
-        ${rows.slice(0, 3).map(([d, t]) => `<span class="fc-r"><b>${esc(d)}</b> ${esc(t)}</span>`).join('')}
-        ${rows.length > 3 ? `<span class="fc-r muted">+ ${rows.length - 3} more</span>` : ''}</button>`;
+      const end = chain(w).at(-1)?.[1];
+      let split = '';
+      if (end?.type === 'condition') {
+        const side = (key) => {
+          const n = key && w.graph.nodes[key];
+          if (!n) return '<span class="muted">Nothing</span>';
+          const t = n.type === 'email' ? readable(n.config.subject) || 'Email' : n.type === 'sms' ? `Text: ${readable(n.config.body).slice(0, 60)}` : (STEP_UI_LABEL[n.type] || n.type);
+          return `<span>${esc(t)}</span>${['email', 'sms'].includes(n.type) ? `<button type="button" class="fc-edit" data-fuedit="${w.id}:${key}">${icon('pencil')} Edit</button>` : ''}`;
+        };
+        split = `<div class="fc-r fc-split"><div class="fc-when">Day ${Math.round(days)} · ${esc((CONDITION_UI[end.config.check] || 'Check').replace(/\?$/, ''))}${end.config.value ? ` “${esc(end.config.value)}”` : ''}</div>
+          <div class="fc-yes"><b>Yes</b>${side(end.yes)}</div><div class="fc-no"><b>No</b>${side(end.no)}</div></div>`;
+      }
+      if (!rows.length && !split) return `<div class="fu-card ${w.status === 'active' ? 'on' : 'off'}"><div class="fc-top"><span class="fc-t">${icon('bolt')} ${esc(w.name.replace(`${f.name}: `, ''))}</span></div>
+        <a class="fc-more" href="#/workflows/${w.id}">No emails yet · Open follow-up</a></div>`;
+      const branchMsgs = end?.type === 'condition' ? [end.yes, end.no].map((k) => k && w.graph.nodes[k]).filter((n) => n && ['email', 'sms'].includes(n.type)) : [];
+      const count = rows.length + branchMsgs.length;
+      const word = rows.some((r) => r.sms) || branchMsgs.some((n) => n.type === 'sms') ? 'message' : 'email';
+      return `<div class="fu-card ${w.status === 'active' ? 'on' : 'off'}">
+        <div class="fc-top"><span class="fc-t">${icon(split ? 'branch' : 'mail')} ${count} ${word}${count === 1 ? '' : 's'}</span>
+          <label class="switch sm" title="${w.status === 'active' ? 'Live: turn off' : 'Off: turn on'}"><input type="checkbox" data-fuonmap="${w.id}" ${w.status === 'active' ? 'checked' : ''} aria-label="${w.status === 'active' ? 'Live' : 'Off'}"><span></span></label>
+          <span class="fc-state">${w.status === 'active' ? 'Live' : 'Off'}</span></div>
+        ${rows.slice(0, 3).map((r) => `<div class="fc-r"><div class="fc-when">${esc(r.when)}${r.sms ? ' · text' : ''}</div>
+          <div class="fc-subj">${esc(r.title)}</div>${r.preview ? `<div class="fc-pre">${esc(r.preview)}</div>` : ''}
+          <button type="button" class="fc-edit" data-fuedit="${w.id}:${r.key}">${icon('pencil')} Edit</button></div>`).join('')}${split}
+        <a class="fc-more" href="#/workflows/${w.id}">${rows.length > 3 ? `+ ${rows.length - 3} more · ` : ''}Open full follow-up</a></div>`;
     }).join('');
   }
   async function renderFollowups() {
     const list = await Promise.all((f.workflows || []).map((w) => api('GET', `/api/workflows/${w.id}`)));
     placeFollowups(list);
     renderEdges();
+    // First load: frame the pages and their follow-ups together.
+    if (!m.framed) { m.framed = true; fit(); }
     $('[data-fucount]').textContent = `${list.length} workflow${list.length === 1 ? '' : 's'}`;
     $('[data-fulist]').innerHTML = `${list.map((w) => {
       const steps = chain(w);
@@ -318,7 +430,7 @@ async function viewFunnel(id) {
         ${canAppend ? `<button class="fu-add end" data-fuadd="${w.id}:${last[0]}" title="Add a step at the end">${icon('plus')} Add</button>` : ''}</div>
       </div>`;
     }).join('')}
-      <button class="btn sm" data-funew>${icon('plus')} New follow-up for this funnel</button>`;
+      <button class="btn sm" data-funew>${icon('plus')} New follow-up for this pageflow</button>`;
     $$('[data-fuon]').forEach((c) => { c.onchange = async () => {
       try { await api('PUT', `/api/workflows/${c.dataset.fuon}/status`, { status: c.checked ? 'active' : 'paused' }); toast(c.checked ? 'Follow-up is live' : 'Follow-up turned off'); f.workflows = (await api('GET', `/api/funnels/${id}`)).workflows; renderFollowups(); }
       catch (err) { c.checked = !c.checked; toast(err.message, true); }
@@ -353,14 +465,15 @@ async function viewFunnel(id) {
   async function editStep(w, key) {
     const n = w.graph.nodes[key];
     setTimeout(() => { const m = $('.modal'); if (m) bindFieldInserts(m); });
-    const v = await modal(n.type === 'email' ? 'Edit email' : 'Edit wait', n.type === 'email' ? emailForm(n.config)
-      : `<label class="f">Wait (days)<input name="days" type="number" min="0" max="3650" value="${n.config.days || 0}"></label>`, { submit: 'Save' });
+    const v = await modal(n.type === 'email' ? 'Edit email' : n.type === 'sms' ? 'Edit text' : 'Edit wait', n.type === 'email' ? emailForm(n.config)
+      : n.type === 'sms' ? `<label class="f">Text message <span class="hint">only to people who said yes to texts</span><textarea name="body" rows="4" maxlength="480" required>${esc(n.config.body || '')}</textarea></label>`
+        : `<label class="f">Wait (days)<input name="days" type="number" min="0" max="3650" value="${n.config.days || 0}"></label>`, { submit: 'Save' });
     if (!v) return;
-    n.config = n.type === 'email' ? { subject: v.subject, body: v.body } : { days: Number(v.days) || 0, hours: 0 };
+    n.config = n.type === 'email' ? { subject: v.subject, body: v.body } : n.type === 'sms' ? { body: v.body } : { days: Number(v.days) || 0, hours: 0 };
     if (await saveGraph(w, w.graph)) toast('Saved');
   }
-  async function addStep(w, after) {
-    const kind = await modal('Add a step', `<div class="choices">
+  async function addStep(w, after, preset) {
+    const kind = preset ? { kind: preset } : await modal('Add a step', `<div class="choices">
       <label class="choice"><input type="radio" name="kind" value="email" checked hidden><span class="ci">${icon('mail')}</span><span><b>Send email</b><small>With an optional wait before it</small></span></label>
       <label class="choice"><input type="radio" name="kind" value="wait" hidden><span class="ci">${icon('clock')}</span><span><b>Wait</b><small>Pause before the next step</small></span></label>
       <label class="choice"><input type="radio" name="kind" value="more" hidden><span class="ci">${icon('branch')}</span><span><b>Something else</b><small>Yes/no split, tag, notify me, deal: on the full map</small></span></label></div>`, { submit: 'Next' });
@@ -368,18 +481,20 @@ async function viewFunnel(id) {
     if (kind.kind === 'more') { location.hash = `#/workflows/${w.id}`; return; }
     if (kind.kind === 'email') setTimeout(() => { const m = $('.modal'); if (m) bindFieldInserts(m); });
     const v = kind.kind === 'email' ? await modal('New email', emailForm({}, true), { submit: 'Add email' })
+      : kind.kind === 'sms' ? await modal('New text', `<label class="f">Wait first <span class="hint">days after the previous step</span><input name="days" type="number" min="0" max="365" value="1"></label>
+        <label class="f">Text message <span class="hint">only to people who said yes to texts</span><textarea name="body" rows="3" maxlength="480" required>Hi {{first_name|there}}, it’s {{business}}. </textarea></label>`, { submit: 'Add text' })
       : await modal('Wait', '<label class="f">Wait (days)<input name="days" type="number" min="0" max="3650" value="2"></label>', { submit: 'Add wait' });
     if (!v) return;
     const g = w.graph, prev = g.nodes[after], newKey = () => `n${Math.random().toString(36).slice(2, 8)}`;
     let tail = prev.next ?? null;
     const insert = (node) => { const k = newKey(); g.nodes[k] = { ...node, next: tail }; return k; };
     let first;
-    if (kind.kind === 'email') {
-      const ek = insert({ type: 'email', config: { subject: v.subject, body: v.body } });
+    if (kind.kind === 'email' || kind.kind === 'sms') {
+      const ek = insert(kind.kind === 'email' ? { type: 'email', config: { subject: v.subject, body: v.body } } : { type: 'sms', config: { body: v.body } });
       first = Number(v.days) > 0 ? (tail = ek, insert({ type: 'wait', config: { days: Number(v.days), hours: 0 } })) : ek;
     } else first = insert({ type: 'wait', config: { days: Number(v.days) || 0, hours: 0 } });
     prev.next = first;
-    if (await saveGraph(w, g)) toast(kind.kind === 'email' ? 'Email added' : 'Wait added');
+    if (await saveGraph(w, g)) toast(kind.kind === 'email' ? 'Email added' : kind.kind === 'sms' ? 'Text added' : 'Wait added');
   }
   renderFollowups().catch(() => { $('[data-fulist]').innerHTML = '<p class="muted small">Couldn’t load follow-ups.</p>'; });
 
@@ -428,7 +543,7 @@ async function viewFunnel(id) {
           <a class="btn sm" href="${esc(publicUrl(`/f/${f.slug}/${s.slug}`))}" target="_blank" rel="noopener">View ${icon('external')}</a></div>
         <div class="ports">${Object.entries(PORTS).map(([p, d]) => `<div class="port ${p} ${s[d.key] ? 'linked' : ''}" data-port="${p}" data-from="${s.id}"
           title="${s[d.key] ? 'Drag to change where this leads' : 'Drag to a page, or click to add the next page'}">${d.label}</div>`).join('')}</div>
-      </div>`).join('') || `<div class="map-empty"><div class="big">${icon('sprout')}</div><p>Every funnel starts with one page.</p>
+      </div>`).join('') || `<div class="map-empty"><div class="big">${icon('sprout')}</div><p>Every pageflow starts with one page.</p>
         <button class="btn primary" data-addpage>+ Add your first page</button></div>`;
     renderEdges();
   }
@@ -462,20 +577,41 @@ async function viewFunnel(id) {
         buttons += `<button class="edge-x" style="left:${mid.x}px;top:${fu ? mid.y - 40 : mid.y}px" data-unlink="${s.id}:${p}" title="Remove this link">${icon('x')}</button>`;
         const metric = m.flow?.edges.find((e) => e.from === s.id && e.port === p);
         if (metric && metric.visitors) buttons += `<span class="edge-lbl ${p}" style="left:${mid.x}px;top:${fu ? mid.y - 66 : mid.y + 18}px">${esc(metric.plain)}</span>`;
-        if (fu) buttons += `<div class="fu-chip" style="left:${mid.x}px;top:${mid.y}px">${fu}</div>`;
+        if (fu) buttons += `<div class="fu-chip" data-chip="${s.id}" style="left:${mid.x}px;top:${mid.y}px">${fu}</div>`;
+        if (p === 'yes') buttons += `<button class="edge-add" style="left:${mid.x}px;top:${fu ? mid.y + chipHalf(s.id) + 20 : mid.y + 26}px" data-edgeadd="${s.id}" ${fu ? `data-below="${s.id}"` : ''} title="Add an email, a text or a page here" aria-label="Add an email, a text or a page here">${icon('plus')}</button>`;
       }
       // Follow-ups after the last page sit just to its right.
       if (!ids[s.next_step_id]) {
         const fu = followupChip(s.id);
         const a = anchor(s, 'yes');
-        if (fu) buttons += `<div class="fu-chip end" style="left:${a.x + 24}px;top:${a.y}px">${fu}</div>`;
+        if (fu) buttons += `<div class="fu-chip end" data-chip="${s.id}" style="left:${a.x + 24}px;top:${a.y}px">${fu}</div>`;
+        buttons += `<button class="edge-add" style="left:${a.x + (fu ? 142 : 34)}px;top:${fu ? a.y + chipHalf(s.id) + 20 : a.y}px" data-edgeadd="${s.id}" data-end="1" ${fu ? `data-below="${s.id}"` : ''} title="Add an email or a text after this page" aria-label="Add an email or a text after this page">${icon('plus')}</button>`;
       }
     }
     if (temp) html += `<path class="edge temp ${temp.port}" d="${curve(temp.a, temp.b)}"/>`;
     svg.innerHTML = `<defs>${['yes', 'no'].map((p) => `<marker id="arrow-${p}" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M0,0 L10,5 L0,10z" class="arrow ${p}"/></marker>`).join('')}</defs>${html}`;
-    $$('.edge-x, .edge-lbl, .fu-chip', world).forEach((b) => b.remove());
+    $$('.edge-x, .edge-lbl, .fu-chip, .edge-add', world).forEach((b) => b.remove());
     world.insertAdjacentHTML('beforeend', buttons);
+    // Sit each + just under its follow-up cards, using their real height.
+    $$('[data-below]', world).forEach((b) => {
+      const chip = $(`.fu-chip[data-chip="${b.dataset.below}"]`, world);
+      if (chip) b.style.top = `${parseFloat(chip.style.top) + chip.offsetHeight / 2 + 20}px`;
+    });
+    $$('[data-edgeadd]', world).forEach((b) => { b.onclick = (e) => { e.stopPropagation(); addHere(Number(b.dataset.edgeadd), !b.dataset.end); }; });
+    $$('.fu-chip [data-fuedit]', world).forEach((b) => { b.onclick = (e) => {
+      e.stopPropagation();
+      const [wid, key] = b.dataset.fuedit.split(':');
+      const w = Object.values(m.fuAt || {}).flat().find((x) => String(x.id) === wid);
+      if (w) editStep(w, key);
+    }; });
+    $$('.fu-chip [data-fuonmap]', world).forEach((c) => { c.onclick = (e) => e.stopPropagation(); c.onchange = async () => {
+      try {
+        await api('PUT', `/api/workflows/${c.dataset.fuonmap}/status`, { status: c.checked ? 'active' : 'paused' });
+        toast(c.checked ? 'Follow-up is live' : 'Follow-up turned off');
+      } catch (err) { c.checked = !c.checked; toast(err.message, true); return; }
+      f.workflows = (await api('GET', `/api/funnels/${id}`)).workflows; renderFollowups();
+    }; });
     $$('.fu-chip [data-fuopen]', world).forEach((b) => { b.onclick = (e) => {
       e.stopPropagation();
       const d = $('[data-fu]'); d.open = true;
@@ -502,12 +638,19 @@ async function viewFunnel(id) {
   };
   const fit = () => {
     if (!m.steps.length) { m.zoom = 1; m.panX = 40; m.panY = 40; return applyView(); }
-    const xs = m.steps.map((s) => s.x), ys = m.steps.map((s) => s.y);
-    const w = Math.max(...xs) + NODE_W + (m.fuAt && Object.keys(m.fuAt).length ? 200 : 0) - Math.min(...xs), h = Math.max(...ys) + NODE_H - Math.min(...ys);
+    // Everything on the map: the pages and the follow-up cards between them.
+    const boxes = m.steps.map((s) => ({ l: s.x, t: s.y, r: s.x + NODE_W, b: s.y + (nodeEl(s.id)?.offsetHeight || NODE_H) }));
+    $$('.fu-chip', world).forEach((c) => {
+      const x = parseFloat(c.style.left), y = parseFloat(c.style.top), cw = c.offsetWidth, ch = c.offsetHeight;
+      const l = c.classList.contains('end') ? x : x - cw / 2;
+      boxes.push({ l, t: y - ch / 2, r: l + cw, b: y + ch / 2 + 40 });
+    });
+    const minX = Math.min(...boxes.map((x) => x.l)), minY = Math.min(...boxes.map((x) => x.t));
+    const w = Math.max(...boxes.map((x) => x.r)) - minX, h = Math.max(...boxes.map((x) => x.b)) - minY;
     m.zoom = Math.min(1, (mapEl.clientWidth - 80) / w, (mapEl.clientHeight - 110) / h);
     m.zoom = Math.max(0.3, m.zoom);
-    m.panX = (mapEl.clientWidth - w * m.zoom) / 2 - Math.min(...xs) * m.zoom;
-    m.panY = 70 - Math.min(...ys) * m.zoom;
+    m.panX = (mapEl.clientWidth - w * m.zoom) / 2 - minX * m.zoom;
+    m.panY = 70 - minY * m.zoom;
     applyView();
   };
 
@@ -641,9 +784,9 @@ async function viewFunnel(id) {
   });
 
   $('[data-rename]').onclick = async () => {
-    const r = await modal('Funnel settings', `<label class="f">Name<input name="name" required value="${esc(f.name)}"></label>
+    const r = await modal('Pageflow settings', `<label class="f">Name<input name="name" required value="${esc(f.name)}"></label>
       <label class="f">URL <span class="hint">${esc(state.me.baseUrl)}/f/<b>this-part</b></span><input name="slug" required value="${esc(f.slug)}"></label>
-      <p class="hint">Your domain is connected once for the whole business in <a href="#/settings">Settings</a>; this funnel then lives at /<b>${esc(f.slug)}</b> on it.</p>`,
+      <p class="hint">Your domain is connected once for the whole business in <a href="#/settings">Settings</a>; this pageflow then lives at /<b>${esc(f.slug)}</b> on it.</p>`,
     { onSubmit: (v) => api('PUT', `/api/funnels/${id}`, v) });
     if (r) { toast('Saved'); reload(); }
   };

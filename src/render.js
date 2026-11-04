@@ -73,9 +73,11 @@ function renderPricing(b, ctx) {
     ${cta}</div>`;
 }
 
+const TICK = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>';
+const youtubeId = (url) => String(url || '').match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/|live\/))([\w-]{11})/)?.[1] || null;
 function youtubeEmbed(url) {
-  const m = String(url || '').match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([\w-]{11})/);
-  return m ? `https://www.youtube-nocookie.com/embed/${m[1]}` : null;
+  const id = youtubeId(url);
+  return id ? `https://www.youtube-nocookie.com/embed/${id}?rel=0&iv_load_policy=3&playsinline=1` : null;
 }
 
 const testimonialHtml = (t) => `<figure class="testimonial"><blockquote>“${esc(t.quote)}”</blockquote>
@@ -107,6 +109,30 @@ function renderBlock(b, ctx, index) {
       return `<p class="txt" style="text-align:${a}"${f('text')}>${multiline(b.text)}</p>`;
     case 'image':
       return b.url ? `<div style="text-align:${a}"><img src="${esc(safeUrl(b.url))}" alt="${esc(b.alt)}"></div>` : (ctx.preview ? `<div class="ph ph-image"><svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><circle cx="9" cy="9.5" r="1.6"/><path d="m4 17.5 4.8-4.6a1.2 1.2 0 0 1 1.6 0l3.1 2.9 2.3-2.1a1.2 1.2 0 0 1 1.6 0l3.1 2.8"/></svg><div>Drop a photo here</div><small>or choose one in the panel on the left</small></div>` : '');
+    // Benefits or what's included, with ticks, dots or numbers.
+    case 'bullets': {
+      const items = String(b.items || '').split('\n').map((x) => x.trim()).filter(Boolean);
+      if (!items.length) return '';
+      const style = ['dot', 'number'].includes(b.style) ? b.style : 'check';
+      const tag = style === 'number' ? 'ol' : 'ul';
+      return `<div class="bul-wrap" style="text-align:${a}">${b.title ? `<h3 class="bul-t">${esc(b.title)}</h3>` : ''}<${tag} class="bul ${style}">${items.map((x) => `<li>${style === 'check' ? `<span class="tick" aria-hidden="true">${TICK}</span>` : ''}<span>${esc(x)}</span></li>`).join('')}</${tag}></div>`;
+    }
+    // The offer stack: everything they get, what each is worth, the total, today's price.
+    case 'offer': {
+      const rows = String(b.items || '').split('\n').map((l) => l.split('|').map((x) => x.trim())).filter(([t]) => t);
+      if (!rows.length) return '';
+      const nums = rows.map(([, v]) => Number(String(v || '').replace(/[^0-9.]/g, '')));
+      const sym = (rows.find(([, v]) => v)?.[1] || '$').replace(/[0-9.,\s]/g, '').slice(0, 3) || '$';
+      const total = rows.every(([, v]) => v) && nums.every((n) => n > 0) ? nums.reduce((x, y) => x + y, 0) : null;
+      const href = String(b.url || '').startsWith('page:') ? ctx.pageHref(String(b.url).slice(5))
+        : b.url === '#next' || !b.url ? ctx.nextUrl : b.url === '#no' ? ctx.noUrl : safeUrl(b.url);
+      return `<div class="offer">${b.title ? `<h3 class="offer-t">${esc(b.title)}</h3>` : ''}
+        <ul class="offer-rows">${rows.map(([t, v]) => `<li><span class="tick" aria-hidden="true">${TICK}</span><span class="o-name">${esc(t)}</span>${v ? `<span class="o-val">${esc(v)}</span>` : ''}</li>`).join('')}</ul>
+        ${total !== null && b.showTotal !== false ? `<div class="offer-total"><span>Total value</span><s>${esc(sym)}${total.toLocaleString('en-US', { maximumFractionDigits: 2 })}</s></div>` : ''}
+        ${b.price ? `<div class="offer-price"><span>${esc(b.priceLabel || 'Today')}</span><b>${esc(b.price)}</b></div>` : ''}
+        ${b.buttonLabel ? `<a class="btn offer-btn" href="${esc(href)}">${esc(b.buttonLabel)}</a>` : ''}
+        ${b.note ? `<p class="offer-note">${esc(b.note)}</p>` : ''}</div>`;
+    }
     case 'button': {
       // "page:<slug>" links to another page of the same website or funnel.
       const href = String(b.url || '').startsWith('page:') ? ctx.pageHref(String(b.url).slice(5))
@@ -114,8 +140,14 @@ function renderBlock(b, ctx, index) {
       return `<div style="text-align:${a}"><a class="btn" href="${esc(href)}"${f('label')}>${esc(b.label || 'Continue')}</a></div>`;
     }
     case 'video': {
-      const src = youtubeEmbed(b.url);
-      return src ? `<div class="video"><iframe src="${src}" allowfullscreen loading="lazy" title="Video"></iframe></div>` : (ctx.preview ? `<div class="ph">Video: paste a YouTube link in the panel on the left</div>` : '');
+      const vid = youtubeId(b.url);
+      if (!vid) return ctx.preview ? `<div class="ph">Video: paste a YouTube link in the panel on the left</div>` : '';
+      // Standard YouTube player, only when asked for (long videos people need to skip around in).
+      if (b.controls) return `<div class="video"><iframe src="${youtubeEmbed(b.url)}" allowfullscreen loading="lazy" title="Video"></iframe></div>`;
+      // Clean player: the thumbnail and our own play button; once playing, YouTube's title, logo,
+      // "More videos" and control bar stay hidden. Click to pause or resume, double-click for full screen.
+      return `<div class="video clean" data-yt="${vid}"><img class="vposter" src="https://i.ytimg.com/vi/${vid}/hqdefault.jpg" alt="" loading="lazy" onerror="this.style.display='none'">
+        <button type="button" class="vshield" aria-label="Play video"><span class="vplay"><svg viewBox="0 0 24 24" width="30" height="30" fill="currentColor"><path d="M8 5.5v13l11-6.5z"/></svg></span></button></div>`;
     }
     case 'booking': {
       // Open times load from the server and show in the visitor's own time zone.
@@ -240,6 +272,22 @@ header.site nav{display:flex;gap:18px;flex-wrap:wrap}header.site nav a,footer.si
 header.site nav a[aria-current]{opacity:1;color:${accent};border-bottom:2px solid ${accent}}
 .burger{display:none;cursor:pointer;font-size:1.4rem}
 footer.site{border-top:1px solid color-mix(in srgb,${fg} 10%,transparent);margin-top:40px;font-size:.9rem}footer.site nav{display:flex;gap:14px;flex-wrap:wrap;margin-right:auto}footer.site small{opacity:.6}
+.bul-wrap{margin:22px 0}.bul-t{margin:0 0 10px;font-size:1.15rem}
+.bul{list-style:none;padding:0;margin:0 auto;display:inline-grid;gap:10px;text-align:left;max-width:100%}
+.bul li{display:flex;gap:10px;align-items:flex-start;line-height:1.5}
+.bul .tick,.offer .tick{flex:none;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:color-mix(in srgb,${accent} 14%,${bg});color:${accent};margin-top:1px}
+.bul.dot{list-style:disc;padding-left:1.3em;display:block}.bul.dot li{display:list-item}
+.bul.number{list-style:decimal;padding-left:1.4em;display:block}.bul.number li{display:list-item;padding-left:4px}
+.offer{max-width:560px;margin:28px auto;border:2px solid color-mix(in srgb,${accent} 35%,transparent);border-radius:16px;padding:22px 24px;background:color-mix(in srgb,${accent} 3%,${bg});text-align:left}
+.offer-t{margin:0 0 14px;font-size:1.25rem;text-align:center}
+.offer-rows{list-style:none;padding:0;margin:0}
+.offer-rows li{display:flex;gap:10px;align-items:flex-start;padding:10px 0;border-bottom:1px dashed color-mix(in srgb,${fg} 15%,transparent)}
+.offer-rows .o-name{flex:1;font-weight:500}.offer-rows .o-val{white-space:nowrap;opacity:.75}
+.offer-total{display:flex;justify-content:space-between;padding:12px 0 4px;opacity:.8}
+.offer-price{display:flex;justify-content:space-between;align-items:baseline;padding:4px 0 14px;font-size:1.1rem}
+.offer-price b{font-size:1.8rem;color:${accent}}
+.offer-btn{display:block;text-align:center}
+.offer-note{text-align:center;font-size:.85rem;opacity:.7;margin:10px 0 0}
 .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin:28px 0}
 .cards .card{border:1px solid color-mix(in srgb,${fg} 12%,transparent);border-radius:12px;padding:18px 20px;background:color-mix(in srgb,${accent} 4%,${bg})}
 .cards h3{margin:0 0 6px;font-size:1.1rem}.cards p{margin:0;opacity:.8}
@@ -248,7 +296,7 @@ footer.site{border-top:1px solid color-mix(in srgb,${fg} 10%,transparent);margin
 @media(max-width:640px){.burger{display:block}header.site nav{display:none;width:100%;flex-direction:column;gap:10px;padding-top:6px}#mnu:checked~nav{display:flex}}
 </style></head><body>${nav}<main>
 ${body || '<p style="text-align:center;opacity:.5">This page is empty. Add blocks in the editor.</p>'}
-</main>${foot}${(blocks || []).some((b) => b.type === 'booking') ? BOOKING_SCRIPT : ''}${preview ? PREVIEW_EDIT_SCRIPT + PREVIEW_DROP_SCRIPT + PREVIEW_TOOLS_SCRIPT : ''}</body></html>`;
+</main>${foot}${(blocks || []).some((b) => b.type === 'booking') ? BOOKING_SCRIPT : ''}${(blocks || []).some((b) => b.type === 'video' && !b.controls && youtubeId(b.url)) ? VIDEO_SCRIPT : ''}${preview ? PREVIEW_EDIT_SCRIPT + PREVIEW_DROP_SCRIPT + PREVIEW_TOOLS_SCRIPT : ''}</body></html>`;
 }
 
 // Click-to-edit in the editor preview: click any text to type over it; the
@@ -270,6 +318,48 @@ parent.postMessage({ff:'drop',at:at,data:e.dataTransfer.getData('text/x-fourfold
 
 // The booking widget: days with open times, then times, then name and email.
 // Without a server (the editor preview) it shows sample times and doesn't book.
+// The clean video player: loads YouTube only when played, keeps a shield over it so
+// YouTube's hover title and pause screen never show, and listens to the player's state.
+const VIDEO_SCRIPT = `<style>
+.video.clean{background:#0b1416;border-radius:10px;overflow:hidden}
+.video.clean iframe{pointer-events:none}
+.video.clean .vposter{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transition:opacity .25s}
+.video.clean .vshield{position:absolute;inset:0;border:0;padding:0;margin:0;background:rgba(0,0,0,.18);cursor:pointer;display:grid;place-items:center;transition:background .2s}
+.video.clean .vplay{width:68px;height:68px;border-radius:50%;background:rgba(255,255,255,.94);color:#14282b;display:grid;place-items:center;box-shadow:0 6px 24px rgba(0,0,0,.25);transition:transform .15s,opacity .2s}
+.video.clean .vplay svg{margin-left:4px}
+.video.clean .vshield:hover .vplay{transform:scale(1.06)}
+.video.clean .vshield:focus-visible{outline:3px solid #7cc8bf;outline-offset:-3px}
+.video.clean.playing .vposter{opacity:0}
+.video.clean.playing .vshield{background:transparent}
+.video.clean.playing .vplay{opacity:0}
+.video.clean.paused .vshield{background:rgba(11,20,22,.72)}
+.video.clean.ended .vposter{opacity:1}
+</style><script>(function(){
+var players=[];
+function cmd(f,fn){f.contentWindow&&f.contentWindow.postMessage(JSON.stringify({event:'command',func:fn,args:[]}),'*')}
+document.querySelectorAll('.video.clean').forEach(function(v){
+  var sh=v.querySelector('.vshield'),f=null;
+  function state(s){v.classList.remove('playing','paused','ended');if(s)v.classList.add(s);sh.setAttribute('aria-label',s==='playing'?'Pause video':'Play video')}
+  sh.addEventListener('click',function(e){
+    if(e.detail>1)return;
+    if(!f){
+      f=document.createElement('iframe');
+      f.src='https://www.youtube-nocookie.com/embed/'+v.dataset.yt+'?autoplay=1&controls=0&rel=0&iv_load_policy=3&playsinline=1&disablekb=1&fs=0&enablejsapi=1&origin='+encodeURIComponent(location.origin);
+      f.allow='autoplay; encrypted-media; fullscreen';f.title='Video';f.setAttribute('tabindex','-1');
+      f.addEventListener('load',function(){f.contentWindow.postMessage(JSON.stringify({event:'listening',id:players.length}),'*')});
+      v.insertBefore(f,v.firstChild);players.push({f:f,set:state});state('playing');return;
+    }
+    if(v.classList.contains('playing')){cmd(f,'pauseVideo');state('paused')}else{if(v.classList.contains('ended'))cmd(f,'seekTo');cmd(f,'playVideo');state('playing')}
+  });
+  sh.addEventListener('dblclick',function(){var el=v;(el.requestFullscreen||el.webkitRequestFullscreen||function(){}).call(el)});
+});
+addEventListener('message',function(e){
+  if(!/youtube/.test(e.origin))return;var d;try{d=JSON.parse(e.data)}catch(x){return}
+  var s=d&&d.info&&d.info.playerState;if(s===undefined)return;
+  players.forEach(function(p){if(p.f.contentWindow===e.source){p.set(s===1||s===3?'playing':s===2?'paused':s===0?'ended':null)}});
+});
+})();</script>`;
+
 const BOOKING_SCRIPT = `<style>
 .booking{text-align:center}.bk-meta{opacity:.75;margin:0 0 14px}
 .bk-days{display:flex;gap:8px;overflow-x:auto;padding:4px 2px 10px;justify-content:flex-start;scroll-snap-type:x proximity}

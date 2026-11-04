@@ -42,7 +42,7 @@ function bindPurposeTags(groups, after) {
 // unless `stay` is set, in which case the current view refreshes.
 async function duplicateFunnel(g, { stay = false } = {}) {
   const kind = g.kind === 'website' ? 'website' : 'funnel';
-  const v = await modal(`Duplicate this ${kind}`, `<p class="muted small">Copies every page, how they connect${kind === 'funnel' ? ', and its follow-up emails (switched off)' : ''}. The copy starts as a draft.</p>
+  const v = await modal(`Duplicate this ${kind === 'funnel' ? 'pageflow' : kind}`, `<p class="muted small">Copies every page, how they connect${kind === 'funnel' ? ', and its follow-up emails (switched off)' : ''}. The copy starts as a draft.</p>
     <label class="f">Name of the copy<input name="name" required value="${esc(`${g.name} (copy)`)}"></label>`, { submit: 'Duplicate' });
   if (!v) return;
   try {

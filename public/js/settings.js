@@ -48,7 +48,7 @@ function viewSettings() {
     <form class="card" style="max-width:560px;margin-top:16px" data-texting><h2>Texting and calls</h2><p class="muted small">Loading…</p></form>
     <form class="card" style="max-width:560px;margin-top:16px" data-domain>
       <h2>Your domain</h2>
-      <p class="muted small">Connect it once for the whole business. The home website opens at the domain; every other website or funnel lives at /its-name.</p>
+      <p class="muted small">Connect it once for the whole business. The home website opens at the domain; every other website or pageflow lives at /its-name.</p>
       <label class="f">Domain<input name="domain" value="${esc(a.domain || '')}" placeholder="www.yourbusiness.com"></label>
       <label class="f">Home website<select name="home_funnel_id" data-homes><option value="">— Pick one —</option></select></label>
       <details class="hint"><summary>How to connect it</summary><ol style="padding-left:18px;margin:6px 0">
@@ -58,12 +58,12 @@ function viewSettings() {
     </form>
     <div class="card" style="max-width:560px;margin-top:16px" data-subs>
       <div class="row" style="justify-content:space-between"><h2 style="margin:0">Sub-accounts</h2><button class="btn sm primary" data-newsub>${icon('plus')} New sub-account</button></div>
-      <p class="muted small">One workspace per business. Each has its own people, funnels, emails and dashboard.</p>
+      <p class="muted small">One workspace per business. Each has its own people, pageflows, emails and dashboard.</p>
       <div data-sublist class="muted small">Loading…</div>
     </div>
     <div class="card" style="max-width:560px;margin-top:16px">
       <h2>Your data</h2>
-      <p class="muted small">Download everything (people, events, orders, subscriptions, campaigns, funnels, deals) at any time.</p>
+      <p class="muted small">Download everything (people, events, orders, subscriptions, campaigns, pageflows, deals) at any time.</p>
       <div class="row"><a class="btn" href="/api/export.zip">${icon('download')} Every table as CSV (.zip)</a><a class="btn" href="/api/export.json">${icon('download')} Everything as JSON</a></div>
     </div>
     <form class="card" style="max-width:560px;margin-top:16px" data-stripe>

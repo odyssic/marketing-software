@@ -26,7 +26,7 @@ const BLOCKS = {
   image: { label: 'Image', icon: icon('image'), defaults: { url: '', alt: '', align: 'center' },
     fields: [['url', 'photo', 'Photo'], ['alt', 'text', 'Description (for accessibility)'], ALIGN] },
   video: { label: 'Video', icon: icon('video'), defaults: { url: '' },
-    fields: [['url', 'text', 'YouTube link', null, 'e.g. https://youtu.be/…']] },
+    fields: [['url', 'text', 'YouTube link', null, 'e.g. https://youtu.be/…'], ['controls', 'check', 'Show YouTube controls (seek bar, title, logo, more videos)']] },
   button: { label: 'Button', icon: icon('button'), defaults: { label: 'Continue', url: '#next', align: 'center' },
     fields: [['label', 'text', 'Button text'], ['url', 'text', 'Link', null, 'page:contact = another page of this site · #next = this page’s ✓ Yes exit · #no = its ✕ No thanks exit · or a full https:// link'], ALIGN] },
   form: { label: 'Form', icon: icon('form'), defaults: { buttonLabel: 'Get instant access', collectName: true, collectPhone: false, purpose: 'Sign up', tag: 'lead' },
@@ -35,6 +35,12 @@ const BLOCKS = {
       ['buttonLabel', 'text', 'Button text'], ['collectName', 'check', 'Ask for first name'], ['collectPhone', 'check', 'Ask for phone number'], ['smsOptIn', 'check', 'SMS updates (adds a mobile number and the required text-message consent)'], ['collectMessage', 'check', 'Ask for a message'],
       ['tag', 'text', 'Tag new contacts with', null, 'Use tags to email this group later. Comma-separate for several.'],
       ['deliverUrl', 'file', 'Send them something (optional)'], ['deliverName', 'text', 'What it’s called in the email', null, 'e.g. the free typewriter care guide']] },
+  bullets: { label: 'Bullet list', icon: icon('check'), defaults: { title: '', items: 'One clear benefit\nAnother benefit\nA third benefit', style: 'check', align: 'center' },
+    fields: [['title', 'text', 'Heading (optional)'], ['items', 'textarea', 'Points (one per line)'], ['style', 'select', 'Style', ['check', 'dot', 'number']], ALIGN] },
+  offer: { label: 'Offer stack', icon: icon('bag'), defaults: { title: 'Here’s everything you get', items: 'The full course | $297\nWorkbook and templates | $49\nPrivate community | $99\nBonus: live Q&A replays | $79', priceLabel: 'Today', price: '$49', buttonLabel: 'Get everything', url: '#next', note: '30-day money-back guarantee', showTotal: true },
+    fields: [['title', 'text', 'Heading'], ['items', 'textarea', 'What they get (one per line: item | value)', null, 'e.g. Workbook | $49. Leave the value off to skip the total.'],
+      ['showTotal', 'check', 'Show the total value'], ['priceLabel', 'text', 'Price label', null, 'e.g. Today, Your price'], ['price', 'text', 'Your price', null, 'e.g. $49'],
+      ['buttonLabel', 'text', 'Button text'], ['url', 'text', 'Button link', null, '#next = this page’s ✓ Yes exit · page:slug · or a full https:// link'], ['note', 'text', 'Small print under the button']] },
   cards: { label: 'Cards', icon: icon('cards'), defaults: { items: 'Service one | A short description\nService two | A short description\nService three | A short description' },
     fields: [['items', 'textarea', 'Cards (one per line: Title | description)']] },
   info: { label: 'Business info', icon: icon('info'), defaults: { hours: 'Mon–Fri 9am–5pm', address: '', phone: '', email: '' },
@@ -46,6 +52,27 @@ const BLOCKS = {
   divider: { label: 'Divider', icon: icon('divider'), defaults: {}, fields: [] },
 };
 const uid = () => Math.random().toString(36).slice(2, 10);
+
+// Colour palettes: one tap restyles the page (background, text, buttons, banners).
+// Every button colour keeps white text readable (4.5:1 or better).
+const PALETTES = [
+  { name: 'Teal', bg: '#ffffff', text: '#14282b', accent: '#1b736d', band: '#0f5f5a' },
+  { name: 'Ocean', bg: '#ffffff', text: '#0f172a', accent: '#1d4ed8', band: '#1e3a8a' },
+  { name: 'Forest', bg: '#fbfaf5', text: '#1f2a1f', accent: '#2f6b3b', band: '#24502c' },
+  { name: 'Sunset', bg: '#fffaf5', text: '#2b1d16', accent: '#c2410c', band: '#9a3412' },
+  { name: 'Plum', bg: '#fdfbff', text: '#24142e', accent: '#7e22ce', band: '#581c87' },
+  { name: 'Rose', bg: '#fffafa', text: '#2a1517', accent: '#be185d', band: '#9d174d' },
+  { name: 'Charcoal', bg: '#ffffff', text: '#111827', accent: '#111827', band: '#1f2937' },
+  { name: 'Night', bg: '#0f1720', text: '#e5edf0', accent: '#0f766e', band: '#134e4a' },
+];
+// The palette applied to one page's settings and coloured blocks.
+function applyPalette(pal, settings, blocks) {
+  Object.assign(settings, { background: pal.bg, textColor: pal.text, accent: pal.accent, palette: pal.name });
+  for (const b of blocks || []) {
+    if (b.type === 'hero') Object.assign(b, { background: pal.band, textColor: '#ffffff' });
+    if (b.type === 'pricing' && b.buttonColor) b.buttonColor = pal.accent;
+  }
+}
 
 async function viewEditor(stepId) {
   const [step, products, testimonials] = await Promise.all([api('GET', `/api/steps/${stepId}`), api('GET', '/api/products'), api('GET', '/api/testimonials')]);
@@ -70,6 +97,9 @@ async function viewEditor(stepId) {
       <h3>Page content</h3><div data-blocks></div>
       <div class="list-bin" data-bin aria-hidden="true">${icon('trash')} Drop here to delete</div>
       <h3>Page style</h3>
+      <div class="pal-row" role="group" aria-label="Colour palettes">${PALETTES.map((p) => `<button type="button" class="pal ${ed.settings.palette === p.name ? 'on' : ''}" data-pal="${p.name}" title="${p.name}" aria-label="${p.name} palette" aria-pressed="${ed.settings.palette === p.name}">
+        <span style="background:${p.bg}"></span><span style="background:${p.band}"></span><span style="background:${p.accent}"></span><small>${p.name}</small></button>`).join('')}</div>
+      <button type="button" class="btn sm ghost" data-palall style="margin:-2px 0 10px">${icon('sparkle')} Use these colours on every page</button>
       <div class="colors">
         <label class="f">Background<input type="color" data-s="background" value="${esc(ed.settings.background)}"></label>
         <label class="f">Text<input type="color" data-s="textColor" value="${esc(ed.settings.textColor)}"></label>
@@ -183,6 +213,30 @@ async function viewEditor(stepId) {
     }).join('') : '<p class="muted small" data-empty>Your page is empty. Drag a block from above onto the page, or click one to add it.</p>';
   };
   const structural = () => { renderBlocks(); changed(); };
+  // Palettes: restyle this page in one tap (Undo works), or every page of the funnel/site.
+  $$('[data-pal]').forEach((btn) => { btn.onclick = () => {
+    const pal = PALETTES.find((x) => x.name === btn.dataset.pal);
+    applyPalette(pal, ed.settings, ed.blocks);
+    $$('[data-pal]').forEach((b) => { b.classList.toggle('on', b === btn); b.setAttribute('aria-pressed', String(b === btn)); });
+    for (const k of ['background', 'textColor', 'accent']) { const i = $(`[data-s="${k}"]`); if (i) i.value = ed.settings[k]; }
+    structural();
+  }; });
+  $('[data-palall]').onclick = async () => {
+    const pal = PALETTES.find((x) => x.name === ed.settings.palette) || { name: '', bg: ed.settings.background, text: ed.settings.textColor, accent: ed.settings.accent, band: ed.blocks.find((b) => b.type === 'hero')?.background || ed.settings.accent };
+    const f = await api('GET', `/api/funnels/${step.funnel.id}`);
+    const others = f.steps.filter((x) => x.id !== step.id);
+    if (!others.length) { toast('This is the only page'); return; }
+    const before = others.map((x) => ({ id: x.id, settings: JSON.parse(JSON.stringify(x.settings)), blocks: JSON.parse(JSON.stringify(x.blocks)) }));
+    for (const x of others) {
+      applyPalette(pal, x.settings, x.blocks);
+      if (!pal.name) delete x.settings.palette;
+      await api('PUT', `/api/steps/${x.id}`, { name: x.name, blocks: x.blocks, settings: x.settings });
+    }
+    undoToast(`Colours applied to ${others.length} more page${others.length === 1 ? '' : 's'}`, async () => {
+      for (const x of before) await api('PUT', `/api/steps/${x.id}`, { name: f.steps.find((y) => y.id === x.id).name, blocks: x.blocks, settings: x.settings });
+      toast('Other pages put back');
+    });
+  };
 
   const side = $('.side');
   side.addEventListener('click', (e) => {
@@ -221,6 +275,7 @@ async function viewEditor(stepId) {
       if (name) name.innerHTML = summary(b);
       changed();
     } else if (t.dataset.s) {
+      if (['background', 'textColor', 'accent'].includes(t.dataset.s)) { delete ed.settings.palette; $$('[data-pal]').forEach((b) => { b.classList.remove('on'); b.setAttribute('aria-pressed', 'false'); }); }
       ed.settings[t.dataset.s] = t.type === 'number' ? Number(t.value) : t.value;
       changed();
     }

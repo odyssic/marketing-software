@@ -664,7 +664,7 @@ function createApp({ dbPath } = {}) {
 
   api.post('/funnels', async (req, res) => {
     const name = String(req.body?.name || '').trim();
-    if (!name) throw new HttpError(400, 'Give your funnel a name');
+    if (!name) throw new HttpError(400, 'Give your pageflow a name');
     res.status(201).json(await createFunnel(req.accountId, name, req.body?.template));
   });
 
@@ -718,7 +718,7 @@ function createApp({ dbPath } = {}) {
 
   api.post('/funnels/:id/steps', async (req, res) => {
     const f = await getFunnel(req.accountId, req.params.id);
-    const { from, port, x, y } = req.body || {};
+    const { from, port, x, y, insert } = req.body || {};
     const name = String(req.body?.name || '').trim() || 'New page';
     const newId = await db.tx(async (t) => {
       const parent = from ? await stepInFunnel(t, f.id, from) : null;
@@ -726,7 +726,12 @@ function createApp({ dbPath } = {}) {
       const stepId = await insertStep(t, f.id, { name, blocks: [], settings: {} }, pos);
       await t.run('UPDATE funnel_steps SET x = ?, y = ? WHERE id = ?', num(x), num(y), stepId);
       // Created by dragging out of a page's exit: connect it to that exit.
-      if (parent) await t.run(`UPDATE funnel_steps SET ${port === 'no' ? 'no_step_id' : 'next_step_id'} = ? WHERE id = ?`, stepId, parent.id);
+      if (parent) {
+        const col = port === 'no' ? 'no_step_id' : 'next_step_id';
+        // "Add a page here" on a link: the new page goes in between, leading on to where the link went.
+        if (insert && parent[col]) await t.run('UPDATE funnel_steps SET next_step_id = ? WHERE id = ?', parent[col], stepId);
+        await t.run(`UPDATE funnel_steps SET ${col} = ? WHERE id = ?`, stepId, parent.id);
+      }
       if (!f.entry_step_id) await t.run('UPDATE funnels SET entry_step_id = ? WHERE id = ?', stepId, f.id);
       return stepId;
     });

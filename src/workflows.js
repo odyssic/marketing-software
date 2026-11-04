@@ -9,7 +9,7 @@ const { LEVER_KEYS } = require('./levers');
 
 const STEP_TYPES = ['wait', 'email', 'sms', 'condition', 'tag', 'subscribe', 'notify', 'deal'];
 const TRIGGERS = {
-  signup: 'Signs up (any form or funnel)',
+  signup: 'Signs up (any form or pageflow)',
   purchase: 'Buys something',
   tag_added: 'Gets a tag',
   subscribe: 'Subscribes to a newsletter',
@@ -60,6 +60,8 @@ function cleanConfig(type, c) {
     case 'trigger': return {
       event: TRIGGERS[c.event] ? c.event : 'manual', tag: str(c.tag, 60).trim().toLowerCase(),
       funnel_id: c.funnel_id ? int(c.funnel_id, 1, 1e9, null) : null, product: str(c.product, 100).trim(),
+      // Which page of the pageflow the follow-up is drawn after (display only).
+      step_id: c.step_id ? int(c.step_id, 1, 1e9, null) : null,
       days: int(c.days, 1, 3650, 180), repeat: Boolean(c.repeat),
     };
     case 'wait': return { days: int(c.days, 0, 3650, 1), hours: int(c.hours, 0, 23, 0) };
