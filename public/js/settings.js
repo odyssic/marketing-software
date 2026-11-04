@@ -45,6 +45,10 @@ function viewSettings() {
       <div class="row"><label class="f" style="margin:0">Send it on<select data-digestday>${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map((d, i) => `<option value="${i}" ${a.digest_day === i ? 'selected' : ''}>${d}</option>`).join('')}</select></label>
         <button class="btn" data-digestpreview type="button">Preview</button><button class="btn" data-digestsend type="button">Send me one now</button></div>
     </div>
+    <div class="card" style="max-width:560px;margin-top:16px"><h2>Email signatures</h2>
+      <p class="muted small">Design a signature once and it goes on your emails: newsletters, follow-ups and Inbox replies.</p>
+      <div data-sigsummary class="muted small">Loading…</div>
+      <button type="button" class="btn" data-sigmanage style="margin-top:8px">${icon('pencil')} Make or edit signatures</button></div>
     <form class="card" style="max-width:560px;margin-top:16px" data-texting><h2>Texting and calls</h2><p class="muted small">Loading…</p></form>
     <form class="card" style="max-width:560px;margin-top:16px" data-domain>
       <h2>Your domain</h2>
@@ -152,6 +156,14 @@ function viewSettings() {
       toast('Settings saved'); viewSettings();
     } catch (err) { $('.err').textContent = err.message; }
   };
+  const sigSummary = async () => {
+    const s = await loadSignatures(true);
+    const box = $('[data-sigsummary]'); if (!box) return;
+    const def = s.list.find((x) => x.id === s.default);
+    box.innerHTML = def ? `<div class="sig-mini">${signatureHtml(def)}</div><div style="margin-top:6px">${s.list.length} saved · this one goes on new emails</div>` : 'None yet.';
+  };
+  sigSummary();
+  $('[data-sigmanage]').onclick = async () => { const s = await loadSignatures(true); if (s.list.length) manageSignatures(sigSummary); else { await editSignature(); sigSummary(); } };
   ['[data-form]', '[data-business]', '[data-reviews]', '[data-voice]', '[data-stripe]'].forEach((sel) => trackDirty($(sel)));
   loadTextingSettings();
 }

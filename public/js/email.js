@@ -85,6 +85,9 @@ async function viewCompose(bid) {
   const toVal = b.segment ? `seg:${b.segment}` : b.tag ? `tag:${b.tag}` : '';
   const locked = !['draft', 'scheduled'].includes(b.status);
   const acct = state.me.account;
+  const sigs = await loadSignatures();
+  // New emails start with the default signature, if there is one.
+  if (isNew && !orig && sigs.default) b.body = 'Hi {{first_name|there}},\n\n\n\n{{signature}}';
   const sample = people.find((p) => p.first_name) || { first_name: 'Alex', last_name: 'Reader', email: 'alex@example.com' };
   shell('email', `
     <div class="compose">
@@ -104,7 +107,7 @@ async function viewCompose(bid) {
           ${locked ? '' : `<div class="cmp-tools" role="toolbar" aria-label="Insert">
             ${fieldSelect('body')}
             <button type="button" data-link>${icon('link')} Link</button>
-            <button type="button" data-ins="\n\n—\n${esc(acct.from_name || acct.name)}">Sign-off</button></div>`}
+            <button type="button" data-sigmenu aria-haspopup="menu">${icon('pencil')} Signature</button></div>`}
           <textarea name="body" rows="18" ${locked ? 'disabled' : ''}>${esc(b.body)}</textarea>
           <span class="hint">Write like a note to one person. Type <b>{{</b> for fill-in fields like their first name. An unsubscribe link is added for you.</span></div>
       </form>
@@ -128,14 +131,16 @@ async function viewCompose(bid) {
     return k in v ? v[k] || fb || ({ first_name: 'there', name: 'there' }[k] || '') : m;
   });
   const bodyHtml = (t) => esc(merge(t)).split(/\n{2,}/).filter((x) => x.trim()).map((para) => `<p>${para.replace(/\n/g, '<br>')
-    .replace(/https?:\/\/[^\s<]+[^\s<.,;:!?)\]'"]/g, (u) => `<a href="${u}" target="_blank" rel="noopener">${u}</a>`)}</p>`).join('');
+    .replace(/https?:\/\/[^\s<]+[^\s<.,;:!?)\]'"]/g, (u) => `<a href="${u}" target="_blank" rel="noopener">${u}</a>`)}</p>`).join('')
+    // {{signature}} lines show the real signature, as readers will see it.
+    .replace(/<p>\{\{\s*signature(?::([\w-]+))?\s*\}\}<\/p>/g, (m, id) => signatureHtml(pickSignature(sigs, id)) || '<p class="muted small">[No signature saved yet: Signature → New signature]</p>');
   const sender = acct.from_name || acct.name;
   let dirty = false;
   const render = () => {
     const v = val();
     $('[data-pfrom]').textContent = sender; $('[data-pfrom2]').textContent = sender;
     $('[data-psubj]').textContent = merge(v.subject) || '(no subject)'; $('[data-psubj2]').textContent = merge(v.subject) || '(no subject)';
-    $('[data-ppre]').textContent = `– ${merge(v.preheader) || merge(v.body).replace(/\s+/g, ' ').slice(0, 90)}`;
+    $('[data-ppre]').textContent = `– ${merge(v.preheader) || merge(v.body).replace(/\{\{\s*signature[^}]*\}\}/g, '').replace(/\s+/g, ' ').trim().slice(0, 90)}`;
     $('[data-pbody]').innerHTML = bodyHtml(v.body) || '<p class="muted">Your message appears here.</p>';
     const n = v.subject.length;
     $('[data-sublen]').textContent = n ? `${n} characters${n > 60 ? ' · may be cut off on phones' : ''}` : '';
@@ -170,7 +175,8 @@ async function viewCompose(bid) {
   form.addEventListener('input', check);
   $$('[data-starter]').forEach((btn) => { btn.onclick = () => {
     const t = EMAIL_STARTERS.find((x) => x.key === btn.dataset.starter);
-    const fill = (x) => x.replace(/\{\{sender\}\}/g, acct.from_name || acct.name);
+    // Starters end with your saved signature when you have one, else your name.
+    const fill = (x) => (sigs.default ? x.replace(/—\n\{\{sender\}\}/g, '{{signature}}') : x).replace(/\{\{sender\}\}/g, acct.from_name || acct.name);
     form.subject.value = fill(t.subject); form.preheader.value = fill(t.preheader); form.body.value = fill(t.body);
     $$('[data-starter]').forEach((x) => x.classList.toggle('on', x === btn));
     dirty = true; render(); check();
@@ -191,6 +197,13 @@ async function viewCompose(bid) {
     dirty = true; render();
   };
   $$('[data-ins]').forEach((btn) => { btn.onclick = () => insert(btn.dataset.ins); });
+  $('[data-sigmenu]').onclick = (e) => signatureMenu(e.currentTarget, (t) => {
+    // One signature per email: a new pick replaces the old line.
+    // Signatures always go at the end, and one per email: a new pick replaces the old line.
+    form.body.value = form.body.value.replace(/\n*\{\{\s*signature(?::[\w-]+)?\s*\}\}/g, '').replace(/\s+$/, '') + t;
+    dirty = true; render();
+    loadSignatures().then((s) => { sigs.list = s.list; sigs.default = s.default; render(); });
+  });
   bindFieldInserts(form);
   $('[data-link]').onclick = async () => {
     const v = await modal('Add a link', `<label class="f">Words before the link <span class="hint">optional</span><input name="label" placeholder="e.g. Read the full guide"></label>

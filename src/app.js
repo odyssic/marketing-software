@@ -351,6 +351,26 @@ function createApp({ dbPath } = {}) {
     res.json({ ok: true });
   });
 
+  // Email signatures, saved once per business.
+  api.get('/account/signatures', async (req, res) => {
+    const a = await db.get('SELECT signatures FROM accounts WHERE id = ?', req.accountId);
+    let s = {}; try { s = JSON.parse(a.signatures || '{}'); } catch { /* empty */ }
+    res.json({ list: s.list || [], default: s.default || null });
+  });
+  api.put('/account/signatures', async (req, res) => {
+    const FIELDS = ['label', 'style', 'color', 'name', 'title', 'company', 'phone', 'email', 'website', 'instagram', 'facebook', 'linkedin', 'tiktok', 'youtube', 'x', 'photo', 'tagline'];
+    const list = (Array.isArray(req.body?.list) ? req.body.list : []).slice(0, 12).map((s) => {
+      const out = { id: /^[\w-]{1,24}$/.test(String(s?.id || '')) ? String(s.id) : crypto.randomBytes(4).toString('hex') };
+      for (const k of FIELDS) if (s?.[k] !== undefined) out[k] = String(s[k]).trim().slice(0, k === 'photo' ? 500 : 200);
+      if (!['classic', 'photo', 'card', 'minimal'].includes(out.style)) out.style = 'classic';
+      if (!/^#[0-9a-f]{6}$/i.test(out.color || '')) out.color = '#1b736d';
+      return out;
+    }).filter((s) => s.name);
+    const def = list.some((s) => s.id === req.body?.default) ? req.body.default : list[0]?.id || null;
+    await db.run('UPDATE accounts SET signatures = ? WHERE id = ?', JSON.stringify({ list, default: def }), req.accountId);
+    res.json({ list, default: def });
+  });
+
   api.put('/account', async (req, res) => {
     const { name, from_name, from_email } = req.body || {};
     if (!name?.trim()) throw new HttpError(400, 'Workspace name is required');

@@ -4,6 +4,21 @@
 // record, and open/click events that feed the lever metrics.
 const crypto = require('node:crypto');
 const mailer = require('./mailer');
+const signatures = require('../public/js/signature.js');
+
+// {{signature}} lines: the designed signature in the HTML, a plain version in the text.
+function sigStore(account) { try { return JSON.parse(account?.signatures || '{}'); } catch { return {}; } }
+const sigToken = () => new RegExp(signatures.SIG_TOKEN.source, 'g');
+function signText(text, account, base) {
+  const store = sigStore(account);
+  return String(text).replace(sigToken(), (m, id) => signatures.signatureText(signatures.pickSignature(store, id), base));
+}
+function signHtml(html, account, base) {
+  const store = sigStore(account);
+  const one = (id) => signatures.signatureHtml(signatures.pickSignature(store, id), base);
+  return html.replace(/<p style="margin:0 0 14px">\{\{\s*signature(?::([\w-]+))?\s*\}\}<\/p>/g, (m, id) => one(id))
+    .replace(sigToken(), (m, id) => one(id));
+}
 
 const escHtml = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const GIF = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64');
@@ -49,10 +64,11 @@ function createMessaging({ getDb, getSecret, publicBase, logEvent }) {
     const base = publicBase();
     const subj = merge(subject, person, account);
     const unsub = `${base}/unsubscribe/${unsubToken(person.id)}`;
-    const text = `${merge(body, person, account)}\n\n--\nUnsubscribe: ${unsub}`;
+    const merged = `${merge(body, person, account)}\n\n--\nUnsubscribe: ${unsub}`;
+    const text = signText(merged, account, base);
     const row = await db.get(`INSERT INTO email_log (account_id, broadcast_id, contact_id, to_email, subject, body, status, workflow_id, campaign_id)
       VALUES (?, ?, ?, ?, ?, ?, 'queued', ?, ?) RETURNING id`, account.id, broadcastId, person.id, person.email, subj, text, workflowId, campaignId);
-    const html = toHtml(text, sign(row.id), base, merge(preheader, person, account));
+    const html = signHtml(toHtml(merged, sign(row.id), base, merge(preheader, person, account)), account, base);
     try {
       // One-click unsubscribe headers (required by Gmail and Yahoo for bulk senders).
       const headers = { 'List-Unsubscribe': `<${unsub}>`, 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' };
@@ -67,8 +83,9 @@ function createMessaging({ getDb, getSecret, publicBase, logEvent }) {
 
   // Service emails from the business (booking confirmations, reminders):
   // sent even to people who unsubscribed from marketing, no tracking.
-  async function sendTransactional({ account, to, contactId = null, subject, text, attachments, replyTo }) {
-    const html = toHtml(text, 'tx', publicBase()).replace(/<img src="[^"]*\/t\/o\/[^"]*"[^>]*>/, '').replace(/href="[^"]*\/t\/c\/tx\?u=([^"]*)"/g, (_, u) => `href="${decodeURIComponent(u)}"`);
+  async function sendTransactional({ account, to, contactId = null, subject, text: raw, attachments, replyTo }) {
+    const text = signText(raw, account, publicBase());
+    const html = signHtml(toHtml(raw, 'tx', publicBase()), account, publicBase()).replace(/<img src="[^"]*\/t\/o\/[^"]*"[^>]*>/, '').replace(/href="[^"]*\/t\/c\/tx\?u=([^"]*)"/g, (_, u) => `href="${decodeURIComponent(u)}"`);
     const r = await mailer.sendEmail({ ...fromFor(account), ...(replyTo ? { replyTo } : {}), to, subject, text, html, attachments });
     await getDb().run('INSERT INTO email_log (account_id, contact_id, to_email, subject, body, status) VALUES (?, ?, ?, ?, ?, ?)', account.id, contactId, to, subject, text, r.status);
     return r;
@@ -80,9 +97,10 @@ function createMessaging({ getDb, getSecret, publicBase, logEvent }) {
     const [first, ...rest] = String(name || '').split(' ');
     const person = { first_name: first, last_name: rest.join(' '), email: to };
     const subj = `[Test] ${merge(subject, person, account)}`;
-    const text = `${merge(body, person, account)}\n\n--\nUnsubscribe: (your readers get a working link here)`;
+    const merged = `${merge(body, person, account)}\n\n--\nUnsubscribe: (your readers get a working link here)`;
     const base = publicBase();
-    const html = toHtml(text, 'test', base, merge(preheader, person, account)).replace(/<img src="[^"]*\/t\/o\/[^"]*"[^>]*>/, '').replace(/href="[^"]*\/t\/c\/test\?u=([^"]*)"/g, (_, u) => `href="${decodeURIComponent(u)}"`);
+    const text = signText(merged, account, base);
+    const html = signHtml(toHtml(merged, 'test', base, merge(preheader, person, account)), account, base).replace(/<img src="[^"]*\/t\/o\/[^"]*"[^>]*>/, '').replace(/href="[^"]*\/t\/c\/test\?u=([^"]*)"/g, (_, u) => `href="${decodeURIComponent(u)}"`);
     const r = await mailer.sendEmail({ ...fromFor(account), to, subject: subj, text, html });
     await getDb().run('INSERT INTO email_log (account_id, to_email, subject, body, status) VALUES (?, ?, ?, ?, ?)', account.id, to, subj, text, r.status);
     return r;

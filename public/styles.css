@@ -944,3 +944,28 @@ a.fc-more { display: block; text-decoration: none; }
 .ff-plus { position: static; transform: none; flex: none; }
 .banner.shared { display: flex; gap: 8px; align-items: flex-start; background: #f2faf8; border-color: #c4e6e1; color: var(--text); }
 .banner.shared svg { width: 16px; height: 16px; color: var(--brand); flex: none; margin-top: 3px; }
+
+/* Signature maker */
+.sig-maker { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: start; }
+@media (max-width: 760px) { .sig-maker { grid-template-columns: 1fr; } .sig-live { order: -1; } }
+.sig-styles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 4px; }
+.sig-style { border: 1.5px solid var(--line); border-radius: 10px; padding: 8px 4px; text-align: center; font-size: .85rem; cursor: pointer; position: relative; }
+.sig-style input { position: absolute; opacity: 0; }
+.sig-style:has(input:checked) { border-color: var(--brand); background: var(--brand-soft); font-weight: 600; }
+.sig-style:has(input:focus-visible) { outline: 3px solid #7cc8bf; }
+.sig-colors { display: flex; gap: 8px; align-items: center; margin-top: 4px; flex-wrap: wrap; }
+.sig-color { position: relative; width: 30px; height: 30px; cursor: pointer; }
+.sig-color input[type=radio] { position: absolute; opacity: 0; }
+.sig-color span { display: block; width: 30px; height: 30px; border-radius: 50%; background: var(--c); box-shadow: inset 0 0 0 2px rgba(255,255,255,.6); }
+.sig-color:has(input:checked) span { box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--c); }
+.sig-color.custom input { width: 30px; height: 30px; padding: 0; border: 1px dashed var(--line); border-radius: 50%; margin: 0; background: none; }
+.sig-photo { display: flex; gap: 8px; align-items: center; margin-top: 4px; }
+.sig-photo [data-sigphoto] { width: 48px; height: 48px; border-radius: 50%; background: #f1f3f4; display: grid; place-items: center; overflow: hidden; color: var(--muted); }
+.sig-photo img { width: 100%; height: 100%; object-fit: cover; }
+.sig-live { position: sticky; top: 0; }
+.sig-paper { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 18px; margin-top: 6px; font-size: .95rem; box-shadow: 0 4px 16px rgba(20,40,43,.06); }
+.sig-paper p { margin: 0 0 10px; }
+.sig-menu { position: absolute; z-index: 20; top: 100%; left: 0; right: auto; margin-top: 4px; min-width: 220px; }
+.sig-list { display: grid; gap: 10px; margin-bottom: 12px; }
+.sig-item { border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: grid; gap: 8px; }
+.sig-mini { background: #fff; border-radius: 8px; padding: 4px 0; overflow-x: auto; }
