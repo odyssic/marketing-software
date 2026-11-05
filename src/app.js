@@ -342,7 +342,10 @@ function createApp({ dbPath } = {}) {
       if (!/^(sk|rk)_(test|live)_\w+$/.test(secretKey.trim())) {
         throw new HttpError(400, 'That doesn’t look like a Stripe secret key (it starts with sk_live_ or sk_test_)');
       }
+      const got = await stripe.connect(secretKey.trim(), `${baseUrl(req)}/stripe/webhook/${req.accountId}`).catch((e) => { if (e.bad) throw new HttpError(400, e.message); return {}; });
       await db.run('UPDATE accounts SET stripe_secret_key = ? WHERE id = ?', secretKey.trim(), req.accountId);
+      if (got.webhookSecret) await db.run('UPDATE accounts SET stripe_webhook_secret = ? WHERE id = ?', got.webhookSecret, req.accountId);
+      if (!webhookSecret) return res.json({ ok: true, name: got.name || '', webhook: Boolean(got.webhookSecret) });
     }
     if (webhookSecret) {
       if (!/^whsec_\w+$/.test(webhookSecret.trim())) throw new HttpError(400, 'Webhook signing secrets start with whsec_');

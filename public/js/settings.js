@@ -74,15 +74,20 @@ function viewSettings() {
       <h2>Payments (Stripe)</h2>
       <p class="small">Status: ${state.me.payments.connected ? `<span class="pill ok">connected${state.me.payments.testKey ? ' · test key' : ''}</span> key ${esc(state.me.payments.keyHint)}`
         : '<span class="pill warn">not connected</span> checkouts run in test mode'}</p>
-      <label class="f">Secret key <span class="hint">Stripe Dashboard → Developers → API keys</span>
-        <input name="secretKey" type="password" autocomplete="off" placeholder="${state.me.payments.connected ? 'Saved. Paste a new key to replace it' : 'sk_live_… or sk_test_…'}"></label>
-      <label class="f">Webhook signing secret <span class="hint">recommended</span>
-        <input name="webhookSecret" type="password" autocomplete="off" placeholder="${state.me.payments.webhookSecretSet ? 'Saved. Paste a new one to replace it' : 'whsec_…'}"></label>
-      <p class="hint">In Stripe, add a webhook endpoint for <b>checkout.session.completed</b> pointing to:</p>
-      <div class="copy" style="margin-bottom:12px"><input readonly aria-label="Webhook address" value="${esc(state.me.payments.webhookUrl)}"><button type="button" class="btn" data-copy="${esc(state.me.payments.webhookUrl)}">Copy</button></div>
+      ${state.me.payments.connected ? '' : `<ol class="stripe-steps">
+        <li><a class="btn" href="https://dashboard.stripe.com/apikeys" target="_blank" rel="noopener">${icon('external')} Open my Stripe keys</a>
+          <span class="muted small">Log in to Stripe (or sign up, it’s free). Next to <b>Secret key</b>, click <b>Reveal</b> and copy it.</span></li>
+        <li>Paste it here and press <b>Connect</b>. Rilly sets up the rest in your Stripe account.</li></ol>`}
+      <label class="f">${state.me.payments.connected ? 'Replace the key' : 'Secret key'}
+        <input name="secretKey" type="password" autocomplete="off" placeholder="${state.me.payments.connected ? 'Paste a new key to replace it' : 'sk_live_… (or sk_test_… to try it out)'}"></label>
+      ${state.me.payments.connected && !state.me.payments.webhookSecretSet ? `<p class="hint">${icon('alert')} Paid orders are confirmed when buyers return to your page. To confirm them even if they close the tab, paste your key again (Rilly adds the webhook), or set it up yourself below.</p>` : ''}
+      <details class="stripe-manual" ${state.me.payments.connected && !state.me.payments.webhookSecretSet ? 'open' : ''}><summary class="small">Set up the webhook yourself</summary>
+        <p class="hint">Only needed if Rilly couldn’t add it for you. In Stripe → Developers → Webhooks, add an endpoint for <b>checkout.session.completed</b> pointing to:</p>
+        <div class="copy" style="margin-bottom:10px"><input readonly aria-label="Webhook address" value="${esc(state.me.payments.webhookUrl)}"><button type="button" class="btn" data-copy="${esc(state.me.payments.webhookUrl)}">Copy</button></div>
+        <label class="f">Its signing secret<input name="webhookSecret" type="password" autocomplete="off" placeholder="${state.me.payments.webhookSecretSet ? 'Saved. Paste a new one to replace it' : 'whsec_…'}"></label></details>
       <label class="check" style="margin:4px 0 12px"><input type="checkbox" data-recover ${state.me.account.recover_checkouts === 0 ? '' : 'checked'}> Remind people who start checking out but don’t finish <span class="muted small">(one email, an hour later)</span></label>
       <div class="err"></div>
-      <div class="row"><button class="btn primary">Save payment settings</button>
+      <div class="row"><button class="btn primary">${state.me.payments.connected ? 'Save payment settings' : 'Connect'}</button>
         ${state.me.payments.connected ? '<button type="button" class="btn danger" data-disconnect>Disconnect</button>' : ''}</div>
     </form>`);
   bindCopy();
@@ -140,9 +145,10 @@ function viewSettings() {
   });
   const saveStripe = async (body, form) => {
     try {
-      await api('PUT', '/api/account/stripe', body);
+      const r = await api('PUT', '/api/account/stripe', body);
       state.me = await api('GET', '/api/me');
-      toast('Payment settings saved'); viewSettings();
+      toast(body.disconnect ? 'Stripe disconnected' : body.secretKey ? `Stripe connected${r.name ? `: ${r.name}` : ''}${r.webhook ? '' : '. One more step below'}` : 'Payment settings saved');
+      viewSettings();
     } catch (err) { $('.err', form).textContent = err.message; }
   };
   $('[data-stripe]').onsubmit = (e) => { e.preventDefault(); saveStripe(Object.fromEntries(new FormData(e.target)), e.target); };

@@ -24,7 +24,7 @@ async function call(secretKey, method, path, params) {
     body: params ? encode(params) : undefined,
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error?.message || `Stripe error ${res.status}`);
+  if (!res.ok) throw Object.assign(new Error(data.error?.message || `Stripe error ${res.status}`), { status: res.status });
   return data;
 }
 
@@ -78,4 +78,22 @@ function verifyWebhook(rawBody, header, secret, toleranceSec = 300) {
 // no_payment_required).
 const isPaid = (session) => ['paid', 'no_payment_required'].includes(session.payment_status);
 
-module.exports = { createCheckoutSession, retrieveCheckoutSession, chargeSaved, verifyWebhook, isPaid };
+// Connect with just the secret key: check it works, then create the webhook in their
+// Stripe account (replacing one we made before) so nobody has to copy a signing secret.
+const WEBHOOK_EVENTS = ['checkout.session.completed', 'checkout.session.async_payment_succeeded'];
+async function connect(secretKey, webhookUrl) {
+  let account = null;
+  try { account = await call(secretKey, 'GET', '/account'); } catch (e) {
+    if (e.status === 401) throw Object.assign(new Error('Stripe didn’t accept that key. Copy the Secret key again (click Reveal, then copy).'), { bad: true });
+  }
+  const name = account?.settings?.dashboard?.display_name || account?.business_profile?.name || account?.email || '';
+  if (!/^https:\/\//.test(webhookUrl)) return { name, webhookSecret: null, why: 'local address' };
+  try {
+    const list = await call(secretKey, 'GET', '/webhook_endpoints?limit=100');
+    for (const w of list.data || []) if (w.url === webhookUrl) await call(secretKey, 'DELETE', `/webhook_endpoints/${w.id}`).catch(() => {});
+    const w = await call(secretKey, 'POST', '/webhook_endpoints', { url: webhookUrl, enabled_events: WEBHOOK_EVENTS, description: 'Rilly: marks orders paid' });
+    return { name, webhookSecret: w.secret || null };
+  } catch (e) { return { name, webhookSecret: null, why: e.message }; }
+}
+
+module.exports = { connect, createCheckoutSession, retrieveCheckoutSession, chargeSaved, verifyWebhook, isPaid };
