@@ -23,8 +23,8 @@ async function viewFlows() {
   const kindOk = (g) => !show || (show === 'websites' && g.kind === 'website') || (show === 'members' && g.kind === 'members') || (show === 'pageflows' && g.kind !== 'website' && g.kind !== 'members');
   const groups = show === 'followups' ? [] : groupsAll.filter(kindOk)
     .filter((g) => !q || `${g.name} ${g.pages.map((p) => `${p.name} ${p.slug}`).join(' ')}`.toLowerCase().includes(q));
-  // Follow-ups that belong to a pageflow live on its map; the rest start on their own.
-  const standalone = ['', 'followups'].includes(show) ? wfs.filter((w) => !w.funnel_id)
+  // Follow-ups that belong to a flow show with it; the rest start on their own (Follow-ups tab only).
+  const standalone = show === 'followups' ? wfs.filter((w) => !w.funnel_id)
     .filter((w) => !q || `${w.name} ${w.triggerLabel} ${(w.preview || []).map((x) => x.text).join(' ')}`.toLowerCase().includes(q)) : [];
   const same = {};
   wfs.filter((w) => w.status === 'active').forEach((w) => { (same[w.triggerKey] = same[w.triggerKey] || []).push(w); });
@@ -36,6 +36,16 @@ async function viewFlows() {
           <figcaption><b>${esc(p.name)}</b><span class="muted small">${p.views} views${p.leads ? ` · ${p.leads} ${p.leads === 1 ? 'lead' : 'leads'}` : ''}</span>
             <span class="pg-links"><a href="#/editor/${p.id}">Edit</a> · <a href="${esc(link(g, p, i))}" target="_blank" rel="noopener">View</a></span></figcaption>
         </figure>`;
+  // A flow's own follow-ups, as cards you can open.
+  const fuOf = (g) => wfs.filter((w) => w.funnel_id === g.id && w.status !== 'archived');
+  const fuCard = (w) => {
+    const on = w.status === 'active', steps = w.preview || [];
+    return `<a class="pg-fu ${on ? '' : 'off'}" href="#/flows/followup/${w.id}" title="Open “${esc(w.name)}”">
+      <span class="pg-fu-h">${icon('mail')}<b>${esc(w.name.replace(/^.*?: /, ''))}</b><span class="pill ${on ? 'ok' : ''}">${on ? 'On' : 'Off'}</span></span>
+      <span class="pg-fu-when">${icon('bolt')} When someone ${esc((w.triggerLabel || '').toLowerCase())}</span>
+      <ol>${steps.slice(0, 3).map((x) => `<li>${icon(STEP_ICON[x.type] || 'bolt')}<span>${stepSay(x)}</span></li>`).join('')}</ol>
+      <span class="pg-fu-foot">${steps.length > 3 ? `${steps.length - 3} more step${steps.length - 3 === 1 ? '' : 's'} · ` : ''}<u>Open</u></span></a>`;
+  };
   const kindWord = (g) => ({ website: 'Website', members: 'Members area' })[g.kind] || 'Pageflow';
 
   shell('flows', `
@@ -53,7 +63,9 @@ async function viewFlows() {
         <span class="row" style="gap:6px"><a class="btn sm" href="#/${FLOW_OPEN[g.kind] || 'funnels'}/${g.id}">Open</a>
           ${moreMenu(`<button role="menuitem" data-gdup="${g.id}">${icon('copy')} Duplicate</button><button role="menuitem" class="danger" data-gdel="${g.id}">${icon('trash')} Delete</button>`)}</span>
       </header>
-      ${g.kind === 'website' ? siteTree(g, pageFig) : `<div class="pg-strip">${g.pages.map((p, i) => `${i ? `<span class="pg-arrow" aria-hidden="true">${icon('arrowRight')}</span>` : ''}${pageFig(g, p, i, i === 0 ? 'Start' : '')}`).join('')}</div>`}
+      ${g.kind === 'website' ? `${siteTree(g, pageFig)}${fuOf(g).length ? `<div class="st-fus"><span class="muted small">Emails that follow its forms</span><div class="pg-fus">${fuOf(g).map(fuCard).join('')}</div></div>` : ''}`
+        : `<div class="pg-strip">${g.pages.map((p, i) => `${i ? `<span class="pg-arrow" aria-hidden="true">${icon('arrowRight')}</span>` : ''}${pageFig(g, p, i, i === 0 ? 'Start' : '')}`).join('')}
+          ${fuOf(g).length ? `<span class="pg-arrow fu" aria-hidden="true">${icon('mail')}</span>${fuOf(g).map(fuCard).join('')}` : ''}</div>`}
     </section>`).join('')}
     ${standalone.length ? `${groups.length ? '<h2 class="section-h">Follow-ups that start on their own</h2>' : ''}
       <section class="card fl-list">${standalone.map((w) => `<div class="fl-row ${w.status === 'active' ? '' : 'off'}" data-ffrow="${w.id}">
