@@ -6,7 +6,7 @@
 // Charts are plain SVG: thin marks, one axis, hover readouts, a table view.
 const RANGE_UI = [['7d', '7 days'], ['30d', '30 days'], ['90d', '90 days'], ['12m', '12 months'], ['all', 'All time']];
 const VIZ = { revenue: 'var(--brand)', prev: '#8a9296', leads: '#2a78d6', customers: '#eb6834' };
-const metricsState = { range: (() => { try { return localStorage.getItem('dashRange') || '30d'; } catch { return '30d'; } })(), data: {} };
+const metricsState = { moreOpen: (() => { try { return localStorage.getItem('dashMoreNumbers') === '1'; } catch { return false; } })(), range: (() => { try { return localStorage.getItem('dashRange') || '30d'; } catch { return '30d'; } })(), data: {} };
 
 const fmtPct = (x, digits = 0) => (x === null || x === undefined ? '—' : `${(x * 100).toFixed(digits)}%`);
 const shortMoney = (cents, cur) => {
@@ -51,11 +51,13 @@ async function renderMetrics() {
       ${kpi('Recurring per month', money(m.mrr, cur), `<span class="kd">${m.subscribers} active subscriber${m.subscribers === 1 ? '' : 's'}</span>`, 'Monthly plans, plus yearly plans divided by 12')}
       ${kpi('New customers', c.newCustomers, delta(c.newCustomers, p.newCustomers), 'People who bought for the first time')}
       ${kpi('New leads', c.leads, delta(c.leads, p.leads), 'New people added: sign-ups, inquiries, bookings, imports')}
+    </div>
+    <details class="kpi-more" ${metricsState.moreOpen ? 'open' : ''}><summary>More numbers</summary><div class="kpis">
       ${kpi('Leads who bought', fmtPct(c.conversion), delta(c.conversion, p.conversion, { pts: true }), 'Of the people who joined in this period, how many have bought')}
       ${kpi('Average order', c.aov === null ? '—' : money(Math.round(c.aov), cur), delta(c.aov, p.aov), 'Revenue ÷ number of orders')}
       ${kpi('Lifetime value', m.ltv === null ? '—' : money(Math.round(m.ltv), cur), '<span class="kd">per customer, all time</span>', 'Everything a customer has spent, on average')}
       ${kpi('Repeat customers', fmtPct(m.repeatRate), `<span class="kd">of ${m.customers} customer${m.customers === 1 ? '' : 's'}, all time</span>`, 'Customers who bought more than once')}
-    </div>
+    </div></details>
     <div class="chart-grid">
       <section class="card chart wide"><header><h2>Revenue</h2>
         <div class="legend"><span><i class="lg-rect" style="background:${VIZ.revenue}"></i>This period</span>${range === 'all' ? '' : `<span><i class="lg-dash"></i>Previous period</span>`}</div></header>
@@ -67,6 +69,7 @@ async function renderMetrics() {
         <div class="viz" data-viz="sources"></div></section>
     </div>
     <details class="viz-table"><summary>Show these numbers as a table</summary>${tableHtml(m)}</details>`;
+  const km = $('.kpi-more', box); if (km) km.addEventListener('toggle', () => { metricsState.moreOpen = km.open; try { localStorage.setItem('dashMoreNumbers', km.open ? '1' : ''); } catch { /* optional */ } });
   revenueChart($('[data-viz=revenue]', box), m);
   peopleChart($('[data-viz=people]', box), m);
   sourcesChart($('[data-viz=sources]', box), m);

@@ -1040,3 +1040,6 @@ a.fc-more { display: block; text-decoration: none; }
 .test-note { display: inline-flex; gap: 6px; align-items: center; margin: -6px 0 12px; font-size: .86rem; color: #854d0e; background: #fef9e7; border-radius: 99px; padding: 4px 12px 4px 10px; }
 .test-note svg { width: 15px; height: 15px; }
 .test-note a { color: inherit; font-weight: 600; }
+.kpi-more { margin: -6px 0 14px; }
+.kpi-more > summary { color: var(--brand); font-weight: 600; font-size: .9rem; padding: 4px 0 8px; }
+.kpi-more .kpis { margin-bottom: 0; }
