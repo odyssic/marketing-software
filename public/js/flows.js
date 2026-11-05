@@ -30,6 +30,12 @@ async function viewFlows() {
   wfs.filter((w) => w.status === 'active').forEach((w) => { (same[w.triggerKey] = same[w.triggerKey] || []).push(w); });
   const twins = (w) => (w.status === 'active' ? (same[w.triggerKey] || []).filter((x) => x.id !== w.id) : []);
   const link = (g, p, i) => publicUrl(`/f/${g.slug}${i === 0 && g.kind !== 'website' ? '' : `/${p.slug}`}`);
+  const pageFig = (g, p, i, badge) => `<figure class="pg-page">
+          <a class="pg-thumb" href="#/editor/${p.id}" title="Edit “${esc(p.name)}”"><iframe tabindex="-1" aria-hidden="true" sandbox="" loading="lazy" data-pthumb="${p.id}"></iframe>
+            ${badge ? `<span class="pg-start">${badge}</span>` : ''}${p.testing ? '<span class="pg-ab">A/B</span>' : ''}</a>
+          <figcaption><b>${esc(p.name)}</b><span class="muted small">${p.views} views${p.leads ? ` · ${p.leads} ${p.leads === 1 ? 'lead' : 'leads'}` : ''}</span>
+            <span class="pg-links"><a href="#/editor/${p.id}">Edit</a> · <a href="${esc(link(g, p, i))}" target="_blank" rel="noopener">View</a></span></figcaption>
+        </figure>`;
   const kindWord = (g) => ({ website: 'Website', members: 'Members area' })[g.kind] || 'Pageflow';
 
   shell('flows', `
@@ -47,13 +53,7 @@ async function viewFlows() {
         <span class="row" style="gap:6px"><button class="btn sm" data-gdup="${g.id}" title="Duplicate">${icon('copy')} Duplicate</button>
           <a class="btn sm" href="#/${FLOW_OPEN[g.kind] || 'funnels'}/${g.id}">Open</a></span>
       </header>
-      <div class="pg-strip">${g.pages.map((p, i) => `${i && g.kind !== 'website' ? `<span class="pg-arrow" aria-hidden="true">${icon('arrowRight')}</span>` : ''}
-        <figure class="pg-page">
-          <a class="pg-thumb" href="#/editor/${p.id}" title="Edit “${esc(p.name)}”"><iframe tabindex="-1" aria-hidden="true" sandbox="" loading="lazy" data-pthumb="${p.id}"></iframe>
-            ${i === 0 && g.kind !== 'website' ? '<span class="pg-start">Start</span>' : ''}${p.testing ? '<span class="pg-ab">A/B</span>' : ''}</a>
-          <figcaption><b>${esc(p.name)}</b><span class="muted small">${p.views} views${p.leads ? ` · ${p.leads} ${p.leads === 1 ? 'lead' : 'leads'}` : ''}</span>
-            <span class="pg-links"><a href="#/editor/${p.id}">Edit</a> · <a href="${esc(link(g, p, i))}" target="_blank" rel="noopener">View</a></span></figcaption>
-        </figure>`).join('')}</div>
+      ${g.kind === 'website' ? siteTree(g, pageFig) : `<div class="pg-strip">${g.pages.map((p, i) => `${i ? `<span class="pg-arrow" aria-hidden="true">${icon('arrowRight')}</span>` : ''}${pageFig(g, p, i, i === 0 ? 'Start' : '')}`).join('')}</div>`}
     </section>`).join('')}
     ${standalone.length ? `${groups.length ? '<h2 class="section-h">Follow-ups that start on their own</h2>' : ''}
       ${standalone.map((w) => `<section class="pgroup card ff-group">
@@ -259,4 +259,22 @@ async function viewFollowupFlow(id) {
 async function sharedFollowupsFor(funnelId) {
   const list = await api('GET', '/api/workflows').catch(() => []);
   return list.filter((w) => w.status === 'active' && !w.funnel_id && ['signup', 'inquiry', 'purchase', 'booking', 'subscribe'].includes(w.trigger) && (!w.triggerFunnel || w.triggerFunnel === funnelId));
+}
+
+// A website is not a path people walk through: show it as a site map.
+// Home on top, the pages in its menu under it, pages left out of the menu to the side.
+function sitePages(pages, entryId) {
+  const home = pages.find((p) => p.id === entryId) || pages[0];
+  const rest = pages.filter((p) => p !== home);
+  return { home, menu: rest.filter((p) => !p.settings?.hideInMenu), off: rest.filter((p) => p.settings?.hideInMenu) };
+}
+function siteTree(g, fig) {
+  if (!g.pages.length) return '';
+  const { home, menu, off } = sitePages(g.pages, g.entry_step_id);
+  const at = (p) => g.pages.indexOf(p);
+  return `<div class="pg-strip site"><div class="st" role="group" aria-label="Site map">
+    <div class="st-home ${menu.length ? 'has-kids' : ''}">${fig(g, home, at(home), 'Home')}</div>
+    ${menu.length ? `<div class="st-kids" aria-label="In the menu">${menu.map((p) => `<div class="st-kid">${fig(g, p, at(p), '')}</div>`).join('')}</div>` : ''}
+    ${off.length ? `<div class="st-off"><span class="muted small">Not in the menu (reached by a link)</span><div class="st-offrow">${off.map((p) => fig(g, p, at(p), '')).join('')}</div></div>` : ''}
+  </div></div>`;
 }

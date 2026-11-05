@@ -156,7 +156,7 @@ async function viewFunnel(id) {
         <button class="btn sm icon" data-zoom="-1" title="Zoom out">${icon('minus')}</button><span class="zoomlbl" data-zoomlbl>100%</span>
         <button class="btn sm icon" data-zoom="1" title="Zoom in">+</button><button class="btn sm" data-fit>Fit</button>
       </div>
-      <div class="map-help">${f.kind === 'website' ? 'Your website: pages in menu order, with the emails that follow its forms · Use a page’s ⋯ menu to move it or hide it from the menu · Tap <b>+</b> after a form page to add an email or text' : 'Your flow: pages and the emails between them · Tap <b>+</b> on a link to add an email, a text or a page · Drag cards to move them · Drag the background to pan'}</div>
+      <div class="map-help">${f.kind === 'website' ? 'Your site map: Home on top, the pages in its menu below (left to right, as in the menu) · A page’s ⋯ menu moves it or hides it from the menu · Tap <b>+</b> next to a form page to add an email or text' : 'Your flow: pages and the emails between them · Tap <b>+</b> on a link to add an email, a text or a page · Drag cards to move them · Drag the background to pan'}</div>
       <div class="world"><svg class="edges"></svg><div class="nodes"></div></div>
     </div>`);
   bindCopy();
@@ -201,9 +201,16 @@ async function viewFunnel(id) {
   // Websites read left to right in menu order (pages are reached from the menu, not by links);
   // pageflows are laid out as a tree that follows their links.
   const isSite = f.kind === 'website';
-  const layout = () => (isSite
-    ? Object.fromEntries([...m.steps].sort((a, b) => a.position - b.position || a.id - b.id).map((st, i) => [st.id, { x: i * (NODE_W + COL_GAP), y: 0 }]))
-    : tidyLayout(m.steps, m.entry));
+  const siteLayout = () => {
+    const { home, menu, off } = sitePages([...m.steps].sort((a, b) => a.position - b.position || a.id - b.id), m.entry);
+    const step = NODE_W + COL_GAP, row = NODE_H + 150;
+    const pos = { [home.id]: { x: Math.max(0, ((menu.length - 1) * step) / 2), y: 0 } };
+    menu.forEach((s, i) => { pos[s.id] = { x: i * step, y: row }; });
+    off.forEach((s, i) => { pos[s.id] = { x: i * step, y: row * (menu.length ? 2 : 1) }; });
+    return pos;
+  };
+  const layout = () => (isSite ? siteLayout() : tidyLayout(m.steps, m.entry));
+  const siteHome = () => (isSite ? (m.steps.find((s) => s.id === m.entry) || [...m.steps].sort((a, b) => a.position - b.position || a.id - b.id)[0]) : null);
 
   // First visit (or pages made before the map existed): lay out automatically.
   if (m.steps.some((s) => s.x === null || s.y === null)) {
@@ -541,7 +548,10 @@ async function viewFunnel(id) {
     // Maps laid out top-to-bottom before the map turned sideways: lay them out again once.
     const ids = byId();
     const vertical = m.steps.some((s) => ids[s.next_step_id] && ids[s.next_step_id].y > s.y + hOf(s) * 0.6 && Math.abs(ids[s.next_step_id].x - s.x) < NODE_W);
-    if (overlap || vertical) {
+    // Websites used to sit in one flat row: lay them out once as a site map.
+    const home = siteHome();
+    const flat = isSite && m.steps.length > 1 && m.steps.every((s) => s.y === home.y);
+    if (overlap || vertical || flat) {
       const pos = layout();
       m.steps.forEach((s) => Object.assign(s, pos[s.id]));
       renderNodes(); fit();
@@ -555,7 +565,7 @@ async function viewFunnel(id) {
         ${m.flow?.leak?.step_id === s.id ? '<span class="leakpill" title="Fewest people go on from here">' + icon('flag') + ' Leakiest step</span>' : ''}
         ${s.variant_blocks ? '<span class="abpill" title="Split test running on this page">A/B</span>' : ''}
         <div class="node-in" title="Visitors arrive here"></div>
-        ${s.id === m.entry ? '<span class="startpill">▶ START</span>' : ''}
+        ${isSite ? (s === siteHome() ? '<span class="startpill">⌂ HOME</span>' : s.settings?.hideInMenu ? '<span class="startpill off">Not in menu</span>' : '') : s.id === m.entry ? '<span class="startpill">▶ START</span>' : ''}
         <div class="nhead"><span class="nicon">${pageIcon(s)}</span><div style="min-width:0"><div class="nname">${esc(s.name)}</div>
           <div class="nkind">${pageKind(s)} · /${esc(s.slug)}</div></div>
           <button class="nmenu" data-menu="${s.id}" title="More">${icon('more')}</button></div>
@@ -608,6 +618,16 @@ async function viewFunnel(id) {
         const a = anchor(s, 'yes');
         if (fu) buttons += `<div class="fu-chip end" data-chip="${s.id}" style="left:${a.x + 24}px;top:${a.y}px">${fu}</div>`;
         buttons += `<button class="edge-add" style="left:${a.x + (fu ? 142 : 34)}px;top:${fu ? a.y + chipHalf(s.id) + 20 : a.y}px" data-edgeadd="${s.id}" data-end="1" ${fu ? `data-below="${s.id}"` : ''} title="Add an email or a text after this page" aria-label="Add an email or a text after this page">${icon('plus')}</button>`;
+      }
+    }
+    const home = siteHome();
+    if (home) {
+      const hh = nodeEl(home.id)?.offsetHeight || NODE_H;
+      const hx = home.x + NODE_W / 2, hy = home.y + hh;
+      for (const s of m.steps) {
+        if (s === home || s.settings?.hideInMenu || s.y <= hy) continue;
+        const kx = s.x + NODE_W / 2, mid = hy + (s.y - hy) / 2;
+        html += `<path class="edge tree" d="M${hx},${hy} V${mid} H${kx} V${s.y}"/>`;
       }
     }
     if (temp) html += `<path class="edge temp ${temp.port}" d="${curve(temp.a, temp.b)}"/>`;
