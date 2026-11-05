@@ -250,7 +250,9 @@ const BUSINESS_OPTIONS = BUSINESS_TYPES_UI.map(([k, l]) => `<option value="${k}"
 async function renderAuth(mode) {
   let status = { hasOwner: true };
   try { status = await api('GET', '/api/auth/status'); } catch { /* offline: show sign in */ }
-  mode = mode || (status.hasOwner ? 'link' : 'setup');
+  const resetToken = (location.hash.match(/^#\/reset\/([\w-]+)/) || [])[1];
+  mode = mode || (resetToken ? 'newpass' : status.hasOwner ? 'link' : 'setup');
+  if (mode === 'forgot' || mode === 'newpass') return renderReset(mode, resetToken);
   const setup = mode === 'setup';
   app.innerHTML = `<div class="auth"><form class="card">
     <div class="logo">${LOGO_INK}</div>
@@ -262,7 +264,7 @@ async function renderAuth(mode) {
       <label class="f">Business name <span class="hint">(optional)</span><input name="workspace"></label>
       <label class="f">What kind of business?<select name="business_type">${BUSINESS_OPTIONS}</select></label>` : ''}
     <label class="f">Email<input name="email" type="email" required autocomplete="email"></label>
-    ${mode === 'password' ? '<label class="f">Password<input name="password" type="password" required autocomplete="current-password"></label>' : ''}
+    ${mode === 'password' ? '<label class="f">Password<input name="password" type="password" required autocomplete="current-password"></label><p class="small forgot"><a href="#" data-forgot>Forgot password?</a></p>' : ''}
     ${setup ? '<label class="f">Password <span class="hint">(optional, a backup to email links)</span><input name="password" type="password" minlength="8" autocomplete="new-password"></label>' : ''}
     <div class="err"></div><div data-sent></div>
     <button class="btn primary" style="width:100%;justify-content:center;padding:11px">${setup ? 'Create my workspace' : mode === 'link' ? 'Email me a sign-in link' : 'Sign in'}</button>
@@ -271,6 +273,7 @@ async function renderAuth(mode) {
   </form></div>`;
   const sw = $('[data-switch]'); if (sw) sw.onclick = (e) => { e.preventDefault(); renderAuth(mode === 'link' ? 'password' : 'link'); };
   const su = $('[data-setup]'); if (su) su.onclick = (e) => { e.preventDefault(); renderAuth('setup'); };
+  const fg = $('[data-forgot]'); if (fg) fg.onclick = (e) => { e.preventDefault(); renderReset('forgot', null, $('[name=email]').value); };
   $('form').onsubmit = async (e) => {
     e.preventDefault();
     const v = Object.fromEntries(new FormData(e.target));
@@ -287,6 +290,44 @@ async function renderAuth(mode) {
       await api('POST', `/api/auth/${setup ? 'signup' : 'login'}`, v);
       state.me = await api('GET', '/api/me');
       location.hash = setup ? '#/setup' : '#/';
+      route();
+    } catch (err) { $('.err').textContent = err.message; }
+  };
+}
+
+// Forgot password: ask for the email, then (from the emailed link) choose a new password.
+function renderReset(mode, token, email = '') {
+  const ask = mode === 'forgot';
+  app.innerHTML = `<div class="auth"><form class="card">
+    <div class="logo">${LOGO_INK}</div>
+    <p class="tagline">${TAGLINE}</p>
+    <h1>${ask ? 'Reset your password' : 'Choose a new password'}</h1>
+    <p class="muted">${ask ? 'Enter your email and we’ll send you a link to choose a new password.' : 'At least 8 characters. You’ll be signed in right after.'}</p>
+    ${ask ? `<label class="f">Email<input name="email" type="email" required autocomplete="email" value="${esc(email)}"></label>`
+      : `<label class="f">New password<input name="password" type="password" required minlength="8" autocomplete="new-password"></label>
+        <label class="check small"><input type="checkbox" data-show> Show password</label>`}
+    <div class="err"></div><div data-sent></div>
+    <button class="btn primary" style="width:100%;justify-content:center;padding:11px">${ask ? 'Email me a reset link' : 'Save and sign in'}</button>
+    <p class="muted small" style="text-align:center;margin-bottom:0"><a href="#" data-back>Back to sign in</a></p>
+  </form></div>`;
+  $('[data-back]').onclick = (e) => { e.preventDefault(); history.replaceState(null, '', '#/'); renderAuth('password'); };
+  const show = $('[data-show]'); if (show) show.onchange = () => { $('[name=password]').type = show.checked ? 'text' : 'password'; };
+  $('form').onsubmit = async (e) => {
+    e.preventDefault();
+    const v = Object.fromEntries(new FormData(e.target));
+    $('.err').textContent = '';
+    try {
+      if (ask) {
+        const r = await api('POST', '/api/auth/reset', { email: v.email });
+        $('[data-sent]').innerHTML = `<div class="banner" style="background:#ecfdf5;border-color:#a7f3d0;color:#065f46">
+          If <b>${esc(v.email)}</b> has an account, a reset link is on its way. It works once, for 30 minutes. Check your spam folder if it doesn’t arrive.
+          ${r.devLink ? `<br><br><b>Dev mode</b> (no email provider): <a href="${esc(r.devLink)}">open the reset link</a>` : ''}</div>`;
+        return;
+      }
+      await api('POST', '/api/auth/reset/confirm', { token, password: v.password });
+      state.me = await api('GET', '/api/me');
+      toast('Password changed. You’re signed in');
+      location.hash = '#/';
       route();
     } catch (err) { $('.err').textContent = err.message; }
   };

@@ -1121,3 +1121,4 @@ a.fc-more { display: block; text-decoration: none; }
 .pg-fus { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; margin-top: 8px; }
 .st-fus { margin-top: 16px; padding-top: 10px; border-top: 1px dashed var(--line); text-align: center; }
 .st-fus .pg-fu { text-align: left; }
+.auth .forgot { text-align: right; margin: -6px 0 10px; }

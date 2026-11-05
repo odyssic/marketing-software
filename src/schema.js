@@ -534,6 +534,7 @@ CREATE TABLE IF NOT EXISTS magic_links (
   expires_at TIMESTAMPTZ NOT NULL,
   used_at TIMESTAMPTZ
 );
+ALTER TABLE magic_links ADD COLUMN IF NOT EXISTS purpose TEXT NOT NULL DEFAULT 'signin';
 
 -- Photos people upload for their pages (drag a picture onto an image block).
 -- Stored in the database so the app needs no separate file storage.

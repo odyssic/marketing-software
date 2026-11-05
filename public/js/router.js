@@ -2,6 +2,7 @@
 
 // ---------------- Router ----------------
 async function route() {
+  if (/^#\/reset\//.test(location.hash)) return renderAuth('newpass');
   if (!state.me) {
     try { state.me = await api('GET', '/api/me'); } catch { return renderAuth(); }
   }

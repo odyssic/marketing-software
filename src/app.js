@@ -309,6 +309,50 @@ function createApp({ dbPath } = {}) {
     res.json(out);
   });
 
+  // Forgot password: an emailed link (30 minutes, works once) to choose a new one.
+  // Answers the same way whether or not the email has an account.
+  api.post('/auth/reset', async (req, res) => {
+    const email = String(req.body?.email || '').trim().toLowerCase();
+    if (!EMAIL_RE.test(email)) throw new HttpError(400, 'Enter a valid email');
+    const user = await db.get('SELECT * FROM users WHERE email = ?', email);
+    const out = { ok: true };
+    if (user) {
+      const token = crypto.randomBytes(32).toString('base64url');
+      await db.run("DELETE FROM magic_links WHERE expires_at < now() - interval '1 day'");
+      await db.run("UPDATE magic_links SET used_at = now() WHERE user_id = ? AND purpose = 'reset' AND used_at IS NULL", user.id);
+      await db.run("INSERT INTO magic_links (token_hash, user_id, expires_at, purpose) VALUES (?, ?, now() + interval '30 minutes', 'reset')",
+        crypto.createHash('sha256').update(token).digest('hex'), user.id);
+      const link = `${baseUrl(req)}/#/reset/${token}`;
+      const first = user.name.split(' ')[0];
+      await mailer.sendEmail({
+        ...mailer.senderFor({ name: 'Rilly' }), to: email, subject: 'Reset your Rilly password',
+        text: `Hi ${first},\n\nChoose a new password here (the link works once, for 30 minutes):\n${link}\n\nIf you didn’t ask for this, ignore this email. Your password stays the same.`,
+        html: rillyEmail({ base: baseUrl(req), title: 'Reset your password', preheader: 'Choose a new password. The link works once, for 30 minutes.', blocks: [
+          { p: `Hi ${first}, click below to choose a new password. The link works once, for 30 minutes.` },
+          { button: ['Choose a new password', link] },
+          { small: 'If you didn’t ask for this, you can ignore this email. Your password stays the same.' },
+        ] }),
+      });
+      if (!mailer.isLive() && process.env.NODE_ENV !== 'production') out.devLink = link;
+    }
+    res.json(out);
+  });
+
+  // Set the new password, sign out everywhere else, and sign in here.
+  api.post('/auth/reset/confirm', async (req, res) => {
+    const password = String(req.body?.password || '');
+    if (password.length < 8) throw new HttpError(400, 'Use at least 8 characters');
+    const hash = crypto.createHash('sha256').update(String(req.body?.token || '')).digest('hex');
+    const link = await db.get(`UPDATE magic_links SET used_at = now() WHERE token_hash = ? AND used_at IS NULL
+      AND expires_at > now() AND purpose = 'reset' RETURNING user_id`, hash);
+    if (!link) throw new HttpError(400, 'This reset link has expired or was already used. Ask for a new one.');
+    await db.run('UPDATE users SET password_hash = ? WHERE id = ?', auth.hashPassword(password), link.user_id);
+    await db.run('DELETE FROM sessions WHERE user_id = ?', link.user_id);
+    const m = await db.get('SELECT account_id FROM memberships WHERE user_id = ? ORDER BY account_id LIMIT 1', link.user_id);
+    await auth.createSession(db, req, res, link.user_id, m.account_id);
+    res.json({ ok: true });
+  });
+
   api.post('/auth/logout', async (req, res) => {
     await auth.destroySession(db, req, res);
     res.json({ ok: true });
@@ -1206,7 +1250,7 @@ function createApp({ dbPath } = {}) {
   app.get('/auth/magic/:token', async (req, res) => {
     const hash = crypto.createHash('sha256').update(String(req.params.token)).digest('hex');
     const link = await db.get(`UPDATE magic_links SET used_at = now() WHERE token_hash = ? AND used_at IS NULL
-      AND expires_at > now() RETURNING user_id`, hash);
+      AND expires_at > now() AND purpose = 'signin' RETURNING user_id`, hash);
     if (!link) return messagePage(res, 400, 'This sign-in link has expired or was already used. Request a new one.', '/');
     const m = await db.get('SELECT account_id FROM memberships WHERE user_id = ? ORDER BY account_id LIMIT 1', link.user_id);
     await auth.createSession(db, req, res, link.user_id, m.account_id);
