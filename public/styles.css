@@ -1025,3 +1025,18 @@ a.fc-more { display: block; text-decoration: none; }
 .grow-more > summary { color: var(--brand); font-weight: 600; padding: 6px 0; }
 .more-page { margin-top: 6px; border-top: 1px solid var(--line); padding-top: 8px; }
 .more-page > summary { font-weight: 600; color: var(--brand); padding: 6px 0; }
+
+/* People: slim stage chips and one Filters button */
+.stage-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 12px; }
+.stage-chips a { display: inline-flex; gap: 6px; align-items: center; padding: 6px 12px; border-radius: 99px; border: 1px solid var(--line); background: #fff; color: var(--text); text-decoration: none; font-size: .9rem; min-height: 32px; }
+.stage-chips a b { font-variant-numeric: tabular-nums; }
+.stage-chips a.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+.people-tools { margin: 0 0 10px; gap: 8px; flex-wrap: nowrap; }
+.people-tools input { flex: 1; max-width: 420px; margin: 0; }
+.people-filters { margin: -2px 0 12px; gap: 8px; }
+.people-filters select { margin: 0; }
+@media (max-width: 600px) { .people-tools { flex-wrap: wrap; } .people-tools input { flex-basis: 100%; max-width: none; } }
+
+.test-note { display: inline-flex; gap: 6px; align-items: center; margin: -6px 0 12px; font-size: .86rem; color: #854d0e; background: #fef9e7; border-radius: 99px; padding: 4px 12px 4px 10px; }
+.test-note svg { width: 15px; height: 15px; }
+.test-note a { color: inherit; font-weight: 600; }

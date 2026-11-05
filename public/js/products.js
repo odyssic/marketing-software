@@ -11,8 +11,8 @@ async function viewProducts(tab) {
   shell('products', `
     <div class="head"><div><h1>Products</h1><div class="muted">What you sell, and the orders that come in.</div></div>
       ${orders || !items.length ? '' : '<button class="btn primary" data-new>+ New product</button>'}</div>
-    ${p.connected ? (p.testKey ? '<div class="banner">Stripe is connected with a <b>test</b> key: checkouts use Stripe’s test cards and no real money moves.</div>' : '')
-      : '<div class="banner"><b>Test mode:</b> Stripe isn’t connected, so checkouts are simulated and no card is charged. <a href="#/settings">Connect Stripe</a> to take real payments.</div>'}
+    ${p.connected ? (p.testKey ? `<p class="test-note">${icon('info')}<span>Stripe test key: checkouts use test cards, no real money moves.</span></p>` : '')
+      : `<p class="test-note">${icon('info')}<span>Test mode: no card is charged until you <a href="#/settings">connect Stripe</a>.</span></p>`}
     ${productTabs(orders ? 'orders' : 'products')}
     ${orders ? ordersHtml(items) : productsHtml(items)}`);
 
@@ -81,7 +81,7 @@ async function viewInvoices() {
   shell('products', `
     <div class="head"><div><h1>Products</h1><div class="muted">Bill a client, or share a link anyone can pay.</div></div>
       <div class="row">${links.length ? `<button class="btn" data-newlink>${icon('link')} New payment link</button>` : ''}${invoices.length ? '<button class="btn primary" data-newinv>+ New invoice</button>' : ''}</div></div>
-    ${p.connected ? '' : '<div class="banner"><b>Test mode:</b> Stripe isn’t connected, so payments are simulated. <a href="#/settings">Connect Stripe</a> to get paid for real.</div>'}
+    ${p.connected ? '' : `<p class="test-note">${icon('info')}<span>Test mode: no card is charged until you <a href="#/settings">connect Stripe</a>.</span></p>`}
     ${productTabs('invoices')}
     ${invoices.length ? `<div class="stat-strip">
       <div><b>${money(owed)}</b><span>waiting on ${waiting.length} invoice${waiting.length === 1 ? '' : 's'}</span></div>
