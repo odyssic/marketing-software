@@ -36,6 +36,7 @@ async function viewProducts(tab) {
       } else viewProducts();
     }
   };
+  if (dashNew.next === 'product') { dashNew.next = ''; $('[data-new]').click(); }
   $$('[data-edit]').forEach((row) => { row.onclick = async () => {
     const pr = items.find((x) => x.id === Number(row.dataset.edit));
     const pending = modal('Edit product', `${form(pr)}<button type="button" class="btn danger sm" data-delp>Delete product</button>`,

@@ -126,5 +126,5 @@ function followupsHtml(r) {
     ${ready.map((w) => `<label class="su-fu"><input type="checkbox" data-wf="${w.id}" checked><span><b>${esc(w.name)}</b>
       <span class="muted small">${w.emails} email${w.emails === 1 ? '' : 's'}${w.first ? `, starting “${sample(w.first)}”` : ''}</span></span></label>`).join('')}
     ${!r.booking && !ready.length ? `<div class="su-fu on">${icon('check')}<span><b>You’ll hear about every new lead</b><span class="muted small">They show up in People and in your Monday summary.</span></span></div>` : ''}</div>
-    ${later.length ? `<p class="muted small" style="margin-top:10px">${later.length} more follow-up${later.length === 1 ? '' : 's'} (${esc(later.map((w) => w.name).join(', '))}) need a link or a few words from you. <a href="#/workflows">Finish them in Workflows</a> when you’re ready.</p>` : ''}`;
+    ${later.length ? `<p class="muted small" style="margin-top:10px">${later.length} more follow-up${later.length === 1 ? '' : 's'} (${esc(later.map((w) => w.name).join(', '))}) need a link or a few words from you. <a href="#/flows?show=followups">Finish them in Flows</a> when you’re ready.</p>` : ''}`;
 }

@@ -43,30 +43,30 @@ async function viewFlows() {
       ${!groupsAll.length && !wfs.filter((w) => !w.funnel_id).length ? '' : `<button class="btn primary" data-newflow>${icon('plus')} New</button>`}</div>
     ${flowTabs(show)}
     <input data-q placeholder="Search flows, pages and emails…" value="${esc(q)}" style="max-width:340px;margin-bottom:14px" aria-label="Search">
-    ${groups.map((g) => `<section class="pgroup card">
-      <header class="pg-head">
+    ${groups.map((g) => `<section class="pgroup card" data-group="${g.id}">
+      <header class="pg-head">${q ? '' : `<button type="button" class="pg-grip" data-grip title="Drag to reorder (or use the arrow keys)" aria-label="Move “${esc(g.name)}”: drag, or press the up and down arrow keys">${icon('grip')}</button>`}
         <div><a class="pg-name" href="#/${FLOW_OPEN[g.kind] || 'funnels'}/${g.id}">${esc(g.name)}</a>
           <span class="muted small">${kindWord(g)} · ${g.pages.length} page${g.pages.length === 1 ? '' : 's'}${g.followups ? ` · ${g.followups} follow-up${g.followups === 1 ? '' : 's'}` : ''}</span></div>
         ${purposeTag(g)}
         ${g.status === 'live' ? '<span class="pill ok">Live</span>' : '<span class="pill warn">Draft</span>'}
         <div class="pg-stats"><span><b>${g.views}</b> visitors</span><span><b>${g.leads}</b> leads &amp; sales</span><span><b>${g.rate === null ? '—' : `${g.rate}%`}</b> convert</span><span class="muted small">last 30 days</span></div>
-        <span class="row" style="gap:6px"><button class="btn sm" data-gdup="${g.id}" title="Duplicate">${icon('copy')} Duplicate</button>
-          <a class="btn sm" href="#/${FLOW_OPEN[g.kind] || 'funnels'}/${g.id}">Open</a></span>
+        <span class="row" style="gap:6px"><a class="btn sm" href="#/${FLOW_OPEN[g.kind] || 'funnels'}/${g.id}">Open</a>
+          ${moreMenu(`<button role="menuitem" data-gdup="${g.id}">${icon('copy')} Duplicate</button><button role="menuitem" class="danger" data-gdel="${g.id}">${icon('trash')} Delete</button>`)}</span>
       </header>
       ${g.kind === 'website' ? siteTree(g, pageFig) : `<div class="pg-strip">${g.pages.map((p, i) => `${i ? `<span class="pg-arrow" aria-hidden="true">${icon('arrowRight')}</span>` : ''}${pageFig(g, p, i, i === 0 ? 'Start' : '')}`).join('')}</div>`}
     </section>`).join('')}
     ${standalone.length ? `${groups.length ? '<h2 class="section-h">Follow-ups that start on their own</h2>' : ''}
-      ${standalone.map((w) => `<section class="pgroup card ff-group">
-        <header class="pg-head">
-          <div><a class="pg-name" href="#/flows/followup/${w.id}">${esc(w.name)}</a><span class="muted small">Follow-up · ${w.emails} email${w.emails === 1 ? '' : 's'} · ${w.emails_sent} sent</span></div>
-          ${w.status === 'active' ? '<span class="pill ok">On</span>' : '<span class="pill">Off</span>'}
-          <label class="switch" title="${w.status === 'active' ? 'Turn off' : 'Turn on'}"><input type="checkbox" data-fftoggle="${w.id}" ${w.status === 'active' ? 'checked' : ''} aria-label="${w.status === 'active' ? 'On' : 'Off'}"><span></span></label>
-          <span class="row" style="gap:6px;margin-left:auto"><a class="btn sm" href="#/flows/followup/${w.id}">Open</a></span>
-        </header>
-        ${twins(w).length ? `<p class="wf-twin">${icon('alert')} “${esc(twins(w)[0].name)}” also starts on the same thing, so people get both. Turn one off?</p>` : ''}
-        <div class="ff-strip"><span class="ff-chip start">${icon('bolt')} When someone ${esc((w.triggerLabel || '').toLowerCase())}</span>
-          ${(w.preview || []).map((s) => `<span class="pg-arrow" aria-hidden="true">${icon('arrowRight')}</span><span class="ff-chip ${s.type}">${icon(STEP_ICON[s.type] || 'bolt')}<b>${esc(STEP_WORD[s.type] || s.type)}</b> ${esc(flowText(s.text || '').slice(0, 60))}</span>`).join('')}</div>
-      </section>`).join('')}` : ''}
+      <section class="card fl-list">${standalone.map((w) => `<div class="fl-row ${w.status === 'active' ? '' : 'off'}" data-ffrow="${w.id}">
+        <label class="switch" title="${w.status === 'active' ? 'On: click to turn off' : 'Off: click to turn on'}"><input type="checkbox" data-fftoggle="${w.id}" ${w.status === 'active' ? 'checked' : ''} aria-label="${esc(w.name)} is ${w.status === 'active' ? 'on' : 'off'}"><span></span></label>
+        <div class="fl-main">
+          <a class="fl-name" href="#/flows/followup/${w.id}">${esc(w.name)}</a>
+          <div class="fl-line"><span class="fl-when">${icon('bolt')} When someone ${esc((w.triggerLabel || '').toLowerCase())}</span>${(w.preview || []).slice(0, 4).map((x) => `<span class="fl-sep" aria-hidden="true">›</span><span class="fl-step">${icon(STEP_ICON[x.type] || 'bolt')} ${stepSay(x)}</span>`).join('')}${(w.preview || []).length > 4 ? `<span class="fl-sep" aria-hidden="true">›</span><span class="muted">${w.preview.length - 4} more</span>` : ''}</div>
+          ${twins(w).length ? `<div class="fl-twin">${icon('alert')} “${esc(twins(w)[0].name)}” starts on the same thing, so people get both. <button type="button" class="linkbtn" data-ffoff="${w.id}">Turn this one off</button></div>` : ''}
+        </div>
+        <span class="muted small fl-count">${w.emails_sent} sent</span>
+        <span class="row" style="gap:6px"><a class="btn sm" href="#/flows/followup/${w.id}">Open</a>
+          ${moreMenu(`<button role="menuitem" class="danger" data-ffdelete="${w.id}">${icon('trash')} Delete</button>`)}</span>
+      </div>`).join('')}</section>` : ''}
     ${!groups.length && !standalone.length ? `<div class="card empty"><div class="big">${icon('branch')}</div><h2>${q ? 'Nothing matches' : 'Nothing here yet'}</h2>
       <p>${q ? 'Try a different search.' : show === 'followups' ? 'A follow-up starts on its own when something happens: someone buys, goes quiet, or gets a tag.' : 'Answer three quick questions and Rilly builds your first page with its follow-ups.'}</p>
       ${q || (show === 'followups' ? false : groupsAll.length || wfs.some((w) => !w.funnel_id)) ? '' : show === 'followups' ? '<button class="btn primary" data-newfu>New follow-up</button>' : '<button class="btn primary" data-newflow>Make my first flow</button>'}</div>` : ''}`);
@@ -76,6 +76,19 @@ async function viewFlows() {
   $$('[data-newflow]').forEach((b) => { b.onclick = newFlow; });
   const nf = $('[data-newfu]'); if (nf) nf.onclick = newWorkflow;
   bindPurposeTags(groups, viewFlows);
+  bindMoreMenus();
+  $$('[data-gdel]').forEach((b) => { b.onclick = () => {
+    const g = groups.find((x) => String(x.id) === b.dataset.gdel);
+    b.closest('.more-menu').hidden = true;
+    deleteWithUndo(`“${g.name}” deleted`, { url: `/api/funnels/${g.id}`, hide: hideEl(b.closest('.pgroup')) });
+  }; });
+  bindFlowOrder(groupsAll);
+  $$('[data-ffoff]').forEach((b) => { b.onclick = () => { const c = $(`[data-fftoggle="${b.dataset.ffoff}"]`); c.checked = false; c.onchange(); }; });
+  $$('[data-ffdelete]').forEach((b) => { b.onclick = () => {
+    const w = standalone.find((x) => String(x.id) === b.dataset.ffdelete);
+    b.closest('.more-menu').hidden = true;
+    deleteWithUndo(`“${w.name}” deleted`, { url: `/api/workflows/${w.id}`, hide: hideEl(b.closest('.fl-row')) });
+  }; });
   $$('[data-gdup]').forEach((b) => { b.onclick = () => duplicateFunnel(groups.find((g) => String(g.id) === b.dataset.gdup), { stay: true }); });
   $$('[data-fftoggle]').forEach((c) => { c.onchange = async () => {
     try { await api('PUT', `/api/workflows/${c.dataset.fftoggle}/status`, { status: c.checked ? 'active' : 'paused' }); toast(c.checked ? 'On: it runs every time its trigger happens' : 'Off: nothing will send'); viewFlows(); }
@@ -277,4 +290,46 @@ function siteTree(g, fig) {
     ${menu.length ? `<div class="st-kids" aria-label="In the menu">${menu.map((p) => `<div class="st-kid">${fig(g, p, at(p), '')}</div>`).join('')}</div>` : ''}
     ${off.length ? `<div class="st-off"><span class="muted small">Not in the menu (reached by a link)</span><div class="st-offrow">${off.map((p) => fig(g, p, at(p), '')).join('')}</div></div>` : ''}
   </div></div>`;
+}
+
+// Drag a flow by its handle to change the order (arrow keys work too).
+function bindFlowOrder(all) {
+  const save = () => {
+    const shown = $$('.pgroup[data-group]').map((x) => Number(x.dataset.group));
+    // Flows hidden by the tab keep their places; the shown ones take the new order.
+    const set = new Set(shown); let k = 0;
+    const ids = all.map((g) => (set.has(g.id) ? shown[k++] : g.id));
+    api('PUT', '/api/page-groups/order', { ids }).catch((e) => toast(e.message, true));
+  };
+  let dragging = null;
+  $$('[data-grip]').forEach((h) => {
+    const sec = h.closest('.pgroup');
+    h.onpointerdown = () => { sec.draggable = true; };
+    sec.ondragstart = (e) => { dragging = sec; sec.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', sec.dataset.group); };
+    sec.ondragend = () => { sec.draggable = false; sec.classList.remove('dragging'); if (dragging) { dragging = null; save(); } };
+    h.onkeydown = (e) => {
+      if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+      e.preventDefault();
+      const other = e.key === 'ArrowUp' ? sec.previousElementSibling : sec.nextElementSibling;
+      if (!other?.matches('.pgroup[data-group]')) return;
+      if (e.key === 'ArrowUp') other.before(sec); else other.after(sec);
+      h.focus(); save();
+    };
+  });
+  $$('.pgroup[data-group]').forEach((sec) => { sec.ondragover = (e) => {
+    if (!dragging || dragging === sec) return;
+    e.preventDefault();
+    const r = sec.getBoundingClientRect();
+    if (e.clientY < r.top + r.height / 2) sec.before(dragging); else sec.after(dragging);
+  }; });
+}
+
+// One step of a follow-up in a few plain words.
+function stepSay(x) {
+  const t = esc(flowText(x.text || '').slice(0, 48));
+  if (x.type === 'wait') return `Wait ${t}`;
+  if (x.type === 'email') return `Email “${t}”`;
+  if (x.type === 'sms') return `Text “${t}”`;
+  if (x.type === 'condition') return `Then splits: ${t.charAt(0).toLowerCase()}${t.slice(1)}?`;
+  return `${esc(STEP_WORD[x.type] || x.type)}${t ? `: ${t}` : ''}`;
 }

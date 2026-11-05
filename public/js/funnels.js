@@ -689,10 +689,10 @@ async function viewFunnel(id) {
     });
     const minX = Math.min(...boxes.map((x) => x.l)), minY = Math.min(...boxes.map((x) => x.t));
     const w = Math.max(...boxes.map((x) => x.r)) - minX, h = Math.max(...boxes.map((x) => x.b)) - minY;
-    m.zoom = Math.min(1, (mapEl.clientWidth - 80) / w, (mapEl.clientHeight - 110) / h);
+    m.zoom = Math.min(1, (mapEl.clientWidth - 80) / w, (mapEl.clientHeight - 150) / h);
     m.zoom = Math.max(0.3, m.zoom);
     m.panX = (mapEl.clientWidth - w * m.zoom) / 2 - minX * m.zoom;
-    m.panY = 70 - minY * m.zoom;
+    m.panY = 112 - minY * m.zoom;
     applyView();
   };
 

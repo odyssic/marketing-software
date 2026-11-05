@@ -213,9 +213,9 @@ pre.mail { white-space: pre-wrap; font: .85rem/1.5 ui-monospace, monospace; back
   padding: 6px; border-radius: 10px; border: 1px solid var(--line); box-shadow: var(--shadow); cursor: default; }
 .map-tools .sep { width: 1px; height: 22px; background: var(--line); margin: 0 4px; }
 .zoomlbl { font-size: .8rem; color: var(--muted); min-width: 40px; text-align: center; }
-.map-help { position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); z-index: 20; background: rgba(17, 24, 39, .82); color: #e5e7eb;
-  font-size: .78rem; padding: 6px 14px; border-radius: 99px; white-space: nowrap; pointer-events: none; }
-.map-help .y { color: #4ade80; } .map-help .n { color: #d1d5db; }
+.map-help { position: absolute; top: 12px; right: 12px; z-index: 20; max-width: max(240px, calc(100% - 440px)); background: rgba(255, 255, 255, .94); color: var(--muted); border: 1px solid var(--line);
+  font-size: .78rem; line-height: 1.45; padding: 6px 12px; border-radius: 10px; pointer-events: none; box-shadow: 0 1px 3px rgba(16,24,40,.06); }
+.map-help .y { color: #15803d; } .map-help .n { color: #6b7280; }
 .map-empty { position: absolute; left: 260px; top: 120px; width: 300px; text-align: center; color: var(--muted); cursor: default; }
 .map-empty .big { font-size: 2.4rem; color: var(--brand); }
 @media (max-width: 900px) { .map { height: 70vh; } .map-help { display: none; } }
@@ -506,7 +506,7 @@ table.leads input:hover, table.leads input:focus { border-color: var(--line); ba
 /* Pages: each funnel or website as a strip of page pictures */
 .pgroup { margin-bottom: 16px; padding: 16px 18px; }
 .pg-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
-.pg-head > div:first-child { display: flex; flex-direction: column; margin-right: 4px; }
+.pg-head > div:first-child, .pg-head > .pg-grip + div { display: flex; flex-direction: column; margin-right: 4px; }
 .pg-name { font-weight: 700; font-size: 1.05rem; color: var(--text); text-decoration: none; }
 .pg-name:hover { color: var(--brand); }
 .pg-stats { display: flex; gap: 14px; align-items: baseline; margin-left: auto; font-size: .85rem; color: var(--muted); flex-wrap: wrap; }
@@ -1064,3 +1064,31 @@ a.fc-more { display: block; text-decoration: none; }
 .st-offrow { display: flex; gap: 18px; justify-content: center; margin-top: 8px; }
 .edge.tree { stroke: #b9c6c3; stroke-width: 2; fill: none; stroke-dasharray: none; }
 .startpill.off { background: #8a9a9d; }
+
+/* Dashboard: one New menu for everything */
+.create-menu { min-width: 300px; }
+.create-menu button { display: flex; gap: 10px; align-items: flex-start; text-align: left; }
+.create-menu button span { display: flex; flex-direction: column; }
+.create-menu small { color: var(--muted); font-weight: 400; }
+
+/* Flows: reorder by dragging the handle */
+.pg-grip { border: 0; background: none; color: #9aa9ad; cursor: grab; padding: 6px 2px; margin: 0 -6px 0 -8px; border-radius: 6px; display: grid; place-items: center; }
+.pg-grip:hover, .pg-grip:focus-visible { color: var(--text); background: #eef2f1; }
+.pgroup.dragging { opacity: .45; }
+
+/* Flows: follow-ups as one compact list */
+.fl-list { padding: 4px 0; }
+.fl-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; gap: 14px; align-items: center; padding: 14px 18px; }
+.fl-row + .fl-row { border-top: 1px solid var(--line); }
+.fl-row.off .fl-main { opacity: .6; }
+.fl-name { font-weight: 700; color: var(--text); text-decoration: none; }
+.fl-name:hover { color: var(--brand); }
+.fl-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin-top: 4px; font-size: .88rem; color: var(--text); }
+.fl-line svg { width: 14px; height: 14px; vertical-align: -2px; color: var(--muted); }
+.fl-when { color: var(--brand); font-weight: 600; }
+.fl-when svg { color: var(--brand); }
+.fl-sep { color: #9aa9ad; }
+.fl-twin { margin-top: 6px; font-size: .82rem; color: #92400e; }
+.fl-twin svg { width: 14px; height: 14px; vertical-align: -2px; }
+.linkbtn { border: 0; background: none; padding: 0; color: var(--brand); font: inherit; font-weight: 600; cursor: pointer; text-decoration: underline; }
+@media (max-width: 640px) { .fl-row { grid-template-columns: auto 1fr auto; } .fl-count { display: none; } }

@@ -20,12 +20,19 @@ function registerLibrary(api, { getDb, HttpError, id, ownHost, clearDomainCache 
     }));
   });
 
+  // The order flows are listed in, as the person dragged them.
+  api.put('/page-groups/order', async (req, res) => {
+    const ids = (Array.isArray(req.body?.ids) ? req.body.ids : []).map(Number).filter(Number.isInteger).slice(0, 1000);
+    for (const [i, fid] of ids.entries()) await db().run('UPDATE funnels SET sort_order = ? WHERE id = ? AND account_id = ?', i, fid, req.accountId);
+    res.json({ ok: true });
+  });
+
   // Funnels and websites as groups, each with its pages in the order visitors
   // move through them (start page, then each "Yes / Next"), plus 30-day numbers.
   api.get('/page-groups', async (req, res) => {
     const funnels = await db().all(`SELECT f.id, f.name, f.slug, f.kind, f.status, f.purpose, f.entry_step_id, f.created_at,
         (SELECT COUNT(*)::int FROM workflows w WHERE w.funnel_id = f.id) AS followups
-      FROM funnels f WHERE f.account_id = ? ORDER BY f.id DESC`, req.accountId);
+      FROM funnels f WHERE f.account_id = ? ORDER BY f.sort_order IS NOT NULL, f.sort_order, f.id DESC`, req.accountId);
     const steps = await db().all(`SELECT s.id, s.funnel_id, s.name, s.slug, s.position, s.blocks, s.settings, s.next_step_id, s.no_step_id,
         s.variant_blocks IS NOT NULL AS testing,
         (SELECT COUNT(*)::int FROM page_events e WHERE e.step_id = s.id AND e.type = 'view' AND e.created_at > now() - interval '30 days') AS views,

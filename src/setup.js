@@ -72,6 +72,7 @@ function registerSetup(api, { getDb, HttpError, createFunnel, TEMPLATES, getAcco
 
     // The kind of business: name, type, and its sections (unless already customised).
     const before = await getAccount(req.accountId);
+    const lastWf = (await db().get('SELECT COALESCE(MAX(id), 0)::int AS n FROM workflows WHERE account_id = ?', req.accountId)).n;
     await db().run('UPDATE accounts SET name = ?, business_type = ? WHERE id = ?', name, type, req.accountId);
     if (booking) {
       const prev = settingsOf(before);
@@ -103,9 +104,9 @@ function registerSetup(api, { getDb, HttpError, createFunnel, TEMPLATES, getAcco
     // A workspace with no home page yet gets this one at its own domain.
     if (!before.home_funnel_id) await db().run('UPDATE accounts SET home_funnel_id = ? WHERE id = ?', f.id, req.accountId);
 
-    // Follow-ups: this page's own plus the kind-of-business starters. Ready ones are ticked;
-    // ones that still need something from the owner (a link, a review URL) say what.
-    const wfs = await db().all("SELECT id, name, graph, template, status, funnel_id FROM workflows WHERE account_id = ? AND status <> 'archived' ORDER BY COALESCE(funnel_id = ?, false) DESC, id", req.accountId, f.id);
+    // Follow-ups: only the ones this page brought with it (not every follow-up in the workspace).
+    // Ready ones are ticked; ones that still need something from the owner (a link, a review URL) say what.
+    const wfs = await db().all("SELECT id, name, graph, template, status, funnel_id FROM workflows WHERE account_id = ? AND status <> 'archived' AND (funnel_id = ? OR id > ?) ORDER BY id", req.accountId, f.id, lastWf);
     const followups = wfs.map((w) => {
       const g = JSON.parse(w.graph);
       const emails = Object.values(g.nodes || {}).filter((n) => n.type === 'email');

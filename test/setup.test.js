@@ -28,7 +28,9 @@ test('setup builds a booking page, saves hours and lists follow-ups; publishing 
   assert.equal(r.status, 201);
   assert.equal(r.body.goal, 'booked');
   assert.equal(r.body.booking, true);
-  assert.ok(r.body.followups.length >= 1);
+  assert.ok(Array.isArray(r.body.followups));
+  // Only this page's own follow-ups: not the workspace's starter set (review, referral...).
+  assert.ok(r.body.followups.every((w) => !/review|referral|win-back/i.test(w.name)));
   assert.ok(r.body.followups.every((f) => typeof f.ready === 'boolean'));
   const me = (await c('GET', '/api/me')).body.account;
   assert.equal(me.name, 'Mo Fitness');

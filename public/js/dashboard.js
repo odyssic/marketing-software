@@ -35,7 +35,7 @@ function renderDashboard() {
   shell('', `
     <div class="head"><div><h1>Hi ${esc(state.me.user.name.split(' ')[0])}</h1>
       <div class="muted">${esc(state.me.account.name)} · focus this week: <b style="color:${LEVER_UI[focus].color}">${esc(LEVER_UI[focus].label)}</b>${dash.levers.pinned ? ' (pinned)' : ''}</div></div>
-</div>
+      ${createMenu()}</div>
     ${dash.noPages && !dash.customize ? `<div class="card setup-nudge"><div><b>Get your first page live in about two minutes</b>
       <div class="muted small">Tell us what kind of business this is. We’ll build the page, booking hours and follow-ups.</div></div>
       <a class="btn primary" href="#/setup">Set it up</a></div>` : ''}
@@ -63,6 +63,7 @@ function renderDashboard() {
         <div class="tbody"><div class="skeleton"></div></div></section>`).join('')}
     </div></details>`);
   renderMetrics();
+  bindCreateMenu();
   fillGrowCard();
   const more = $('.grow-more'); if (more) more.addEventListener('toggle', () => { dash.moreOpen = more.open; if (more.open) fillTiles(); });
   $$('[data-growlever]').forEach((b) => { b.onclick = () => { dash.moreOpen = true; switchLever(b.dataset.growlever); }; });
@@ -244,4 +245,39 @@ async function fillGrowCard() {
   if (!$('[data-growmove]')) return;
   box.innerHTML = renderTile('move', d);
   if (typeof bindMoveTile === 'function') bindMoveTile(box, d?.data);
+}
+
+// One "New" button on the dashboard: start anything from here.
+const dashNew = { next: '' };
+const createMenu = () => `<span class="more-wrap"><button type="button" class="btn primary" data-more>${icon('plus')} New</button>
+  <span class="more-menu nodemenu create-menu" role="menu" hidden>
+    <button role="menuitem" data-create="flow">${icon('branch')}<span><b>Flow</b><small>Website, pageflow, follow-up or members area</small></span></button>
+    <button role="menuitem" data-create="email">${icon('mail')}<span><b>Email</b><small>A newsletter or announcement</small></span></button>
+    <button role="menuitem" data-create="test">${icon('flask')}<span><b>Split test</b><small>Try two versions of a page</small></span></button>
+    <button role="menuitem" data-create="product">${icon('bag')}<span><b>Product</b><small>Something to sell</small></span></button>
+    <button role="menuitem" data-create="invoice">${icon('note')}<span><b>Invoice</b><small>Bill a client</small></span></button>
+    <button role="menuitem" data-create="leads">${icon('people')}<span><b>People</b><small>Add leads or import a list</small></span></button>
+  </span></span>`;
+function bindCreateMenu() {
+  bindMoreMenus();
+  $$('[data-create]').forEach((b) => { b.onclick = () => {
+    b.closest('.more-menu').hidden = true;
+    const k = b.dataset.create;
+    if (k === 'flow') newFlow();
+    if (k === 'email') location.hash = '#/email/new';
+    if (k === 'test') newSplitTest();
+    if (k === 'product') { dashNew.next = 'product'; location.hash = '#/products'; }
+    if (k === 'invoice') newInvoice().then((r) => { if (r) location.hash = '#/products/invoices'; });
+    if (k === 'leads') addLeads(() => { location.hash = '#/people'; });
+  }; });
+}
+// Pick a page, then the page editor opens its split-test setup.
+async function newSplitTest() {
+  const pages = (await api('GET', '/api/pages')).filter((p) => !p.testing);
+  if (!pages.length) { toast('Make a page first: New, then Flow'); return; }
+  const groups = {};
+  pages.forEach((p) => { (groups[p.funnel_name] = groups[p.funnel_name] || []).push(p); });
+  const r = await modal('Split test a page', `<p class="muted small">Half your visitors see the page as it is, half see a new version. The one that gets more signups or sales wins.</p>
+    <label class="f">Which page?<select name="page" required>${Object.entries(groups).map(([g, ps]) => `<optgroup label="${esc(g)}">${ps.map((p) => `<option value="${p.id}">${esc(p.name)}</option>`).join('')}</optgroup>`).join('')}</select></label>`, { submit: 'Next' });
+  if (r) location.hash = `#/editor/${r.page}?abtest=1`;
 }

@@ -456,6 +456,11 @@ async function viewEditor(stepId) {
     $('[data-endtest]').onclick = async () => { await api('DELETE', `/api/steps/${stepId}/variant`); $('.modal-bg [data-x]').click(); toast('Test ended'); location.hash = `#/editor/${stepId}`; viewEditor(stepId); };
     await pending;
   };
+  // Opened from the dashboard's New, then Split test: show the setup straight away.
+  if (!step.variant_blocks && new URLSearchParams(location.hash.split('?')[1] || '').get('abtest')) {
+    history.replaceState(history.state, '', `#/editor/${stepId}`);
+    $('[data-abtest]').click();
+  }
   $('[data-undo]').onclick = () => travel(undo.past, undo.future);
   $('[data-redo]').onclick = () => travel(undo.future, undo.past);
   document.onkeydown = (e) => {

@@ -513,6 +513,7 @@ ALTER TABLE contacts ADD COLUMN IF NOT EXISTS sms_consent_at TIMESTAMPTZ;
 -- One domain per account (business); a home website answers at its root.
 ALTER TABLE accounts ADD COLUMN IF NOT EXISTS domain TEXT;
 ALTER TABLE accounts ADD COLUMN IF NOT EXISTS home_funnel_id INT;
+ALTER TABLE funnels ADD COLUMN IF NOT EXISTS sort_order INT;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_accounts_domain ON accounts(domain) WHERE domain IS NOT NULL;
 
 -- Short links for printed pieces (QR codes); scans and visits are events.

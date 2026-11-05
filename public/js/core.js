@@ -354,13 +354,22 @@ function accountMenu(btn) {
   $('[data-logout2]', menu).onclick = logout;
   $('button', menu)?.focus();
 }
+// After switching workspace, stay in the same section. A single item (a page, a person)
+// belongs to the old workspace, so go to its section's list instead.
+const SECTION_OF = { funnels: 'flows', websites: 'flows', members: 'flows', editor: 'flows', workflows: 'flows' };
+function sameSection(hash) {
+  const path = hash.replace(/^#\/?/, '').split('?')[0];
+  if (!/(^|\/)\d+(\/|$)/.test(path)) return hash || '#/';
+  const top = path.split('/')[0];
+  return `#/${SECTION_OF[top] || top}`;
+}
 async function switchAccount(accountId) {
   if (accountId === state.me.account.id) return;
   await api('POST', `/api/accounts/${accountId}/switch`);
   state.me = await api('GET', '/api/me');
   if (typeof dash !== 'undefined') dash.data = {};
   toast(`Switched to ${state.me.account.name}`);
-  location.hash = '#/';
+  location.hash = sameSection(location.hash);
   route();
 }
 async function newSubAccount() {
