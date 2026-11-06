@@ -31,6 +31,7 @@ const { registerSetup } = require('./setup');
 const { registerBilling, planOf } = require('./billing');
 const { createOnboarding } = require('./onboarding');
 const { registerDomains } = require('./domains');
+const { registerSaved } = require('./saved');
 const { registerTexting } = require('./texting');
 const { registerMembers } = require('./members');
 const { registerMetrics } = require('./metrics');
@@ -366,6 +367,7 @@ function createApp({ dbPath } = {}) {
   api.use(auth.requireAuth(() => db));
   const billing = registerBilling(app, api, { getDb: () => db, HttpError, publicBase: () => publicBase(), express });
   registerDomains(api, { getDb: () => db, HttpError });
+  registerSaved(api, { getDb: () => db, HttpError, id });
 
   api.get('/me', async (req, res) => {
     const { stripe_secret_key: key, stripe_webhook_secret: whsec, ...account } = await db.get('SELECT * FROM accounts WHERE id = ?', req.accountId);

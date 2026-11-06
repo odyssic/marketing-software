@@ -1214,3 +1214,19 @@ a.fc-more { display: block; text-decoration: none; }
 .choice.num small { display: block; color: var(--muted); }
 .plan-note { background: var(--brand-soft); color: var(--brand); border-radius: 8px; padding: 8px 10px; display: flex; gap: 6px; align-items: center; } .plan-note svg { width: 15px; height: 15px; flex: none; }
 textarea.code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .82rem; line-height: 1.45; tab-size: 2; }
+
+/* Editor: saved sections */
+.saved-pal { display: grid; gap: 6px; margin-bottom: 14px; }
+.sp-item { display: flex; gap: 4px; }
+.sp-item > button[data-addsaved] { flex: 1; display: flex; gap: 8px; align-items: center; text-align: left; border: 1px solid #b9e0db; background: var(--brand-soft); border-radius: 8px; padding: 8px 10px; font: inherit; color: var(--text); cursor: pointer; }
+.sp-item > button[data-addsaved]:hover { border-color: var(--brand); }
+.sp-item small { margin-left: auto; color: var(--muted); font-size: .72rem; }
+.sp-item .ico svg { width: 15px; height: 15px; }
+.sp-x { border: 0; background: none; color: var(--muted); cursor: pointer; padding: 0 6px; border-radius: 6px; }
+.sp-x:hover { color: var(--danger); background: #fef2f2; }
+.sp-x svg { width: 14px; height: 14px; }
+.saved-note { display: flex; gap: 8px; align-items: flex-start; background: var(--brand-soft); color: var(--brand); border-radius: 8px; padding: 8px 10px; font-size: .82rem; margin-bottom: 10px; }
+.saved-note svg { width: 15px; height: 15px; flex: none; margin-top: 2px; }
+.saved-note .btn { margin-left: auto; flex: none; }
+.saved-btn { margin-top: 8px; }
+.block.linked .bh .lk svg { width: 13px; height: 13px; color: var(--brand); vertical-align: -2px; margin-right: 4px; }

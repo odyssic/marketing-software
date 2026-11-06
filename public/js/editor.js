@@ -77,12 +77,16 @@ function applyPalette(pal, settings, blocks) {
 }
 
 async function viewEditor(stepId) {
-  const [step, products, testimonials] = await Promise.all([api('GET', `/api/steps/${stepId}`), api('GET', '/api/products'), api('GET', '/api/testimonials')]);
+  const [step, products, testimonials, savedList] = await Promise.all([api('GET', `/api/steps/${stepId}`), api('GET', '/api/products'), api('GET', '/api/testimonials'), api('GET', '/api/saved-blocks').catch(() => [])]);
   const realTestimonials = testimonials.filter((t) => t.approved);
   // Split test: ?v=b edits version B of this page.
   const editingB = Boolean(step.variant_blocks) && new URLSearchParams(location.hash.split('?')[1] || '').get('v') === 'b';
   const ed = { step, blocks: editingB ? step.variant_blocks : step.blocks,
-    settings: { background: '#ffffff', textColor: '#1f2937', accent: '#4f46e5', width: 720, ...(editingB ? step.variant_settings || step.settings : step.settings) }, open: null };
+    settings: { background: '#ffffff', textColor: '#1f2937', accent: '#4f46e5', width: 720, ...(editingB ? step.variant_settings || step.settings : step.settings) }, open: null,
+    saved: savedList, savedSync: {} };
+  // Saved sections on this page, as last synced (so edits to them can be sent on).
+  const savedContent = (b) => { const { id: _i, savedId: _s, ...rest } = b; return JSON.stringify(rest); };
+  ed.blocks.forEach((b) => { if (b.savedId) ed.savedSync[b.savedId] = savedContent(b); });
   const link = publicUrl(`/f/${step.funnel.slug}/${step.slug}`);
   app.innerHTML = `<div class="editor">
     <div class="bar"><a class="btn sm" href="#/${step.funnel.kind === 'website' ? 'websites' : 'funnels'}/${step.funnel.id}">← ${esc(step.funnel.name)}</a>
@@ -96,6 +100,7 @@ async function viewEditor(stepId) {
       <a class="btn sm primary" href="${esc(link)}" target="_blank" rel="noopener" data-live>View live ${icon('external')}</a></div>
     <div class="side">
       <h3>Add a block</h3><div class="palette">${Object.entries(BLOCKS).map(([k, b]) => `<button data-addblock="${k}" draggable="true" title="Click to add at the end, or drag onto the page"><span class="ico">${b.icon}</span>${b.label}</button>`).join('')}</div>
+      <div data-savedpal></div>
       <h3>Page content</h3><div data-blocks></div>
       <div class="list-bin" data-bin aria-hidden="true">${icon('trash')} Drop here to delete</div>
       <h3>Page style</h3>
@@ -159,6 +164,13 @@ async function viewEditor(stepId) {
     saveTimer = setTimeout(async () => {
       try {
         const r = await api('PUT', `/api/steps/${stepId}`, { name: $('[data-name]').value, blocks: ed.blocks, settings: ed.settings, ...(editingB ? { variant: 'b' } : {}), ...extra });
+        for (const b of ed.blocks.filter((x) => x.savedId)) {
+          const now = savedContent(b);
+          if (ed.savedSync[b.savedId] === now) continue;
+          ed.savedSync[b.savedId] = now;
+          const u = await api('PUT', `/api/saved-blocks/${b.savedId}`, { block: b });
+          const x = ed.saved.find((y) => y.id === b.savedId); if (x) { x.pages = u.pages; x.block = JSON.parse(now); }
+        }
         saved.textContent = 'All changes saved';
         if (extra.slug !== undefined) { $('[data-slug]').value = r.slug; $('[data-live]').href = publicUrl(`/f/${step.funnel.slug}/${r.slug}`); }
       } catch (err) { saved.textContent = 'Not saved'; toast(err.message, true); }
@@ -206,17 +218,28 @@ async function viewEditor(stepId) {
   const summary = (b) => esc(String(b.type === 'pricing' ? (products.find((pr) => pr.id === b.productId)?.name || 'no product')
     : b.type === 'image' ? (b.url ? b.alt || 'Photo' : 'no photo yet') : b.text || b.label || b.buttonLabel || b.url || '').slice(0, 40));
 
+  // Saved sections: reusable blocks for this business, listed under Add a block.
+  const SAVABLE = (t) => !['form', 'pricing', 'booking'].includes(t);
+  const savedName = (sid) => ed.saved.find((x) => x.id === sid)?.name || 'Saved section';
+  const renderSavedPal = () => {
+    $('[data-savedpal]').innerHTML = ed.saved.length ? `<h3>Saved sections</h3><p class="muted small" style="margin:-4px 0 8px">Change one, and it changes on every page.</p>
+      <div class="saved-pal">${ed.saved.map((x) => `<span class="sp-item"><button type="button" data-addsaved="${x.id}" title="Add “${esc(x.name)}” to this page"><span class="ico">${BLOCKS[x.type]?.icon || icon('copy')}</span>${esc(x.name)}<small>${x.pages} page${x.pages === 1 ? '' : 's'}</small></button>
+        <button type="button" class="sp-x" data-rmsaved="${x.id}" title="Delete this saved section (pages keep their copy)" aria-label="Delete saved section ${esc(x.name)}">${icon('x')}</button></span>`).join('')}</div>` : '';
+  };
+  renderSavedPal();
   const renderBlocks = () => {
     $('[data-blocks]').innerHTML = ed.blocks.length ? ed.blocks.map((b, i) => {
       const def = BLOCKS[b.type] || { label: b.type, icon: '?', fields: [] };
       const open = ed.open === b.id;
-      return `<div class="block ${open ? 'open' : ''}">
-        <div class="bh" data-toggle="${b.id}" draggable="true" data-drag="${i}" title="Drag to move"><span>${def.icon}</span><span class="name">${def.label} <span>${summary(b)}</span></span>
+      const linkNote = b.savedId ? `<div class="saved-note">${icon('link')}<span>Saved section <b>${esc(savedName(b.savedId))}</b>. Changes here update every page that uses it.</span><button type="button" class="btn sm" data-unlink="${i}">Edit just here</button></div>`
+        : SAVABLE(b.type) ? `<button type="button" class="btn sm saved-btn" data-saveblock="${i}">${icon('copy')} Save for reuse</button>` : '';
+      return `<div class="block ${open ? 'open' : ''} ${b.savedId ? 'linked' : ''}">
+        <div class="bh" data-toggle="${b.id}" draggable="true" data-drag="${i}" title="Drag to move"><span>${def.icon}</span><span class="name">${b.savedId ? `<i class="lk" title="Saved section">${icon('link')}</i>` : ''}${def.label} <span>${summary(b)}</span></span>
           <button class="btn" data-up="${i}" ${i === 0 ? 'disabled' : ''} title="Move up">↑</button>
           <button class="btn" data-down="${i}" ${i === ed.blocks.length - 1 ? 'disabled' : ''} title="Move down">↓</button>
           <button class="btn" data-dup="${i}" title="Duplicate">${icon('copy')}</button>
           <button class="btn danger" data-rm="${i}" title="Delete">${icon('x')}</button></div>
-        ${open ? `<div class="bb">${def.fields.length ? def.fields.map((fd) => fieldHtml(b, i, fd)).join('') : '<p class="muted small">No settings for this block.</p>'}</div>` : ''}
+        ${open ? `<div class="bb">${b.savedId ? linkNote : ''}${def.fields.length ? def.fields.map((fd) => fieldHtml(b, i, fd)).join('') : '<p class="muted small">No settings for this block.</p>'}${b.savedId ? '' : linkNote}</div>` : ''}
       </div>`;
     }).join('') : '<p class="muted small" data-empty>Your page is empty. Drag a block from above onto the page, or click one to add it.</p>';
   };
@@ -251,6 +274,37 @@ async function viewEditor(stepId) {
     const t = e.target.closest('button, [data-toggle]');
     if (!t) return;
     const d = t.dataset;
+    if (d.saveblock) {
+      const i = Number(d.saveblock), b = ed.blocks[i];
+      modal('Save for reuse', `<p class="muted small">Put it on any page of this business. Change it once, and it changes on every page that uses it.</p>
+        <label class="f">Name<input name="name" required maxlength="80" placeholder="e.g. Main header, Sam’s testimonial"></label>`, { submit: 'Save', onSubmit: (v) => api('POST', '/api/saved-blocks', { name: v.name, block: b }) }).then((r) => {
+        if (!r) return;
+        ed.saved.push(r); b.savedId = r.id; ed.savedSync[r.id] = savedContent(b);
+        renderSavedPal(); structural(); toast(`Saved as “${r.name}”. Add it to any page from Saved sections`);
+      });
+      return;
+    }
+    if (d.addsaved) {
+      const x = ed.saved.find((y) => y.id === Number(d.addsaved));
+      if (!ed.blocks.some((y) => y.savedId === x.id)) { x.pages++; setTimeout(renderSavedPal); }
+      const b = { ...x.block, id: uid(), savedId: x.id };
+      ed.savedSync[x.id] = savedContent(b);
+      ed.blocks.push(b); ed.open = b.id; structural();
+      $('[data-blocks]').lastElementChild?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      return;
+    }
+    if (d.unlink) {
+      const b = ed.blocks[Number(d.unlink)]; delete b.savedId; structural(); toast('This copy is now separate. Edits stay on this page');
+      return;
+    }
+    if (d.rmsaved) {
+      const x = ed.saved.find((y) => y.id === Number(d.rmsaved));
+      api('DELETE', `/api/saved-blocks/${x.id}`).then(() => {
+        ed.saved = ed.saved.filter((y) => y !== x); ed.blocks.forEach((b) => { if (b.savedId === x.id) delete b.savedId; });
+        renderSavedPal(); renderBlocks(); toast(`“${x.name}” removed from Saved sections. Pages keep their copy`);
+      }).catch((err) => toast(err.message, true));
+      return;
+    }
     if (d.addblock) {
       const b = { id: uid(), type: d.addblock, ...BLOCKS[d.addblock].defaults };
       ed.blocks.push(b); ed.open = b.id; structural();
