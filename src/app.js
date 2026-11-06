@@ -242,7 +242,9 @@ function createApp({ dbPath } = {}) {
   // sign-up is closed (set ALLOW_SIGNUPS=1 to run it multi-tenant).
   const signupOpen = async () => process.env.ALLOW_SIGNUPS === '1' || !(await db.get('SELECT 1 FROM users LIMIT 1'));
   api.get('/auth/status', async (req, res) => {
-    res.json({ hasOwner: Boolean(await db.get('SELECT 1 FROM users LIMIT 1')), signupOpen: await signupOpen(), emailLive: mailer.isLive() });
+    const p = planOf({});
+    res.json({ hasOwner: Boolean(await db.get('SELECT 1 FROM users LIMIT 1')), signupOpen: await signupOpen(), emailLive: mailer.isLive(),
+      plan: { enabled: p.enabled, priceCents: p.priceCents, currency: p.currency, trialDays: p.trialDays } });
   });
 
   api.post('/auth/signup', async (req, res) => {

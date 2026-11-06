@@ -1132,3 +1132,64 @@ a.fc-more { display: block; text-decoration: none; }
 .plan-lock { max-width: 620px; margin: 30px auto; text-align: center; padding: 30px; }
 .plan-lock .big svg { width: 40px; height: 40px; color: var(--brand); }
 .plan-lock [data-plan] { text-align: left; margin: 18px auto 0; box-shadow: none; }
+
+/* Landing page */
+.land { background: #fff; color: var(--text); min-height: 100vh; }
+.land-nav { display: flex; align-items: center; justify-content: space-between; padding: 16px clamp(16px, 4vw, 48px); max-width: 1180px; margin: 0 auto; }
+.land-logo .lockup { height: 32px; display: block; }
+.land-nav nav { display: flex; gap: 10px; align-items: center; }
+.land-nav nav > a { color: var(--text); text-decoration: none; font-weight: 500; margin-right: 6px; }
+.land .btn.big { padding: 13px 22px; font-size: 1rem; }
+.land-hero { display: grid; grid-template-columns: 1.05fr 1fr; gap: 48px; align-items: center; max-width: 1180px; margin: 0 auto; padding: clamp(28px, 6vw, 72px) clamp(16px, 4vw, 48px); }
+.land-kicker { color: var(--brand); font-weight: 700; letter-spacing: .02em; margin: 0 0 10px; }
+.land-hero h1 { font-size: clamp(2.1rem, 4.6vw, 3.4rem); line-height: 1.08; letter-spacing: -.02em; margin: 0 0 16px; }
+.land-sub { font-size: 1.15rem; line-height: 1.55; color: #3d4b4e; margin: 0 0 24px; max-width: 34em; }
+.land-cta { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+.land-art { background: linear-gradient(140deg, #e6f4f2, #f3f6fb); border-radius: 22px; padding: 28px; display: grid; gap: 6px; justify-items: center; }
+.la-card { background: #fff; border-radius: 14px; padding: 14px 16px; width: min(320px, 100%); box-shadow: 0 6px 22px rgba(20, 40, 43, .09); display: grid; gap: 8px; }
+.la-card b { font-size: .98rem; }
+.la-card i { display: block; height: 7px; border-radius: 4px; background: #e9eeed; }
+.la-card i.short { width: 60%; }
+.la-tag { font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: #4f46e5; display: flex; gap: 5px; align-items: center; }
+.la-tag.mail { color: var(--brand); }
+.la-tag svg { width: 13px; height: 13px; }
+.la-btn { background: var(--brand); color: #fff; border-radius: 8px; padding: 8px; text-align: center; font-size: .85rem; font-weight: 600; }
+.la-arrow { color: #9aa9ad; transform: rotate(90deg); }
+.la-arrow svg { width: 20px; height: 20px; }
+.la-note { margin-top: 10px; font-size: .85rem; color: var(--brand); font-weight: 600; display: flex; gap: 6px; align-items: center; }
+.la-note svg { width: 15px; height: 15px; }
+.land-sec { max-width: 1180px; margin: 0 auto; padding: clamp(36px, 6vw, 72px) clamp(16px, 4vw, 48px); text-align: center; }
+.land-sec.alt { max-width: none; background: #f5f8f7; }
+.land-sec h2, .land-end h2 { font-size: clamp(1.6rem, 3vw, 2.2rem); letter-spacing: -.01em; margin: 0 0 10px; }
+.land-lead { color: var(--muted); font-size: 1.08rem; margin: 0 0 28px; }
+.land-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; text-align: left; }
+.land-feat { border: 1px solid var(--line); border-radius: 16px; padding: 22px; }
+.land-feat h3 { margin: 12px 0 6px; font-size: 1.08rem; }
+.land-feat p, .land-steps p { margin: 0; color: #4a585b; line-height: 1.5; }
+.lf-ico { width: 40px; height: 40px; border-radius: 10px; background: var(--brand-soft); color: var(--brand); display: grid; place-items: center; }
+.lf-ico svg { width: 20px; height: 20px; }
+.land-steps { list-style: none; padding: 0; margin: 26px auto 0; max-width: 1080px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; text-align: left; }
+.land-steps li { display: flex; gap: 14px; align-items: flex-start; }
+.land-steps h3 { margin: 4px 0 6px; font-size: 1.08rem; }
+.ls-n { flex: none; width: 34px; height: 34px; border-radius: 50%; background: var(--brand); color: #fff; font-weight: 700; display: grid; place-items: center; }
+.land-price { max-width: 420px; margin: 22px auto 0; padding: 30px; text-align: left; }
+.lp-amt { font-size: 3rem; font-weight: 800; letter-spacing: -.02em; }
+.lp-amt span { font-size: 1.1rem; font-weight: 500; color: var(--muted); }
+.land-price ul { list-style: none; padding: 0; margin: 16px 0 22px; display: grid; gap: 9px; }
+.land-price li { display: flex; gap: 9px; align-items: center; }
+.land-price li svg { width: 17px; height: 17px; color: var(--brand); flex: none; }
+.land-price .btn { width: 100%; justify-content: center; }
+.land-end { text-align: center; padding: clamp(40px, 7vw, 80px) 16px; background: #14282B; color: #fff; }
+.land-end h2 { color: #fff; margin-bottom: 20px; }
+.land-foot { max-width: 1180px; margin: 0 auto; padding: 22px clamp(16px, 4vw, 48px); display: flex; gap: 16px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+.land-foot .lockup { height: 24px; display: block; }
+@media (max-width: 860px) {
+  .land-hero { grid-template-columns: 1fr; gap: 28px; }
+  .land-grid, .land-steps { grid-template-columns: 1fr; }
+}
+@media (max-width: 520px) {
+  .land-nav nav > a { display: none; }
+  .land-nav .btn { padding: 8px 12px; }
+  .land-cta .btn { flex: 1; justify-content: center; }
+}
+.land .btn.big { width: auto; display: inline-flex; margin: 0; }

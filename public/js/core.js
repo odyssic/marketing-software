@@ -253,7 +253,9 @@ async function renderAuth(mode) {
   const resetToken = (location.hash.match(/^#\/reset\/([\w-]+)/) || [])[1];
   // First visit on this browser (never signed in here) and sign-ups open: start with "Create your account".
   const seenBefore = (() => { try { return localStorage.getItem('rillySignedIn') === '1'; } catch { return false; } })();
-  mode = mode || (resetToken ? 'newpass' : !status.hasOwner || (status.signupOpen && !seenBefore) ? 'setup' : 'link');
+  // First-time visitors see what Rilly is before any form.
+  if (!mode && !resetToken && status.hasOwner && status.signupOpen && !seenBefore) return renderLanding(status);
+  mode = mode || (resetToken ? 'newpass' : !status.hasOwner ? 'setup' : 'link');
   if (mode === 'forgot' || mode === 'newpass') return renderReset(mode, resetToken);
   const setup = mode === 'setup';
   app.innerHTML = `<div class="auth"><form class="card">
