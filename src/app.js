@@ -29,6 +29,7 @@ const attribution = require('./attribution');
 const { registerInvoices } = require('./invoices');
 const { registerSetup } = require('./setup');
 const { registerBilling, planOf } = require('./billing');
+const { createOnboarding } = require('./onboarding');
 const { registerTexting } = require('./texting');
 const { registerMembers } = require('./members');
 const { registerMetrics } = require('./metrics');
@@ -1198,6 +1199,7 @@ function createApp({ dbPath } = {}) {
   workflows.register(api);
   moves.register(api);
   funnelKit = registerFunnelKit(api, { getDb: () => db, HttpError, id, getFunnel, getStep });
+  const onboarding = createOnboarding({ getDb: () => db, publicBase });
   digest = createDigest({ getDb: () => db, leversFor: (a) => leversFor(a), moves, publicBase });
   digest.register(api, { HttpError });
   // Runs background jobs now (same as the timer). Tests may pass a future `now` to skip waits.
@@ -1692,7 +1694,7 @@ ${order.status === 'paid' ? '<p>This order is already paid.</p>' : `<label>Name<
   // the scheduled Netlify function.
   app.runJobs = async (now = new Date()) => {
     await init();
-    return { ...(await workflows.processDue({ now })), ...(await digest.sendDue(now)), ...(await bookings.sendReminders(now)), ...(await recoverCheckouts(now)), ...(await askForReviews(now)), ...(await sendScheduled(now)), ...(await invoices.remindOverdue(now)) };
+    return { ...(await workflows.processDue({ now })), ...(await digest.sendDue(now)), ...(await bookings.sendReminders(now)), ...(await recoverCheckouts(now)), ...(await askForReviews(now)), ...(await sendScheduled(now)), ...(await invoices.remindOverdue(now)), ...(await onboarding.sendDue(now)) };
   };
   app.getDb = () => db; // for tests (seeding history)
   app.messaging = messaging; // for tests (signing tracking links)
