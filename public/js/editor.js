@@ -3,8 +3,11 @@
 // ---------------- Page builder ----------------
 const ALIGN = ['align', 'align', 'Alignment'];
 const BLOCKS = {
-  hero: { label: 'Hero banner', icon: icon('hero'), defaults: { eyebrow: 'New', text: 'A bold headline for your offer', subtext: '', background: '#0d9488', textColor: '#ffffff' },
-    fields: [['eyebrow', 'text', 'Small label above'], ['text', 'textarea', 'Headline'], ['subtext', 'textarea', 'Subheadline'],
+  hero: { label: 'Hero banner', icon: icon('hero'), defaults: { eyebrow: 'New', text: 'A bold headline for your offer', subtext: '', background: '#0d9488', textColor: '#ffffff', style: 'wave' },
+    fields: [['style', 'select', 'Look', ['wave', 'flat', 'minimal', 'split'], 'wave and flat: a coloured band · minimal: big words, no band · split: words beside a photo'],
+      ['eyebrow', 'text', 'Small label above'], ['text', 'textarea', 'Headline'], ['subtext', 'textarea', 'Subheadline'],
+      ['button', 'text', 'Button (optional)', null, 'e.g. Get the guide'], ['url', 'text', 'Button link', null, '#next = the next page · page:contact · or a full https:// link'],
+      ['image', 'photo', 'Photo (for the split look)'], ['imageAlt', 'text', 'Photo description'],
       ['background', 'color', 'Band color'], ['textColor', 'color', 'Text color']] },
   pricing: { label: 'Pricing card', icon: icon('dollar'), defaults: { productId: null, badge: 'LIMITED TIME OFFER', compareText: '', billingText: '', note: '',
     featuresTitle: 'Everything you get:', features: 'Feature one\nFeature two\nFeature three', buttonLabel: 'Get Instant Access Now',
@@ -121,7 +124,8 @@ async function viewEditor(stepId) {
       <div class="list-bin" data-bin aria-hidden="true">${icon('trash')} Drop here to delete</div>
       <h3>Page style</h3>
       <div class="pal-row" role="group" aria-label="Colour palettes" data-palrow></div>
-      <button type="button" class="btn sm ghost" data-palall style="margin:-2px 0 10px">${icon('sparkle')} Use these colours on every page</button>
+      <div class="type-row" role="group" aria-label="Type style">${[['', 'Classic'], ['elegant', 'Elegant'], ['modern', 'Modern']].map(([k, l]) => `<button type="button" class="type-opt t-${k || 'classic'} ${(ed.settings.font || '') === k ? 'on' : ''}" data-font="${k}" aria-pressed="${(ed.settings.font || '') === k}"><b>Aa</b><small>${l}</small></button>`).join('')}</div>
+      <button type="button" class="btn sm ghost" data-palall style="margin:-2px 0 10px">${icon('sparkle')} Use this look on every page</button>
       <details class="more-page"><summary>More page settings</summary>
       <h3 style="margin-top:10px">Your own colours</h3>
       <div class="colors">
@@ -270,7 +274,7 @@ async function viewEditor(stepId) {
       try { await api('PUT', '/api/account/brand', { color: e.target.value }); } catch (err) { toast(err.message, true); return; }
       state.me.account.brand_color = e.target.value.toLowerCase();
       usePalette(paletteFrom(state.me.account.brand_color));
-      toast('Your brand palette is on. “Use these colours on every page” spreads it');
+      toast('Your brand palette is on. “Use this look on every page” spreads it');
     };
   };
   const usePalette = (pal) => {
@@ -280,6 +284,12 @@ async function viewEditor(stepId) {
     structural();
   };
   renderPalettes();
+  // Type style: Classic, Elegant (serif headings) or Modern (tight, bold).
+  $$('[data-font]').forEach((b) => { b.onclick = () => {
+    if (b.dataset.font) ed.settings.font = b.dataset.font; else delete ed.settings.font;
+    $$('[data-font]').forEach((x) => { x.classList.toggle('on', x === b); x.setAttribute('aria-pressed', String(x === b)); });
+    structural();
+  }; });
   $('[data-palall]').onclick = async () => {
     const pal = allPalettes().find((x) => x.name === ed.settings.palette) || { name: '', bg: ed.settings.background, text: ed.settings.textColor, accent: ed.settings.accent, band: ed.blocks.find((b) => b.type === 'hero')?.background || ed.settings.accent };
     const f = await api('GET', `/api/funnels/${step.funnel.id}`);
@@ -288,6 +298,7 @@ async function viewEditor(stepId) {
     const before = others.map((x) => ({ id: x.id, settings: JSON.parse(JSON.stringify(x.settings)), blocks: JSON.parse(JSON.stringify(x.blocks)) }));
     for (const x of others) {
       applyPalette(pal, x.settings, x.blocks);
+      if (ed.settings.font) x.settings.font = ed.settings.font; else delete x.settings.font;
       if (!pal.name) delete x.settings.palette;
       await api('PUT', `/api/steps/${x.id}`, { name: x.name, blocks: x.blocks, settings: x.settings });
     }

@@ -4,7 +4,65 @@
 // the step leads to the one listed after it.
 const id = () => Math.random().toString(36).slice(2, 10);
 
+// Contemporary looks: a warm, editorial serif and a clean modern sans.
+const ELEGANT = { font: 'elegant', background: '#fbf9f6', textColor: '#1f1b16', accent: '#7a4e24', width: 1040 };
+const MODERN = { font: 'modern', background: '#ffffff', textColor: '#0b1220', accent: '#111827', width: 1040 };
+
 const TEMPLATES = {
+  elegant_guide: {
+    label: 'Elegant free guide',
+    description: 'A refined page for a free PDF or guide: photo beside the headline, what’s inside, and a welcome series.',
+    workflows: ['welcome'],
+    steps: () => [
+      {
+        name: 'Free guide', slug: 'guide', settings: { ...ELEGANT },
+        blocks: [
+          { id: id(), type: 'hero', style: 'split', eyebrow: 'Free guide', text: 'The [number] [things] every [reader] should know', subtext: 'A short, beautifully made guide to [the topic]. Yours free, straight to your inbox.', image: '', imageAlt: 'The guide', background: '#7a4e24', textColor: '#ffffff' },
+          { id: id(), type: 'form', buttonLabel: 'Send me the guide', collectName: true, collectPhone: false, purpose: 'Sign up', tag: 'lead', deliverName: 'the free guide' },
+          { id: id(), type: 'text', text: 'One email with the guide, then an occasional note. Unsubscribe anytime.', align: 'center' },
+          { id: id(), type: 'divider' },
+          { id: id(), type: 'bullets', title: 'Inside the guide', items: '[First thing they’ll learn]\n[Second thing they’ll learn]\n[Third thing they’ll learn]\n[A bonus they won’t expect]', style: 'check', align: 'center' },
+          { id: id(), type: 'reviews', limit: 1 },
+        ],
+      },
+      {
+        name: 'Thank you', slug: 'thank-you', settings: { ...ELEGANT },
+        blocks: [
+          { id: id(), type: 'hero', style: 'minimal', eyebrow: 'Thank you', text: 'It’s on its way', subtext: 'Check your inbox in the next few minutes. If it’s not there, look in Promotions or Spam.', background: '#7a4e24', textColor: '#ffffff' },
+        ],
+      },
+    ],
+  },
+  modern_sales: {
+    label: 'Modern sales page',
+    description: 'A clean, confident sales page with an offer stack, then checkout and a thank-you, with care tips after they buy.',
+    workflows: ['care'],
+    steps: () => [
+      {
+        name: 'Sales page', slug: 'offer', settings: { ...MODERN },
+        blocks: [
+          { id: id(), type: 'hero', style: 'minimal', eyebrow: 'New', text: '[The result they want], without [the thing they dread]', subtext: '[Product name] is the simplest way to [outcome]. Built for [who it’s for].', button: 'See what’s included', url: '#next', background: '#111827', textColor: '#ffffff' },
+          { id: id(), type: 'image', url: '', alt: '[Product] preview', align: 'center' },
+          { id: id(), type: 'cards', items: '[Benefit one] | One line on why it matters.\n[Benefit two] | One line on why it matters.\n[Benefit three] | One line on why it matters.' },
+          { id: id(), type: 'reviews', limit: 3 },
+          { id: id(), type: 'offer', title: 'Everything you get', items: '[Main product] | $[value]\n[Bonus one] | $[value]\n[Bonus two] | $[value]', showTotal: true, priceLabel: 'Today', price: '$[price]', buttonLabel: 'Get it now', url: '#next', note: '30-day money-back guarantee' },
+        ],
+      },
+      {
+        name: 'Checkout', slug: 'checkout', settings: { ...MODERN, width: 860 },
+        blocks: [
+          { id: id(), type: 'hero', style: 'minimal', eyebrow: 'Checkout', text: 'You’re one step away', subtext: '', background: '#111827', textColor: '#ffffff' },
+          { id: id(), type: 'pricing', productId: null, badge: '', compareText: '', billingText: '', note: '', featuresTitle: 'Included:', features: '[Main product]\n[Bonus one]\n[Bonus two]\nLifetime updates', buttonLabel: 'Complete my order', buttonSubtext: '30-day money-back guarantee', buttonColor: '#111827' },
+        ],
+      },
+      {
+        name: 'Thank you', slug: 'thank-you', settings: { ...MODERN },
+        blocks: [
+          { id: id(), type: 'hero', style: 'minimal', eyebrow: 'Order confirmed', text: 'Welcome aboard', subtext: 'Your receipt and everything you need are on their way to your inbox.', background: '#111827', textColor: '#ffffff' },
+        ],
+      },
+    ],
+  },
   optin: {
     label: 'Lead magnet',
     description: 'Trade a free guide or sample for an email, then welcome them with a 3-email series.',

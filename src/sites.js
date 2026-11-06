@@ -17,7 +17,50 @@ const info = (o) => ({ id: id(), type: 'info', ...o });
 const contactForm = (label = 'Send message') => ({ id: id(), type: 'form', buttonLabel: label, collectName: true, collectPhone: false, collectMessage: true, purpose: 'Inquiry', tag: 'website-inquiry' });
 const page = (name, slug, blocks, accent) => ({ name, slug, blocks, settings: { accent, width: 960 } });
 
+// Contemporary looks (see templates.js).
+const look = (name, slug, blocks, settings) => ({ name, slug, blocks, settings: { ...settings } });
+const STUDIO = { font: 'elegant', background: '#fbf9f6', textColor: '#1f1b16', accent: '#7a4e24', width: 1040 };
+const MODERN = { font: 'modern', background: '#ffffff', textColor: '#0b1220', accent: '#111827', width: 1040 };
+const heroOf = (style, text, subtext, eyebrow, button, url, background) => ({ id: id(), type: 'hero', style, eyebrow, text, subtext, button, url, background, textColor: '#ffffff', image: '' });
+const GENERIC_FOLLOWUP = {
+  reply_subject: 'Thanks, {{first_name|there}}! We’ll be in touch',
+  reply_body: 'Hi {{first_name|there}},\n\nThanks for getting in touch with {{business}}. We’ve got your message and will reply within one business day.\n\n{{business}}',
+  checkin_subject: 'Still interested, {{first_name|there}}?',
+  checkin_body: 'Hi {{first_name|there}},\n\nJust following up on your message. Reply any time and we’ll take it from there.\n\n{{business}}',
+  notify: 'New inquiry from your website. Reply while it’s fresh.',
+};
+
 const SITE_TEMPLATES = {
+  studio: {
+    followup: GENERIC_FOLLOWUP,
+    label: 'Studio (elegant)', description: 'A calm, editorial site with serif headings: Home, About, Work, and Contact.', accent: '#7a4e24', workflows: ['site_followup'],
+    steps: () => [
+      look('Home', 'home', [heroOf('split', '[Your business], made with care', 'One sentence on what you do and who it’s for.', '[Your town] · Since [year]', 'Get in touch', 'page:contact', '#7a4e24'),
+        h('What we do', 'medium'), cards([['[Offering one]', 'A sentence on what it is and why people love it.'], ['[Offering two]', 'A sentence on what it is and why people love it.'], ['[Offering three]', 'A sentence on what it is and why people love it.']]),
+        reviews(1), btn('Start a conversation', 'page:contact')], STUDIO),
+      look('About', 'about', [heroOf('minimal', 'The story behind [business]', 'Who you are, why you started, and what you believe in.', 'About', '', '', '#7a4e24'),
+        p('Write two or three short paragraphs here. Keep it warm and personal: the moment you started, what you care about, and who you most love working with.')], STUDIO),
+      look('Work', 'work', [heroOf('minimal', 'Selected work', 'A few things we’re proud of.', 'Portfolio', '', '', '#7a4e24'),
+        cards([['[Project]', 'What it was and the result.'], ['[Project]', 'What it was and the result.'], ['[Project]', 'What it was and the result.'], ['[Project]', 'What it was and the result.']]), reviews(3)], STUDIO),
+      look('Contact', 'contact', [heroOf('minimal', 'Let’s talk', 'Tell us a little about what you have in mind. We reply within one business day.', 'Contact', '', '', '#7a4e24'),
+        contactForm('Send message'), info({ email: 'hello@yourbusiness.com', phone: '', address: '[Street], [Town]', hours: 'Mon–Fri, 9am–5pm' })], STUDIO),
+    ],
+  },
+  modern: {
+    followup: GENERIC_FOLLOWUP,
+    label: 'Modern business', description: 'Bold, clean and confident: Home, Services, About, and Contact, with a band hero and rounded buttons.', accent: '#111827', workflows: ['site_followup'],
+    steps: () => [
+      look('Home', 'home', [heroOf('flat', '[What you do], done right', 'One clear line on the result you deliver and who it’s for.', '[Your town]', 'Get started', 'page:contact', '#111827'),
+        cards([['[Service one]', 'What’s included and who it’s for.'], ['[Service two]', 'What’s included and who it’s for.'], ['[Service three]', 'What’s included and who it’s for.']]),
+        h('Why people choose us', 'medium'), cards([['Fast', 'A line about speed or responsiveness.'], ['Clear pricing', 'A line about no surprises.'], ['Guaranteed', 'A line about your promise.']]),
+        reviews(3), btn('Talk to us', 'page:contact')], MODERN),
+      look('Services', 'services', [heroOf('minimal', 'Services', 'Everything we offer, with honest starting prices.', 'What we do', '', '', '#111827'),
+        cards([['[Service one]', 'From $[price]. What’s included.'], ['[Service two]', 'From $[price]. What’s included.'], ['[Service three]', 'From $[price]. What’s included.'], ['[Service four]', 'From $[price]. What’s included.']]), btn('Ask a question', 'page:contact')], MODERN),
+      look('About', 'about', [heroOf('minimal', 'About us', 'Who we are and how we work.', 'Our story', '', '', '#111827'), p('A few short paragraphs about your team, your experience and what you stand for.')], MODERN),
+      look('Contact', 'contact', [heroOf('minimal', 'Get in touch', 'Tell us what you need. We reply within one business day.', 'Contact', '', '', '#111827'),
+        contactForm('Send message'), info({ email: 'hello@yourbusiness.com', phone: '(555) 555-0100', address: '', hours: 'Mon–Fri, 9am–6pm' })], MODERN),
+    ],
+  },
   coach: {
     followup: {
       reply_subject: 'Thanks, {{first_name|there}}! Let’s find a time to talk',

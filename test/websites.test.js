@@ -28,7 +28,7 @@ test('website templates: menu, footer, page links, contact inquiries, menu order
   const c = client();
   await c('POST', '/api/auth/signup', { name: 'Web', email: 'web@example.com', password: 'password123', workspace: 'Green Lawn Co' });
   const t = (await c('GET', '/api/website-templates')).body;
-  assert.deepEqual(t.map((x) => x.key), ['coach', 'services', 'restaurant', 'shop', 'wellness']);
+  assert.deepEqual(t.map((x) => x.key), ['studio', 'modern', 'coach', 'services', 'restaurant', 'shop', 'wellness']);
   assert.deepEqual(t.find((x) => x.key === 'services').pages, ['Home', 'Services', 'About', 'Reviews', 'Get a quote']);
   assert.equal((await c('POST', '/api/websites', { name: '' })).status, 400);
 

@@ -91,10 +91,23 @@ function renderBlock(b, ctx, index) {
     case 'hero': {
       const bg = color(b.background, '#0f766e');
       const fg = color(b.textColor, '#ffffff');
+      const style = ['flat', 'minimal', 'split'].includes(b.style) ? b.style : 'wave';
+      // An optional button right in the hero.
+      const href = !b.button ? '' : String(b.url || '').startsWith('page:') ? ctx.pageHref(String(b.url).slice(5))
+        : b.url === '#next' || !b.url ? ctx.nextUrl : b.url === '#no' ? ctx.noUrl : safeUrl(b.url);
+      const cta = b.button ? `<div class="hero-cta"><a class="btn hero-btn" href="${esc(href)}"${f('button')}>${esc(b.button)}</a></div>` : '';
+      const words = `${b.eyebrow ? `<div class="eyebrow"${f('eyebrow')}>${esc(b.eyebrow)}</div>` : ''}
+        <h1${f('text')}>${multiline(b.text)}</h1>${b.subtext ? `<p${f('subtext')}>${multiline(b.subtext)}</p>` : ''}${cta}`;
+      if (style === 'minimal') return `<section class="hero-min${index === 0 ? ' first' : ''}">${words}</section>`;
+      if (style === 'split') {
+        const img = b.image ? `<img src="${esc(safeUrl(b.image))}" alt="${esc(b.imageAlt || '')}">` : '<div class="hero-ph" aria-hidden="true"></div>';
+        return `<section class="hero-split${index === 0 ? ' first' : ''}"><div class="hs-words">${words}</div><div class="hs-img">${img}</div></section>`;
+      }
+      if (style === 'flat') return `<section class="hero flat${index === 0 ? ' first' : ''}" style="background:${bg};color:${fg};--hero-fg:${fg};--hero-bg:${bg}">${words}</section>`;
       // The wave is filled with the page background so the band blends into the page below it.
-      return `<section class="hero${index === 0 ? ' first' : ''}" style="background:linear-gradient(180deg,color-mix(in srgb,${bg} 75%,#000) 0%,${bg} 100%);color:${fg}">
+      return `<section class="hero${index === 0 ? ' first' : ''}" style="background:linear-gradient(180deg,color-mix(in srgb,${bg} 75%,#000) 0%,${bg} 100%);color:${fg};--hero-fg:${fg};--hero-bg:${bg}">
         ${b.eyebrow ? `<div class="eyebrow"${f('eyebrow')}>${esc(b.eyebrow)}</div>` : ''}
-        <h1${f('text')}>${multiline(b.text)}</h1>${b.subtext ? `<p${f('subtext')}>${multiline(b.subtext)}</p>` : ''}
+        <h1${f('text')}>${multiline(b.text)}</h1>${b.subtext ? `<p${f('subtext')}>${multiline(b.subtext)}</p>` : ''}${cta}
         <svg class="wave" viewBox="0 0 1440 90" preserveAspectRatio="none" aria-hidden="true">
           <path d="M0 40 C 300 0 500 70 800 45 S 1200 10 1440 40 V90 H0Z" fill="${ctx.background}" opacity=".45"/>
           <path d="M0 60 C 350 25 600 85 900 60 S 1250 40 1440 55 V90 H0Z" fill="${ctx.background}"/></svg></section>`;
@@ -234,6 +247,13 @@ function trackingTags(code = {}, ownDomain = false) {
     gtm && `<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s);j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i;f.parentNode.insertBefore(j,f)})(window,document,'script','dataLayer','${gtm}');</script>`,
   ].filter(Boolean).join('\n');
 }
+// Type styles: system fonts only, so pages stay fast and private.
+const TYPE_CSS = {
+  elegant: `h1,h2,h3,.hero h1,.offer-t,.bul-t{font-family:"Iowan Old Style","Palatino Linotype","Book Antiqua",Palatino,Georgia,serif;font-weight:600;letter-spacing:-.01em}
+.eyebrow{font-family:system-ui,sans-serif;font-size:.78rem;letter-spacing:.24em;border:0;padding:0}body{line-height:1.7}`,
+  modern: `h1,h2,h3{font-weight:800;letter-spacing:-.035em}.hero h1{font-weight:800;letter-spacing:-.04em}
+.eyebrow{font-size:.75rem;font-weight:700;letter-spacing:.2em;border:0;padding:6px 12px;border-radius:99px;background:color-mix(in srgb,currentColor 12%,transparent)}.btn{border-radius:99px}`,
+};
 // Custom CSS can't close its <style> tag or pull in other files.
 const cleanCss = (css) => String(css || '').slice(0, 40000).replace(/<\/?\s*style/gi, '').replace(/@import[^;]*;?/gi, '');
 const HTML_RESIZE = `<script>addEventListener('message',function(e){var d=e.data;if(!d||d.rillyHtml===undefined)return;var f=document.querySelector('iframe[data-html="'+d.rillyHtml+'"]');if(f&&e.source===f.contentWindow)f.style.height=Math.min(Math.max(20,d.h),20000)+'px'})</script>`;
@@ -318,6 +338,15 @@ footer.site{border-top:1px solid color-mix(in srgb,${fg} 10%,transparent);margin
 .info{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin:24px 0;padding:18px;border-radius:12px;background:color-mix(in srgb,${accent} 6%,${bg})}
 .info>div{display:grid;grid-template-columns:auto 1fr;gap:2px 8px;align-items:start}.info>div>div{grid-column:2}.info a{color:${accent}}
 @media(max-width:640px){.burger{display:block}header.site nav{display:none;width:100%;flex-direction:column;gap:10px;padding-top:6px}#mnu:checked~nav{display:flex}}
+${TYPE_CSS[settings.font] || ''}
+.hero-cta{margin-top:26px}.hero .btn.hero-btn{background:var(--hero-fg);color:var(--hero-bg)}
+.hero.flat{padding:88px 24px 92px}
+.hero-min{text-align:center;padding:40px 0 8px;max-width:820px;margin:0 auto}.hero-min h1{font-size:clamp(2.2rem,5.6vw,3.8rem);line-height:1.06;letter-spacing:-.02em;margin:.15em 0}
+.hero-min p{font-size:1.2rem;opacity:.78;max-width:620px;margin:14px auto 0}.hero-min .eyebrow{color:${accent};border-color:currentColor}
+.hero-split{display:grid;grid-template-columns:1.05fr 1fr;gap:48px;align-items:center;padding:24px 0}.hero-split h1{font-size:clamp(2rem,4.4vw,3.2rem);line-height:1.08;letter-spacing:-.02em;margin:.15em 0}
+.hero-split p{font-size:1.15rem;opacity:.8}.hero-split .eyebrow{color:${accent}}.hs-img img,.hero-ph{width:100%;aspect-ratio:4/5;object-fit:cover;border-radius:18px;display:block}
+.hero-ph{background:linear-gradient(135deg,color-mix(in srgb,${accent} 22%,${bg}),color-mix(in srgb,${accent} 8%,${bg}))}
+@media(max-width:760px){.hero-split{grid-template-columns:1fr;gap:24px}.hs-img{order:-1}.hs-img img,.hero-ph{aspect-ratio:16/10}}
 </style>${code.css ? `<style data-site-css>${cleanCss(code.css)}</style>` : ''}${settings.customCss ? `<style data-page-css>${cleanCss(settings.customCss)}</style>` : ''}
 ${preview ? '' : trackingTags(code, ownDomain)}</head><body>${nav}<main>
 ${body || '<p style="text-align:center;opacity:.5">This page is empty. Add blocks in the editor.</p>'}
