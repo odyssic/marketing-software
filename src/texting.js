@@ -57,6 +57,21 @@ async function twilioSend({ from, to, body, statusCallback }) {
   return j.sid;
 }
 
+// Any other Twilio call (numbers, messaging services). TWILIO_API_BASE can point at a fake for tests.
+async function twilio(method, path, params, host = 'api') {
+  const sid = process.env.TWILIO_ACCOUNT_SID;
+  const base = process.env.TWILIO_API_BASE || `https://${host}.twilio.com`;
+  const url = `${base}${path.replace('{sid}', sid)}${method === 'GET' && params ? `?${new URLSearchParams(params)}` : ''}`;
+  const res = await fetch(url, {
+    method,
+    headers: { Authorization: `Basic ${Buffer.from(`${sid}:${process.env.TWILIO_AUTH_TOKEN}`).toString('base64')}`, 'content-type': 'application/x-www-form-urlencoded' },
+    body: method !== 'GET' && params ? new URLSearchParams(params) : undefined,
+  });
+  const j = res.status === 204 ? {} : await res.json().catch(() => ({}));
+  if (!res.ok) throw Object.assign(new Error(j.message || `Twilio error ${res.status}`), { code: j.code });
+  return j;
+}
+
 const xml = (res, inner = '') => res.type('text/xml').send(`<?xml version="1.0" encoding="UTF-8"?><Response>${inner}</Response>`);
 const escX = (s) => String(s).replace(/[<>&"']/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&apos;' }[c]));
 
@@ -264,6 +279,39 @@ function registerTexting(app, api, { getDb, HttpError, id, upsertContact, logEve
       num, fwd, String(b.missed_call_text ?? '').trim().slice(0, 320), JSON.stringify(brand), req.accountId);
     res.json({ ok: true, sms_number: num, forward_to: fwd });
   });
+  // Get a number: search by area code, then buy one already pointed at Rilly.
+  api.get('/account/texting/numbers', async (req, res) => {
+    if (!live()) throw new HttpError(400, 'Texting isn’t connected yet');
+    const area = String(req.query.area || '').replace(/\D/g, '').slice(0, 3);
+    const near = String(req.query.near || '').replace(/[^\w\s-]/g, '').slice(0, 40);
+    const q = { SmsEnabled: 'true', VoiceEnabled: 'true', PageSize: '8', ...(area.length === 3 ? { AreaCode: area } : {}), ...(near && !area ? { InLocality: near } : {}) };
+    const r = await twilio('GET', '/2010-04-01/Accounts/{sid}/AvailablePhoneNumbers/US/Local.json', q);
+    res.json((r.available_phone_numbers || []).map((n) => ({ phone: n.phone_number, pretty: n.friendly_name, place: [n.locality, n.region].filter(Boolean).join(', ') })));
+  });
+  api.post('/account/texting/numbers', async (req, res) => {
+    if (!live()) throw new HttpError(400, 'Texting isn’t connected yet');
+    const phone = e164(req.body?.phone || '');
+    if (!phone) throw new HttpError(400, 'Pick a number');
+    const a = await db().get('SELECT sms_number, sms_number_sid FROM accounts WHERE id = ?', req.accountId);
+    const base = (process.env.PUBLIC_URL || publicBase()).replace(/\/$/, '');
+    let n;
+    try {
+      n = await twilio('POST', '/2010-04-01/Accounts/{sid}/IncomingPhoneNumbers.json', {
+        PhoneNumber: phone, SmsUrl: `${base}/hooks/sms`, SmsMethod: 'POST', VoiceUrl: `${base}/hooks/voice`, VoiceMethod: 'POST',
+        FriendlyName: `Rilly workspace ${req.accountId}`.slice(0, 64),
+      });
+    } catch (e) { throw new HttpError(400, `That number couldn’t be bought: ${e.message}. Try another.`); }
+    // Under the approved texting campaign, when there is one.
+    if (process.env.TWILIO_MESSAGING_SERVICE_SID) {
+      await twilio('POST', `/v1/Services/${process.env.TWILIO_MESSAGING_SERVICE_SID}/PhoneNumbers`, { PhoneNumberSid: n.sid }, 'messaging')
+        .catch((e) => console.error('messaging service:', e.message));
+    }
+    // A number Rilly bought earlier for this workspace is let go.
+    if (a.sms_number_sid) await twilio('DELETE', `/2010-04-01/Accounts/{sid}/IncomingPhoneNumbers/${a.sms_number_sid}.json`).catch(() => {});
+    await db().run('UPDATE accounts SET sms_number = ?, sms_number_sid = ? WHERE id = ?', n.phone_number || phone, n.sid, req.accountId);
+    res.json({ ok: true, sms_number: n.phone_number || phone });
+  });
+
   api.get('/account/texting', async (req, res) => {
     const a = await db().get('SELECT name, sms_number, forward_to, missed_call_text, sms_brand FROM accounts WHERE id = ?', req.accountId);
     let brand = {}; try { brand = JSON.parse(a.sms_brand || '{}'); } catch { /* empty */ }

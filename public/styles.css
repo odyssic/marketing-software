@@ -1209,3 +1209,6 @@ a.fc-more { display: block; text-decoration: none; }
 .sd-rec .copy { display: flex; gap: 6px; }
 .sd-rec .copy input { margin: 0; font-family: ui-monospace, monospace; font-size: .8rem; }
 [data-senddomain] p svg { width: 16px; height: 16px; color: #15803d; vertical-align: -3px; }
+.getnum { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 4px 0 12px; }
+.num-results { display: grid; gap: 6px; margin: 12px 0 6px; max-height: 300px; overflow: auto; }
+.choice.num small { display: block; color: var(--muted); }

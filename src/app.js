@@ -378,6 +378,7 @@ function createApp({ dbPath } = {}) {
         connected: Boolean(key), testKey: key.startsWith('sk_test_') || key.startsWith('rk_test_'),
         keyHint: key ? `…${key.slice(-4)}` : '', webhookSecretSet: Boolean(whsec),
         webhookUrl: `${baseUrl(req)}/stripe/webhook/${req.accountId}`,
+        canLogin: Boolean(process.env.STRIPE_CONNECT_CLIENT_ID && (process.env.STRIPE_CONNECT_KEY || process.env.RILLY_STRIPE_KEY)),
       },
     });
   });
@@ -403,6 +404,39 @@ function createApp({ dbPath } = {}) {
       await db.run('UPDATE accounts SET stripe_webhook_secret = ? WHERE id = ?', webhookSecret.trim(), req.accountId);
     }
     res.json({ ok: true });
+  });
+
+  // Log in with Stripe (Stripe Connect, Standard accounts): no key to copy.
+  // Needs STRIPE_CONNECT_CLIENT_ID (ca_...) and Rilly's own key with Connect access.
+  const connectKey = () => process.env.STRIPE_CONNECT_KEY || process.env.RILLY_STRIPE_KEY || '';
+  const connectState = (accountId) => `${accountId}.${crypto.createHmac('sha256', secret).update(`connect:${accountId}`).digest('hex').slice(0, 24)}`;
+  api.post('/account/stripe/connect', async (req, res) => {
+    if (!process.env.STRIPE_CONNECT_CLIENT_ID || !connectKey()) throw new HttpError(400, 'Log in with Stripe isn’t set up yet. Paste your key instead.');
+    const q = new URLSearchParams({ response_type: 'code', client_id: process.env.STRIPE_CONNECT_CLIENT_ID, scope: 'read_write',
+      state: connectState(req.accountId), redirect_uri: `${baseUrl(req)}/stripe/connect` });
+    res.json({ url: `${process.env.STRIPE_CONNECT_BASE || 'https://connect.stripe.com'}/oauth/authorize?${q}` });
+  });
+  app.get('/stripe/connect', async (req, res) => {
+    const [acct] = String(req.query.state || '').split('.');
+    const accountId = Number(acct);
+    const expected = accountId ? connectState(accountId) : '';
+    const given = String(req.query.state || '');
+    if (!expected || given.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(given), Buffer.from(expected))) return messagePage(res, 400, 'That link didn’t come from Rilly. Start again from Settings → Payments.', '/#/settings');
+    if (req.query.error || !req.query.code) return res.redirect(303, '/#/settings?stripe=cancelled');
+    try {
+      const r = await fetch(`${process.env.STRIPE_CONNECT_BASE || 'https://connect.stripe.com'}/oauth/token`, {
+        method: 'POST', headers: { Authorization: `Bearer ${connectKey()}`, 'content-type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ grant_type: 'authorization_code', code: String(req.query.code) }),
+      });
+      const t = await r.json();
+      if (!r.ok || !t.access_token) throw new Error(t.error_description || 'Stripe didn’t finish connecting');
+      const got = await stripe.connect(t.access_token, `${baseUrl(req)}/stripe/webhook/${accountId}`).catch(() => ({}));
+      await db.run('UPDATE accounts SET stripe_secret_key = ?, stripe_account_id = ? WHERE id = ?', t.access_token, t.stripe_user_id || '', accountId);
+      if (got.webhookSecret) await db.run('UPDATE accounts SET stripe_webhook_secret = ? WHERE id = ?', got.webhookSecret, accountId);
+      res.redirect(303, '/#/settings?stripe=connected');
+    } catch (e) {
+      messagePage(res, 400, `Stripe didn’t finish connecting: ${e.message}. Try again from Settings → Payments.`, '/#/settings');
+    }
   });
 
   // Email signatures, saved once per business.

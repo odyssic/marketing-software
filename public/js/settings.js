@@ -76,12 +76,16 @@ function viewSettings() {
       <h2>Payments (Stripe)</h2>
       <p class="small">Status: ${state.me.payments.connected ? `<span class="pill ok">connected${state.me.payments.testKey ? ' · test key' : ''}</span> key ${esc(state.me.payments.keyHint)}`
         : '<span class="pill warn">not connected</span> checkouts run in test mode'}</p>
+      ${!state.me.payments.connected && state.me.payments.canLogin ? `<button type="button" class="btn primary big stripe-login" data-stripelogin>Log in with Stripe</button>
+        <p class="muted small" style="text-align:center">or sign up there, it’s free. Nothing to copy.</p>
+        <details class="stripe-manual"><summary class="small">Paste a key instead</summary>` : ''}
       ${state.me.payments.connected ? '' : `<ol class="stripe-steps">
         <li><a class="btn" href="https://dashboard.stripe.com/apikeys" target="_blank" rel="noopener">${icon('external')} Open my Stripe keys</a>
           <span class="muted small">Log in to Stripe (or sign up, it’s free). Next to <b>Secret key</b>, click <b>Reveal</b> and copy it.</span></li>
         <li>Paste it here and press <b>Connect</b>. Rilly sets up the rest in your Stripe account.</li></ol>`}
       <label class="f">${state.me.payments.connected ? 'Replace the key' : 'Secret key'}
         <input name="secretKey" type="password" autocomplete="off" placeholder="${state.me.payments.connected ? 'Paste a new key to replace it' : 'sk_live_… (or sk_test_… to try it out)'}"></label>
+      ${!state.me.payments.connected && state.me.payments.canLogin ? '</details>' : ''}
       ${state.me.payments.connected && !state.me.payments.webhookSecretSet ? `<p class="hint">${icon('alert')} Paid orders are confirmed when buyers return to your page. To confirm them even if they close the tab, paste your key again (Rilly adds the webhook), or set it up yourself below.</p>` : ''}
       <details class="stripe-manual" ${state.me.payments.connected && !state.me.payments.webhookSecretSet ? 'open' : ''}><summary class="small">Set up the webhook yourself</summary>
         <p class="hint">Only needed if Rilly couldn’t add it for you. In Stripe → Developers → Webhooks, add an endpoint for <b>checkout.session.completed</b> pointing to:</p>
@@ -89,7 +93,7 @@ function viewSettings() {
         <label class="f">Its signing secret<input name="webhookSecret" type="password" autocomplete="off" placeholder="${state.me.payments.webhookSecretSet ? 'Saved. Paste a new one to replace it' : 'whsec_…'}"></label></details>
       <label class="check" style="margin:4px 0 12px"><input type="checkbox" data-recover ${state.me.account.recover_checkouts === 0 ? '' : 'checked'}> Remind people who start checking out but don’t finish <span class="muted small">(one email, an hour later)</span></label>
       <div class="err"></div>
-      <div class="row"><button class="btn primary">${state.me.payments.connected ? 'Save payment settings' : 'Connect'}</button>
+      <div class="row"><button class="btn ${state.me.payments.canLogin && !state.me.payments.connected ? '' : 'primary'}">${state.me.payments.connected ? 'Save payment settings' : state.me.payments.canLogin ? 'Save' : 'Connect'}</button>
         ${state.me.payments.connected ? '<button type="button" class="btn danger" data-disconnect>Disconnect</button>' : ''}</div>
     </form>`);
   bindCopy();
@@ -153,6 +157,9 @@ function viewSettings() {
       viewSettings();
     } catch (err) { $('.err', form).textContent = err.message; }
   };
+  const sl = $('[data-stripelogin]');
+  if (sl) sl.onclick = async () => { sl.disabled = true; try { location.href = (await api('POST', '/api/account/stripe/connect')).url; } catch (e) { toast(e.message, true); sl.disabled = false; } };
+  if (/[?&]stripe=connected/.test(location.hash)) { history.replaceState(history.state, '', '#/settings'); toast('Stripe connected. Real payments are on'); setTimeout(() => $('#set-payments')?.scrollIntoView({ block: 'start' })); }
   $('[data-stripe]').onsubmit = (e) => { e.preventDefault(); saveStripe(Object.fromEntries(new FormData(e.target)), e.target); };
   const dc = $('[data-disconnect]');
   if (dc) dc.onclick = async () => { if (await confirmBox('Disconnect Stripe?', 'Checkouts will switch to test mode until you connect again.', 'Disconnect')) saveStripe({ disconnect: true }, $('[data-stripe]')); };
@@ -198,7 +205,10 @@ async function loadTextingSettings() {
   form.innerHTML = `<h2>Texting and calls</h2>
     <p class="small">Status: ${t.live && t.sms_number ? '<span class="pill ok">on</span> texts and calls go through your number' : t.sms_number ? '<span class="pill warn">test mode</span> texts are saved in the Inbox but not sent yet' : '<span class="pill">not set up</span>'}</p>
     <p class="muted small">Give customers one number to text or call. Texts and calls land in your Inbox; when you miss a call, ${BRAND} texts them straight back so you don’t lose the job.</p>
-    <label class="f">Your ${BRAND} number <span class="hint">the number customers text and call</span><input name="sms_number" type="tel" value="${esc(t.sms_number)}" placeholder="+1 555 010 0000"></label>
+    ${t.live ? `<div class="getnum">${t.sms_number ? `<span>Your number: <b>${esc(t.sms_number)}</b></span><button type="button" class="btn sm" data-getnum>Get a different number</button>`
+      : `<button type="button" class="btn primary" data-getnum>${icon('phone')} Get a number</button><span class="muted small">A local number for this business, ready in a minute.</span>`}</div>` : ''}
+    <details class="hint" ${t.live ? '' : 'open'}><summary>${t.live ? 'I already have a number' : 'Your number'}</summary>
+    <label class="f">Your ${BRAND} number <span class="hint">the number customers text and call</span><input name="sms_number" type="tel" value="${esc(t.sms_number)}" placeholder="+1 555 010 0000"></label></details>
     <label class="f">Ring my phone <span class="hint">calls forward here for 20 seconds first</span><input name="forward_to" type="tel" value="${esc(t.forward_to)}" placeholder="Your mobile (leave empty to text every caller back)"></label>
     <label class="f">Missed-call text <span class="hint">sent once per caller every 12 hours</span><textarea name="missed_call_text" rows="2" placeholder="${esc(t.default_text)}">${esc(t.missed_call_text)}</textarea></label>
     <details ${t.sms_number && !b.legal_name ? 'open' : ''}><summary><b>Business details for texting approval</b> <span class="muted small">US carriers require these before a business can text (called 10DLC). Approval usually takes 1 to 3 weeks.</span></summary>
@@ -211,6 +221,7 @@ async function loadTextingSettings() {
     ${t.live ? `<details class="hint"><summary>Connecting the number</summary><p>In Twilio, set the number’s “A message comes in” webhook to <code>${esc(t.hooks.sms)}</code> and “A call comes in” to <code>${esc(t.hooks.voice)}</code> (both HTTP POST).</p></details>` : ''}
     <div class="err"></div><button class="btn primary">Save texting</button>`;
   addressSuggest($('[name=b_address]', form));
+  const gn = $('[data-getnum]', form); if (gn) gn.onclick = () => getNumber(loadTextingSettings);
   // Pre-filled suggestions that were never saved count as something to save.
   trackDirty(form, { dirty: !Object.keys(b).length && Object.values(start).some(Boolean) && Boolean(t.sms_number) });
   form.onsubmit = async (e) => {
@@ -308,4 +319,30 @@ async function loadSendDomain(data) {
   if (remove) remove.onclick = async () => { await api('DELETE', '/api/account/sending-domain'); toast('Back to sending from Rilly’s address'); loadSendDomain(); };
   const change = $('[data-sdchange]', card);
   if (change) change.onclick = () => loadSendDomain({ ...d, domain: '' });
+}
+
+// Get a number: pick an area code, choose one, done.
+async function getNumber(done) {
+  const pending = modal('Get a number', `<p class="muted small">Pick an area code your customers know. The number is set up to land texts and calls in your Inbox.</p>
+    <div class="row" style="gap:8px;align-items:flex-end"><label class="f" style="flex:1;margin:0">Area code<input name="area" inputmode="numeric" maxlength="3" placeholder="e.g. 503" data-area></label>
+      <button type="button" class="btn" data-search>Search</button></div>
+    <div data-results class="num-results"><p class="muted small">Search to see available numbers.</p></div>
+    <p class="hint">About $1.15/month per number is included in your plan. Texting to US phones also needs the business details below approved by carriers.</p>`, { submit: 'Get this number', onSubmit: async (v) => {
+      if (!v.phone) throw new Error('Pick one of the numbers');
+      return api('POST', '/api/account/texting/numbers', { phone: v.phone });
+    } });
+  const m = $('.modal');
+  const search = async () => {
+    const box = $('[data-results]', m);
+    box.innerHTML = '<p class="muted small">Searching…</p>';
+    try {
+      const list = await api('GET', `/api/account/texting/numbers?area=${encodeURIComponent($('[data-area]', m).value)}`);
+      box.innerHTML = list.length ? list.map((n, i) => `<label class="choice num"><input type="radio" name="phone" value="${esc(n.phone)}" ${i ? '' : 'checked'}><span><b>${esc(n.pretty || n.phone)}</b><small>${esc(n.place)}</small></span></label>`).join('')
+        : '<p class="muted small">No numbers left in that area code. Try a nearby one.</p>';
+    } catch (e) { box.innerHTML = `<p class="err">${esc(e.message)}</p>`; }
+  };
+  $('[data-search]', m).onclick = search;
+  $('[data-area]', m).onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); search(); } };
+  const r = await pending;
+  if (r) { toast(`${r.sms_number} is yours`); done?.(); }
 }
