@@ -548,6 +548,7 @@ ALTER TABLE accounts ADD COLUMN IF NOT EXISTS send_domain_id TEXT NOT NULL DEFAU
 ALTER TABLE accounts ADD COLUMN IF NOT EXISTS send_domain_status TEXT NOT NULL DEFAULT '';
 ALTER TABLE accounts ADD COLUMN IF NOT EXISTS sms_number_sid TEXT NOT NULL DEFAULT '';
 ALTER TABLE accounts ADD COLUMN IF NOT EXISTS stripe_account_id TEXT NOT NULL DEFAULT '';
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS page_code TEXT NOT NULL DEFAULT '{}';
 
 -- Photos people upload for their pages (drag a picture onto an image block).
 -- Stored in the database so the app needs no separate file storage.

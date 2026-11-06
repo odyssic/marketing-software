@@ -50,6 +50,8 @@ const BLOCKS = {
       ['askNote', 'check', 'Let them add a note'], ['tag', 'text', 'Tag people who book', null, 'e.g. booked']] },
   spacer: { label: 'Spacer', icon: icon('spacer'), defaults: { height: 40 }, fields: [['height', 'number', 'Height (px)']] },
   divider: { label: 'Divider', icon: icon('divider'), defaults: {}, fields: [] },
+  html: { label: 'Custom HTML', icon: icon('note'), defaults: { code: '', title: '' },
+    fields: [['code', 'code', 'Your HTML', null, 'Embeds, widgets, forms from other tools. Scripts run in a sealed box on the page.'], ['title', 'text', 'What it is (for screen readers)', null, 'e.g. Calendly scheduler']] },
 };
 const uid = () => Math.random().toString(36).slice(2, 10);
 
@@ -111,6 +113,8 @@ async function viewEditor(stepId) {
       <label class="f">Browser tab title<input data-s="seoTitle" value="${esc(ed.settings.seoTitle || '')}" placeholder="${esc(step.name)}"></label>
       <label class="f">Description<textarea data-s="seoDescription" rows="2">${esc(ed.settings.seoDescription || '')}</textarea></label>
       <label class="f">Page URL<input data-slug value="${esc(step.slug)}"></label>
+      <h3>Custom CSS</h3>
+      <label class="f">For this page only <span class="hint">for every page: Settings → Website</span><textarea data-s="customCss" rows="6" class="code" spellcheck="false" placeholder=".hero h1 { letter-spacing: -0.02em; }">${esc(ed.settings.customCss || '')}</textarea></label>
       </details>
     </div>
     <div class="stage"><iframe title="Page preview" sandbox="allow-same-origin allow-scripts allow-modals"></iframe></div></div>`;
@@ -165,6 +169,7 @@ async function viewEditor(stepId) {
     const v = b[key] ?? '';
     const attrs = `data-i="${i}" data-k="${key}"`;
     if (kind === 'textarea') return `<label class="f">${label}<textarea ${attrs} rows="3">${esc(v)}</textarea></label>`;
+    if (kind === 'code') return `<label class="f">${label}<textarea ${attrs} rows="10" class="code" spellcheck="false" autocapitalize="off">${esc(v)}</textarea></label>`;
     if (kind === 'select') return `<label class="f">${label}<select ${attrs}>${options.map((o) => `<option ${o === v ? 'selected' : ''}>${o}</option>`).join('')}</select></label>`;
     if (kind === 'color') return `<label class="f">${label}<input type="color" ${attrs} value="${esc(v || '#000000')}"></label>`;
     if (kind === 'testimonial') {

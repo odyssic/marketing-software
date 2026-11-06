@@ -1213,3 +1213,4 @@ a.fc-more { display: block; text-decoration: none; }
 .num-results { display: grid; gap: 6px; margin: 12px 0 6px; max-height: 300px; overflow: auto; }
 .choice.num small { display: block; color: var(--muted); }
 .plan-note { background: var(--brand-soft); color: var(--brand); border-radius: 8px; padding: 8px 10px; display: flex; gap: 6px; align-items: center; } .plan-note svg { width: 15px; height: 15px; flex: none; }
+textarea.code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .82rem; line-height: 1.45; tab-size: 2; }

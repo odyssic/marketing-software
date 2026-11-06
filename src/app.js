@@ -439,6 +439,28 @@ function createApp({ dbPath } = {}) {
     }
   });
 
+  // Tracking pixels and custom CSS for every page of this business.
+  api.get('/account/page-code', async (req, res) => {
+    const a = await db.get('SELECT page_code FROM accounts WHERE id = ?', req.accountId);
+    let code = {}; try { code = JSON.parse(a.page_code || '{}'); } catch { /* none */ }
+    res.json(code);
+  });
+  api.put('/account/page-code', async (req, res) => {
+    const b = req.body || {};
+    const checks = { meta: [/^\d{6,20}$/, 'A Meta Pixel ID is a number, like 1234567890123456'], ga4: [/^G-[A-Z0-9]{4,15}$/i, 'A Google Analytics ID starts with G-'],
+      gtm: [/^GTM-[A-Z0-9]{4,12}$/i, 'A Tag Manager ID starts with GTM-'], tiktok: [/^[A-Z0-9]{10,30}$/i, 'Check the TikTok Pixel ID'] };
+    const out = {};
+    for (const [k, [re, msg]] of Object.entries(checks)) {
+      const v = String(b[k] || '').trim();
+      if (v && !re.test(v)) throw new HttpError(400, msg);
+      if (v) out[k] = v;
+    }
+    const css = String(b.css || '').slice(0, 40000);
+    if (css.trim()) out.css = css;
+    await db.run('UPDATE accounts SET page_code = ? WHERE id = ?', JSON.stringify(out), req.accountId);
+    res.json(out);
+  });
+
   // Email signatures, saved once per business.
   api.get('/account/signatures', async (req, res) => {
     const a = await db.get('SELECT signatures FROM accounts WHERE id = ?', req.accountId);
@@ -1400,7 +1422,11 @@ function createApp({ dbPath } = {}) {
       ...(await siteChrome(req, funnel, step)),
       nextUrl, noUrl, formAction: `/f/${funnel.slug}/${step.slug}/optin`, buyAction: `/f/${funnel.slug}/${step.slug}/buy`,
       products, oneClick: buyer ? `/f/${funnel.slug}/${step.slug}/oneclick` : null,
-      testimonials: await approvedTestimonials(db, funnel.account_id), business: (await getAccount(funnel.account_id)).name,
+      testimonials: await approvedTestimonials(db, funnel.account_id), ...(await (async () => {
+        const acct = await getAccount(funnel.account_id);
+        let code = {}; try { code = JSON.parse(acct.page_code || '{}'); } catch { /* none */ }
+        return { business: acct.name, code, ownDomain: !ownHostList().includes(req.hostname.toLowerCase()) };
+      })()),
     }));
   });
 

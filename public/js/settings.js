@@ -52,6 +52,7 @@ function viewSettings() {
       <div data-sigsummary class="muted small">Loading…</div>
       <button type="button" class="btn" data-sigmanage style="margin-top:8px">${icon('pencil')} Make or edit signatures</button></div>
     <form class="card" style="max-width:560px;margin-top:16px" data-texting><h2>Texting and calls</h2><p class="muted small">Loading…</p></form>
+    <form class="card" style="max-width:560px;margin-top:16px" data-pagecode><h2>Tracking and custom CSS</h2><p class="muted small">Loading…</p></form>
     <form class="card" style="max-width:560px;margin-top:16px" data-domain>
       <h2>Your domain</h2>
       <p class="muted small">Connect it once for the whole business. The home website opens at the domain; every other website or pageflow lives at /its-name.</p>
@@ -182,6 +183,7 @@ function viewSettings() {
   ['[data-form]', '[data-business]', '[data-reviews]', '[data-voice]', '[data-stripe]'].forEach((sel) => trackDirty($(sel)));
   groupSettings();
   loadSendDomain();
+  loadPageCode();
   bindPlanCard();
   confirmPlanReturn();
   if (/[?&]plan=1/.test(location.hash)) setTimeout(() => $('#set-plan')?.scrollIntoView({ block: 'start' }));
@@ -242,7 +244,7 @@ const SETTINGS_SECTIONS = [
   ['email', 'Email', ['[data-senddomain]', '[data-sigcard]', '[data-digestcard]', '[data-reviews]']],
   ['texting', 'Texting and calls', ['[data-texting]']],
   ['payments', 'Payments', ['[data-stripe]']],
-  ['address', 'Website address', ['[data-domain]']],
+  ['address', 'Website', ['[data-domain]', '[data-pagecode]']],
   ['workspaces', 'Workspaces and data', ['[data-subs]', '[data-datacard]']],
 ];
 function groupSettings() {
@@ -345,4 +347,26 @@ async function getNumber(done) {
   $('[data-area]', m).onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); search(); } };
   const r = await pending;
   if (r) { toast(`${r.sms_number} is yours`); done?.(); }
+}
+
+// Ad pixels, analytics and CSS for every page of this business.
+async function loadPageCode() {
+  const form = $('[data-pagecode]');
+  if (!form) return;
+  let c = {};
+  try { c = await api('GET', '/api/account/page-code'); } catch { /* empty form */ }
+  const f = (k, label, ph, hint = '') => `<label class="f">${label}${hint ? ` <span class="hint">${hint}</span>` : ''}<input name="${k}" value="${esc(c[k] || '')}" placeholder="${ph}" spellcheck="false" autocomplete="off"></label>`;
+  form.innerHTML = `<h2>Tracking and custom CSS</h2>
+    <p class="muted small">Paste the IDs from your ad and analytics accounts. Rilly adds the right code to every page of this business.</p>
+    <div class="colors" style="grid-template-columns:1fr 1fr">${f('meta', 'Meta (Facebook) Pixel ID', '1234567890123456')}${f('ga4', 'Google Analytics ID', 'G-XXXXXXX')}
+      ${f('tiktok', 'TikTok Pixel ID', 'C1A2B3C4D5E6F7')}${f('gtm', 'Google Tag Manager ID', 'GTM-XXXXXX', 'on your own domain only')}</div>
+    <label class="f">Custom CSS <span class="hint">applies to every page; a page can add its own in the editor</span><textarea name="css" rows="7" class="code" spellcheck="false" placeholder="h1 { font-family: Georgia, serif; }">${esc(c.css || '')}</textarea></label>
+    <p class="hint">For embeds and widgets, add a <b>Custom HTML</b> block to any page.</p>
+    <div class="err"></div><button class="btn primary">Save tracking and CSS</button>`;
+  trackDirty(form);
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    try { await api('PUT', '/api/account/page-code', Object.fromEntries(new FormData(form))); toast('Saved. It’s on every page now'); loadPageCode(); }
+    catch (err) { $('.err', form).textContent = err.message; }
+  };
 }
