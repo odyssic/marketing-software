@@ -441,6 +441,14 @@ function createApp({ dbPath } = {}) {
     }
   });
 
+  // The business's brand colour, for the one-click palette.
+  api.put('/account/brand', async (req, res) => {
+    const color = String(req.body?.color || '').trim().toLowerCase();
+    if (color && !/^#[0-9a-f]{6}$/.test(color)) throw new HttpError(400, 'Pick a colour');
+    await db.run('UPDATE accounts SET brand_color = ? WHERE id = ?', color, req.accountId);
+    res.json({ ok: true, color });
+  });
+
   // Tracking pixels and custom CSS for every page of this business.
   api.get('/account/page-code', async (req, res) => {
     const a = await db.get('SELECT page_code FROM accounts WHERE id = ?', req.accountId);

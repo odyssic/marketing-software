@@ -67,6 +67,22 @@ const PALETTES = [
   { name: 'Charcoal', bg: '#ffffff', text: '#111827', accent: '#111827', band: '#1f2937' },
   { name: 'Night', bg: '#0f1720', text: '#e5edf0', accent: '#0f766e', band: '#134e4a' },
 ];
+// A whole palette from one brand colour: buttons in that colour (darkened until
+// white text reads well), a deeper band, a near-white background with a hint of
+// it, and near-black text with a hint of it.
+function paletteFrom(hex, name = 'My brand') {
+  const rgb = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+  const hexOf = (c) => `#${c.map((v) => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, '0')).join('')}`;
+  const mix = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);
+  const lum = (c) => { const [r, g, b] = c.map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+  const onWhite = (c) => 1.05 / (lum(c) + 0.05);
+  let accent = rgb(/^#[0-9a-f]{6}$/i.test(hex || '') ? hex : '#1b736d');
+  for (let i = 0; i < 20 && onWhite(accent) < 4.6; i++) accent = mix(accent, [0, 0, 0], 0.08);
+  return { name, bg: hexOf(mix(accent, [255, 255, 255], 0.97)), text: hexOf(mix(accent, [8, 10, 12], 0.88)), accent: hexOf(accent), band: hexOf(mix(accent, [0, 0, 0], 0.22)) };
+}
+const allPalettes = () => [...(state.me.account.brand_color ? [paletteFrom(state.me.account.brand_color)] : []), ...PALETTES];
+const palButton = (p, on) => `<button type="button" class="pal ${on ? 'on' : ''}" data-pal="${p.name}" title="${p.name}" aria-label="${p.name} palette" aria-pressed="${on}">
+        <span style="background:${p.bg}"></span><span style="background:${p.band}"></span><span style="background:${p.accent}"></span><small>${p.name}</small></button>`;
 // The palette applied to one page's settings and coloured blocks.
 function applyPalette(pal, settings, blocks) {
   Object.assign(settings, { background: pal.bg, textColor: pal.text, accent: pal.accent, palette: pal.name });
@@ -104,8 +120,7 @@ async function viewEditor(stepId) {
       <h3>Page content</h3><div data-blocks></div>
       <div class="list-bin" data-bin aria-hidden="true">${icon('trash')} Drop here to delete</div>
       <h3>Page style</h3>
-      <div class="pal-row" role="group" aria-label="Colour palettes">${PALETTES.map((p) => `<button type="button" class="pal ${ed.settings.palette === p.name ? 'on' : ''}" data-pal="${p.name}" title="${p.name}" aria-label="${p.name} palette" aria-pressed="${ed.settings.palette === p.name}">
-        <span style="background:${p.bg}"></span><span style="background:${p.band}"></span><span style="background:${p.accent}"></span><small>${p.name}</small></button>`).join('')}</div>
+      <div class="pal-row" role="group" aria-label="Colour palettes" data-palrow></div>
       <button type="button" class="btn sm ghost" data-palall style="margin:-2px 0 10px">${icon('sparkle')} Use these colours on every page</button>
       <details class="more-page"><summary>More page settings</summary>
       <h3 style="margin-top:10px">Your own colours</h3>
@@ -245,15 +260,28 @@ async function viewEditor(stepId) {
   };
   const structural = () => { renderBlocks(); changed(); };
   // Palettes: restyle this page in one tap (Undo works), or every page of the funnel/site.
-  $$('[data-pal]').forEach((btn) => { btn.onclick = () => {
-    const pal = PALETTES.find((x) => x.name === btn.dataset.pal);
+  // The palette row: your brand first (once picked), the ready-made ones, and "Your colour".
+  const renderPalettes = () => {
+    $('[data-palrow]').innerHTML = allPalettes().map((p) => palButton(p, ed.settings.palette === p.name)).join('')
+      + `<label class="pal pal-own" title="Make a palette from your brand colour"><input type="color" data-brandcolor value="${esc(state.me.account.brand_color || '#1b736d')}" aria-label="Pick your brand colour"><span class="pal-plus">${icon('plus')}</span><small>Your colour</small></label>`;
+    $$('[data-pal]').forEach((btn) => { btn.onclick = () => usePalette(allPalettes().find((x) => x.name === btn.dataset.pal)); });
+    // One pick: a palette from that colour, saved as this business's brand, on this page now.
+    $('[data-brandcolor]').onchange = async (e) => {
+      try { await api('PUT', '/api/account/brand', { color: e.target.value }); } catch (err) { toast(err.message, true); return; }
+      state.me.account.brand_color = e.target.value.toLowerCase();
+      usePalette(paletteFrom(state.me.account.brand_color));
+      toast('Your brand palette is on. “Use these colours on every page” spreads it');
+    };
+  };
+  const usePalette = (pal) => {
     applyPalette(pal, ed.settings, ed.blocks);
-    $$('[data-pal]').forEach((b) => { b.classList.toggle('on', b === btn); b.setAttribute('aria-pressed', String(b === btn)); });
-    for (const k of ['background', 'textColor', 'accent']) { const i = $(`[data-s="${k}"]`); if (i) i.value = ed.settings[k]; }
+    for (const k of ['background', 'textColor', 'accent']) { const x = $(`[data-s="${k}"]`); if (x) x.value = ed.settings[k]; }
+    renderPalettes();
     structural();
-  }; });
+  };
+  renderPalettes();
   $('[data-palall]').onclick = async () => {
-    const pal = PALETTES.find((x) => x.name === ed.settings.palette) || { name: '', bg: ed.settings.background, text: ed.settings.textColor, accent: ed.settings.accent, band: ed.blocks.find((b) => b.type === 'hero')?.background || ed.settings.accent };
+    const pal = allPalettes().find((x) => x.name === ed.settings.palette) || { name: '', bg: ed.settings.background, text: ed.settings.textColor, accent: ed.settings.accent, band: ed.blocks.find((b) => b.type === 'hero')?.background || ed.settings.accent };
     const f = await api('GET', `/api/funnels/${step.funnel.id}`);
     const others = f.steps.filter((x) => x.id !== step.id);
     if (!others.length) { toast('This is the only page'); return; }
