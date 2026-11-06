@@ -70,11 +70,14 @@ function registerBilling(app, api, { getDb, HttpError, publicBase, express }) {
   const userRow = (id) => db().get('SELECT id, email, name, plan_status, trial_ends_at, created_at, billing_customer, billing_subscription FROM users WHERE id = ?', id);
   const fromStripe = (s) => (s === 'active' || s === 'trialing' ? 'active' : s === 'past_due' ? 'past_due' : 'canceled');
 
-  // While billing is on and the trial is over, only billing, sign-out and reading work.
-  api.use((req, res, next) => {
-    if (!req.user || req.method === 'GET' || !planOf(req.user).locked) return next();
-    if (/^\/(billing|auth)\b/.test(req.path)) return next();
-    res.status(402).json({ error: 'Your free trial has ended. Choose a plan in Settings to keep going.' });
+  // While billing is on and the business owner's trial is over, only billing,
+  // sign-out and reading work. Invited people follow the owner's plan.
+  api.use(async (req, res, next) => {
+    if (!req.user || req.method === 'GET' || !enabled() || /^\/(billing|auth)\b/.test(req.path)) return next();
+    const owner = await db().get(`SELECT u.plan_status, u.trial_ends_at, u.created_at FROM memberships m JOIN users u ON u.id = m.user_id
+      WHERE m.account_id = ? AND m.role = 'owner' ORDER BY (u.id = ?) DESC, u.id LIMIT 1`, req.accountId, req.user.id).catch(() => null);
+    if (!planOf(owner || req.user).locked) return next();
+    res.status(402).json({ error: 'The free trial for this business has ended. The owner can choose a plan in Settings.' });
   });
 
   api.get('/billing', async (req, res) => {

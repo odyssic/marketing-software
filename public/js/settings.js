@@ -5,7 +5,7 @@ function viewSettings() {
   const a = state.me.account;
   shell('settings', `
     <div class="head"><h1>Settings</h1></div>
-    ${state.me.billing?.enabled ? planCardHtml() : ''}
+    ${state.me.billing?.enabled && state.me.role === 'owner' ? planCardHtml() : ''}
     <form class="card" style="max-width:560px" data-form>
       <h2>This business</h2>
       <label class="f">Business name<input name="name" required value="${esc(a.name)}"></label>
@@ -63,6 +63,7 @@ function viewSettings() {
         <li>In Netlify → Domain management, add the domain as an alias (HTTPS is automatic).</li><li>Save here and publish your pages.</li></ol></details>
       <div class="err"></div><button class="btn primary">Save domain</button>
     </form>
+    <div class="card" style="max-width:560px;margin-top:16px" data-team><h2>People with access</h2><p class="muted small">Loading…</p></div>
     <div class="card" style="max-width:560px;margin-top:16px" data-subs>
       <div class="row" style="justify-content:space-between"><h2 style="margin:0">Sub-accounts</h2><button class="btn sm primary" data-newsub>${icon('plus')} New sub-account</button></div>
       <p class="muted small">One workspace per business. Each has its own people, pageflows, emails and dashboard.</p>
@@ -184,6 +185,7 @@ function viewSettings() {
   groupSettings();
   loadSendDomain();
   loadPageCode();
+  loadTeam();
   bindPlanCard();
   confirmPlanReturn();
   if (/[?&]plan=1/.test(location.hash)) setTimeout(() => $('#set-plan')?.scrollIntoView({ block: 'start' }));
@@ -245,6 +247,7 @@ const SETTINGS_SECTIONS = [
   ['texting', 'Texting and calls', ['[data-texting]']],
   ['payments', 'Payments', ['[data-stripe]']],
   ['address', 'Website', ['[data-domain]', '[data-pagecode]']],
+  ['team', 'People with access', ['[data-team]']],
   ['workspaces', 'Workspaces and data', ['[data-subs]', '[data-datacard]']],
 ];
 function groupSettings() {

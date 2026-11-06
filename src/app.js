@@ -32,6 +32,7 @@ const { registerBilling, planOf } = require('./billing');
 const { createOnboarding } = require('./onboarding');
 const { registerDomains } = require('./domains');
 const { registerSaved } = require('./saved');
+const { registerTeam } = require('./team');
 const { registerTexting } = require('./texting');
 const { registerMembers } = require('./members');
 const { registerMetrics } = require('./metrics');
@@ -364,7 +365,10 @@ function createApp({ dbPath } = {}) {
     res.json({ ok: true });
   });
 
+  const team = registerTeam(api, { getDb: () => db, HttpError, id, publicBase: () => publicBase() });
+  team.publicRoutes(api);
   api.use(auth.requireAuth(() => db));
+  team.privateRoutes(api);
   const billing = registerBilling(app, api, { getDb: () => db, HttpError, publicBase: () => publicBase(), express });
   registerDomains(api, { getDb: () => db, HttpError });
   registerSaved(api, { getDb: () => db, HttpError, id });
@@ -372,9 +376,11 @@ function createApp({ dbPath } = {}) {
   api.get('/me', async (req, res) => {
     const { stripe_secret_key: key, stripe_webhook_secret: whsec, ...account } = await db.get('SELECT * FROM accounts WHERE id = ?', req.accountId);
     res.json({
-      user: { id: req.user.id, email: req.user.email, name: req.user.name }, billing: planOf(req.user), account: { ...account, hidden_sections: business.hiddenSections(account), people_word: business.typeOf(account.business_type).people },
+      user: { id: req.user.id, email: req.user.email, name: req.user.name }, role: await team.roleIn(req.user.id, req.accountId) || 'member',
+      billing: planOf(await db.get(`SELECT u.plan_status, u.trial_ends_at, u.created_at FROM memberships m JOIN users u ON u.id = m.user_id
+        WHERE m.account_id = ? AND m.role = 'owner' ORDER BY (u.id = ?) DESC, u.id LIMIT 1`, req.accountId, req.user.id).catch(() => null) || req.user), account: { ...account, hidden_sections: business.hiddenSections(account), people_word: business.typeOf(account.business_type).people },
       businessTypes: business.publicTypes(), emailLive: mailer.isLive(), aiLive: require('./ai').isLive(), baseUrl: baseUrl(req),
-      accounts: await db.all(`SELECT a.id, a.name FROM memberships m JOIN accounts a ON a.id = m.account_id
+      accounts: await db.all(`SELECT a.id, a.name, m.role FROM memberships m JOIN accounts a ON a.id = m.account_id
         WHERE m.user_id = ? ORDER BY a.name, a.id`, req.user.id),
       payments: {
         connected: Boolean(key), testKey: key.startsWith('sk_test_') || key.startsWith('rk_test_'),

@@ -6,7 +6,7 @@ const planMoney = (cents, cur = 'usd') => new Intl.NumberFormat(undefined, { sty
 // A slim line at the top of every screen near the end of the trial, or when a payment failed.
 function planBanner() {
   const b = state.me?.billing;
-  if (!b?.enabled) return '';
+  if (!b?.enabled || state.me.role !== 'owner') return '';
   if (b.status === 'past_due') return `<div class="plan-banner warn">${icon('alert')} Your last payment didn’t go through. <a href="#/settings?plan=1">Update your card</a> to keep Rilly running.</div>`;
   if (b.status === 'trialing' && b.daysLeft !== null && b.daysLeft <= 5 && !b.locked) {
     return `<div class="plan-banner">${icon('clock')} ${b.daysLeft <= 1 ? 'Your free trial ends today' : `${b.daysLeft} days left in your free trial`}. <a href="#/settings?plan=1">Choose a plan</a></div>`;
@@ -66,8 +66,8 @@ function viewPlanLocked() {
   shell('settings', `<div class="card plan-lock">
     <div class="big">${icon('clock')}</div>
     <h1>Your free trial has ended</h1>
-    <p class="muted">Your pages, people and follow-ups are all still here, and your published pages keep working. Choose a plan to keep editing and sending.</p>
-    ${planCardHtml()}
+    <p class="muted">Your pages, people and follow-ups are all still here, and your published pages keep working. ${state.me.role === 'owner' ? 'Choose a plan to keep editing and sending.' : 'Ask the business owner to choose a plan to keep editing and sending.'}</p>
+    ${state.me.role === 'owner' ? planCardHtml() : ''}
   </div>`);
   bindPlanCard();
 }

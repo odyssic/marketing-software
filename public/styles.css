@@ -1245,3 +1245,14 @@ textarea.code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; fon
 .type-opt.on { border-color: var(--brand); box-shadow: 0 0 0 2px var(--brand-soft); }
 .type-opt.t-elegant b { font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif; font-weight: 600; }
 .type-opt.t-modern b { font-weight: 800; letter-spacing: -.04em; }
+
+/* Settings: people with access */
+.team-list { display: grid; gap: 2px; margin: 8px 0 12px; }
+.team-row { display: flex; gap: 10px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.team-row .av { width: 32px; height: 32px; border-radius: 50%; background: var(--brand-soft); color: var(--brand); display: grid; place-items: center; font-weight: 700; flex: none; }
+.team-row .av svg { width: 15px; height: 15px; }
+.team-row .tm { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.team-row .tm b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.team-row.pending .tm b { font-weight: 500; }
+.team-invite { display: flex; gap: 8px; }
+.team-invite input { margin: 0; flex: 1; }

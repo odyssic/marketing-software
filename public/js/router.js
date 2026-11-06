@@ -3,6 +3,8 @@
 // ---------------- Router ----------------
 async function route() {
   if (/^#\/reset\//.test(location.hash)) return renderAuth('newpass');
+  const invite = location.hash.match(/^#\/invite\/([\w-]+)/);
+  if (invite) return viewInvite(invite[1]);
   if (!state.me) {
     try { state.me = await api('GET', '/api/me'); } catch { return renderAuth(); }
   }

@@ -294,7 +294,8 @@ async function renderAuth(mode) {
       if (!v.password) delete v.password;
       await api('POST', `/api/auth/${setup ? 'signup' : 'login'}`, v);
       state.me = await api('GET', '/api/me');
-      location.hash = setup ? '#/setup' : '#/';
+      let back = ''; try { back = sessionStorage.getItem('rillyInvite') || ''; sessionStorage.removeItem('rillyInvite'); } catch { /* fine */ }
+      location.hash = back ? `#/invite/${back}` : setup ? '#/setup' : '#/';
       route();
     } catch (err) { $('.err').textContent = err.message; }
   };
