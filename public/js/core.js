@@ -251,14 +251,16 @@ async function renderAuth(mode) {
   let status = { hasOwner: true };
   try { status = await api('GET', '/api/auth/status'); } catch { /* offline: show sign in */ }
   const resetToken = (location.hash.match(/^#\/reset\/([\w-]+)/) || [])[1];
-  mode = mode || (resetToken ? 'newpass' : status.hasOwner ? 'link' : 'setup');
+  // First visit on this browser (never signed in here) and sign-ups open: start with "Create your account".
+  const seenBefore = (() => { try { return localStorage.getItem('rillySignedIn') === '1'; } catch { return false; } })();
+  mode = mode || (resetToken ? 'newpass' : !status.hasOwner || (status.signupOpen && !seenBefore) ? 'setup' : 'link');
   if (mode === 'forgot' || mode === 'newpass') return renderReset(mode, resetToken);
   const setup = mode === 'setup';
   app.innerHTML = `<div class="auth"><form class="card">
     <div class="logo">${LOGO_INK}</div>
     <p class="tagline">${TAGLINE}</p>
-    <h1>${setup ? 'Set up your marketing home' : 'Welcome back'}</h1>
-    <p class="muted">${setup ? 'One owner, about an hour a week. You’ll sign in with a link sent to this email.'
+    <h1>${setup ? (status.hasOwner ? 'Create your account' : 'Set up your marketing home') : 'Welcome back'}</h1>
+    <p class="muted">${setup ? 'Your website, emails, follow-ups and customers in one simple place. Free to start.'
       : mode === 'link' ? 'We’ll email you a link to sign in. No password needed.' : 'Sign in with your password.'}</p>
     ${setup ? `<label class="f">Your name<input name="name" required autocomplete="name"></label>
       <label class="f">Business name <span class="hint">(optional)</span><input name="workspace"></label>
@@ -267,12 +269,13 @@ async function renderAuth(mode) {
     ${mode === 'password' ? '<label class="f">Password<input name="password" type="password" required autocomplete="current-password"></label><p class="small forgot"><a href="#" data-forgot>Forgot password?</a></p>' : ''}
     ${setup ? '<label class="f">Password <span class="hint">(optional, a backup to email links)</span><input name="password" type="password" minlength="8" autocomplete="new-password"></label>' : ''}
     <div class="err"></div><div data-sent></div>
-    <button class="btn primary" style="width:100%;justify-content:center;padding:11px">${setup ? 'Create my workspace' : mode === 'link' ? 'Email me a sign-in link' : 'Sign in'}</button>
-    ${setup ? '' : `<p class="muted small" style="text-align:center;margin-bottom:0"><a href="#" data-switch>${mode === 'link' ? 'Use a password instead' : 'Email me a link instead'}</a></p>`}
-    ${status.signupOpen && !setup ? '<p class="muted small" style="text-align:center;margin:6px 0 0"><a href="#" data-setup>Create a new workspace</a></p>' : ''}
+    <button class="btn primary" style="width:100%;justify-content:center;padding:11px">${setup ? (status.hasOwner ? 'Create my account' : 'Create my workspace') : mode === 'link' ? 'Email me a sign-in link' : 'Sign in'}</button>
+    ${setup ? (status.hasOwner ? '<p class="muted small" style="text-align:center;margin-bottom:0">Already have an account? <a href="#" data-signin>Sign in</a></p>' : '') : `<p class="muted small" style="text-align:center;margin-bottom:0"><a href="#" data-switch>${mode === 'link' ? 'Use a password instead' : 'Email me a link instead'}</a></p>`}
+    ${status.signupOpen && !setup ? '<p class="muted small" style="text-align:center;margin:6px 0 0">New to Rilly? <a href="#" data-setup>Create your account</a></p>' : ''}
   </form></div>`;
   const sw = $('[data-switch]'); if (sw) sw.onclick = (e) => { e.preventDefault(); renderAuth(mode === 'link' ? 'password' : 'link'); };
   const su = $('[data-setup]'); if (su) su.onclick = (e) => { e.preventDefault(); renderAuth('setup'); };
+  const si = $('[data-signin]'); if (si) si.onclick = (e) => { e.preventDefault(); renderAuth('link'); };
   const fg = $('[data-forgot]'); if (fg) fg.onclick = (e) => { e.preventDefault(); renderReset('forgot', null, $('[name=email]').value); };
   $('form').onsubmit = async (e) => {
     e.preventDefault();

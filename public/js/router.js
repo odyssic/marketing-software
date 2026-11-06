@@ -6,6 +6,8 @@ async function route() {
   if (!state.me) {
     try { state.me = await api('GET', '/api/me'); } catch { return renderAuth(); }
   }
+  // Remember this browser has signed in, so next time it opens on "Welcome back".
+  try { localStorage.setItem('rillySignedIn', '1'); } catch { /* private mode */ }
   const [path] = location.hash.replace(/^#\/?/, '').split('?');
   const [section, id] = path.split('/');
   try {
