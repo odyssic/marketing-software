@@ -24,7 +24,13 @@ const isLive = () => Boolean(process.env.SMTP_HOST);
 // but shows the business's own name, and replies go to the business owner.
 const addressOf = (s) => (String(s || '').match(/<([^>]+)>/)?.[1] || String(s || '')).trim();
 const quoted = (name) => `"${String(name || '').replace(/["\\\r\n]/g, '').slice(0, 80)}"`;
-function senderFor({ name, replyTo } = {}) {
+function senderFor({ name, replyTo, own } = {}) {
+  // The business's own verified domain, when it has one.
+  if (own && process.env.SMTP_HOST) {
+    const out = { from: `${quoted(name)} <${own}>` };
+    if (replyTo && replyTo.toLowerCase() !== own.toLowerCase()) out.replyTo = replyTo;
+    return out;
+  }
   const verified = addressOf(process.env.SMTP_FROM);
   if (!verified) return { from: replyTo ? `${quoted(name)} <${replyTo}>` : 'no-reply@localhost' };
   const out = { from: name ? `${quoted(name)} <${verified}>` : process.env.SMTP_FROM };

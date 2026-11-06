@@ -1193,3 +1193,19 @@ a.fc-more { display: block; text-decoration: none; }
   .land-cta .btn { flex: 1; justify-content: center; }
 }
 .land .btn.big { width: auto; display: inline-flex; margin: 0; }
+
+/* Settings: send from your own domain */
+.sd-form { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.sd-form input { margin: 0; flex: 1; min-width: 140px; }
+.sd-form .sd-local { flex: 0 0 110px; min-width: 0; }
+.sd-at { font-weight: 600; color: var(--muted); }
+.sd-steps { padding-left: 20px; display: grid; gap: 6px; font-size: .9rem; margin: 6px 0 12px; }
+.sd-records { display: grid; gap: 10px; margin-bottom: 12px; }
+.sd-rec { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; display: grid; gap: 6px; }
+.sd-rec.ok { border-color: #a7f3d0; background: #f0fdf7; }
+.sd-type { font-weight: 700; display: flex; gap: 6px; align-items: center; }
+.sd-type svg { width: 15px; height: 15px; color: #15803d; }
+.sd-rec label { font-size: .78rem; color: var(--muted); display: grid; gap: 3px; }
+.sd-rec .copy { display: flex; gap: 6px; }
+.sd-rec .copy input { margin: 0; font-family: ui-monospace, monospace; font-size: .8rem; }
+[data-senddomain] p svg { width: 16px; height: 16px; color: #15803d; vertical-align: -3px; }

@@ -4,6 +4,7 @@
 // record, and open/click events that feed the lever metrics.
 const crypto = require('node:crypto');
 const mailer = require('./mailer');
+const { ownAddress } = require('./domains');
 const signatures = require('../public/js/signature.js');
 
 // {{signature}} lines: the designed signature in the HTML, a plain version in the text.
@@ -41,7 +42,7 @@ function createMessaging({ getDb, getSecret, publicBase, logEvent }) {
   };
   const unsubToken = (contactId) => `${contactId}.${crypto.createHmac('sha256', getSecret()).update(`unsub:${contactId}`).digest('hex').slice(0, 24)}`;
   // The business's name on the verified sending address; replies go to the owner.
-  const fromFor = (account) => mailer.senderFor({ name: account.from_name || account.name, replyTo: account.from_email });
+  const fromFor = (account) => mailer.senderFor({ name: account.from_name || account.name, replyTo: account.from_email, own: ownAddress(account) });
 
   // Plain text in, plain text + simple HTML out. Links are rewritten through
   // the click tracker; a 1px image records opens.

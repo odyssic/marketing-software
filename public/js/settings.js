@@ -46,6 +46,7 @@ function viewSettings() {
       <div class="row"><label class="f" style="margin:0">Send it on<select data-digestday>${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map((d, i) => `<option value="${i}" ${a.digest_day === i ? 'selected' : ''}>${d}</option>`).join('')}</select></label>
         <button class="btn" data-digestpreview type="button">Preview</button><button class="btn" data-digestsend type="button">Send me one now</button></div>
     </div>
+    <div class="card" style="max-width:560px;margin-top:16px" data-senddomain hidden></div>
     <div class="card" style="max-width:560px;margin-top:16px" data-sigcard><h2>Email signatures</h2>
       <p class="muted small">Design a signature once and it goes on your emails: newsletters, follow-ups and Inbox replies.</p>
       <div data-sigsummary class="muted small">Loading…</div>
@@ -173,6 +174,7 @@ function viewSettings() {
   $('[data-sigmanage]').onclick = async () => { const s = await loadSignatures(true); if (s.list.length) manageSignatures(sigSummary); else { await editSignature(); sigSummary(); } };
   ['[data-form]', '[data-business]', '[data-reviews]', '[data-voice]', '[data-stripe]'].forEach((sel) => trackDirty($(sel)));
   groupSettings();
+  loadSendDomain();
   bindPlanCard();
   confirmPlanReturn();
   if (/[?&]plan=1/.test(location.hash)) setTimeout(() => $('#set-plan')?.scrollIntoView({ block: 'start' }));
@@ -226,7 +228,7 @@ async function loadTextingSettings() {
 const SETTINGS_SECTIONS = [
   ['plan', 'Your plan', ['[data-plan]']],
   ['business', 'Business', ['[data-form]', '[data-business]', '[data-voice]']],
-  ['email', 'Email', ['[data-sigcard]', '[data-digestcard]', '[data-reviews]']],
+  ['email', 'Email', ['[data-senddomain]', '[data-sigcard]', '[data-digestcard]', '[data-reviews]']],
   ['texting', 'Texting and calls', ['[data-texting]']],
   ['payments', 'Payments', ['[data-stripe]']],
   ['address', 'Website address', ['[data-domain]']],
@@ -257,4 +259,53 @@ function groupSettings() {
   const io = new IntersectionObserver((es) => es.forEach((en) => { if (en.isIntersecting) $$('[data-setlink]', wrap).forEach((a) => a.classList.toggle('on', `set-${a.dataset.setlink}` === en.target.id)); }), { rootMargin: '-20% 0px -70% 0px' });
   $$('.set-sec', body).forEach((x) => io.observe(x));
   void main;
+}
+
+// Send from your own domain: enter it, add the DNS records, check.
+async function loadSendDomain(data) {
+  const card = $('[data-senddomain]');
+  if (!card) return;
+  let d = data;
+  if (!d) { try { d = await api('GET', '/api/account/sending-domain'); } catch { return; } }
+  if (!d.available) { card.hidden = true; return; }
+  card.hidden = false;
+  const verified = d.status === 'verified';
+  const STATUS = { verified: ['ok', 'Verified'], pending: ['warn', 'Checking…'], not_started: ['warn', 'Waiting for the records'], failed: ['warn', 'Not found yet'], temporary_failure: ['warn', 'Not found yet'] };
+  const [cls, word] = STATUS[d.status] || ['warn', 'Waiting for the records'];
+  card.innerHTML = `<h2>Send from your own domain</h2>
+    ${!d.domain ? `<p class="muted small">Emails go out from Rilly’s address under your business name. Using your own domain (like hello@yourbusiness.com) looks more professional and lands in more inboxes.</p>
+      <form class="sd-form" data-sdform><input name="local" value="hello" aria-label="Name before @" class="sd-local"><span class="sd-at">@</span><input name="domain" placeholder="yourbusiness.com" aria-label="Your domain" required>
+        <button class="btn primary">Set up</button></form><div class="err"></div>`
+    : verified ? `<p>${icon('check')} Emails now go out from <b>${esc(d.address)}</b>. Replies still come to your own email.</p>
+      <div class="row"><button type="button" class="btn sm" data-sdchange>Change</button><button type="button" class="btn sm danger" data-sdremove>Stop using it</button></div>`
+      : `<p class="small"><span class="pill ${cls}">${word}</span> Sending as <b>${esc(d.address)}</b> once these are added.</p>
+      <ol class="sd-steps"><li>Sign in where you bought <b>${esc(d.domain)}</b> (GoDaddy, Namecheap, Squarespace, Cloudflare…) and open its <b>DNS</b> settings.</li>
+        <li>Add each record below. Copy the name and value exactly. Leave TTL as it is.</li>
+        <li>Come back and press <b>Check now</b>. It can take from a few minutes to a few hours to show up.</li></ol>
+      <div class="sd-records">${d.records.map((r) => `<div class="sd-rec ${r.status === 'verified' ? 'ok' : ''}">
+        <div class="sd-type">${esc(r.type)}${r.priority !== null ? ` <span class="muted small">priority ${esc(r.priority)}</span>` : ''}${r.status === 'verified' ? ` ${icon('check')}` : ''}</div>
+        <label>Name<span class="copy"><input readonly value="${esc(r.name)}"><button type="button" class="btn sm" data-copy="${esc(r.name)}">Copy</button></span></label>
+        <label>Value<span class="copy"><input readonly value="${esc(r.value)}"><button type="button" class="btn sm" data-copy="${esc(r.value)}">Copy</button></span></label></div>`).join('')}</div>
+      <div class="err"></div>
+      <div class="row"><button type="button" class="btn primary" data-sdcheck>Check now</button><button type="button" class="btn sm" data-sdremove>Cancel</button></div>
+      <p class="hint">Until it’s verified, emails keep going out from Rilly’s address, so nothing stops.</p>`}`;
+  bindCopy();
+  const form = $('[data-sdform]', card);
+  if (form) form.onsubmit = async (e) => {
+    e.preventDefault();
+    try { loadSendDomain(await api('POST', '/api/account/sending-domain', Object.fromEntries(new FormData(form)))); } catch (err) { $('.err', card).textContent = err.message; }
+  };
+  const check = $('[data-sdcheck]', card);
+  if (check) check.onclick = async () => {
+    check.disabled = true; check.textContent = 'Checking…';
+    try {
+      const r = await api('POST', '/api/account/sending-domain/verify');
+      loadSendDomain(r);
+      toast(r.status === 'verified' ? `Verified. Emails now go out from ${r.address}` : 'Not found yet. DNS changes can take a while: try again later.', r.status !== 'verified');
+    } catch (err) { $('.err', card).textContent = err.message; check.disabled = false; check.textContent = 'Check now'; }
+  };
+  const remove = $('[data-sdremove]', card);
+  if (remove) remove.onclick = async () => { await api('DELETE', '/api/account/sending-domain'); toast('Back to sending from Rilly’s address'); loadSendDomain(); };
+  const change = $('[data-sdchange]', card);
+  if (change) change.onclick = () => loadSendDomain({ ...d, domain: '' });
 }
