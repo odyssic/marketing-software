@@ -368,7 +368,7 @@ function shell(section, html) {
       <nav class="nav">${NAV.filter(([k]) => !(state.me.account.hidden_sections || []).includes(k)).map(([k, i, l]) => `<a href="#/${k}" class="${(FLOW_SECTIONS.includes(section) ? 'flows' : NAV_HOME[section] || section) === k ? 'active' : ''}"><span class="ico">${i}</span>${l}${k === 'inbox' ? '<span class="nav-badge" data-unread hidden></span>' : ''}</a>`).join('')}</nav>
       <div class="foot"><div class="muted">${esc(state.me.user.email)}</div><button data-logout>Sign out</button></div>
     </aside>
-    <main class="main">${html}</main></div>`;
+    <main class="main">${planBanner()}${html}</main></div>`;
   $('[data-logout]').onclick = logout;
   refreshUnread();
   $('[data-acct]').onclick = (e) => { e.stopPropagation(); accountMenu(e.currentTarget); };

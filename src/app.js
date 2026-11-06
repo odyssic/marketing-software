@@ -28,6 +28,7 @@ const { registerBookings } = require('./bookings');
 const attribution = require('./attribution');
 const { registerInvoices } = require('./invoices');
 const { registerSetup } = require('./setup');
+const { registerBilling, planOf } = require('./billing');
 const { registerTexting } = require('./texting');
 const { registerMembers } = require('./members');
 const { registerMetrics } = require('./metrics');
@@ -359,11 +360,12 @@ function createApp({ dbPath } = {}) {
   });
 
   api.use(auth.requireAuth(() => db));
+  registerBilling(app, api, { getDb: () => db, HttpError, publicBase: () => publicBase(), express });
 
   api.get('/me', async (req, res) => {
     const { stripe_secret_key: key, stripe_webhook_secret: whsec, ...account } = await db.get('SELECT * FROM accounts WHERE id = ?', req.accountId);
     res.json({
-      user: req.user, account: { ...account, hidden_sections: business.hiddenSections(account), people_word: business.typeOf(account.business_type).people },
+      user: { id: req.user.id, email: req.user.email, name: req.user.name }, billing: planOf(req.user), account: { ...account, hidden_sections: business.hiddenSections(account), people_word: business.typeOf(account.business_type).people },
       businessTypes: business.publicTypes(), emailLive: mailer.isLive(), aiLive: require('./ai').isLive(), baseUrl: baseUrl(req),
       accounts: await db.all(`SELECT a.id, a.name FROM memberships m JOIN accounts a ON a.id = m.account_id
         WHERE m.user_id = ? ORDER BY a.name, a.id`, req.user.id),

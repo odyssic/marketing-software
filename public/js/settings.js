@@ -5,6 +5,7 @@ function viewSettings() {
   const a = state.me.account;
   shell('settings', `
     <div class="head"><h1>Settings</h1></div>
+    ${state.me.billing?.enabled ? planCardHtml() : ''}
     <form class="card" style="max-width:560px" data-form>
       <h2>This business</h2>
       <label class="f">Business name<input name="name" required value="${esc(a.name)}"></label>
@@ -172,6 +173,9 @@ function viewSettings() {
   $('[data-sigmanage]').onclick = async () => { const s = await loadSignatures(true); if (s.list.length) manageSignatures(sigSummary); else { await editSignature(); sigSummary(); } };
   ['[data-form]', '[data-business]', '[data-reviews]', '[data-voice]', '[data-stripe]'].forEach((sel) => trackDirty($(sel)));
   groupSettings();
+  bindPlanCard();
+  confirmPlanReturn();
+  if (/[?&]plan=1/.test(location.hash)) setTimeout(() => $('#set-plan')?.scrollIntoView({ block: 'start' }));
   loadTextingSettings();
 }
 
@@ -220,6 +224,7 @@ async function loadTextingSettings() {
 
 // Settings in a few short sections with an index, instead of one long scroll.
 const SETTINGS_SECTIONS = [
+  ['plan', 'Your plan', ['[data-plan]']],
   ['business', 'Business', ['[data-form]', '[data-business]', '[data-voice]']],
   ['email', 'Email', ['[data-sigcard]', '[data-digestcard]', '[data-reviews]']],
   ['texting', 'Texting and calls', ['[data-texting]']],
@@ -234,10 +239,11 @@ function groupSettings() {
   if (!first) return;
   const wrap = document.createElement('div');
   wrap.className = 'set-layout';
-  wrap.innerHTML = `<nav class="set-index" aria-label="Settings sections">${SETTINGS_SECTIONS.map(([id, label]) => `<a href="#set-${id}" data-setlink="${id}">${label}</a>`).join('')}</nav><div class="set-body"></div>`;
+  wrap.innerHTML = `<nav class="set-index" aria-label="Settings sections">${SETTINGS_SECTIONS.filter((x, i) => cards[i].length).map(([id, label]) => `<a href="#set-${id}" data-setlink="${id}">${label}</a>`).join('')}</nav><div class="set-body"></div>`;
   first.before(wrap);
   const body = $('.set-body', wrap);
   SETTINGS_SECTIONS.forEach(([id, label], i) => {
+    if (!cards[i].length) return;
     const sec = document.createElement('section');
     sec.id = `set-${id}`; sec.className = 'set-sec';
     sec.innerHTML = `<h2 class="set-h">${label}</h2>`;

@@ -54,13 +54,13 @@ function requireAuth(getDb) {
   return async (req, res, next) => {
     const token = parseCookies(req.headers.cookie).sid;
     const row = token && await getDb().get(`
-      SELECT s.account_id, s.expires_at, u.id, u.email, u.name
+      SELECT s.account_id, s.expires_at, u.id, u.email, u.name, u.plan_status, u.trial_ends_at, u.created_at
       FROM sessions s JOIN users u ON u.id = s.user_id
       WHERE s.token = ?`, token);
     if (!row || new Date(row.expires_at) < new Date()) {
       return res.status(401).json({ error: 'Not signed in' });
     }
-    req.user = { id: row.id, email: row.email, name: row.name };
+    req.user = { id: row.id, email: row.email, name: row.name, plan_status: row.plan_status, trial_ends_at: row.trial_ends_at, created_at: row.created_at };
     req.accountId = row.account_id;
     next();
   };

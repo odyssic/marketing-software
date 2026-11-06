@@ -10,6 +10,7 @@ async function route() {
   try { localStorage.setItem('rillySignedIn', '1'); } catch { /* private mode */ }
   const [path] = location.hash.replace(/^#\/?/, '').split('?');
   const [section, id] = path.split('/');
+  if (state.me.billing?.locked && section !== 'settings') return viewPlanLocked();
   try {
     if (section === 'setup') return viewSetup();
     if (section === 'inbox') return viewInbox(id);

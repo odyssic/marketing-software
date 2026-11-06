@@ -535,6 +535,12 @@ CREATE TABLE IF NOT EXISTS magic_links (
   used_at TIMESTAMPTZ
 );
 ALTER TABLE magic_links ADD COLUMN IF NOT EXISTS purpose TEXT NOT NULL DEFAULT 'signin';
+-- Rilly's own plan, per person (see billing.js); onboarding_step counts welcome emails sent.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS plan_status TEXT NOT NULL DEFAULT 'trialing';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS trial_ends_at TIMESTAMPTZ;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS billing_customer TEXT NOT NULL DEFAULT '';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS billing_subscription TEXT NOT NULL DEFAULT '';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS onboarding_step INT NOT NULL DEFAULT 0;
 
 -- Photos people upload for their pages (drag a picture onto an image block).
 -- Stored in the database so the app needs no separate file storage.

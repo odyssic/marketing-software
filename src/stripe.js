@@ -96,4 +96,4 @@ async function connect(secretKey, webhookUrl) {
   } catch (e) { return { name, webhookSecret: null, why: e.message }; }
 }
 
-module.exports = { connect, createCheckoutSession, retrieveCheckoutSession, chargeSaved, verifyWebhook, isPaid };
+module.exports = { call, connect, createCheckoutSession, retrieveCheckoutSession, chargeSaved, verifyWebhook, isPaid };
