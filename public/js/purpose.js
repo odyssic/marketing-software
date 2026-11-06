@@ -42,11 +42,23 @@ function bindPurposeTags(groups, after) {
 // unless `stay` is set, in which case the current view refreshes.
 async function duplicateFunnel(g, { stay = false } = {}) {
   const kind = g.kind === 'website' ? 'website' : 'funnel';
-  const v = await modal(`Duplicate this ${kind === 'funnel' ? 'pageflow' : kind}`, `<p class="muted small">Copies every page, how they connect${kind === 'funnel' ? ', and its follow-up emails (switched off)' : ''}. The copy starts as a draft.</p>
-    <label class="f">Name of the copy<input name="name" required value="${esc(`${g.name} (copy)`)}"></label>`, { submit: 'Duplicate' });
+  const others = (state.me.accounts || []).filter((a) => a.id !== state.me.account.id);
+  const v = await modal(`Duplicate this ${kind === 'funnel' ? 'pageflow' : kind}`, `<p class="muted small">Copies every page, how they connect, and its follow-up emails (switched off). The copy starts as a draft.</p>
+    <label class="f">Name of the copy<input name="name" required value="${esc(`${g.name} (copy)`)}"></label>
+    ${others.length ? `<label class="f">Put the copy in<select name="to_account"><option value="">This business (${esc(state.me.account.name)})</option>${others.map((a) => `<option value="${a.id}">${esc(a.name)}</option>`).join('')}</select>
+      <span class="hint">Copying to another business? Pick its products and testimonials again there.</span></label>` : ''}`, { submit: 'Duplicate' });
   if (!v) return;
   try {
-    const r = await api('POST', `/api/funnels/${g.id}/duplicate`, { name: v.name });
+    const r = await api('POST', `/api/funnels/${g.id}/duplicate`, { name: v.name, to_account: v.to_account || undefined });
+    if (r.account !== state.me.account.id) {
+      const there = others.find((a) => a.id === r.account);
+      toast(`Copied to ${there?.name || 'the other business'}`);
+      if (await modal('Copied', `<p>“${esc(v.name)}” is now in <b>${esc(there?.name || '')}</b>, as a draft.</p>`, { submit: `Go to ${esc(there?.name || 'it')}` })) {
+        await api('POST', `/api/accounts/${r.account}/switch`); state.me = await api('GET', '/api/me');
+        location.hash = `#/${kind === 'website' ? 'websites' : 'funnels'}/${r.id}`; route();
+      }
+      return;
+    }
     toast(`Made “${v.name}”`);
     if (stay && location.hash.startsWith('#/pages')) viewPages(); else location.hash = `#/${kind === 'website' ? 'websites' : 'funnels'}/${r.id}`;
   } catch (err) { toast(err.message, true); }

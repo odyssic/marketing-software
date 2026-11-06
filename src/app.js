@@ -759,17 +759,38 @@ function createApp({ dbPath } = {}) {
   // Duplicate a funnel or website: every page (with its blocks, style, links
   // and map position), the start page, its purpose, and its follow-ups,
   // pointed at the copy. The copy starts as a draft; follow-ups start off.
+  // With to_account, the copy goes into another business you own (agencies reuse
+  // their best flows). Things that belong to the first business (its products,
+  // testimonials, saved sections) are left for you to pick again there.
   api.post('/funnels/:id/duplicate', async (req, res) => {
     const src = await getFunnel(req.accountId, req.params.id);
     const name = String(req.body?.name || '').trim().slice(0, 120) || `${src.name} (copy)`;
+    let target = req.accountId;
+    if (req.body?.to_account && Number(req.body.to_account) !== req.accountId) {
+      const m = await db.get("SELECT account_id FROM memberships WHERE user_id = ? AND account_id = ? AND role = 'owner'", req.user.id, id(req.body.to_account));
+      if (!m) throw new HttpError(404, 'That business isn’t one of yours');
+      target = m.account_id;
+    }
+    const elsewhere = target !== req.accountId;
+    const portable = (json) => {
+      if (!elsewhere) return json;
+      const blocks = JSON.parse(json || '[]').map((b) => {
+        const { savedId: _s, ...rest } = b;
+        if ('productId' in rest) rest.productId = null;
+        if ('bumpProductId' in rest) rest.bumpProductId = null;
+        if ('testimonialId' in rest) rest.testimonialId = null;
+        return rest;
+      });
+      return JSON.stringify(blocks);
+    };
     const newId = await db.tx(async (t) => {
       const f = await t.get("INSERT INTO funnels (account_id, name, slug, status, kind, purpose) VALUES (?, ?, ?, 'draft', ?, ?) RETURNING id",
-        req.accountId, name, await uniqueFunnelSlug(t, name), src.kind || 'funnel', src.purpose || '');
+        target, name, await uniqueFunnelSlug(t, name), src.kind || 'funnel', src.purpose || '');
       const steps = await t.all('SELECT * FROM funnel_steps WHERE funnel_id = ? ORDER BY position, id', src.id);
       const map = {};
       for (const s of steps) {
         const r = await t.get(`INSERT INTO funnel_steps (funnel_id, name, slug, position, blocks, settings, x, y)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`, f.id, s.name, s.slug, s.position, s.blocks, s.settings, s.x, s.y);
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`, f.id, s.name, s.slug, s.position, portable(s.blocks), s.settings, s.x, s.y);
         map[s.id] = r.id;
       }
       for (const s of steps) {
@@ -779,14 +800,19 @@ function createApp({ dbPath } = {}) {
       const wfs = await t.all('SELECT * FROM workflows WHERE funnel_id = ? AND account_id = ? ORDER BY id', src.id, req.accountId);
       for (const w of wfs) {
         const g = JSON.parse(w.graph || '{}');
-        for (const n of Object.values(g.nodes || {})) if (n.config && Number(n.config.funnel_id) === src.id) n.config.funnel_id = f.id;
+        for (const n of Object.values(g.nodes || {})) {
+          if (!n.config) continue;
+          if (Number(n.config.funnel_id) === src.id) n.config.funnel_id = f.id;
+          if (n.config.step_id && map[n.config.step_id]) n.config.step_id = map[n.config.step_id];
+          if (elsewhere && n.config.product) n.config.product = '';
+        }
         const wname = w.name.startsWith(`${src.name}: `) ? `${name}: ${w.name.slice(src.name.length + 2)}` : `${w.name} (copy)`;
         await t.run("INSERT INTO workflows (account_id, name, lever, status, template, funnel_id, graph) VALUES (?, ?, ?, 'draft', ?, ?, ?)",
-          req.accountId, wname.slice(0, 120), w.lever, w.template, f.id, JSON.stringify(g));
+          target, wname.slice(0, 120), w.lever, w.template, f.id, JSON.stringify(g));
       }
       return f.id;
     });
-    res.status(201).json({ id: newId });
+    res.status(201).json({ id: newId, account: target });
   });
 
   // Puts drafted words into the first page (headline, text, button) and the last (thank-you).
