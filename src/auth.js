@@ -53,10 +53,10 @@ async function destroySession(db, req, res) {
 function requireAuth(getDb) {
   return async (req, res, next) => {
     const token = parseCookies(req.headers.cookie).sid;
-    const row = token && await getDb().get(`
-      SELECT s.account_id, s.expires_at, u.id, u.email, u.name, u.plan_status, u.trial_ends_at, u.created_at
-      FROM sessions s JOIN users u ON u.id = s.user_id
-      WHERE s.token = ?`, token);
+    // Plan columns may not exist yet on a database that hasn't been migrated: sign-in still works.
+    const q = (cols) => getDb().get(`SELECT s.account_id, s.expires_at, u.id, u.email, u.name${cols}
+      FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token = ?`, token);
+    const row = token && await q(', u.plan_status, u.trial_ends_at, u.created_at').catch(() => q(''));
     if (!row || new Date(row.expires_at) < new Date()) {
       return res.status(401).json({ error: 'Not signed in' });
     }
