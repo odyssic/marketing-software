@@ -1212,3 +1212,4 @@ a.fc-more { display: block; text-decoration: none; }
 .getnum { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 4px 0 12px; }
 .num-results { display: grid; gap: 6px; margin: 12px 0 6px; max-height: 300px; overflow: auto; }
 .choice.num small { display: block; color: var(--muted); }
+.plan-note { background: var(--brand-soft); color: var(--brand); border-radius: 8px; padding: 8px 10px; display: flex; gap: 6px; align-items: center; } .plan-note svg { width: 15px; height: 15px; flex: none; }

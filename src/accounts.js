@@ -5,7 +5,7 @@ const auth = require('./auth');
 
 const { cleanType } = require('./business');
 
-function registerAccounts(api, { getDb, HttpError, id, seed = async () => {} }) {
+function registerAccounts(api, { getDb, HttpError, id, seed = async () => {}, onChange = () => {} }) {
   const myAccounts = (userId) => getDb().all(`SELECT a.id, a.name, m.role, a.created_at,
       (SELECT COUNT(*)::int FROM contacts c WHERE c.account_id = a.id) AS people,
       (SELECT COUNT(*)::int FROM funnels f WHERE f.account_id = a.id) AS funnels
@@ -20,7 +20,7 @@ function registerAccounts(api, { getDb, HttpError, id, seed = async () => {} }) 
     res.json({ current: req.accountId, accounts: await myAccounts(req.user.id) });
   });
 
-  // New sub-account for another business. No limits on how many.
+  // New sub-account for another business. No limit; each one after the first adds to the plan.
   api.post('/accounts', async (req, res) => {
     const name = String(req.body?.name || '').trim().slice(0, 100);
     if (!name) throw new HttpError(400, 'Name the business');
@@ -31,6 +31,7 @@ function registerAccounts(api, { getDb, HttpError, id, seed = async () => {} }) 
     });
     await seed(accountId);
     if (req.body?.switch) await auth.switchAccount(getDb(), req, accountId);
+    onChange(req.user.id);
     res.status(201).json({ id: accountId });
   });
 
@@ -60,6 +61,7 @@ function registerAccounts(api, { getDb, HttpError, id, seed = async () => {} }) 
       await t.run('UPDATE funnel_steps SET next_step_id = NULL, no_step_id = NULL WHERE funnel_id IN (SELECT id FROM funnels WHERE account_id = ?)', a.id);
       await t.run('DELETE FROM accounts WHERE id = ?', a.id);
     });
+    onChange(req.user.id);
     res.json({ ok: true, current });
   });
 }

@@ -246,7 +246,7 @@ function createApp({ dbPath } = {}) {
   api.get('/auth/status', async (req, res) => {
     const p = planOf({});
     res.json({ hasOwner: Boolean(await db.get('SELECT 1 FROM users LIMIT 1')), signupOpen: await signupOpen(), emailLive: mailer.isLive(),
-      plan: { enabled: p.enabled, priceCents: p.priceCents, currency: p.currency, trialDays: p.trialDays } });
+      plan: { enabled: p.enabled, priceCents: p.priceCents, extraCents: p.extraCents, currency: p.currency, trialDays: p.trialDays } });
   });
 
   api.post('/auth/signup', async (req, res) => {
@@ -364,7 +364,7 @@ function createApp({ dbPath } = {}) {
   });
 
   api.use(auth.requireAuth(() => db));
-  registerBilling(app, api, { getDb: () => db, HttpError, publicBase: () => publicBase(), express });
+  const billing = registerBilling(app, api, { getDb: () => db, HttpError, publicBase: () => publicBase(), express });
   registerDomains(api, { getDb: () => db, HttpError });
 
   api.get('/me', async (req, res) => {
@@ -1246,7 +1246,7 @@ function createApp({ dbPath } = {}) {
   registerUploads(app, api, { getDb: () => db, HttpError, baseUrl });
   registerLibrary(api, { getDb: () => db, HttpError, id, ownHost, clearDomainCache: () => domainCache.clear() });
   registerPrint(api, app, { getDb: () => db, HttpError, id, logEvent, publicBase, toCsv: people.toCsv });
-  registerAccounts(api, { getDb: () => db, HttpError, id, seed: (accountId) => workflows.seedDefaults(accountId) });
+  registerAccounts(api, { getDb: () => db, HttpError, id, seed: (accountId) => workflows.seedDefaults(accountId), onChange: (userId) => billing.syncExtras(userId) });
   api.put('/account/reviews', async (req, res) => {
     const url = String(req.body?.review_url || '').trim();
     if (url && !/^https:\/\/[^\s]+$/i.test(url)) throw new HttpError(400, 'Paste the full review link, starting with https://');

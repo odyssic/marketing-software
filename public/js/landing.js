@@ -7,6 +7,7 @@ function renderLanding(status) {
   const plan = status.plan || {};
   const price = plan.priceCents ? new Intl.NumberFormat('en-US', { style: 'currency', currency: (plan.currency || 'usd').toUpperCase(), minimumFractionDigits: plan.priceCents % 100 ? 2 : 0 }).format(plan.priceCents / 100) : '$29';
   const trial = plan.trialDays || 14;
+  const extra = plan.extraCents === 0 ? '' : new Intl.NumberFormat('en-US', { style: 'currency', currency: (plan.currency || 'usd').toUpperCase(), minimumFractionDigits: (plan.extraCents ?? 1900) % 100 ? 2 : 0 }).format((plan.extraCents ?? 1900) / 100);
   const FEATURES = [
     ['globe', 'Website and pages', 'A website, sign-up pages, sales pages and members areas. Pick a look, change the words, publish.'],
     ['mail', 'Email and texts', 'Newsletters, plus follow-ups that send themselves after someone signs up, books or buys.'],
@@ -54,8 +55,8 @@ function renderLanding(status) {
         <h2>One simple price</h2>
         <div class="land-price card">
           <div class="lp-amt">${price}<span>/month</span></div>
-          <p class="muted">Everything included, for every business you run.</p>
-          <ul>${['Websites, pages and members areas', 'Email, texting and automatic follow-ups', 'Bookings, products, invoices and payments', 'Unlimited contacts and businesses', `${trial}-day free trial, no card needed`].map((x) => `<li>${icon('check')}${x}</li>`).join('')}</ul>
+          <p class="muted">Everything included, for one business.${extra ? ` Run more? Each extra business is ${extra}/month.` : ''}</p>
+          <ul>${['Websites, pages and members areas', 'Email, texting and automatic follow-ups', 'Bookings, products, invoices and payments', 'Unlimited contacts, pages and emails', ...(extra ? [`Extra businesses ${extra}/month each (great for agencies)`] : []), `${trial}-day free trial, no card needed`].map((x) => `<li>${icon('check')}${x}</li>`).join('')}</ul>
           <button type="button" class="btn primary big" data-start>Start free</button>
         </div>
       </section>

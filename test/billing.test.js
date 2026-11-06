@@ -6,7 +6,7 @@ const http = require('node:http');
 const crypto = require('node:crypto');
 const { createApp } = require('../src/app');
 
-let app, server, base, fake, uid = 0;
+let app, server, base, fake, uid = 0, product = null, extra = 0;
 before(async () => {
   fake = http.createServer((req, res) => {
     let body = ''; req.on('data', (c) => { body += c; });
@@ -19,6 +19,13 @@ before(async () => {
       }
       if (req.url.startsWith('/v1/checkout/sessions/cs_1')) return res.end(JSON.stringify({ id: 'cs_1', status: 'complete', client_reference_id: String(uid), customer: 'cus_1', subscription: 'sub_1' }));
       if (req.url === '/v1/billing_portal/sessions') return res.end(JSON.stringify({ url: 'https://billing.stripe.test/p' }));
+      // Extra businesses: one product, one subscription item whose quantity follows the count.
+      if (req.url === '/v1/products/rilly_extra_business') { if (product) return res.end(JSON.stringify({ id: product })); res.statusCode = 404; return res.end(JSON.stringify({ error: { message: 'No such product' } })); }
+      if (req.method === 'POST' && req.url === '/v1/products') { product = 'rilly_extra_business'; return res.end(JSON.stringify({ id: product })); }
+      if (req.url === '/v1/subscriptions/sub_1') return res.end(JSON.stringify({ id: 'sub_1', items: { data: extra ? [{ id: 'si_x', quantity: extra, price: { product: 'rilly_extra_business' } }] : [] } }));
+      if (req.method === 'POST' && req.url === '/v1/subscription_items') { extra = Number(new URLSearchParams(body).get('quantity')); return res.end('{}'); }
+      if (req.method === 'POST' && req.url === '/v1/subscription_items/si_x') { extra = Number(new URLSearchParams(body).get('quantity')); return res.end('{}'); }
+      if (req.method === 'DELETE' && req.url === '/v1/subscription_items/si_x') { extra = 0; return res.end('{}'); }
       res.statusCode = 404; res.end('{}');
     });
   });
@@ -73,6 +80,16 @@ test('trial, lock, subscribe, cancel', async () => {
   assert.equal(me.billing.locked, false);
   assert.equal((await c('POST', '/api/contacts', { email: 'z@example.com' })).status < 400, true);
   assert.equal((await c('POST', '/api/billing/portal')).body.url, 'https://billing.stripe.test/p');
+
+  // Each business after the first adds a line to the subscription; deleting one takes it off.
+  const until = async (n) => { for (let i = 0; i < 50 && extra !== n; i++) await new Promise((r) => setTimeout(r, 20)); return extra; };
+  const b2 = (await c('POST', '/api/accounts', { name: 'Second shop' })).body.id;
+  assert.equal(await until(1), 1);
+  await c('POST', '/api/accounts', { name: 'Third shop' });
+  assert.equal(await until(2), 2);
+  await c('DELETE', `/api/accounts/${b2}`, { confirm: 'Second shop' });
+  assert.equal(await until(1), 1);
+  assert.equal((await c('GET', '/api/billing')).body.businesses, 2);
 
   // Cancelled in Stripe: locked again.
   const ev = JSON.stringify({ type: 'customer.subscription.deleted', data: { object: { id: 'sub_1', status: 'canceled' } } });

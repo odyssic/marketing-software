@@ -17,18 +17,22 @@ function planBanner() {
 function planCardHtml() {
   const b = state.me.billing;
   const price = `${planMoney(b.priceCents, b.currency)}/month`;
+  const n = Math.max(1, (state.me.accounts || []).length), extras = b.extraCents ? n - 1 : 0;
+  const total = `${planMoney(b.priceCents + extras * b.extraCents, b.currency)}/month`;
+  const howMuch = b.extraCents ? `<p class="small plan-price">${price} for your first business, plus ${planMoney(b.extraCents, b.currency)}/month for each extra one.${n > 1 ? ` You run <b>${n} businesses</b>: <b>${total}</b>.` : ''}</p>` : '';
   const line = b.status === 'comped' ? '<span class="pill ok">Free</span> Your account is free. Nothing to pay.'
-    : b.status === 'active' ? `<span class="pill ok">Active</span> ${price}, renews monthly.`
+    : b.status === 'active' ? `<span class="pill ok">Active</span> ${total}, renews monthly.`
       : b.status === 'past_due' ? `<span class="pill warn">Payment failed</span> Update your card to keep going.`
         : b.locked ? `<span class="pill warn">Trial ended</span> Choose a plan to keep using Rilly.`
-          : b.status === 'trialing' ? `<span class="pill">Free trial</span> ${b.daysLeft} day${b.daysLeft === 1 ? '' : 's'} left, then ${price}.`
+          : b.status === 'trialing' ? `<span class="pill">Free trial</span> ${b.daysLeft} day${b.daysLeft === 1 ? '' : 's'} left, then ${total}.`
             : `<span class="pill">Cancelled</span> Subscribe again any time.`;
   const subscribe = ['trialing', 'canceled'].includes(b.status);
   return `<div class="card" style="max-width:560px" data-plan>
     <p class="small" style="margin-top:0">${line}</p>
-    ${subscribe ? `<ul class="plan-list"><li>Websites, pageflows and members areas</li><li>Email, texting and follow-ups that run on their own</li><li>Bookings, products, invoices and payments</li><li>Unlimited businesses (sub-accounts)</li></ul>` : ''}
+    ${b.status === 'comped' ? '' : howMuch}
+    ${subscribe ? `<ul class="plan-list"><li>Websites, pageflows and members areas</li><li>Email, texting and follow-ups that run on their own</li><li>Bookings, products, invoices and payments</li><li>Unlimited contacts and pages</li></ul>` : ''}
     <div class="err"></div>
-    <div class="row">${subscribe ? `<button class="btn primary" data-subscribe>${b.status === 'trialing' && !b.locked ? `Subscribe: ${price}` : `Subscribe for ${price}`}</button>` : ''}
+    <div class="row">${subscribe ? `<button class="btn primary" data-subscribe>${b.status === 'trialing' && !b.locked ? `Subscribe: ${total}` : `Subscribe for ${total}`}</button>` : ''}
       ${['active', 'past_due'].includes(b.status) ? '<button class="btn" data-portal>Change card, invoices or cancel</button>' : ''}</div>
     ${subscribe && b.status === 'trialing' && !b.locked ? '<p class="hint" style="margin-top:8px">Subscribing now keeps your free days: the first charge is when the trial ends.</p>' : ''}
   </div>`;
