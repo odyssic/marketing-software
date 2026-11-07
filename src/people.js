@@ -106,6 +106,7 @@ function createPeople({ getDb, HttpError, parseTags, id, formatMoney }) {
     const r = await q.get(`INSERT INTO contacts (account_id, email, tags, source, entry, ${cols.join(', ')})
       VALUES (?, ?, ?, ?, ?, ${cols.map(() => '?').join(', ')}) RETURNING id`,
     accountId, email, JSON.stringify(parseTags(p.tags)), cleanSource(p.source), entry, ...cols.map((k) => fields[k]));
+    if (hooks.onCreated) await later(q, () => hooks.onCreated(accountId, r.id, { source: cleanSource(p.source), entry }));
     await tagsAdded(q, accountId, r.id, parseTags(p.tags));
     return { id: r.id, created: true };
   }
