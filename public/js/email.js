@@ -121,9 +121,21 @@ async function viewCompose(bid) {
           ${locked ? '' : `<div class="cmp-tools" role="toolbar" aria-label="Insert">
             ${fieldSelect('body')}
             <button type="button" data-link>${icon('link')} Link</button>
+            <button type="button" data-btn>${icon('button')} Button</button>
+            <label class="tool-file">${icon('image')} Picture<input type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden data-img></label>
+            <button type="button" data-ins="
+
+## A heading
+
+">${icon('heading')} Heading</button>
+            <button type="button" data-ins="
+
+---
+
+">${icon('divider')} Divider</button>
             <button type="button" data-sigmenu aria-haspopup="menu">${icon('pencil')} Signature</button></div>`}
           <textarea name="body" rows="18" ${locked ? 'disabled' : ''}>${esc(b.body)}</textarea>
-          <span class="hint">Write like a note to one person. Type <b>{{</b> for fill-in fields like their first name. An unsubscribe link is added for you.</span></div>
+          <span class="hint">Write like a note to one person. Type <b>{{</b> for fill-in fields like their first name. Use <b>**bold**</b> for emphasis. An unsubscribe link is added for you.</span></div>
       </form>
       <aside class="cmp-preview">
         <div class="seg cmp-device"><button type="button" class="on" data-dev="desktop">Desktop</button><button type="button" data-dev="phone">Phone</button></div>
@@ -144,10 +156,9 @@ async function viewCompose(bid) {
     const v = { first_name: sample.first_name, last_name: sample.last_name, email: sample.email, business: acct.name, name: [sample.first_name, sample.last_name].filter(Boolean).join(' ') };
     return k in v ? v[k] || fb || ({ first_name: 'there', name: 'there' }[k] || '') : m;
   });
-  const bodyHtml = (t) => esc(merge(t)).split(/\n{2,}/).filter((x) => x.trim()).map((para) => `<p>${para.replace(/\n/g, '<br>')
-    .replace(/https?:\/\/[^\s<]+[^\s<.,;:!?)\]'"]/g, (u) => `<a href="${u}" target="_blank" rel="noopener">${u}</a>`)}</p>`).join('')
+  const bodyHtml = (t) => emailBodyHtml(merge(t), { color: acct.brand_color || undefined }).replace(/<a href=/g, '<a target="_blank" rel="noopener" href=')
     // {{signature}} lines show the real signature, as readers will see it.
-    .replace(/<p>\{\{\s*signature(?::([\w-]+))?\s*\}\}<\/p>/g, (m, id) => signatureHtml(pickSignature(sigs, id)) || '<p class="muted small">[No signature saved yet: Signature → New signature]</p>');
+    .replace(/<p[^>]*>\{\{\s*signature(?::([\w-]+))?\s*\}\}<\/p>/g, (m, id) => signatureHtml(pickSignature(sigs, id)) || '<p class="muted small">[No signature saved yet: Signature → New signature]</p>');
   const sender = acct.from_name || acct.name;
   let dirty = false;
   const render = () => {
@@ -246,9 +257,23 @@ async function viewCompose(bid) {
   });
   bindFieldInserts(form);
   $('[data-link]').onclick = async () => {
-    const v = await modal('Add a link', `<label class="f">Words before the link <span class="hint">optional</span><input name="label" placeholder="e.g. Read the full guide"></label>
+    const v = await modal('Add a link', `<label class="f">Linked words <span class="hint">optional</span><input name="label" placeholder="e.g. Read the full guide"></label>
       <label class="f">Web address<input name="url" type="url" required placeholder="https://"></label>`, { submit: 'Add link' });
-    if (v?.url) insert(`${v.label ? `${v.label}: ` : ''}${v.url}`);
+    if (v?.url) insert(v.label ? `[${v.label.replace(/[[\]]/g, '')}](${v.url})` : v.url);
+  };
+  $('[data-btn]').onclick = async () => {
+    const v = await modal('Add a button', `<label class="f">Button words<input name="label" required maxlength="40" placeholder="e.g. Book your spot"></label>
+      <label class="f">Web address<input name="url" type="url" required placeholder="https://"></label>`, { submit: 'Add button' });
+    if (v?.url) insert(`\n\n[${v.label.replace(/[[\]]/g, '')}](${v.url})\n\n`);
+  };
+  $('[data-img]').onchange = async (e) => {
+    try {
+      toast('Uploading picture…');
+      const url = await uploadImage(e.target.files[0]);
+      const alt = (await modal('Describe the picture', '<label class="f">What it shows <span class="hint">read aloud to people who can’t see it</span><input name="alt" maxlength="120" placeholder="e.g. A red 1950s typewriter"></label>', { submit: 'Add picture' }))?.alt ?? '';
+      insert(`\n\n![${alt.replace(/[[\]]/g, '')}](${url})\n\n`);
+    } catch (err) { toast(err.message, true); }
+    e.target.value = '';
   };
 
   let savedId = isNew ? null : Number(bid);

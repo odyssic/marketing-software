@@ -1331,3 +1331,6 @@ html:not(.returning) #app > .boot { display: none; }
 .cost-note { font-size: .85rem; color: #4a585b; margin: 12px 0 0; }
 .cost-fine { font-size: .75rem; color: var(--muted); max-width: 760px; margin: 18px auto 0; }
 @media (max-width: 860px) { .cost-grid { grid-template-columns: 1fr; } }
+
+.cmp-tools .tool-file { display: inline-flex; gap: 4px; align-items: center; cursor: pointer; }
+.cmp-tools .tool-file input { display: none; }
