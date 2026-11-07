@@ -41,6 +41,7 @@ const { registerTexting } = require('./texting');
 const { registerTasks } = require('./tasks');
 const { registerMembers } = require('./members');
 const { registerMetrics } = require('./metrics');
+const { registerBlog } = require('./blog');
 
 const slugify = (s) => String(s || '').toLowerCase().normalize('NFKD').replace(/[^\w\s-]/g, '')
   .trim().replace(/[\s_]+/g, '-').replace(/-+/g, '-').slice(0, 60) || 'page';
@@ -105,6 +106,7 @@ function createApp({ dbPath } = {}) {
         pages.push({ loc: `${base}${prefix}${s.id === f.entry_step_id ? '' : `/${s.slug}`}` || `${base}/`, title: st.seoTitle || s.name, about: st.seoSummary || st.seoDescription || '', updated: s.updated_at });
       }
     }
+    pages.push(...await blog.sitePages(acct.id, base)); // published blog posts
     if (path === '/sitemap.xml') {
       const x = (v) => String(v).replace(/[<>&'"]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;' }[c]));
       return res.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${pages.map((p) => `  <url><loc>${x(p.loc || `${base}/`)}</loc>${p.updated ? `<lastmod>${new Date(p.updated).toISOString().slice(0, 10)}</lastmod>` : ''}</url>`).join('\n')}\n</urlset>\n`);
@@ -122,6 +124,12 @@ function createApp({ dbPath } = {}) {
     if (!acct) return nothing();
     req.publicHost = host;
     if (['/sitemap.xml', '/robots.txt', '/llms.txt'].includes(path)) return siteFiles(acct, host, path, res);
+    // "/blog" and "/blog/<post>" are the business's blog, once it has published a post.
+    if (/^\/blog(\/|$)/.test(path) && await blog.hasPosts(acct.id)) {
+      req.url = `/blog/${acct.id}${path.slice(5)}${req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : ''}`;
+      req.blogOnDomain = true;
+      return next();
+    }
     // "/" and "/<page>" are the home website; "/<name>/..." is any other live site or funnel.
     const segs = path.split('/').filter(Boolean);
     const home = acct.home_funnel_id && await db.get("SELECT slug FROM funnels WHERE id = ? AND status = 'live'", acct.home_funnel_id);
@@ -1457,6 +1465,7 @@ function createApp({ dbPath } = {}) {
   const invoices = registerInvoices(app, api, { getDb: () => db, HttpError, id, upsertContact, messaging, publicBase, stripe, orderToken: (...a) => orderToken(...a),
     ownerViewing: (req, x) => ownerViewing(req, x) });
   // Booking calendar routes (registered before the API's not-found handler and the public page route).
+  const blog = registerBlog(app, api, { getDb: () => db, HttpError, id, publicBase });
   const bookings = registerBookings(app, api, { getDb: () => db, HttpError, id, upsertContact, logEvent, messaging, mailer, publicBase,
     ownerViewing: (...a) => ownerViewing(...a), findPublicStep: (...a) => findPublicStep(...a), attachSource: (...a) => attachSource(...a) });
   api.use((req, res) => res.status(404).json({ error: 'Not found' }));

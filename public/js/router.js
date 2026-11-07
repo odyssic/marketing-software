@@ -19,6 +19,7 @@ async function route() {
     if (section === 'inbox') return viewInbox(id);
     if (section === 'flows' && id === 'followup') return viewFollowupFlow(path.split('/')[2]);
     if (section === 'flows') return viewFlows();
+    if (section === 'blog') return id ? viewBlogPost(id) : viewBlog();
     // Older addresses still work: lists open the matching Flows tab.
     if (section === 'pages' && !id) { location.replace('#/flows'); return; }
     if (section === 'workflows' && !id) { location.replace('#/flows?show=followups'); return; }
