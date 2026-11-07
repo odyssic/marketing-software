@@ -1378,3 +1378,49 @@ html:not(.returning) #app > .boot { display: none; }
 .file-name:hover, .file-name:focus { border-color: var(--line); background: #fff; }
 .file-dl { display: grid; text-align: right; }
 .file-dl b { font-size: 1.2rem; font-variant-numeric: tabular-nums; }
+
+/* Business report: a document to read, print or save as PDF */
+.rp-tools { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; max-width: 960px; margin: 0 auto 14px; }
+.rp-tools .range-row { margin: 0; }
+.rp-tools .range-row a { text-decoration: none; color: var(--text); padding: 7px 12px; }
+.rp-tools .range-row a.on { background: var(--brand); color: #fff; }
+.rp-acts { margin-left: auto; display: flex; gap: 8px; }
+.rp-doc { max-width: 960px; margin: 0 auto; background: #fff; border: 1px solid var(--line); border-radius: 18px; padding: 40px 44px; box-shadow: 0 10px 40px rgba(20, 40, 43, .06); }
+.rp-head { display: flex; justify-content: space-between; gap: 20px; align-items: flex-start; border-bottom: 2px solid var(--brand); padding-bottom: 20px; margin-bottom: 24px; flex-direction: row-reverse; }
+.rp-logo { max-height: 36px; max-width: 180px; }
+.rp-brand { font-size: 1.1rem; }
+.rp-kicker { text-transform: uppercase; letter-spacing: .14em; font-size: .72rem; font-weight: 700; color: var(--brand); }
+.rp-title h1 { font-size: 2rem; margin: 4px 0 4px; letter-spacing: -.02em; }
+.rp-title p { margin: 0; color: var(--muted); }
+.rp-kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; margin-bottom: 24px; }
+.rp-kpi { background: #fff; padding: 16px 18px; display: grid; gap: 2px; }
+.rp-kpi > span { color: var(--muted); font-size: .82rem; }
+.rp-kpi b { font-size: 1.7rem; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+.rp-kpi > div { display: flex; gap: 8px; align-items: baseline; font-size: .8rem; }
+.rp-ch { font-weight: 700; color: var(--muted); }
+.rp-ch.up { color: #15803d; } .rp-ch.down { color: #b91c1c; }
+.rp-was { color: var(--muted); }
+.rp-notes { background: var(--brand-soft); border-radius: 14px; padding: 16px 20px; margin-bottom: 24px; }
+.rp-notes h2, .rp-sec h2 { font-size: .8rem; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); margin: 0 0 10px; }
+.rp-notes ul { margin: 0; padding-left: 20px; display: grid; gap: 4px; }
+.rp-sec { margin-bottom: 26px; break-inside: avoid; }
+.rp-two { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
+.rp-legend { font-size: .78rem; color: var(--muted); display: flex; gap: 6px; align-items: center; margin: 6px 0 0; }
+.rp-legend .sw { display: inline-block; width: 12px; height: 4px; border-radius: 2px; margin-left: 8px; }
+.sw.rev { background: var(--brand); } .sw.prev { background: #8a9296; } .sw.leads { background: #2a78d6; } .sw.cust { background: #eb6834; }
+.rp-table { width: 100%; border-collapse: collapse; font-size: .86rem; }
+.rp-table th { text-align: left; font-weight: 600; color: var(--muted); border-bottom: 1px solid var(--line); padding: 6px 4px; }
+.rp-table td { border-bottom: 1px solid var(--line); padding: 7px 4px; }
+.rp-table th:not(:first-child), .rp-table td:not(:first-child) { text-align: right; font-variant-numeric: tabular-nums; }
+.rp-mini { display: flex; gap: 18px; margin-bottom: 8px; font-size: .9rem; }
+.rp-foot { border-top: 1px solid var(--line); padding-top: 14px; color: var(--muted); font-size: .78rem; }
+@media (max-width: 760px) { .rp-doc { padding: 22px 18px; } .rp-kpis { grid-template-columns: 1fr 1fr; } .rp-two { grid-template-columns: 1fr; } .rp-head { flex-direction: column; } }
+@media print {
+  @page { size: A4; margin: 14mm; }
+  body { background: #fff !important; }
+  .sidebar, .no-print, #toast, .plan-banner { display: none !important; }
+  .shell { display: block !important; }
+  .main { padding: 0 !important; max-width: none !important; }
+  .rp-doc { border: 0; box-shadow: none; padding: 0; max-width: none; }
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}

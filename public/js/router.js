@@ -15,6 +15,7 @@ async function route() {
   if (state.me.billing?.locked && section !== 'settings') return viewPlanLocked();
   try {
     if (section === 'setup') return viewSetup();
+    if (section === 'report') return viewBizReport();
     if (section === 'inbox') return viewInbox(id);
     if (section === 'flows' && id === 'followup') return viewFollowupFlow(path.split('/')[2]);
     if (section === 'flows') return viewFlows();

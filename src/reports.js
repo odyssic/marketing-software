@@ -103,7 +103,50 @@ function createReports({ getDb, HttpError, publicBase }) {
     return { reports: sent };
   }
 
+  // The detail behind the printable business report: pages, emails, bookings for a period.
+  const RANGE_DAYS = { '7d': 7, '30d': 30, '90d': 90, '12m': 365, all: 3650 };
+  async function detail(accountId, range) {
+    const days = RANGE_DAYS[range] || 30, now = new Date(), start = new Date(now - days * 864e5), A = start.toISOString(), B = now.toISOString();
+    const pages = await db().all(`SELECT f.id, f.name, f.kind,
+        COUNT(*) FILTER (WHERE e.type = 'view' AND e.step_id = f.entry_step_id)::int AS visitors,
+        COUNT(*) FILTER (WHERE e.type = 'optin')::int AS signups, COUNT(*) FILTER (WHERE e.type = 'sale')::int AS sales
+      FROM funnels f JOIN page_events e ON e.funnel_id = f.id AND e.created_at >= ? AND e.created_at < ?
+      WHERE f.account_id = ? GROUP BY f.id, f.name, f.kind ORDER BY COUNT(*) FILTER (WHERE e.type = 'view') DESC LIMIT 8`, A, B, accountId);
+    const emails = await db().all(`SELECT b.id, b.subject, b.sent_at, COUNT(e.id)::int AS sent, COUNT(e.opened_at)::int AS opened, COUNT(e.clicked_at)::int AS clicked
+      FROM broadcasts b JOIN email_log e ON e.broadcast_id = b.id WHERE b.account_id = ? AND b.sent_at >= ? AND b.sent_at < ?
+      GROUP BY b.id, b.subject, b.sent_at ORDER BY b.sent_at DESC LIMIT 8`, accountId, A, B);
+    const all = await db().get(`SELECT COUNT(*)::int AS sent, COUNT(opened_at)::int AS opened, COUNT(clicked_at)::int AS clicked FROM email_log
+      WHERE account_id = ? AND contact_id IS NOT NULL AND status <> 'failed' AND created_at >= ? AND created_at < ?`, accountId, A, B);
+    const bookings = (await db().get("SELECT COUNT(*)::int AS n FROM bookings WHERE account_id = ? AND created_at >= ? AND created_at < ? AND status <> 'cancelled'", accountId, A, B)).n;
+    return { range, from: A, to: B, pages, emails, emailTotals: all, bookings };
+  }
+  const csvCell = (v) => { const s = String(v ?? ''); return /[",\n]/.test(s) || /^[=+\-@]/.test(s) ? `"${(/^[=+\-@]/.test(s) ? `'${s}` : s).replace(/"/g, '""')}"` : s; };
+
   function register(api) {
+    api.get('/reports/detail', async (req, res) => {
+      res.json(await detail(req.accountId, RANGE_DAYS[req.query.range] ? String(req.query.range) : '30d'));
+    });
+    // Everything on the report as a spreadsheet: sections one after another.
+    api.post('/reports/export.csv', async (req, res) => {
+      const range = RANGE_DAYS[req.body?.range] ? String(req.body.range) : '30d';
+      const d = await detail(req.accountId, range);
+      const m = req.body?.metrics || {};
+      const a = await db().get('SELECT name FROM accounts WHERE id = ?', req.accountId);
+      const cents = (v) => (Number(v || 0) / 100).toFixed(2);
+      const rows = [[`${a.name} report`, `${d.from.slice(0, 10)} to ${d.to.slice(0, 10)}`], [],
+        ['Headline numbers', 'This period', 'Previous period'],
+        ['Revenue', cents(m.current?.revenue), cents(m.previous?.revenue)], ['New customers', m.current?.newCustomers, m.previous?.newCustomers],
+        ['New leads', m.current?.leads, m.previous?.leads], ['Orders', m.current?.orders, m.previous?.orders],
+        ['Recurring per month', cents(m.mrr), ''], ['Bookings', d.bookings, ''],
+        ['Emails sent', d.emailTotals.sent, ''], ['Emails opened', d.emailTotals.opened, ''], ['Emails clicked', d.emailTotals.clicked, ''], [],
+        ['Over time', 'Revenue', 'New leads', 'New customers'], ...(m.series || []).map((s) => [s.label, cents(s.revenue), s.leads, s.customers]), [],
+        ['Where revenue came from', 'Revenue'], ...(m.sources || []).map((s) => [s.name, cents(s.cents)]), [],
+        ['Pages', 'Visitors', 'Sign-ups', 'Sales'], ...d.pages.map((p) => [p.name, p.visitors, p.signups, p.sales]), [],
+        ['Emails', 'Sent', 'Opened', 'Clicked', 'Date'], ...d.emails.map((e) => [e.subject, e.sent, e.opened, e.clicked, String(e.sent_at).slice(0, 10)])];
+      res.set({ 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': `attachment; filename="report-${range}.csv"` });
+      res.send(`\ufeff${rows.map((r) => r.map(csvCell).join(',')).join('\r\n')}`);
+    });
+
     api.get('/report', async (req, res) => {
       const a = await db().get('SELECT report_to, report_monthly FROM accounts WHERE id = ?', req.accountId);
       const r = await build(req.accountId);

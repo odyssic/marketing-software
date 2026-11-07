@@ -35,7 +35,7 @@ function renderDashboard() {
   shell('', `
     <div class="head"><div><h1>Hi ${esc(state.me.user.name.split(' ')[0])}</h1>
       <div class="muted">${esc(state.me.account.name)} · focus this week: <b style="color:${LEVER_UI[focus].color}">${esc(LEVER_UI[focus].label)}</b>${dash.levers.pinned ? ' (pinned)' : ''}</div></div>
-      ${createMenu()}</div>
+      <span class="row" style="gap:8px"><a class="btn" href="#/report">${icon('trend')} Report</a>${createMenu()}</span></div>
     ${dash.noPages && !dash.customize ? `<div class="card setup-nudge"><div><b>Get your first page live in about two minutes</b>
       <div class="muted small">Tell us what kind of business this is. We’ll build the page, booking hours and follow-ups.</div></div>
       <a class="btn primary" href="#/setup">Set it up</a></div>` : ''}
