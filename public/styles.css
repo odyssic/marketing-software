@@ -1363,3 +1363,6 @@ html:not(.returning) #app > .boot { display: none; }
 .cmp-mail img { max-width: 100%; }
 .cmp-tools .tool-file { border: 1px solid var(--line); background: #fff; border-radius: 99px; padding: 4px 11px; font-size: .8rem; }
 .cmp-tools .tool-file:hover { border-color: var(--brand); color: var(--brand); }
+
+.embed-code { display: flex; gap: 8px; align-items: flex-start; margin-bottom: 8px; }
+.embed-code textarea { flex: 1; margin: 0; font: .78rem/1.45 ui-monospace, Menlo, monospace; resize: vertical; }

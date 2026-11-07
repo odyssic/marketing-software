@@ -256,9 +256,12 @@ const TYPE_CSS = {
 };
 // Custom CSS can't close its <style> tag or pull in other files.
 const cleanCss = (css) => String(css || '').slice(0, 40000).replace(/<\/?\s*style/gi, '').replace(/@import[^;]*;?/gi, '');
+// Inside another website: tell the host page how tall we are, and open links in the top window.
+const EMBED_STYLE = 'main{padding:28px 20px}.hero.first,.hero-min.first,.hero-split.first{margin-top:-28px}body{background:transparent}';
+const EMBED_SCRIPT = `<script>(function(){var s=function(){parent.postMessage({rillyEmbed:Math.ceil(document.body.getBoundingClientRect().height)},'*')};addEventListener('load',s);new ResizeObserver(s).observe(document.body);document.querySelectorAll('a[href^="http"]').forEach(function(a){if(a.host!==location.host)a.target='_top'})})()</script>`;
 const HTML_RESIZE = `<script>addEventListener('message',function(e){var d=e.data;if(!d||d.rillyHtml===undefined)return;var f=document.querySelector('iframe[data-html="'+d.rillyHtml+'"]');if(f&&e.source===f.contentWindow)f.style.height=Math.min(Math.max(20,d.h),20000)+'px'})</script>`;
 
-function renderPage({ title, blocks, settings = {}, nextUrl = '#', noUrl = '#', formAction = '#', buyAction = '#', products = {}, preview = false, oneClick = null, site = null, pageHref = (slug) => `#${slug}`, testimonials = {}, business = '', code = {}, ownDomain = false }) {
+function renderPage({ title, blocks, settings = {}, nextUrl = '#', noUrl = '#', formAction = '#', buyAction = '#', products = {}, preview = false, oneClick = null, site = null, pageHref = (slug) => `#${slug}`, testimonials = {}, business = '', code = {}, ownDomain = false, embed = false }) {
   const bg = color(settings.background, '#ffffff');
   const fg = color(settings.textColor, '#1f2937');
   const accent = color(settings.accent, '#4f46e5');
@@ -338,7 +341,7 @@ footer.site{border-top:1px solid color-mix(in srgb,${fg} 10%,transparent);margin
 .info{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin:24px 0;padding:18px;border-radius:12px;background:color-mix(in srgb,${accent} 6%,${bg})}
 .info>div{display:grid;grid-template-columns:auto 1fr;gap:2px 8px;align-items:start}.info>div>div{grid-column:2}.info a{color:${accent}}
 @media(max-width:640px){.burger{display:block}header.site nav{display:none;width:100%;flex-direction:column;gap:10px;padding-top:6px}#mnu:checked~nav{display:flex}}
-${TYPE_CSS[settings.font] || ''}
+${TYPE_CSS[settings.font] || ''}${embed ? EMBED_STYLE : ''}
 .hero-cta{margin-top:26px}.hero .btn.hero-btn{background:var(--hero-fg);color:var(--hero-bg)}
 .hero.flat{padding:88px 24px 92px}
 .hero-min{text-align:center;padding:40px 0 8px;max-width:820px;margin:0 auto}.hero-min h1{font-size:clamp(2.2rem,5.6vw,3.8rem);line-height:1.06;letter-spacing:-.02em;margin:.15em 0}
@@ -350,7 +353,7 @@ ${TYPE_CSS[settings.font] || ''}
 </style>${code.css ? `<style data-site-css>${cleanCss(code.css)}</style>` : ''}${settings.customCss ? `<style data-page-css>${cleanCss(settings.customCss)}</style>` : ''}
 ${preview ? '' : trackingTags(code, ownDomain)}</head><body>${nav}<main>
 ${body || '<p style="text-align:center;opacity:.5">This page is empty. Add blocks in the editor.</p>'}
-</main>${foot}${(blocks || []).some((b) => b.type === 'booking') ? BOOKING_SCRIPT : ''}${(blocks || []).some((b) => b.type === 'video' && !b.controls && youtubeId(b.url)) ? VIDEO_SCRIPT : ''}${(blocks || []).some((b) => b.type === 'html') ? HTML_RESIZE : ''}${preview ? PREVIEW_EDIT_SCRIPT + PREVIEW_DROP_SCRIPT + PREVIEW_TOOLS_SCRIPT : ''}</body></html>`;
+</main>${foot}${(blocks || []).some((b) => b.type === 'booking') ? BOOKING_SCRIPT : ''}${(blocks || []).some((b) => b.type === 'video' && !b.controls && youtubeId(b.url)) ? VIDEO_SCRIPT : ''}${(blocks || []).some((b) => b.type === 'html') ? HTML_RESIZE : ''}${embed ? EMBED_SCRIPT : ''}${preview ? PREVIEW_EDIT_SCRIPT + PREVIEW_DROP_SCRIPT + PREVIEW_TOOLS_SCRIPT : ''}</body></html>`;
 }
 
 // Click-to-edit in the editor preview: click any text to type over it; the

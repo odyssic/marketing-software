@@ -1496,10 +1496,12 @@ function createApp({ dbPath } = {}) {
     ]);
     if (!draft) await funnelKit.decideWinner(step.id);
     if (draft) res.set('X-Robots-Tag', 'noindex');
-    res.type('html').send((draft ? '<div style="position:sticky;top:0;z-index:9;background:#fef3c7;color:#92400e;font:600 14px system-ui;text-align:center;padding:8px">Draft preview: only you can see this page until the funnel is published.</div>' : '') + renderPage({
-      title: step.name, blocks: page.blocks, settings: page.settings,
-      ...(await siteChrome(req, funnel, step)),
-      nextUrl, noUrl, formAction: `/f/${funnel.slug}/${step.slug}/optin`, buyAction: `/f/${funnel.slug}/${step.slug}/buy`,
+    const embed = req.query.embed === '1';
+    const withEmbed = (u) => (embed && u && u !== '#' && u.startsWith('/') ? `${u}${u.includes('?') ? '&' : '?'}embed=1` : u);
+    res.type('html').send((draft && !embed ? '<div style="position:sticky;top:0;z-index:9;background:#fef3c7;color:#92400e;font:600 14px system-ui;text-align:center;padding:8px">Draft preview: only you can see this page until the funnel is published.</div>' : '') + renderPage({
+      title: step.name, blocks: page.blocks, settings: page.settings, embed,
+      ...(embed ? {} : await siteChrome(req, funnel, step)),
+      nextUrl: withEmbed(nextUrl), noUrl: withEmbed(noUrl), formAction: withEmbed(`/f/${funnel.slug}/${step.slug}/optin`), buyAction: `/f/${funnel.slug}/${step.slug}/buy`,
       products, oneClick: buyer ? `/f/${funnel.slug}/${step.slug}/oneclick` : null,
       testimonials: await approvedTestimonials(db, funnel.account_id), ...(await (async () => {
         const acct = await getAccount(funnel.account_id);
@@ -1569,8 +1571,9 @@ function createApp({ dbPath } = {}) {
     await db.run("INSERT INTO page_events (account_id, funnel_id, step_id, type, contact_id, variant, source) VALUES (?, ?, ?, 'optin', ?, ?, ?)",
       funnel.account_id, funnel.id, step.id, contact.id, variantFor(req, null, step), optSrc?.source || '');
     await funnelKit.decideWinner(step.id);
-    if (nextUrl !== '#') return res.redirect(303, nextUrl);
-    res.type('html').send('<!doctype html><meta name="viewport" content="width=device-width"><p style="font:20px system-ui;text-align:center;margin-top:20vh">Thanks! You are subscribed.</p>');
+    const emb = req.query.embed === '1';
+    if (nextUrl !== '#') return res.redirect(303, emb && nextUrl.startsWith('/') ? `${nextUrl}${nextUrl.includes('?') ? '&' : '?'}embed=1` : nextUrl);
+    res.type('html').send(`<!doctype html><meta name="viewport" content="width=device-width"><p style="font:20px system-ui;text-align:center;margin-top:${emb ? '40px' : '20vh'}">Thanks! You are subscribed.</p>${emb ? '<script>parent.postMessage({rillyEmbed:document.documentElement.scrollHeight},"*")</script>' : ''}`);
   });
 
   // ---------- Checkout ----------

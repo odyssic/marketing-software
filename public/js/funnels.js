@@ -136,6 +136,7 @@ async function viewFunnel(id) {
         <button class="btn" data-copy="${esc(link)}" title="${esc(link)}">${icon('copy')} Copy link</button>
         ${moreMenu(`<button role="menuitem" data-rename>${icon('gear')} Settings and address</button>
           <button role="menuitem" data-dup>${icon('copy')} Duplicate</button>
+          <button role="menuitem" data-embed>${icon('globe')} Put on another website</button>
           ${f.status === 'live' ? `<button role="menuitem" data-unpublish>${icon('pause')} Unpublish</button>` : ''}
           <button role="menuitem" class="danger" data-del>${icon('trash')} Delete</button>`)}
         ${f.status === 'live' ? '' : '<button class="btn primary" data-publish>Publish</button>'}</div></div>
@@ -163,6 +164,7 @@ async function viewFunnel(id) {
   bindPurposeTags([f], () => viewFunnel(id));
   bindMoreMenus();
   $('[data-dup]').onclick = () => duplicateFunnel(f);
+  $('[data-embed]').onclick = () => embedCode(f);
 
   const m = { steps: f.steps, entry: f.entry_step_id, zoom: 1, panX: 40, panY: 40 };
   const mapEl = $('.map'), world = $('.world'), svg = $('.edges'), nodesEl = $('.nodes');
@@ -863,4 +865,27 @@ function bindCopy() {
   $$('[data-copy]').forEach((b) => { b.onclick = async () => {
     try { await navigator.clipboard.writeText(b.dataset.copy); toast('Link copied'); } catch { toast('Copy failed: select the link and copy it manually', true); }
   }; });
+}
+
+// Copy-and-paste code to show this flow's first page on any other website.
+function embedCode(f) {
+  const start = f.steps.find((s) => s.id === f.entry_step_id) || f.steps[0];
+  if (!start) { toast('Add a page first', true); return; }
+  const origin = location.origin;
+  const page = `${origin}/f/${f.slug}${start.id === f.entry_step_id ? '' : `/${start.slug}`}`;
+  const inline = `<iframe data-rilly src="${page}?embed=1" style="width:100%;border:0;min-height:420px" title="${f.name.replace(/"/g, '')}"></iframe>\n<script src="${origin}/embed.js" async></script>`;
+  const pop = (d) => `<script src="${origin}/embed.js" data-popup="${page}" ${d === 'exit' ? 'data-trigger="exit"' : `data-delay="${d}"`} async></script>`;
+  const box = (id, code) => `<div class="embed-code"><textarea readonly rows="${code.split('\n').length + 1}" data-code="${id}">${esc(code)}</textarea><button type="button" class="btn sm" data-copy="${esc(code)}">Copy</button></div>`;
+  modal('Put it on another website', `<p class="muted small">Paste the code into your other site (WordPress, Squarespace, Wix, Shopify, Webflow…) where you want it. Sign-ups land in Rilly with their follow-ups, just like on your Rilly page.</p>
+    ${f.status === 'live' ? '' : `<p class="banner">${icon('alert')} Publish this flow first, or visitors will see “not published”.</p>`}
+    <h3>In the page</h3>${box('inline', inline)}
+    <h3>As a popup</h3>
+    <label class="f">Show it<select data-popwhen><option value="8">8 seconds after they arrive</option><option value="20">20 seconds after they arrive</option><option value="exit">When they go to leave</option></select></label>
+    ${box('popup', pop('8'))}
+    <p class="hint">Someone who closes the popup won’t see it again for a week. Put the popup code just before &lt;/body&gt;, or in your site’s “custom code” setting.</p>`, { submit: 'Done' });
+  setTimeout(() => {
+    bindCopy();
+    const sel = $('[data-popwhen]');
+    if (sel) sel.onchange = () => { const code = pop(sel.value); const ta = $('[data-code="popup"]'); ta.value = code; ta.nextElementSibling.dataset.copy = code; };
+  });
 }
