@@ -40,6 +40,7 @@ const { registerEmailPlus, splitForTest, pickWinner } = require('./emailplus');
 const { registerTexting } = require('./texting');
 const { registerMembers } = require('./members');
 const { registerMetrics } = require('./metrics');
+const { createIntegrations } = require('./integrations');
 
 const slugify = (s) => String(s || '').toLowerCase().normalize('NFKD').replace(/[^\w\s-]/g, '')
   .trim().replace(/[\s_]+/g, '-').replace(/-+/g, '-').slice(0, 60) || 'page';
@@ -189,8 +190,11 @@ function createApp({ dbPath } = {}) {
   const publicBase = () => process.env.PUBLIC_URL || lastBase || `http://localhost:${process.env.PORT || 3000}`;
   const messaging = createMessaging({ getDb: () => db, getSecret: () => secret, publicBase, logEvent });
   const workflows = createWorkflows({ getDb: () => db, HttpError, id, people, messaging, getAccount: (a) => getAccount(a) });
-  people.hooks.onEvent = workflows.onEvent;
-  people.hooks.onTagsAdded = workflows.onTagsAdded;
+  // Integrations (webhooks) only queue work here; it's sent by app.runJobs.
+  const integrations = createIntegrations({ getDb: () => db, HttpError, id, people, workflows, parseTags, roleIn: (...a) => team.roleIn(...a), publicBase });
+  people.hooks.onEvent = async (a, e) => { await integrations.onEvent(a, e); await workflows.onEvent(a, e); };
+  people.hooks.onTagsAdded = async (a, p, t) => { await integrations.onTagsAdded(a, p, t); await workflows.onTagsAdded(a, p, t); };
+  people.hooks.onCreated = integrations.onPersonCreated;
   let digest, funnelKit;
   moves = createMoves({ getDb: () => db, HttpError, id, leversFor: (a) => leversFor(a), getAccount: (a) => getAccount(a), messaging, formatMoney });
   const getAccount = (accountId) => db.get('SELECT * FROM accounts WHERE id = ?', accountId);
@@ -1447,6 +1451,7 @@ function createApp({ dbPath } = {}) {
   // Booking calendar routes (registered before the API's not-found handler and the public page route).
   const bookings = registerBookings(app, api, { getDb: () => db, HttpError, id, upsertContact, logEvent, messaging, mailer, publicBase,
     ownerViewing: (...a) => ownerViewing(...a), findPublicStep: (...a) => findPublicStep(...a), attachSource: (...a) => attachSource(...a) });
+  integrations.register(app, api); // also mounts the public API at /api/v1 (before /api below)
   api.use((req, res) => res.status(404).json({ error: 'Not found' }));
   app.use('/api', api);
 
@@ -1921,7 +1926,7 @@ ${order.status === 'paid' ? '<p>This order is already paid.</p>' : `<label>Name<
   // the scheduled Netlify function.
   app.runJobs = async (now = new Date()) => {
     await init();
-    return { ...(await workflows.processDue({ now })), ...(await digest.sendDue(now)), ...(await bookings.sendReminders(now)), ...(await recoverCheckouts(now)), ...(await askForReviews(now)), ...(await sendScheduled(now)), ...(await invoices.remindOverdue(now)), ...(await onboarding.sendDue(now)), ...(await reports.sendDue(now)) };
+    return { ...(await workflows.processDue({ now })), ...(await digest.sendDue(now)), ...(await bookings.sendReminders(now)), ...(await recoverCheckouts(now)), ...(await askForReviews(now)), ...(await sendScheduled(now)), ...(await invoices.remindOverdue(now)), ...(await onboarding.sendDue(now)), ...(await reports.sendDue(now)), ...(await integrations.processDue(now)) };
   };
   app.getDb = () => db; // for tests (seeding history)
   app.messaging = messaging; // for tests (signing tracking links)
