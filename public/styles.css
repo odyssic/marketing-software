@@ -1432,3 +1432,31 @@ html:not(.returning) #app > .boot { display: none; }
 .serp-title { font-size: 1.05rem; color: #1a0dab; line-height: 1.3; }
 .serp-desc { font-size: .82rem; color: #4d5156; line-height: 1.45; }
 .seo-fold summary .muted { margin-left: 6px; font-weight: 400; }
+
+/* Blog (see blog.js) */
+.blog-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.blog-list { padding: 4px 0; }
+.blog-row { display: grid; grid-template-columns: 72px minmax(0, 1fr) auto auto auto; gap: 16px; align-items: center; padding: 12px 18px; border-top: 1px solid var(--line); }
+.blog-row:first-child { border-top: 0; }
+.blog-thumb { width: 72px; height: 48px; border-radius: 8px; overflow: hidden; background: var(--brand-soft); color: var(--brand); display: grid; place-items: center; }
+.blog-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.blog-main { display: flex; flex-direction: column; min-width: 0; }
+.blog-main .small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.blog-name { font-weight: 600; color: var(--text); text-decoration: none; }
+.blog-name:hover { color: var(--brand); }
+.blog-views { text-align: right; min-width: 64px; }
+@media (max-width: 700px) { .blog-row { grid-template-columns: 56px minmax(0, 1fr) auto; } .blog-row .pill, .blog-views { display: none; } .blog-thumb { width: 56px; height: 40px; } }
+.blog-ed .blog-title-in { font-size: 1.15rem; font-weight: 600; }
+.blog-cover { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 6px; }
+.blog-cover img { width: 120px; height: 68px; object-fit: cover; border-radius: 8px; border: 1px solid var(--line); }
+.blog-cover label.btn { cursor: pointer; }
+.blog-prev { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 28px 30px; max-height: 80vh; overflow-y: auto; font: 17px/1.75 Charter, "Iowan Old Style", Georgia, serif; color: #1f2328; overflow-wrap: anywhere; }
+.blog-prev h1 { font: 700 1.8rem/1.2 system-ui, -apple-system, sans-serif; letter-spacing: -.02em; margin: 0 0 10px; }
+.blog-prev .bp-dek { font-size: 1.08rem; color: #57606a; margin: 0 0 10px; line-height: 1.5; }
+.blog-prev .bp-meta { font: 13px system-ui, sans-serif; color: #6e7781; margin-bottom: 18px; }
+.blog-prev .bp-cover { width: 100%; border-radius: 10px; margin-bottom: 18px; display: block; }
+.blog-prev .bp-body h2 { font-family: system-ui, -apple-system, sans-serif; font-size: 1.3rem !important; letter-spacing: -.01em; }
+.blog-prev .bp-body p { margin: 0 0 1.1em !important; }
+.blog-prev .bp-body a { color: inherit; }
+.blog-ed .cmp-form textarea[name=excerpt], .blog-ed .cmp-form textarea[name=seo_description] { min-height: 0; }
+.blog-ed .cmp-form div.f { margin-bottom: 14px; }
