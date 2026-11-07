@@ -1,0 +1,5 @@
+# Rilly
+
+> Rilly is all-in-one marketing software for small businesses and the agencies that serve them: website and sign-up pages, email and texts, automatic follow-ups, bookings, products and payments, and a plain-words dashboard, in one place.
+
+- [Rilly home](https://getrilly.com/): what it does, pricing ($29/month for one business, $19/month for each extra business, 14-day free trial) and FAQ.

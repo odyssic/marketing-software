@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /dl/
+Disallow: /t/
+
+Sitemap: https://getrilly.com/sitemap.xml

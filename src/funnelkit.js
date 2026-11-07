@@ -68,7 +68,7 @@ function suggestion(step) {
   }[lever];
 }
 
-function registerFunnelKit(api, { getDb, HttpError, id, getFunnel, getStep }) {
+function registerFunnelKit(api, { getDb, HttpError, id, getFunnel, getStep, beforePublish = async () => {} }) {
   const db = () => getDb();
   const loadAll = async (accountId, funnelId) => {
     const funnel = await getFunnel(accountId, funnelId);
@@ -90,6 +90,8 @@ function registerFunnelKit(api, { getDb, HttpError, id, getFunnel, getStep }) {
 
   // Publishing is blocked while any "block" problem remains.
   api.post('/funnels/:id/publish', async (req, res) => {
+    // Pages missing a search title or description get one as they go live.
+    await beforePublish(req.accountId, id(req.params.id));
     const all = await loadAll(req.accountId, req.params.id);
     const problems = preflight(all);
     if (problems.some((p) => p.severity === 'block')) return res.status(400).json({ error: 'Fix these before publishing', problems });

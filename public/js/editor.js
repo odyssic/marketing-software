@@ -126,6 +126,15 @@ async function viewEditor(stepId) {
       <div class="pal-row" role="group" aria-label="Colour palettes" data-palrow></div>
       <div class="type-row" role="group" aria-label="Type style">${[['', 'Classic'], ['elegant', 'Elegant'], ['modern', 'Modern']].map(([k, l]) => `<button type="button" class="type-opt t-${k || 'classic'} ${(ed.settings.font || '') === k ? 'on' : ''}" data-font="${k}" aria-pressed="${(ed.settings.font || '') === k}"><b>Aa</b><small>${l}</small></button>`).join('')}</div>
       <button type="button" class="btn sm ghost" data-palall style="margin:-2px 0 10px">${icon('sparkle')} Use this look on every page</button>
+      <details class="more-page seo-fold" ${ed.settings.seoTitle ? '' : 'open'}><summary>Search &amp; AI <span class="muted small" data-seostate>${ed.settings.seoTitle && ed.settings.seoDescription ? 'ready' : 'not set yet'}</span></summary>
+        <button type="button" class="btn sm primary seo-write" data-seowrite>${icon('sparkle')} Write these for me</button>
+        <div class="serp" aria-label="How it may look in Google"><span class="serp-url" data-serpurl></span><span class="serp-title" data-serptitle></span><span class="serp-desc" data-serpdesc></span></div>
+        <label class="f">Search title <span class="hint" data-tlen></span><input data-s="seoTitle" maxlength="70" value="${esc(ed.settings.seoTitle || '')}" placeholder="${esc(step.name)}"></label>
+        <label class="f">Description <span class="hint" data-dlen></span><textarea data-s="seoDescription" rows="3" maxlength="200">${esc(ed.settings.seoDescription || '')}</textarea></label>
+        <label class="f">Page address<input data-slug value="${esc(step.slug)}"></label>
+        <p class="hint" data-slughint></p>
+        <p class="hint">Shown in Google and AI search, and when the link is shared. Rilly adds the structured data, sitemap and sharing preview for you, and fills in anything missing when you publish.</p>
+      </details>
       <details class="more-page"><summary>More page settings</summary>
       <h3 style="margin-top:10px">Your own colours</h3>
       <div class="colors">
@@ -133,10 +142,6 @@ async function viewEditor(stepId) {
         <label class="f">Text<input type="color" data-s="textColor" value="${esc(ed.settings.textColor)}"></label>
         <label class="f">Buttons<input type="color" data-s="accent" value="${esc(ed.settings.accent)}"></label></div>
       <label class="f">Content width (px)<input type="number" min="360" max="1200" step="20" data-s="width" value="${esc(ed.settings.width)}"></label>
-      <h3>SEO &amp; sharing</h3>
-      <label class="f">Browser tab title<input data-s="seoTitle" value="${esc(ed.settings.seoTitle || '')}" placeholder="${esc(step.name)}"></label>
-      <label class="f">Description<textarea data-s="seoDescription" rows="2">${esc(ed.settings.seoDescription || '')}</textarea></label>
-      <label class="f">Page URL<input data-slug value="${esc(step.slug)}"></label>
       <h3>Custom CSS</h3>
       <label class="f">For this page only <span class="hint">for every page: Settings → Website</span><textarea data-s="customCss" rows="6" class="code" spellcheck="false" placeholder=".hero h1 { letter-spacing: -0.02em; }">${esc(ed.settings.customCss || '')}</textarea></label>
       </details>
@@ -498,6 +503,35 @@ async function viewEditor(stepId) {
   window.ondragover = (e) => { if ($('.editor') && e.dataTransfer?.types.includes('Files')) e.preventDefault(); };
   window.ondrop = (e) => { if ($('.editor') && e.dataTransfer?.types.includes('Files')) e.preventDefault(); };
   $('[data-slug]').addEventListener('change', (e) => changed({ slug: e.target.value }));
+  // Search & AI: a live Google-style preview, length hints, and "Write these for me".
+  const serp = () => {
+    const t = ed.settings.seoTitle || $('[data-name]').value, d = ed.settings.seoDescription || '';
+    $('[data-serptitle]').textContent = t.length > 60 ? `${t.slice(0, 58)}…` : t;
+    $('[data-serpdesc]').textContent = d ? (d.length > 158 ? `${d.slice(0, 156)}…` : d) : 'Add a description so search and AI tools know what this page offers.';
+    $('[data-serpurl]').textContent = link.replace(/^https?:\/\//, '').replace(/\/[^/]*$/, `/${$('[data-slug]').value}`);
+    const len = (n, lo, hi) => `${n} characters${n === 0 ? '' : n < lo ? ' · a little short' : n > hi ? ' · may be cut off' : ' · good'}`;
+    $('[data-tlen]').textContent = len((ed.settings.seoTitle || '').length, 30, 60);
+    $('[data-dlen]').textContent = len(d.length, 110, 160);
+    $('[data-seostate]').textContent = ed.settings.seoTitle && ed.settings.seoDescription ? 'ready' : 'not set yet';
+  };
+  serp();
+  $('.seo-fold').addEventListener('input', serp);
+  $('[data-seowrite]').onclick = async (e) => {
+    const btn = e.currentTarget; btn.disabled = true; btn.textContent = 'Writing…';
+    try {
+      const g = await api('POST', `/api/steps/${stepId}/seo`);
+      ed.settings.seoTitle = g.title; ed.settings.seoDescription = g.description; ed.settings.seoSummary = g.summary;
+      $('[data-s="seoTitle"]').value = g.title; $('[data-s="seoDescription"]').value = g.description;
+      const hint = $('[data-slughint]');
+      if (g.slug && g.slug !== step.slug) {
+        if (!g.live) { $('[data-slug]').value = g.slug; changed({ slug: g.slug }); hint.textContent = ''; }
+        else hint.innerHTML = `Suggested address: <b>/${esc(g.slug)}</b> <button type="button" class="linkbtn" data-useslug="${esc(g.slug)}">Use it</button> <span class="muted">(this page is live, so old links to it would stop working)</span>`;
+      } else changed();
+      serp(); toast(g.by === 'ai' ? 'Written for search and AI. Change anything you like' : 'Written from your page’s words. Change anything you like');
+    } catch (err) { toast(err.message, true); }
+    btn.disabled = false; btn.innerHTML = `${icon('sparkle')} Write these for me`;
+  };
+  $('.seo-fold').addEventListener('click', (e) => { const b = e.target.closest('[data-useslug]'); if (b) { $('[data-slug]').value = b.dataset.useslug; changed({ slug: b.dataset.useslug }); $('[data-slughint]').textContent = ''; serp(); } });
   $('[data-name]').addEventListener('input', () => changed());
   $('[data-device]').onclick = () => $('.stage').classList.toggle('mobile');
 

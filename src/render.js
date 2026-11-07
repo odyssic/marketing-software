@@ -254,6 +254,22 @@ const TYPE_CSS = {
   modern: `h1,h2,h3{font-weight:800;letter-spacing:-.035em}.hero h1{font-weight:800;letter-spacing:-.04em}
 .eyebrow{font-size:.75rem;font-weight:700;letter-spacing:.2em;border:0;padding:6px 12px;border-radius:99px;background:color-mix(in srgb,currentColor 12%,transparent)}.btn{border-radius:99px}`,
 };
+// What search engines, AI assistants and link previews read: the page's one true
+// address, a social card, and structured data about the page and the business.
+function seoHead({ title, description, url, business, blocks, logo, embed }) {
+  const seo = require('./seo');
+  const image = seo.firstImage(blocks);
+  return [
+    embed ? '<meta name="robots" content="noindex">' : '',
+    url && !embed ? `<link rel="canonical" href="${esc(url)}">` : '',
+    `<meta property="og:type" content="website"><meta property="og:title" content="${esc(title)}">`,
+    description ? `<meta property="og:description" content="${esc(description)}">` : '',
+    url ? `<meta property="og:url" content="${esc(url)}">` : '',
+    business ? `<meta property="og:site_name" content="${esc(business)}">` : '',
+    image ? `<meta property="og:image" content="${esc(image)}"><meta name="twitter:card" content="summary_large_image">` : '<meta name="twitter:card" content="summary">',
+    business ? `<script type="application/ld+json">${seo.jsonLd({ business, url, title, description, blocks, image, logo })}</script>` : '',
+  ].filter(Boolean).join('\n');
+}
 // Custom CSS can't close its <style> tag or pull in other files.
 const cleanCss = (css) => String(css || '').slice(0, 40000).replace(/<\/?\s*style/gi, '').replace(/@import[^;]*;?/gi, '');
 // Inside another website: tell the host page how tall we are, and open links in the top window.
@@ -261,7 +277,7 @@ const EMBED_STYLE = 'main{padding:28px 20px}.hero.first,.hero-min.first,.hero-sp
 const EMBED_SCRIPT = `<script>(function(){var s=function(){parent.postMessage({rillyEmbed:Math.ceil(document.body.getBoundingClientRect().height)},'*')};addEventListener('load',s);new ResizeObserver(s).observe(document.body);document.querySelectorAll('a[href^="http"]').forEach(function(a){if(a.host!==location.host)a.target='_top'})})()</script>`;
 const HTML_RESIZE = `<script>addEventListener('message',function(e){var d=e.data;if(!d||d.rillyHtml===undefined)return;var f=document.querySelector('iframe[data-html="'+d.rillyHtml+'"]');if(f&&e.source===f.contentWindow)f.style.height=Math.min(Math.max(20,d.h),20000)+'px'})</script>`;
 
-function renderPage({ title, blocks, settings = {}, nextUrl = '#', noUrl = '#', formAction = '#', buyAction = '#', products = {}, preview = false, oneClick = null, site = null, pageHref = (slug) => `#${slug}`, testimonials = {}, business = '', code = {}, ownDomain = false, embed = false }) {
+function renderPage({ title, blocks, settings = {}, nextUrl = '#', noUrl = '#', formAction = '#', buyAction = '#', products = {}, preview = false, oneClick = null, site = null, pageHref = (slug) => `#${slug}`, testimonials = {}, business = '', code = {}, ownDomain = false, embed = false, url = '', logo = '' }) {
   const bg = color(settings.background, '#ffffff');
   const fg = color(settings.textColor, '#1f2937');
   const accent = color(settings.accent, '#4f46e5');
@@ -278,6 +294,7 @@ function renderPage({ title, blocks, settings = {}, nextUrl = '#', noUrl = '#', 
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${esc(settings.seoTitle || title)}</title>
 ${settings.seoDescription ? `<meta name="description" content="${esc(settings.seoDescription)}">` : ''}
+${preview ? '' : seoHead({ title: settings.seoTitle || title, description: settings.seoDescription || settings.seoSummary || '', url, business, blocks: blocks || [], logo, embed })}
 <style>
 *{box-sizing:border-box}body{margin:0;background:${bg};color:${fg};font:17px/1.6 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
 main{max-width:${width}px;margin:0 auto;padding:48px 20px}

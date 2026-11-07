@@ -34,6 +34,7 @@ const { registerDomains } = require('./domains');
 const { registerSaved } = require('./saved');
 const { registerTeam } = require('./team');
 const { registerFiles } = require('./files');
+const seo = require('./seo');
 const { createReports } = require('./reports');
 const { registerEmailPlus, splitForTest, pickWinner } = require('./emailplus');
 const { registerTexting } = require('./texting');
@@ -88,6 +89,27 @@ function createApp({ dbPath } = {}) {
     return a || null;
   };
   const PASS = /^\/(t|s|u|b|dl|m|pay|hooks|checkout|stripe|unsubscribe|f)\//;
+  // A custom domain's sitemap, robots rules and llms.txt (a plain summary for AI assistants).
+  async function siteFiles(acct, host, path, res) {
+    const base = `https://${host}`;
+    if (path === '/robots.txt') return res.type('text/plain').send(`User-agent: *\nAllow: /\nDisallow: /dl/\nDisallow: /t/\n\nSitemap: ${base}/sitemap.xml\n`);
+    const a = await db.get('SELECT name, home_funnel_id FROM accounts WHERE id = ?', acct.id);
+    const funnels = await db.all("SELECT id, name, slug, kind, entry_step_id FROM funnels WHERE account_id = ? AND status = 'live' AND kind <> 'members' ORDER BY (id = ?) DESC, id", acct.id, a.home_funnel_id || 0);
+    const pages = [];
+    for (const f of funnels) {
+      const prefix = f.id === a.home_funnel_id ? '' : `/${f.slug}`;
+      for (const s of await db.all('SELECT id, name, slug, settings, updated_at FROM funnel_steps WHERE funnel_id = ? ORDER BY position, id', f.id)) {
+        const st = JSON.parse(s.settings || '{}');
+        if (f.kind !== 'website' && s.id !== f.entry_step_id) continue; // thank-you and checkout steps stay out of search
+        pages.push({ loc: `${base}${prefix}${s.id === f.entry_step_id ? '' : `/${s.slug}`}` || `${base}/`, title: st.seoTitle || s.name, about: st.seoSummary || st.seoDescription || '', updated: s.updated_at });
+      }
+    }
+    if (path === '/sitemap.xml') {
+      const x = (v) => String(v).replace(/[<>&'"]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;' }[c]));
+      return res.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${pages.map((p) => `  <url><loc>${x(p.loc || `${base}/`)}</loc>${p.updated ? `<lastmod>${new Date(p.updated).toISOString().slice(0, 10)}</lastmod>` : ''}</url>`).join('\n')}\n</urlset>\n`);
+    }
+    return res.type('text/plain; charset=utf-8').send(`# ${a.name}\n\n${pages.map((p) => `- [${p.title}](${p.loc || `${base}/`})${p.about ? `: ${p.about}` : ''}`).join('\n')}\n`);
+  }
   app.use(async (req, res, next) => {
     let host = String(req.hostname || '').toLowerCase();
     let path = req.path;
@@ -97,6 +119,8 @@ function createApp({ dbPath } = {}) {
     const acct = await accountForDomain(host).catch(() => null);
     const nothing = () => res.status(404).type('text').send('Nothing is published at this address yet.');
     if (!acct) return nothing();
+    req.publicHost = host;
+    if (['/sitemap.xml', '/robots.txt', '/llms.txt'].includes(path)) return siteFiles(acct, host, path, res);
     // "/" and "/<page>" are the home website; "/<name>/..." is any other live site or funnel.
     const segs = path.split('/').filter(Boolean);
     const home = acct.home_funnel_id && await db.get("SELECT slug FROM funnels WHERE id = ? AND status = 'live'", acct.home_funnel_id);
@@ -963,6 +987,40 @@ function createApp({ dbPath } = {}) {
     res.json({ ...stepOut(s), funnel });
   });
 
+  // Search title, description and address for one page (not saved: the editor shows it first).
+  const seoFor = async (accountId, s, funnel) => {
+    const account = await getAccount(accountId);
+    const blocks = typeof s.blocks === 'string' ? JSON.parse(s.blocks) : s.blocks;
+    return seo.suggest({ account, business: account.name, pageName: s.name, blocks, isHome: s.id === funnel.entry_step_id && funnel.kind === 'website', kind: funnel.kind });
+  };
+  api.post('/steps/:id/seo', async (req, res) => {
+    const s = await getStep(req.accountId, req.params.id);
+    const funnel = await db.get('SELECT id, kind, status, entry_step_id FROM funnels WHERE id = ?', s.funnel_id);
+    res.json({ ...(await seoFor(req.accountId, s, funnel)), live: funnel.status === 'live' });
+  });
+  // Every page of a flow that's missing a search title or description gets one (or all, with overwrite).
+  async function fillSeo(accountId, funnelId, overwrite = false) {
+    const funnel = await db.get('SELECT id, kind, entry_step_id FROM funnels WHERE id = ? AND account_id = ?', funnelId, accountId);
+    if (!funnel) return 0;
+    let n = 0;
+    for (const s of await db.all('SELECT * FROM funnel_steps WHERE funnel_id = ?', funnel.id)) {
+      const settings = JSON.parse(s.settings || '{}');
+      if (!overwrite && settings.seoTitle && settings.seoDescription) continue;
+      const g = await seoFor(accountId, s, funnel).catch(() => null);
+      if (!g) continue;
+      if (overwrite || !settings.seoTitle) settings.seoTitle = g.title;
+      if (overwrite || !settings.seoDescription) settings.seoDescription = g.description;
+      if (overwrite || !settings.seoSummary) settings.seoSummary = g.summary;
+      await db.run('UPDATE funnel_steps SET settings = ? WHERE id = ?', JSON.stringify(settings), s.id);
+      n++;
+    }
+    return n;
+  }
+  api.post('/funnels/:id/seo', async (req, res) => {
+    await getFunnel(req.accountId, req.params.id);
+    res.json({ pages: await fillSeo(req.accountId, id(req.params.id), Boolean(req.body?.overwrite)) });
+  });
+
   api.put('/steps/:id', async (req, res) => {
     const s = await getStep(req.accountId, req.params.id);
     const b = req.body || {};
@@ -1337,7 +1395,7 @@ function createApp({ dbPath } = {}) {
   people.register(api);
   workflows.register(api);
   moves.register(api);
-  funnelKit = registerFunnelKit(api, { getDb: () => db, HttpError, id, getFunnel, getStep });
+  funnelKit = registerFunnelKit(api, { getDb: () => db, HttpError, id, getFunnel, getStep, beforePublish: (accountId, funnelId) => fillSeo(accountId, funnelId).catch(() => 0) });
   const onboarding = createOnboarding({ getDb: () => db, publicBase });
   digest = createDigest({ getDb: () => db, leversFor: (a) => leversFor(a), moves, publicBase });
   digest.register(api, { HttpError });
@@ -1508,7 +1566,10 @@ function createApp({ dbPath } = {}) {
       testimonials: await approvedTestimonials(db, funnel.account_id), ...(await (async () => {
         const acct = await getAccount(funnel.account_id);
         let code = {}; try { code = JSON.parse(acct.page_code || '{}'); } catch { /* none */ }
-        return { business: acct.name, code, ownDomain: !ownHostList().includes(req.hostname.toLowerCase()) };
+        const entry = step.id === funnel.entry_step_id;
+        const url = req.publicHost ? `https://${req.publicHost}${req.domainBase || ''}${entry ? '' : `/${step.slug}`}` || `https://${req.publicHost}/`
+          : `${publicBase()}/f/${funnel.slug}${entry ? '' : `/${step.slug}`}`;
+        return { business: acct.name, code, ownDomain: !ownHostList().includes(req.hostname.toLowerCase()), url };
       })()),
     }));
   });

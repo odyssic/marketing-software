@@ -176,4 +176,4 @@ function templateRepurpose(text) {
   };
 }
 
-module.exports = { isLive, draftEmail, repurpose, describeFunnel, guessTemplate, extractLeads, plainLeads, voiceSystem, AIError, MODEL };
+module.exports = { isLive, structured, draftEmail, repurpose, describeFunnel, guessTemplate, extractLeads, plainLeads, voiceSystem, AIError, MODEL };

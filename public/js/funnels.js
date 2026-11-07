@@ -137,6 +137,7 @@ async function viewFunnel(id) {
         ${moreMenu(`<button role="menuitem" data-rename>${icon('gear')} Settings and address</button>
           <button role="menuitem" data-dup>${icon('copy')} Duplicate</button>
           <button role="menuitem" data-embed>${icon('globe')} Put on another website</button>
+          <button role="menuitem" data-seoall>${icon('sparkle')} Write search titles for every page</button>
           ${f.status === 'live' ? `<button role="menuitem" data-unpublish>${icon('pause')} Unpublish</button>` : ''}
           <button role="menuitem" class="danger" data-del>${icon('trash')} Delete</button>`)}
         ${f.status === 'live' ? '' : '<button class="btn primary" data-publish>Publish</button>'}</div></div>
@@ -165,6 +166,12 @@ async function viewFunnel(id) {
   bindMoreMenus();
   $('[data-dup]').onclick = () => duplicateFunnel(f);
   $('[data-embed]').onclick = () => embedCode(f);
+  $('[data-seoall]').onclick = async () => {
+    const all = await modal('Search titles and descriptions', '<p class="muted small">Rilly writes a search title and description for each page from what’s on it, for Google and AI search. Page addresses stay as they are.</p><label class="check"><input type="checkbox" name="overwrite"> Rewrite pages that already have them</label>', { submit: 'Write them' });
+    if (!all) return;
+    toast('Writing…');
+    try { const r = await api('POST', `/api/funnels/${id}/seo`, { overwrite: Boolean(all.overwrite) }); toast(r.pages ? `Done: ${r.pages} page${r.pages === 1 ? '' : 's'} updated` : 'Every page already had them'); } catch (err) { toast(err.message, true); }
+  };
 
   const m = { steps: f.steps, entry: f.entry_step_id, zoom: 1, panX: 40, panY: 40 };
   const mapEl = $('.map'), world = $('.world'), svg = $('.edges'), nodesEl = $('.nodes');
