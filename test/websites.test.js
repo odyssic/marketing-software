@@ -69,7 +69,7 @@ test('website templates: menu, footer, page links, contact inquiries, menu order
   assert.match(mail.find((m) => m.to_email === 'neighbor@example.com').body, /Thanks for contacting Green Lawn Co/);
   await c('POST', '/api/jobs/run', { now: new Date(Date.now() + 2.1 * 864e5).toISOString() });
   mail = (await c('GET', '/api/outbox')).body;
-  assert.equal(mail[0].subject, 'Any questions about your quote?');
+  assert.ok(mail.some((m) => m.subject === 'Any questions about your quote?'), 'the check-in went out');
   // Once they buy, nothing more goes to them.
   await c('POST', '/api/import/orders', { orders: [{ order_id: 'g1', email: 'neighbor@example.com', total: 120, date: new Date().toISOString() }] });
   await c('POST', '/api/jobs/run', { now: new Date(Date.now() + 8 * 864e5).toISOString() });

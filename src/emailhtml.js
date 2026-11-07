@@ -28,20 +28,28 @@ function block(b) {
   return '';
 }
 
-function rillyEmail({ base, title, preheader = '', blocks = [], footer = '' }) {
+function rillyEmail({ base, title, preheader = '', blocks = [], footer = '', brand = null }) {
+  const color = /^#[0-9a-f]{6}$/i.test(brand?.color || '') ? brand.color : null;
+  const head = brand && (brand.logo || brand.name)
+    ? `<tr><td style="padding:0 4px 16px">${brand.logo ? `<img src="${esc(brand.logo)}" height="32" alt="${esc(brand.name || '')}" style="vertical-align:middle;border:0;max-width:200px;height:32px;width:auto">` : ''}${brand.name && !brand.logo ? `<span style="font-size:20px;font-weight:800;letter-spacing:-.02em;color:${INK}">${esc(brand.name)}</span>` : ''}</td></tr>`
+    : null;
+  const html = rillyEmailInner({ base, title, preheader, blocks, footer, head, signoff: brand?.name ? '' : 'Rilly · Simple Marketing.' });
+  return color ? html.split(TEAL).join(color) : html;
+}
+function rillyEmailInner({ base, title, preheader, blocks, footer, head, signoff }) {
   return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><meta name="color-scheme" content="light"><title>${esc(title)}</title></head>
 <body style="margin:0;padding:0;background:${BG};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif">
 <div style="display:none;max-height:0;overflow:hidden;opacity:0">${esc(preheader)}</div>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${BG}"><tr><td align="center" style="padding:28px 14px">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px">
-    <tr><td style="padding:0 4px 16px"><a href="${esc(base)}/#/" style="text-decoration:none;color:${INK}">
+    ${head || `<tr><td style="padding:0 4px 16px"><a href="${esc(base)}/#/" style="text-decoration:none;color:${INK}">
       <img src="${esc(base)}/icons/icon-192.png" width="28" height="28" alt="" style="vertical-align:middle;border-radius:7px;border:0">
-      <span style="vertical-align:middle;font-size:20px;font-weight:800;letter-spacing:-.02em;color:${INK};padding-left:6px">rilly</span></a></td></tr>
+      <span style="vertical-align:middle;font-size:20px;font-weight:800;letter-spacing:-.02em;color:${INK};padding-left:6px">rilly</span></a></td></tr>`}
     <tr><td style="background:#ffffff;border:1px solid ${LINE};border-radius:16px;padding:28px 28px 16px">
       <h1 style="margin:0 0 16px;font-size:22px;line-height:1.3;color:${INK}">${esc(title)}</h1>
       ${blocks.map(block).join('\n')}
     </td></tr>
-    <tr><td style="padding:16px 6px;font-size:12px;line-height:1.5;color:${MUTED}">${esc(footer)}${footer ? '<br>' : ''}Rilly · Simple Marketing.</td></tr>
+    <tr><td style="padding:16px 6px;font-size:12px;line-height:1.5;color:${MUTED}">${esc(footer)}${footer && signoff ? '<br>' : ''}${signoff}</td></tr>
   </table>
 </td></tr></table></body></html>`;
 }

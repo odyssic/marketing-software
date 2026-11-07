@@ -33,6 +33,7 @@ const { createOnboarding } = require('./onboarding');
 const { registerDomains } = require('./domains');
 const { registerSaved } = require('./saved');
 const { registerTeam } = require('./team');
+const { createReports } = require('./reports');
 const { registerTexting } = require('./texting');
 const { registerMembers } = require('./members');
 const { registerMetrics } = require('./metrics');
@@ -369,6 +370,22 @@ function createApp({ dbPath } = {}) {
   team.publicRoutes(api);
   api.use(auth.requireAuth(() => db));
   team.privateRoutes(api);
+  const reports = createReports({ getDb: () => db, HttpError, publicBase: () => publicBase() });
+  reports.register(api);
+  // Agency brand: your name, logo and colour on the businesses you own, for everyone working in them.
+  api.get('/agency-brand', async (req, res) => {
+    const u = await db.get('SELECT brand_name, brand_logo, brand_color FROM users WHERE id = ?', req.user.id);
+    res.json({ name: u.brand_name, logo: u.brand_logo, color: u.brand_color });
+  });
+  api.put('/agency-brand', async (req, res) => {
+    const name = String(req.body?.name || '').trim().slice(0, 60);
+    const logo = String(req.body?.logo || '').trim().slice(0, 500);
+    const color = String(req.body?.color || '').trim().toLowerCase();
+    if (logo && !/^https?:\/\//.test(logo)) throw new HttpError(400, 'Upload a logo, or paste a link that starts with https://');
+    if (color && !/^#[0-9a-f]{6}$/.test(color)) throw new HttpError(400, 'Pick a colour');
+    await db.run('UPDATE users SET brand_name = ?, brand_logo = ?, brand_color = ? WHERE id = ?', name, logo, color, req.user.id);
+    res.json({ name, logo, color });
+  });
   const billing = registerBilling(app, api, { getDb: () => db, HttpError, publicBase: () => publicBase(), express });
   registerDomains(api, { getDb: () => db, HttpError });
   registerSaved(api, { getDb: () => db, HttpError, id });
@@ -376,7 +393,7 @@ function createApp({ dbPath } = {}) {
   api.get('/me', async (req, res) => {
     const { stripe_secret_key: key, stripe_webhook_secret: whsec, ...account } = await db.get('SELECT * FROM accounts WHERE id = ?', req.accountId);
     res.json({
-      user: { id: req.user.id, email: req.user.email, name: req.user.name }, role: await team.roleIn(req.user.id, req.accountId) || 'member',
+      brand: await reports.brandFor(req.accountId), user: { id: req.user.id, email: req.user.email, name: req.user.name }, role: await team.roleIn(req.user.id, req.accountId) || 'member',
       billing: planOf(await db.get(`SELECT u.plan_status, u.trial_ends_at, u.created_at FROM memberships m JOIN users u ON u.id = m.user_id
         WHERE m.account_id = ? AND m.role = 'owner' ORDER BY (u.id = ?) DESC, u.id LIMIT 1`, req.accountId, req.user.id).catch(() => null) || req.user), account: { ...account, hidden_sections: business.hiddenSections(account), people_word: business.typeOf(account.business_type).people },
       businessTypes: business.publicTypes(), emailLive: mailer.isLive(), aiLive: require('./ai').isLive(), baseUrl: baseUrl(req),
@@ -1798,7 +1815,7 @@ ${order.status === 'paid' ? '<p>This order is already paid.</p>' : `<label>Name<
   // the scheduled Netlify function.
   app.runJobs = async (now = new Date()) => {
     await init();
-    return { ...(await workflows.processDue({ now })), ...(await digest.sendDue(now)), ...(await bookings.sendReminders(now)), ...(await recoverCheckouts(now)), ...(await askForReviews(now)), ...(await sendScheduled(now)), ...(await invoices.remindOverdue(now)), ...(await onboarding.sendDue(now)) };
+    return { ...(await workflows.processDue({ now })), ...(await digest.sendDue(now)), ...(await bookings.sendReminders(now)), ...(await recoverCheckouts(now)), ...(await askForReviews(now)), ...(await sendScheduled(now)), ...(await invoices.remindOverdue(now)), ...(await onboarding.sendDue(now)), ...(await reports.sendDue(now)) };
   };
   app.getDb = () => db; // for tests (seeding history)
   app.messaging = messaging; // for tests (signing tracking links)

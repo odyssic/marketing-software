@@ -73,11 +73,15 @@ function registerTeam(api, { getDb, HttpError, id, publicBase }) {
       const a = await db().get('SELECT name FROM accounts WHERE id = ?', req.accountId);
       const link = `${publicBase()}/#/invite/${token}`;
       const from = req.user.name.split(' ')[0];
+      // In the agency's brand, when the owner has set one.
+      const u = await db().get('SELECT brand_name, brand_logo, brand_color FROM users WHERE id = ?', req.user.id).catch(() => null);
+      const brand = u && (u.brand_name || u.brand_logo) ? { name: u.brand_name, logo: u.brand_logo, color: u.brand_color } : null;
+      const where = brand?.name || 'Rilly';
       await mailer.sendEmail({
-        ...mailer.senderFor({ name: 'Rilly', replyTo: req.user.email }), to: email, subject: `${from} invited you to ${a.name} on Rilly`,
-        text: `${req.user.name} invited you to work on ${a.name} in Rilly: its pages, emails, people and results.\n\nJoin here (the link works for 14 days):\n${link}`,
-        html: rillyEmail({ base: publicBase(), title: `Join ${a.name} on Rilly`, preheader: `${req.user.name} invited you.`, blocks: [
-          { p: `${req.user.name} invited you to work on ${a.name} in Rilly: its pages, emails, people and results.` },
+        ...mailer.senderFor({ name: where, replyTo: req.user.email }), to: email, subject: `${from} invited you to ${a.name}${brand?.name ? '' : ' on Rilly'}`,
+        text: `${req.user.name} invited you to work on ${a.name}: its pages, emails, people and results.\n\nJoin here (the link works for 14 days):\n${link}`,
+        html: rillyEmail({ base: publicBase(), brand, title: `Join ${a.name}`, preheader: `${req.user.name} invited you.`, blocks: [
+          { p: `${req.user.name} invited you to work on ${a.name}: its pages, emails, people and results.` },
           { button: [`Join ${a.name}`, link] },
           { small: 'The link works for 14 days. If you weren’t expecting this, you can ignore it.' },
         ] }),

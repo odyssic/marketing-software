@@ -365,7 +365,7 @@ function shell(section, html) {
   const initials = (n) => n.split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase();
   app.innerHTML = `<div class="shell">
     <aside class="sidebar">
-      <div class="logo">${LOGO}</div>
+      <div class="logo">${agencyLogo() || LOGO}</div>
       <div class="acct-wrap"><button class="acct" data-acct aria-haspopup="menu" aria-expanded="false" title="Switch sub-account">
         <span class="av">${esc(initials(state.me.account.name))}</span><span class="nm">${esc(state.me.account.name)}</span><span class="car">${icon('chevronDown')}</span></button></div>
       <nav class="nav">${NAV.filter(([k]) => !(state.me.account.hidden_sections || []).includes(k)).map(([k, i, l]) => `<a href="#/${k}" class="${(FLOW_SECTIONS.includes(section) ? 'flows' : NAV_HOME[section] || section) === k ? 'active' : ''}"><span class="ico">${i}</span>${l}${k === 'inbox' ? '<span class="nav-badge" data-unread hidden></span>' : ''}</a>`).join('')}</nav>
@@ -373,6 +373,7 @@ function shell(section, html) {
     </aside>
     <main class="main">${planBanner()}${html}</main></div>`;
   $('[data-logout]').onclick = logout;
+  applyAgencyBrand();
   refreshUnread();
   $('[data-acct]').onclick = (e) => { e.stopPropagation(); accountMenu(e.currentTarget); };
 }

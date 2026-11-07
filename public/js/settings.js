@@ -63,6 +63,8 @@ function viewSettings() {
         <li>In Netlify → Domain management, add the domain as an alias (HTTPS is automatic).</li><li>Save here and publish your pages.</li></ol></details>
       <div class="err"></div><button class="btn primary">Save domain</button>
     </form>
+    ${state.me.role === 'owner' ? '<form class="card" style="max-width:560px;margin-top:16px" data-agency><h2>Your agency brand</h2><p class="muted small">Loading…</p></form>' : ''}
+    <form class="card" style="max-width:560px;margin-top:16px" data-report><h2>Monthly report</h2><p class="muted small">Loading…</p></form>
     <div class="card" style="max-width:560px;margin-top:16px" data-team><h2>People with access</h2><p class="muted small">Loading…</p></div>
     <div class="card" style="max-width:560px;margin-top:16px" data-subs>
       <div class="row" style="justify-content:space-between"><h2 style="margin:0">Sub-accounts</h2><button class="btn sm primary" data-newsub>${icon('plus')} New sub-account</button></div>
@@ -186,6 +188,8 @@ function viewSettings() {
   loadSendDomain();
   loadPageCode();
   loadTeam();
+  loadClientReport();
+  loadAgencyBrand();
   bindPlanCard();
   confirmPlanReturn();
   if (/[?&]plan=1/.test(location.hash)) setTimeout(() => $('#set-plan')?.scrollIntoView({ block: 'start' }));
@@ -248,6 +252,8 @@ const SETTINGS_SECTIONS = [
   ['payments', 'Payments', ['[data-stripe]']],
   ['address', 'Website', ['[data-domain]', '[data-pagecode]']],
   ['team', 'People with access', ['[data-team]']],
+  ['report', 'Monthly report', ['[data-report]']],
+  ['agency', 'Agency brand', ['[data-agency]']],
   ['workspaces', 'Workspaces and data', ['[data-subs]', '[data-datacard]']],
 ];
 function groupSettings() {
