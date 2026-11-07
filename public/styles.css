@@ -1315,3 +1315,19 @@ html:not(.returning) #app > .boot { display: none; }
 .land-price li { display: block; }
 .lp-amt [data-price-main] { font-size: inherit; font-weight: inherit; color: inherit; }
 .land-price li::before { margin-right: 9px; }
+
+/* Sales page: cost comparison */
+.cost-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; text-align: left; margin-top: 8px; }
+.cost-card { border: 1px solid var(--line); border-radius: 16px; padding: 22px; display: flex; flex-direction: column; background: #fff; }
+.cost-card h3 { margin: 0; }
+.cost-card ul { list-style: none; padding: 0; margin: 14px 0 10px; display: grid; gap: 10px; }
+.cost-card li { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; border-bottom: 1px dashed var(--line); padding-bottom: 8px; }
+.cost-card li small { display: block; color: var(--muted); font-size: .8rem; }
+.cost-card li b { color: #6b7a7d; font-weight: 600; }
+.cost-total, .cost-rilly { display: flex; justify-content: space-between; align-items: baseline; padding: 6px 0; }
+.cost-total b { text-decoration: line-through; text-decoration-color: rgba(185, 28, 28, .6); color: #6b7a7d; font-size: 1.1rem; }
+.cost-rilly { background: var(--brand-soft); border-radius: 10px; padding: 10px 12px; margin-top: 4px; }
+.cost-rilly b { color: var(--brand); font-size: 1.35rem; }
+.cost-note { font-size: .85rem; color: #4a585b; margin: 12px 0 0; }
+.cost-fine { font-size: .75rem; color: var(--muted); max-width: 760px; margin: 18px auto 0; }
+@media (max-width: 860px) { .cost-grid { grid-template-columns: 1fr; } }

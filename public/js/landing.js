@@ -17,6 +17,7 @@ function renderLanding(status) {
   $$('[data-price-main]').forEach((x) => { x.textContent = fmt(main); });
   $$('[data-price-extra]').forEach((x) => { x.textContent = fmt(extra); });
   $$('[data-price-three]').forEach((x) => { x.textContent = fmt(main + 2 * extra); });
+  $$('[data-price-five]').forEach((x) => { x.textContent = fmt(main + 4 * extra); });
   $$('[data-trial]').forEach((x) => { x.textContent = String(plan.trialDays || 14); });
   $$('[data-start]').forEach((b) => { b.onclick = (e) => { e.preventDefault(); scrollTo(0, 0); renderAuth('setup'); }; });
   $$('[data-signin]').forEach((b) => { b.onclick = (e) => { e.preventDefault(); scrollTo(0, 0); renderAuth('link'); }; });
