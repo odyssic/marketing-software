@@ -127,6 +127,7 @@ async function viewPerson(personId) {
           ${stat('Events', p.events.length, p.events[0] ? `last ${fmtDate(p.events[0].occurred_at)}` : 'none yet')}</div>
           ${addr.length ? `<h2 style="margin-top:14px">Mailing address</h2><div>${addr.map(esc).join('<br>')}</div>` : ''}
           ${p.tags.length ? `<h2 style="margin-top:14px">Tags</h2>${tagsHtml(p.tags)}` : ''}</div>
+        <div class="card" data-persontasks></div>
         <div class="card"><h2>Orders</h2>${p.orders.length ? p.orders.map((o) => `<div class="li"><span>${esc(o.product_name)}<span class="muted small"> · ${esc(o.source)}${o.status !== 'paid' ? ` · ${esc(o.status)}` : ''}</span></span>
           <span><b>${esc(o.amountLabel)}</b> <span class="muted small">${fmtDate(o.paid_at || o.created_at)}</span></span></div>`).join('') : '<p class="muted small">No orders yet.</p>'}</div>
         <div class="card"><div class="row" style="justify-content:space-between"><h2 style="margin:0">Subscriptions</h2><button class="btn sm" data-sub>+ Subscribe</button></div>
@@ -138,6 +139,7 @@ async function viewPerson(personId) {
       </div>
     </div>`);
 
+  loadPersonTasks(p.id);
   $('[data-edit]').onclick = async () => {
     const pending = modal('Edit person', `${personForm(p)}
       <label class="check"><input type="checkbox" name="unsubscribed" ${p.unsubscribed ? 'checked' : ''}>Unsubscribed from email</label>

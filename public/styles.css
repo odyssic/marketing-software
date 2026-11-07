@@ -1442,3 +1442,27 @@ html:not(.returning) #app > .boot { display: none; }
 .a2p-row p { margin: 0; font-size: 14px; }
 .a2p-row .btn { align-self: start; }
 .warn-text { color: #9a5b00; }
+
+/* Today and tasks */
+.today { margin-bottom: 18px; }
+.today-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 4px; }
+.today-chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 999px; background: var(--brand-soft); color: var(--text); font-size: 14px; text-decoration: none; }
+.today-chip svg { width: 15px; height: 15px; }
+.today-chip.warn { background: #fef3c7; color: #854d0e; }
+a.today-chip:hover { filter: brightness(.97); }
+ul.tasks { list-style: none; padding: 0; margin: 10px 0 4px; }
+.task { display: grid; grid-template-columns: auto 1fr auto auto; gap: 10px; align-items: center; padding: 7px 0; border-bottom: 1px solid var(--line); }
+.task .tick { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--line); background: #fff; display: grid; place-items: center; padding: 0; cursor: pointer; color: #fff; }
+.task .tick:hover { border-color: var(--brand); }
+.task.done .tick { background: var(--brand); border-color: var(--brand); }
+.task .tick svg { width: 14px; height: 14px; }
+.task.done .tt { text-decoration: line-through; color: var(--muted); }
+.task .late { color: #b45309; font-weight: 600; }
+.task .x { background: none; border: 0; color: var(--muted); cursor: pointer; opacity: 0; padding: 2px; }
+.task:hover .x, .task .x:focus { opacity: 1; }
+.task .x svg { width: 14px; height: 14px; }
+.task-add { display: grid; grid-template-columns: 1fr 150px auto; gap: 8px; margin-top: 10px; }
+.task-add input { margin: 0; }
+@media (max-width: 600px) { .task-add { grid-template-columns: 1fr auto; } .task-add [type=date] { display: none; } }
+.task-add.narrow { grid-template-columns: 1fr auto; }
+.task-add.narrow [name=title] { grid-column: 1 / -1; }

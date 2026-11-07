@@ -38,6 +38,7 @@ const seo = require('./seo');
 const { createReports } = require('./reports');
 const { registerEmailPlus, splitForTest, pickWinner } = require('./emailplus');
 const { registerTexting } = require('./texting');
+const { registerTasks } = require('./tasks');
 const { registerMembers } = require('./members');
 const { registerMetrics } = require('./metrics');
 
@@ -1452,6 +1453,7 @@ function createApp({ dbPath } = {}) {
     createFunnel: (...x) => createFunnel(...x), getFunnel: (...x) => getFunnel(...x) });
   const texting = registerTexting(app, api, { getDb: () => db, HttpError, id, upsertContact, logEvent, messaging, publicBase, getSecret: () => secret });
   registerSetup(api, { getDb: () => db, HttpError, createFunnel, TEMPLATES, getAccount });
+  registerTasks(api, { getDb: () => db, HttpError, id });
   const invoices = registerInvoices(app, api, { getDb: () => db, HttpError, id, upsertContact, messaging, publicBase, stripe, orderToken: (...a) => orderToken(...a),
     ownerViewing: (req, x) => ownerViewing(req, x) });
   // Booking calendar routes (registered before the API's not-found handler and the public page route).

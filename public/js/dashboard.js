@@ -39,6 +39,7 @@ function renderDashboard() {
     ${dash.noPages && !dash.customize ? `<div class="card setup-nudge"><div><b>Get your first page live in about two minutes</b>
       <div class="muted small">Tell us what kind of business this is. We’ll build the page, booking hours and follow-ups.</div></div>
       <a class="btn primary" href="#/setup">Set it up</a></div>` : ''}
+    ${dash.customize ? '' : '<section class="card today" data-today hidden></section>'}
     ${dash.customize ? '' : '<section data-metrics aria-label="Business numbers"></section>'}
     ${!dash.customize && dash.week?.length ? `<section class="card week"><h2>This week, in plain words</h2><ul>${dash.week.map((l) => `<li>${esc(l)}</li>`).join('')}</ul></section>` : ''}
     <h2 class="section-h" style="margin-top:26px">Where to grow next</h2>
@@ -63,6 +64,7 @@ function renderDashboard() {
         <div class="tbody"><div class="skeleton"></div></div></section>`).join('')}
     </div></details>`);
   renderMetrics();
+  loadTodayCard();
   bindCreateMenu();
   fillGrowCard();
   const more = $('.grow-more'); if (more) more.addEventListener('toggle', () => { dash.moreOpen = more.open; if (more.open) fillTiles(); });

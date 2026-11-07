@@ -396,6 +396,9 @@ function createWorkflows({ getDb, HttpError, id, people, messaging, getAccount }
           { rows: [['Who', who], ...(person.email ? [['Email', person.email]] : []), ...(person.phone ? [['Phone', person.phone]] : []), ['Workflow', w.name]] },
           { button: ['Open their record', recordUrl] },
         ] }) : undefined;
+        // It also goes on Today's list, so it isn't lost in the inbox.
+        await db.run("INSERT INTO tasks (account_id, contact_id, title, source) VALUES (?, ?, ?, 'follow-up')", account.id, person.id,
+          `Follow up with ${who}${c.message ? `: ${c.message}` : ''}`.slice(0, 300));
         await messaging.sendToOwner({ account, html, subject: `Follow up with ${who} (${w.name})`, body: `${c.message || 'A workflow flagged this person for a personal follow-up.'}\n\n${who}${person.email ? ` <${person.email}>` : ''}${person.phone ? `\n${person.phone}` : ''}${process.env.PUBLIC_URL ? `\nOpen their record: ${process.env.PUBLIC_URL}/#/people/${person.id}` : ''}\nWorkflow: ${w.name}` });
         return { next: node.next, outcome: 'notified' };
       }
