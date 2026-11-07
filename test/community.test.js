@@ -38,7 +38,7 @@ async function owner(name) {
   const c = client();
   await c('POST', '/api/auth/signup', { name, email: `${name.toLowerCase()}${++n}@example.com`, password: 'password123', workspace: `${name} Studio`, business_type: 'coach' });
   const me = (await c('GET', '/api/me')).body;
-  c.acct = me.account.id;
+  c.acct = me.account.handle; c.acctId = me.account.id;
   return c;
 }
 async function startCommunity(c, settings) {
@@ -51,9 +51,9 @@ async function startCommunity(c, settings) {
 async function joinByEmail(c, email, name = 'Mia Maker') {
   const r = await raw('POST', `/my/${c.acct}/community/join`, { form: { email, name } });
   assert.equal(r.status, 200);
-  const mail = (await mails(c, email)).find((m) => /\/my\/\d+\/enter\//.test(m.body));
+  const mail = (await mails(c, email)).find((m) => /\/my\/[a-z0-9-]+\/enter\//.test(m.body));
   if (!mail) return null;
-  const enter = await raw('GET', linkIn(mail.body, /https?:\/\/\S+\/my\/\d+\/enter\/\S+/));
+  const enter = await raw('GET', linkIn(mail.body, /https?:\/\/\S+\/my\/[a-z0-9-]+\/enter\/\S+/));
   assert.equal(enter.status, 303);
   assert.equal(enter.location, `/my/${c.acct}/community`);
   const page = await raw('GET', enter.location, { cookie: enter.cookie });
@@ -99,22 +99,22 @@ test('open community: anyone with an email joins by link, logs a join event and 
 test('buyers-only community: buyers get in, others are told why, removed people are blocked', async () => {
   const c = await owner('Bea');
   const db = app.getDb();
-  const prod = await db.get("INSERT INTO products (account_id, name, price_cents) VALUES (?, 'Wheel Course', 9900) RETURNING id", c.acct);
+  const prod = await db.get("INSERT INTO products (account_id, name, price_cents) VALUES (?, 'Wheel Course', 9900) RETURNING id", c.acctId);
   await startCommunity(c, { join_rule: 'buyers', join_products: [prod.id] });
   // Someone who didn't buy gets no link.
   assert.equal(await joinByEmail(c, 'nobuy@example.com'), null);
   // A buyer is let in.
-  const contact = await db.get("INSERT INTO contacts (account_id, email, first_name) VALUES (?, 'buyer@example.com', 'Ben') RETURNING id", c.acct);
-  await db.run("INSERT INTO orders (account_id, product_id, product_name, contact_id, email, amount_cents, currency, status, mode, paid_at) VALUES (?, ?, 'Wheel Course', ?, 'buyer@example.com', 9900, 'usd', 'paid', 'test', now())", c.acct, prod.id, contact.id);
+  const contact = await db.get("INSERT INTO contacts (account_id, email, first_name) VALUES (?, 'buyer@example.com', 'Ben') RETURNING id", c.acctId);
+  await db.run("INSERT INTO orders (account_id, product_id, product_name, contact_id, email, amount_cents, currency, status, mode, paid_at) VALUES (?, ?, 'Wheel Course', ?, 'buyer@example.com', 9900, 'usd', 'paid', 'test', now())", c.acctId, prod.id, contact.id);
   const buyer = await joinByEmail(c, 'buyer@example.com');
   assert.equal(buyer.page.status, 200);
   // A customer who bought something else signs in to the customer area, but the community says no.
-  const other = await db.get("INSERT INTO contacts (account_id, email) VALUES (?, 'other@example.com') RETURNING id", c.acct);
-  const p2 = await db.get("INSERT INTO products (account_id, name, price_cents) VALUES (?, 'Mug', 2000) RETURNING id", c.acct);
-  await db.run("INSERT INTO orders (account_id, product_id, product_name, contact_id, email, amount_cents, currency, status, mode, paid_at) VALUES (?, ?, 'Mug', ?, 'other@example.com', 2000, 'usd', 'paid', 'test', now())", c.acct, p2.id, other.id);
+  const other = await db.get("INSERT INTO contacts (account_id, email) VALUES (?, 'other@example.com') RETURNING id", c.acctId);
+  const p2 = await db.get("INSERT INTO products (account_id, name, price_cents) VALUES (?, 'Mug', 2000) RETURNING id", c.acctId);
+  await db.run("INSERT INTO orders (account_id, product_id, product_name, contact_id, email, amount_cents, currency, status, mode, paid_at) VALUES (?, ?, 'Mug', ?, 'other@example.com', 2000, 'usd', 'paid', 'test', now())", c.acctId, p2.id, other.id);
   await raw('POST', `/my/${c.acct}/login`, { form: { email: 'other@example.com' } });
   const pm = (await mails(c, 'other@example.com')).find((m) => /\/enter\//.test(m.body));
-  const otherCookie = (await raw('GET', linkIn(pm.body, /https?:\/\/\S+\/my\/\d+\/enter\/\S+/))).cookie;
+  const otherCookie = (await raw('GET', linkIn(pm.body, /https?:\/\/\S+\/my\/[a-z0-9-]+\/enter\/\S+/))).cookie;
   const no = await raw('GET', `/my/${c.acct}/community`, { cookie: otherCookie });
   assert.equal(no.status, 403);
   assert.match(no.text, /only open to some customers/);
@@ -320,7 +320,7 @@ test('events: RSVP, a reminder an hour before; the stop link works', async () =>
   const ok = await raw('GET', stop);
   assert.equal(ok.status, 200);
   assert.match(ok.text, /won’t get event reminders/);
-  const row = await app.getDb().get("SELECT notify_events FROM community_members WHERE account_id = ? AND name = 'Rita'", c.acct);
+  const row = await app.getDb().get("SELECT notify_events FROM community_members WHERE account_id = ? AND name = 'Rita'", c.acctId);
   assert.equal(row.notify_events, 0);
 });
 
@@ -333,7 +333,7 @@ test('weekly digest goes to people who have not visited, with a working stop lin
   await post(c, host, { space_id: comm.spaces[0].id, title: 'Big news this week', body: 'New kiln!' });
   await post(c, here.cookie, { space_id: comm.spaces[2].id, title: 'My first bowl', body: 'Look' });
   // Al hasn't been in for 8 days.
-  await app.getDb().run("UPDATE community_members SET last_seen_at = now() - interval '8 days' WHERE account_id = ? AND name = 'Al Away'", c.acct);
+  await app.getDb().run("UPDATE community_members SET last_seen_at = now() - interval '8 days' WHERE account_id = ? AND name = 'Al Away'", c.acctId);
   await jobs(c);
   const d = (await mails(c, 'away@example.com')).filter((x) => /This week in/.test(x.subject));
   assert.equal(d.length, 1);
@@ -348,7 +348,7 @@ test('weekly digest goes to people who have not visited, with a working stop lin
   const r = await raw('GET', stop);
   assert.equal(r.status, 200);
   assert.match(r.text, /weekly highlights/);
-  await app.getDb().run("UPDATE community_members SET digest_sent_at = now() - interval '8 days' WHERE account_id = ?", c.acct);
+  await app.getDb().run("UPDATE community_members SET digest_sent_at = now() - interval '8 days' WHERE account_id = ?", c.acctId);
   await jobs(c);
   assert.equal((await mails(c, 'away@example.com')).filter((x) => /This week in/.test(x.subject)).length, 1);
   assert.ok(away);
@@ -374,6 +374,6 @@ test('profiles, the directory and member pictures', async () => {
   assert.match(dir.text, /Pro Potter/);
   assert.match(dir.text, /Wheel thrower &lt;b&gt;x&lt;\/b&gt;/);
   assert.ok(dir.text.includes(`src="${url}"`));
-  const row = await app.getDb().get('SELECT notify_digest, notify_replies FROM community_members WHERE account_id = ?', c.acct);
+  const row = await app.getDb().get('SELECT notify_digest, notify_replies FROM community_members WHERE account_id = ?', c.acctId);
   assert.deepEqual([row.notify_replies, row.notify_digest], [1, 0]);
 });

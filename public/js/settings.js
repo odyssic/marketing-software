@@ -53,6 +53,10 @@ function viewSettings() {
       <button type="button" class="btn" data-sigmanage style="margin-top:8px">${icon('pencil')} Make or edit signatures</button></div>
     <form class="card" style="max-width:560px;margin-top:16px" data-texting><h2>Texting and calls</h2><p class="muted small">Loading…</p></form>
     <form class="card" style="max-width:560px;margin-top:16px" data-chat><h2>Website chat</h2><p class="muted small">Loading…</p></form>
+    <form class="card" style="max-width:560px;margin-top:16px" data-handle><h2>Customer login address</h2>
+      <p class="muted small">Where customers sign in to see their courses, orders, community and partner page.</p>
+      <label class="f">Short name<span class="row" style="gap:6px;align-items:center;flex-wrap:nowrap"><span class="muted small" style="white-space:nowrap">${esc(location.host)}/my/</span><input name="handle" value="${esc(state.me.account.handle || '')}" maxlength="40" pattern="[a-zA-Z0-9-]{3,40}" required></span></label>
+      <div class="err"></div><button class="btn primary">Save</button></form>
     <form class="card" style="max-width:560px;margin-top:16px" data-pagecode><h2>Tracking and custom CSS</h2><p class="muted small">Loading…</p></form>
     <form class="card" style="max-width:560px;margin-top:16px" data-domain>
       <h2>Your domain</h2>
@@ -105,6 +109,11 @@ function viewSettings() {
     </form>`);
   bindCopy();
   $('[data-newsub]').onclick = newSubAccount;
+  $('[data-handle]').onsubmit = async (e) => {
+    e.preventDefault(); const f = e.target;
+    try { const r = await api('PUT', '/api/account/handle', { handle: f.handle.value }); state.me = await api('GET', '/api/me'); f.handle.value = r.handle; $('.err', f).textContent = ''; toast(`Customers sign in at /my/${r.handle}`); }
+    catch (err) { $('.err', f).textContent = err.message; }
+  };
   $('[data-reviews]').onsubmit = async (e) => {
     e.preventDefault(); const f = e.target;
     try { await api('PUT', '/api/account/reviews', { review_url: f.review_url.value, after_booking: f.after_booking.checked, after_purchase: f.after_purchase.checked }); state.me = await api('GET', '/api/me'); toast(f.review_url.value ? 'Review requests on' : 'Saved'); }
@@ -284,7 +293,7 @@ const SETTINGS_SECTIONS = [
   ['email', 'Email', ['[data-senddomain]', '[data-sigcard]', '[data-digestcard]', '[data-reviews]']],
   ['texting', 'Texting, calls and chat', ['[data-texting]', '[data-chat]']],
   ['payments', 'Payments', ['[data-stripe]']],
-  ['address', 'Website', ['[data-domain]', '[data-pagecode]']],
+  ['address', 'Website', ['[data-domain]', '[data-handle]', '[data-pagecode]']],
   ['team', 'People with access', ['[data-team]']],
   ['integrations', 'Integrations', ['[data-integrations]']],
   ['report', 'Monthly report', ['[data-report]']],

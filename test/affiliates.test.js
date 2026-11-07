@@ -61,7 +61,7 @@ const owner = async (name) => {
   const b = browser();
   await b('POST', '/api/auth/signup', { json: { name, email: `${name.toLowerCase()}@shop.test`, password: 'password123', workspace: `${name} Shop` } });
   const c = (method, path, body) => b(method, path, { json: body ?? (method === 'GET' ? undefined : {}) });
-  c.accountId = (await c('GET', '/api/me')).body.account.id;
+  { const me = (await c('GET', '/api/me')).body; c.accountId = me.account.id; c.handle = me.account.handle; }
   return c;
 };
 async function shop(c, { price = '49', billing = 'one_time' } = {}) {
@@ -147,18 +147,18 @@ test('click → cookie → purchase → commission on hold → approved → paid
   // Partner dashboard: sign in with the emailed link.
   const link = (await outbox(c, 'jamie@example.com')).find((m) => m.subject === 'You earned $9.80').body.match(/https?:\/\/\S+\/partner\/enter\/\S+/)[0];
   const pb = browser();
-  assert.match((await pb('GET', `/my/${c.accountId}/partner`)).body, /Email me a sign-in link/);
+  assert.match((await pb('GET', `/my/${c.handle}/partner`)).body, /Email me a sign-in link/);
   const enter = await pb('GET', link);
-  assert.equal(enter.location, `/my/${c.accountId}/partner`);
+  assert.equal(enter.location, `/my/${c.handle}/partner`);
   const dash = (await pb('GET', enter.location)).body;
   assert.match(dash, new RegExp(p.link.replace(/[/.]/g, '\\$&')));
   assert.match(dash, /<b>1<\/b><span>clicks/);
   assert.match(dash, /Glaze Course/);
   assert.match(dash, /pill paid">Paid/);
   assert.match(dash, /PayPal/);
-  await pb('POST', `/my/${c.accountId}/partner/details`, { form: { payout_details: 'PayPal: jamie@example.com' } });
+  await pb('POST', `/my/${c.handle}/partner/details`, { form: { payout_details: 'PayPal: jamie@example.com' } });
   assert.equal((await partnerOf(c, p.id)).payout_details, 'PayPal: jamie@example.com');
-  assert.equal((await pb('GET', `/my/${c.accountId}/partner/enter/1.${c.accountId}.9999999999.bad`)).status, 401);
+  assert.equal((await pb('GET', `/my/${c.handle}/partner/enter/1.${c.accountId}.9999999999.bad`)).status, 401);
 });
 
 test('self-referral earns nothing; a refund inside the hold period voids', async () => {
@@ -258,11 +258,11 @@ test('recurring commissions stop after the program’s months; Stripe refunds vo
 test('applications: public page only when turned on; approve emails the link', async () => {
   const c = await owner('Abby');
   const pub = browser();
-  assert.equal((await pub('GET', `/my/${c.accountId}/partner/join`)).status, 404);
+  assert.equal((await pub('GET', `/my/${c.handle}/partner/join`)).status, 404);
   await c('PUT', '/api/partners/program', { commission_type: 'amount', commission: 12, signup_open: true });
-  const page = await pub('GET', `/my/${c.accountId}/partner/join`);
+  const page = await pub('GET', `/my/${c.handle}/partner/join`);
   assert.match(page.body, /earn \$12 for each sale/);
-  await pub('POST', `/my/${c.accountId}/partner/join`, { form: { name: 'Ann Apply', email: 'ann@example.com', how: 'My newsletter' } });
+  await pub('POST', `/my/${c.handle}/partner/join`, { form: { name: 'Ann Apply', email: 'ann@example.com', how: 'My newsletter' } });
   const list = (await c('GET', '/api/partners')).body.partners;
   assert.deepEqual([list[0].status, list[0].application], ['applied', 'My newsletter']);
   assert.ok((await c('GET', '/api/outbox')).body.some((m) => /New partner application: Ann Apply/.test(m.subject)));
@@ -314,11 +314,11 @@ test('account isolation, and a partner only sees their own data', async () => {
   const enter = (await outbox(a, 'two@example.com'))[0].body.match(/https?:\/\/\S+\/partner\/enter\/\S+/)[0];
   const pb = browser();
   await pb('GET', enter);
-  const dash = (await pb('GET', `/my/${a.accountId}/partner`)).body;
+  const dash = (await pb('GET', `/my/${a.handle}/partner`)).body;
   assert.ok(dash.includes(two.code) && !dash.includes(one.code));
   assert.match(dash, /No sales yet/);
   // Two's sign-in doesn't open business B's partner page.
-  assert.match((await pb('GET', `/my/${b.accountId}/partner`)).body, /Email me a sign-in link/);
+  assert.match((await pb('GET', `/my/${b.handle}/partner`)).body, /Email me a sign-in link/);
   // A tampered cookie is ignored at checkout.
   const tamper = browser();
   tamper.jar[`rref${a.accountId}`] = `${p2}.9999999999.forged`;

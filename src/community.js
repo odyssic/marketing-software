@@ -71,7 +71,7 @@ class PageError extends Error { constructor(status, message) { super(message); t
 function registerCommunity(app, api, { getDb, HttpError, id, upsertContact, logEvent, messaging, members, courses, ownerViewing }) {
   const db = () => getDb();
   const base = () => members.base();
-  const home = (acct) => `/my/${acct.id}/community`;
+  const home = (acct) => `/my/${acct.handle}/community`;
   const getCommunity = (accountId) => db().get('SELECT * FROM communities WHERE account_id = ?', accountId);
 
   // ---------- Who is looking ----------
@@ -109,7 +109,7 @@ function registerCommunity(app, api, { getDb, HttpError, id, upsertContact, logE
 
   // ---------- Signed links ----------
   const stopToken = (memberId, kind) => `${memberId}.${kind}.${members.sign(`cstop:${memberId}:${kind}`)}`;
-  const stopLink = (acct, memberId, kind) => `${base()}/my/${acct.id}/community/stop/${stopToken(memberId, kind)}`;
+  const stopLink = (acct, memberId, kind) => `${base()}/my/${acct.handle}/community/stop/${stopToken(memberId, kind)}`;
 
   // ---------- Page shell ----------
   async function sidebar(acct, comm, v, on) {
@@ -121,7 +121,7 @@ function registerCommunity(app, api, { getDb, HttpError, id, upsertContact, logE
     const nav = `<nav class="cm-nav" aria-label="Community">${item('all', h, ICON.home, 'All posts')}
       <div class="cm-nav-h">Spaces</div>${spaces.map((s) => item(`s${s.id}`, `${h}/s/${s.id}`, ICON.hash, s.name)).join('')}
       <div class="cm-nav-h cm-nav-sep"></div>${item('events', `${h}/events`, ICON.cal, 'Events')}${item('people', `${h}/people`, ICON.people, 'Members')}
-      <a href="/my/${acct.id}" class="cm-nav-i">${ICON.book}<span>Your courses</span></a></nav>`;
+      <a href="/my/${acct.handle}" class="cm-nav-i">${ICON.book}<span>Your courses</span></a></nav>`;
     const up = upcoming.length ? `<section class="cm-up"><div class="cm-up-h">Upcoming</div>${upcoming.map((e) => `<a class="cm-up-i" href="${h}/p/${e.id}">
       <span class="cm-date"><b>${timeTag(e.event_at, 'mon')}</b><i>${timeTag(e.event_at, 'day')}</i></span><span><b>${esc(e.title || 'Event')}</b><small>${timeTag(e.event_at, 'short')}</small></span></a>`).join('')}</section>` : '';
     return { nav, up, spaces };
@@ -131,13 +131,13 @@ function registerCommunity(app, api, { getDb, HttpError, id, upsertContact, logE
     const brand = brandOf(comm, acct);
     const me = v?.host ? `<span class="cm-who"><span class="cm-hostpill">You’re the host</span></span>`
       : v?.member ? `<details class="cm-who cm-menu"><summary aria-label="Your menu">${avatar(v.member.name, v.member.photo_url, 'sm')}</summary><div class="cm-pop">
-        <a href="${home(acct)}/people/${v.member.id}">Your profile</a><a href="${home(acct)}/me">Edit profile &amp; emails</a><a href="/my/${acct.id}">Your courses &amp; orders</a><a href="/my/${acct.id}/logout">Sign out</a></div></details>`
-        : v?.contact ? `<a class="cm-who" href="/my/${acct.id}/logout">Sign out</a>` : '';
+        <a href="${home(acct)}/people/${v.member.id}">Your profile</a><a href="${home(acct)}/me">Edit profile &amp; emails</a><a href="/my/${acct.handle}">Your courses &amp; orders</a><a href="/my/${acct.handle}/logout">Sign out</a></div></details>`
+        : v?.contact ? `<a class="cm-who" href="/my/${acct.handle}/logout">Sign out</a>` : '';
     res.set('X-Robots-Tag', 'noindex').status(status).type('html').send(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
 <title>${esc(title ? `${title} · ` : '')}${esc(comm.name || acct.name)}</title><style>${CSS.replace(/BRAND/g, brand)}</style></head>
 <body${nav ? ' class="has-nav"' : ''}><header class="cm-top"><div class="cm-top-in"><a class="cm-brand" href="${home(acct)}"><span class="cm-logo">${esc(initials(comm.name || acct.name))}</span><b>${esc(comm.name || acct.name)}</b></a>${me}</div></header>
 ${nav ? `<div class="cm-shell"><aside class="cm-side">${nav}${up}</aside><main class="cm-main${wide ? ' wide' : ''}">${main}</main></div>` : `<main class="cm-solo">${main}</main>`}
-<script>${SCRIPT.replace('UPLOAD', `/my/${acct.id}/community/upload`)}</script></body></html>`);
+<script>${SCRIPT.replace('UPLOAD', `/my/${acct.handle}/community/upload`)}</script></body></html>`);
   }
 
   function avatar(name, photo, size = '') {
@@ -255,7 +255,7 @@ ${nav ? `<div class="cm-shell"><aside class="cm-side">${nav}${up}</aside><main c
     const body = sent ? '<p class="cm-ok">Check your inbox: a link to come in is on its way (look in spam too, just in case).</p>'
       : v.blocked ? '<p class="cm-warn">You don’t have access to this community any more. If you think that’s a mistake, reply to any email from us.</p>'
         : v.notAllowed ? `<p class="cm-warn">You’re signed in as ${esc(v.contact.email)}, but this community is only open to some customers. ${note}</p>
-          <p class="cm-fine"><a href="/my/${acct.id}/logout">Sign in with a different email</a></p>` : `${note ? `<p class="cm-sub">${note}</p>` : ''}${form}`;
+          <p class="cm-fine"><a href="/my/${acct.handle}/logout">Sign in with a different email</a></p>` : `${note ? `<p class="cm-sub">${note}</p>` : ''}${form}`;
     shell(res, acct, comm, v, { title: 'Join', status: v.blocked || v.notAllowed ? 403 : sent ? 200 : 401, main: `<div class="cm-gate">
       ${comm.cover_url ? `<img class="cm-gate-cover" src="${esc(comm.cover_url)}" alt="">` : '<div class="cm-gate-cover blank"></div>'}
       <div class="cm-gate-in"><span class="cm-logo big">${esc(initials(comm.name))}</span><h1>${esc(comm.name)}</h1>
@@ -644,7 +644,7 @@ ${nav ? `<div class="cm-shell"><aside class="cm-side">${nav}${up}</aside><main c
 
   // One-click "stop these emails" (signed, so only the person it was sent to can use it).
   app.get('/my/:acct/community/stop/:token', wrap(async (req, res) => {
-    const acct = await courses.account(req.params.acct);
+    const acct = await courses.account(req.params.acct, { allowId: true });
     const comm = acct && await getCommunity(acct.id);
     if (!comm) throw new PageError(404, 'There’s no community here.');
     const [mid, kind, sig] = String(req.params.token).split('.');
@@ -680,7 +680,7 @@ ${nav ? `<div class="cm-shell"><aside class="cm-side">${nav}${up}</aside><main c
     await join(comm, c);
     const account = await db().get('SELECT * FROM accounts WHERE id = ?', order.account_id);
     await messaging.sendTransactional({ account, to: c.email, contactId: c.id, subject: `You’re in: ${comm.name}`,
-      text: `Hi ${c.first_name || 'there'},\n\nYour purchase comes with ${comm.name}, our members’ community. Come in and say hello:\n\n${courses.portalLink({ id: account.id }, c.id, 7, 'community')}\n\nThe link works for 7 days and keeps you signed in on this device.\n\n${account.from_name || account.name}` });
+      text: `Hi ${c.first_name || 'there'},\n\nYour purchase comes with ${comm.name}, our members’ community. Come in and say hello:\n\n${courses.portalLink({ id: account.id, handle: account.handle }, c.id, 7, 'community')}\n\nThe link works for 7 days and keeps you signed in on this device.\n\n${account.from_name || account.name}` });
   }
 
   // ---------- Emails (jobs) ----------
@@ -701,7 +701,7 @@ ${nav ? `<div class="cm-shell"><aside class="cm-side">${nav}${up}</aside><main c
       const account = await db().get('SELECT * FROM accounts WHERE id = ?', m.account_id);
       const comm = await getCommunity(m.account_id);
       if (!contact?.email || !comm) continue;
-      const acct = { id: account.id };
+      const acct = { id: account.id, handle: account.handle };
       const lines = rows.slice(0, 10).map((r) => `**${r.who || account.name}** ${r.parent_id ? 'replied to your comment' : 'commented'} on “${(r.title || r.post_body).slice(0, 60)}”:\n“${r.body.slice(0, 200)}${r.body.length > 200 ? '…' : ''}”`);
       await messaging.sendTransactional({ account, to: contact.email, contactId: contact.id,
         subject: rows.length === 1 ? `${rows[0].who || account.name} replied to you in ${comm.name}` : `${rows.length} new replies in ${comm.name}`,
@@ -729,7 +729,7 @@ ${nav ? `<div class="cm-shell"><aside class="cm-side">${nav}${up}</aside><main c
       if (!cache.has(m.account_id)) cache.set(m.account_id, { account: await db().get('SELECT * FROM accounts WHERE id = ?', m.account_id), comm: await getCommunity(m.account_id) });
       const { account, comm } = cache.get(m.account_id);
       const contact = await db().get('SELECT * FROM contacts WHERE id = ? AND account_id = ?', m.contact_id, m.account_id);
-      const acct = { id: account.id };
+      const acct = { id: account.id, handle: account.handle };
       const list = posts.map((p) => `**${(p.title || p.body.split('\n')[0]).slice(0, 80)}**\n${p.who || account.name}${Number(p.score) ? ` · ${Number(p.score)} reactions` : ''}`).join('\n\n');
       await messaging.sendTransactional({ account, to: contact.email, contactId: contact.id, subject: `This week in ${comm.name}`,
         text: `Hi ${m.name.split(' ')[0] || 'there'},\n\nHere’s what people have been talking about in ${comm.name}:\n\n${list}\n\n[Join the conversation](${courses.portalLink(acct, contact.id, 7, 'community')})\n\n--\nStop these emails: ${stopLink(acct, m.id, 'digest')}` })
@@ -747,7 +747,7 @@ ${nav ? `<div class="cm-shell"><aside class="cm-side">${nav}${up}</aside><main c
       if (!claim) continue;
       const account = await db().get('SELECT * FROM accounts WHERE id = ?', e.account_id);
       const comm = await getCommunity(e.account_id);
-      const acct = { id: account.id };
+      const acct = { id: account.id, handle: account.handle };
       const people = await db().all(`SELECT m.id, m.name, c.id AS contact_id, c.email FROM community_rsvps r JOIN community_members m ON m.id = r.member_id JOIN contacts c ON c.id = m.contact_id
         WHERE r.post_id = ? AND m.account_id = ? AND m.status = 'active' AND m.notify_events = 1`, e.id, e.account_id);
       const mins = Math.max(1, Math.round((new Date(e.event_at) - now) / 60e3));
@@ -775,8 +775,8 @@ ${nav ? `<div class="cm-shell"><aside class="cm-side">${nav}${up}</aside><main c
 
   api.get('/community', async (req, res) => {
     const c = await getCommunity(req.accountId);
-    const acct = await db().get('SELECT id, name, brand_color FROM accounts WHERE id = ?', req.accountId);
-    const url = `${base()}/my/${req.accountId}/community`;
+    const acct = await db().get('SELECT id, name, brand_color, handle FROM accounts WHERE id = ?', req.accountId);
+    const url = `${base()}/my/${acct.handle || await require('./handles').handleOf(db(), req.accountId)}/community`;
     if (!c) return res.json({ community: null, url, account_name: acct.name, brand_default: brandOf(null, acct) });
     const week = new Date(Date.now() - 7 * DAY).toISOString();
     const [spaces, membersList, posts, products, areas, stats] = await Promise.all([

@@ -44,7 +44,7 @@ function registerMembers(app, api, { getDb, HttpError, id, upsertContact, messag
     const body = `${contactId}.${funnel.id}.${exp}`;
     return `${base()}/m/${funnel.slug}/enter/${body}.${mac(`enter:${body}`)}${to ? `?to=${encodeURIComponent(to)}` : ''}`;
   };
-  const portalUrl = (accountId) => `${base()}/my/${accountId}`;
+  const portalUrl = async (accountId) => `${base()}/my/${await require('./handles').handleOf(db(), accountId)}`;
   const hasAccess = (funnelId, contactId) => db().get('SELECT 1 FROM member_access WHERE funnel_id = ? AND contact_id = ? AND revoked_at IS NULL', funnelId, contactId);
 
   async function grant(funnel, contactId, source) {
@@ -57,7 +57,7 @@ function registerMembers(app, api, { getDb, HttpError, id, upsertContact, messag
     const link = enterLink(funnel, contact.id);
     await messaging.sendTransactional({ account, to: contact.email, contactId: contact.id,
       subject: first ? `You’re in: ${funnel.name}` : `Your link to ${funnel.name}`,
-      text: `Hi ${contact.first_name || 'there'},\n\n${first ? `You now have access to ${funnel.name}.` : `Here’s your sign-in link for ${funnel.name}.`}\n\nOpen it here: ${link}\n\nThe link works for 7 days and keeps you signed in on this device. Lost it? Go to ${base()}/f/${funnel.slug} and ask for a new one.\n\nAll your courses and orders, in one place: ${portalUrl(funnel.account_id)}\n\n${account.from_name || account.name}` });
+      text: `Hi ${contact.first_name || 'there'},\n\n${first ? `You now have access to ${funnel.name}.` : `Here’s your sign-in link for ${funnel.name}.`}\n\nOpen it here: ${link}\n\nThe link works for 7 days and keeps you signed in on this device. Lost it? Go to ${base()}/f/${funnel.slug} and ask for a new one.\n\nAll your courses and orders, in one place: ${await portalUrl(funnel.account_id)}\n\n${account.from_name || account.name}` });
   }
 
   // Signed in on this device for 30 days: one cookie per business, so it opens every area they have.
@@ -74,7 +74,7 @@ function registerMembers(app, api, { getDb, HttpError, id, upsertContact, messag
     return cid && sig && same(sig, mac(`member:${cid}`)) ? Number(cid) : null;
   }
 
-  const loginPage = (res, funnel, accountName, { sent = false, status = 200 } = {}) => res.status(status).type('html').send(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>${escH(funnel.name)}</title>
+  const loginPage = (res, funnel, accountName, { sent = false, status = 200, handle = '' } = {}) => res.status(status).type('html').send(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>${escH(funnel.name)}</title>
     <style>body{font:16px/1.55 -apple-system,system-ui,sans-serif;color:#14282B;background:#F4F7F6;margin:0;padding:12vh 16px}.c{max-width:420px;margin:0 auto;background:#fff;border:1px solid #E3E9E8;border-radius:16px;padding:28px}
     h1{font-size:1.3rem;margin:0 0 4px}.m{color:#5B6B70}input{width:100%;box-sizing:border-box;padding:12px;border:1px solid #c9d1d3;border-radius:10px;font:inherit;margin:14px 0 8px}
     button{width:100%;background:#1B736D;color:#fff;border:0;border-radius:10px;padding:13px;font:600 1rem system-ui;cursor:pointer}.ok{background:#e6f4f2;color:#14524d;border-radius:10px;padding:12px;margin-top:14px}</style></head>
@@ -82,7 +82,7 @@ function registerMembers(app, api, { getDb, HttpError, id, upsertContact, messag
     ${sent ? '<p class="ok">If that email has access, a sign-in link is on its way. Check your inbox (and spam, just in case).</p>'
     : `<p class="m">Members only. Enter the email you joined with and we’ll send you a sign-in link.</p>
       <form method="post" action="/m/${escH(funnel.slug)}/login"><input type="email" name="email" required autocomplete="email" placeholder="you@example.com" aria-label="Your email"><button>Email me a sign-in link</button></form>`}
-    <p class="m" style="font-size:.9rem;margin:16px 0 0"><a href="/my/${Number(funnel.account_id)}" style="color:#1B736D">See all your courses and orders</a></p></div></body></html>`);
+    <p class="m" style="font-size:.9rem;margin:16px 0 0"><a href="/my/${escH(handle)}" style="color:#1B736D">See all your courses and orders</a></p></div></body></html>`);
 
   // Called by the public page route before showing a members page. Returns true to show it.
   async function gate(req, res, funnel, ownerViewing) {
@@ -92,9 +92,9 @@ function registerMembers(app, api, { getDb, HttpError, id, upsertContact, messag
       db().run('UPDATE member_access SET last_seen_at = now() WHERE funnel_id = ? AND contact_id = ?', funnel.id, cid).catch(() => {});
       return true;
     }
-    const acct = await db().get('SELECT name FROM accounts WHERE id = ?', funnel.account_id);
+    const acct = await db().get('SELECT name, handle FROM accounts WHERE id = ?', funnel.account_id);
     res.set('X-Robots-Tag', 'noindex');
-    loginPage(res, funnel, acct.name, { status: 401 });
+    loginPage(res, funnel, acct.name, { handle: acct.handle,  status: 401 });
     return false;
   }
 
@@ -103,7 +103,7 @@ function registerMembers(app, api, { getDb, HttpError, id, upsertContact, messag
   app.post('/m/:slug/login', form, async (req, res) => {
     const funnel = await areaBySlug(req.params.slug);
     if (!funnel) return res.status(404).type('text').send('Not found');
-    const acct = await db().get('SELECT name FROM accounts WHERE id = ?', funnel.account_id);
+    const acct = await db().get('SELECT name, handle FROM accounts WHERE id = ?', funnel.account_id);
     const email = String(req.body.email || '').trim().toLowerCase();
     // Same answer either way, so the form can't be used to find out who's a member.
     if (EMAIL_RE.test(email)) {
@@ -111,16 +111,16 @@ function registerMembers(app, api, { getDb, HttpError, id, upsertContact, messag
       const recent = c && await db().get("SELECT 1 FROM email_log WHERE contact_id = ? AND subject LIKE 'Your link to %' AND created_at > now() - interval '2 minutes'", c.id);
       if (c && !recent && await hasAccess(funnel.id, c.id)) await sendAccess(funnel, c).catch((e) => console.error('member link:', e.message));
     }
-    loginPage(res, funnel, acct.name, { sent: true });
+    loginPage(res, funnel, acct.name, { handle: acct.handle,  sent: true });
   });
   app.get('/m/:slug/enter/:token', async (req, res) => {
     const funnel = await areaBySlug(req.params.slug);
     const parts = String(req.params.token).split('.');
     if (!funnel || parts.length !== 4) return res.status(404).type('text').send('This link isn’t valid.');
     const [cid, fid, exp, sig] = parts;
-    const acct = await db().get('SELECT name FROM accounts WHERE id = ?', funnel.account_id);
+    const acct = await db().get('SELECT name, handle FROM accounts WHERE id = ?', funnel.account_id);
     const ok = same(sig, mac(`enter:${cid}.${fid}.${exp}`)) && Number(fid) === funnel.id && Number(exp) * 1000 > Date.now() && await hasAccess(funnel.id, Number(cid));
-    if (!ok) return loginPage(res, funnel, acct.name, { status: 401 });
+    if (!ok) return loginPage(res, funnel, acct.name, { handle: acct.handle,  status: 401 });
     signIn(res, funnel.account_id, cid);
     const to = String(req.query.to || '');
     res.redirect(303, `/f/${funnel.slug}${/^[a-z0-9-]{1,80}$/.test(to) ? `/${to}` : ''}`);

@@ -27,6 +27,7 @@ function registerAccounts(api, { getDb, HttpError, id, seed = async () => {}, on
     const accountId = await getDb().tx(async (t) => {
       const a = await t.get('INSERT INTO accounts (name, from_name, from_email, business_type) VALUES (?, ?, ?, ?) RETURNING id', name, name, req.user.email, cleanType(req.body?.business_type));
       await t.run("INSERT INTO memberships (user_id, account_id, role) VALUES (?, ?, 'owner')", req.user.id, a.id);
+      await require('./handles').handleOf(t, a.id);
       return a.id;
     });
     await seed(accountId);

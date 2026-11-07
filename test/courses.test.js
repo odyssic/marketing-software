@@ -178,7 +178,7 @@ test('one customer login lists every course and order for that email, and only t
 
   const { portal_url: portal } = (await c('GET', `/api/members-areas/${a.id}/course`)).body;
   const path = portal.replace(base, '');
-  assert.match(path, /^\/my\/\d+$/);
+  assert.match(path, /^\/my\/[a-z0-9-]+$/);
   const login = await raw('GET', path);
   assert.match(login.text, /Email me a sign-in link/);
   // Unknown email: same answer, no email.
@@ -187,7 +187,7 @@ test('one customer login lists every course and order for that email, and only t
   await raw('POST', `${path}/login`, { form: { email: 'IVY@example.com' } });
   const mail = (await mails(c, 'ivy@example.com')).find((m) => /^Your sign-in link/.test(m.subject));
   assert.ok(mail);
-  const enter = await raw('GET', linkIn(mail, /https?:\/\/\S+\/my\/\d+\/enter\/\S+/));
+  const enter = await raw('GET', linkIn(mail, /https?:\/\/\S+\/my\/[a-z0-9-]+\/enter\/\S+/));
   assert.equal(enter.status, 303);
   const cookie = enter.cookie;
   const page = await raw('GET', path, { cookie });
@@ -200,7 +200,7 @@ test('one customer login lists every course and order for that email, and only t
   assert.equal((await raw('GET', `/f/${b.area.slug}/lesson-1`, { cookie })).status, 200);
   assert.equal((await raw('GET', `/f/${hidden.area.slug}/lesson-1`, { cookie })).status, 401);
   // A tampered link gets nowhere; the cookie doesn't work for the other business.
-  const bad = linkIn(mail, /https?:\/\/\S+\/my\/\d+\/enter\/\S+/).replace(/.$/, (ch) => (ch === 'a' ? 'b' : 'a'));
+  const bad = linkIn(mail, /https?:\/\/\S+\/my\/[a-z0-9-]+\/enter\/\S+/).replace(/.$/, (ch) => (ch === 'a' ? 'b' : 'a'));
   assert.equal((await raw('GET', bad)).status, 401);
   assert.equal((await raw('GET', `/f/${o.area.slug}/lesson-1`, { cookie })).status, 401);
   // Sign out.
@@ -227,15 +227,31 @@ test('the customer login shows paid orders with a receipt only the buyer can ope
 
   await raw('POST', `${path}/login`, { form: { email: 'kim@example.com' } });
   const mail = (await mails(c, 'kim@example.com')).find((m) => /^Your sign-in link/.test(m.subject));
-  const { cookie } = await raw('GET', linkIn(mail, /https?:\/\/\S+\/my\/\d+\/enter\/\S+/));
+  const { cookie } = await raw('GET', linkIn(mail, /https?:\/\/\S+\/my\/[a-z0-9-]+\/enter\/\S+/));
   const page = await raw('GET', path, { cookie });
   assert.match(page.text, /Paid Course/);
   assert.match(page.text, /Glaze Masterclass/);
-  const receiptPath = page.text.match(/href="(\/my\/\d+\/receipt\/\d+)"/)[1];
+  const receiptPath = page.text.match(/href="(\/my\/[a-z0-9-]+\/receipt\/\d+)"/)[1];
   const receipt = await raw('GET', receiptPath, { cookie });
   assert.equal(receipt.status, 200);
   assert.match(receipt.text, /Total paid/);
   assert.match(receipt.text, /\$49/);
   // Not signed in: no receipt.
   assert.equal((await raw('GET', receiptPath)).status, 401);
+});
+
+test('customer pages use a short name, not a guessable number', async () => {
+  const c = client();
+  await c('POST', '/api/auth/signup', { name: 'Han', email: 'handle@example.com', password: 'password123', workspace: 'Ann’s Bakes & Co', business_type: 'shop' });
+  const me = (await c('GET', '/api/me')).body;
+  assert.equal(me.account.handle, 'anns-bakes-co');
+  assert.equal((await client()('GET', `/my/${me.account.id}`)).status, 404, 'numbers no longer open the login page');
+  assert.match((await client()('GET', `/my/${me.account.handle}`)).body, /Ann’s Bakes &amp; Co|Ann&#39;s|Ann’s Bakes/);
+  const c2 = client();
+  await c2('POST', '/api/auth/signup', { name: 'Han2', email: 'handle2@example.com', password: 'password123', workspace: 'Anns Bakes Co', business_type: 'shop' });
+  assert.equal((await c2('GET', '/api/me')).body.account.handle, 'anns-bakes-co-2', 'unique');
+  assert.equal((await c2('PUT', '/api/account/handle', { handle: 'anns-bakes-co' })).status, 409);
+  assert.equal((await c2('PUT', '/api/account/handle', { handle: '12345' })).status, 400);
+  assert.equal((await c2('PUT', '/api/account/handle', { handle: 'Sweet Loaves!' })).body.handle, 'sweet-loaves');
+  assert.equal((await client()('GET', '/my/sweet-loaves')).status, 200);
 });

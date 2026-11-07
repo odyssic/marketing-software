@@ -63,7 +63,7 @@ function registerAffiliates(app, api, { getDb, HttpError, id, upsertContact, log
     GROUP BY currency ORDER BY COUNT(*) DESC LIMIT 1`, accountId))?.currency || 'usd';
 
   // ---------- Links ----------
-  const accountRow = (accountId) => db().get('SELECT id, name, from_name, from_email, domain, brand_color, home_funnel_id FROM accounts WHERE id = ?', accountId);
+  const accountRow = (accountId) => db().get('SELECT id, name, from_name, from_email, domain, brand_color, home_funnel_id, handle FROM accounts WHERE id = ?', accountId);
   const siteBase = (acct) => (acct.domain ? `https://${acct.domain}` : base());
   const linkFor = (acct, code) => `${siteBase(acct)}/r/${code}`;
   // The business's public pages a partner can link to (entry pages of live flows, and every website page).
@@ -372,7 +372,7 @@ function registerAffiliates(app, api, { getDb, HttpError, id, upsertContact, log
     const owedAll = {};
     for (const s of Object.values(stats)) for (const [cur, c] of Object.entries(s.owed)) owedAll[cur] = (owedAll[cur] || 0) + c;
     res.json({ program: progOut(prog, currency), currency, partners: list.map((a) => partnerOut(a, acct, stats[a.id], prog, currency)), coupons, funnels,
-      owed_total: moneyLabel(owedAll, currency), signup_url: `${base()}/my/${req.accountId}/partner/join`, dashboard_url: `${base()}/my/${req.accountId}/partner` });
+      owed_total: moneyLabel(owedAll, currency), signup_url: `${base()}/my/${acct.handle}/partner/join`, dashboard_url: `${base()}/my/${acct.handle}/partner` });
   });
 
   api.put('/partners/program', async (req, res) => {
@@ -511,16 +511,16 @@ function registerAffiliates(app, api, { getDb, HttpError, id, upsertContact, log
 
   // ---------- Partner side (public) ----------
   const form = express.urlencoded({ extended: false, limit: '4kb' });
-  const publicAccount = async (raw) => (/^\d{1,9}$/.test(String(raw)) ? accountRow(Number(raw)) : null);
+  const publicAccount = (raw, opts) => require('./handles').accountByHandle(db(), raw, { ...opts, columns: 'id, name, from_name, from_email, domain, brand_color, home_funnel_id, handle' });
   function portalLink(acct, contactId, days = 7) {
     const exp = Math.floor(Date.now() / 1000) + days * 86400;
     const body = `${contactId}.${acct.id}.${exp}`;
-    return `${base()}/my/${acct.id}/partner/enter/${body}.${members.sign(`partner:${body}`)}`;
+    return `${base()}/my/${acct.handle}/partner/enter/${body}.${members.sign(`partner:${body}`)}`;
   }
   const page = (res, acct, title, html, { status = 200, who = '' } = {}) => {
     const brand = /^#[0-9a-f]{6}$/i.test(acct.brand_color || '') ? acct.brand_color : '#1B736D';
     res.set('X-Robots-Tag', 'noindex').status(status).type('html').send(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>${esc(title)} · ${esc(acct.name)}</title>
-<style>${PARTNER_CSS.replace(/BRAND/g, brand)}</style></head><body><header class="top"><div class="in"><b>${esc(acct.name)}</b>${who ? `<span class="who">${esc(who)} · <a href="/my/${acct.id}/logout">Sign out</a></span>` : ''}</div></header>
+<style>${PARTNER_CSS.replace(/BRAND/g, brand)}</style></head><body><header class="top"><div class="in"><b>${esc(acct.name)}</b>${who ? `<span class="who">${esc(who)} · <a href="/my/${acct.handle}/logout">Sign out</a></span>` : ''}</div></header>
 <main>${html}</main><script>document.querySelectorAll('[data-copy]').forEach(function(b){b.onclick=function(){var t=b.getAttribute('data-copy')||document.getElementById(b.getAttribute('data-from')).value;navigator.clipboard.writeText(t).then(function(){var o=b.textContent;b.textContent='Copied';setTimeout(function(){b.textContent=o},1500)})}});
 var pg=document.getElementById('pg');if(pg){var out=document.getElementById('pglink'),f=function(){var u=pg.value;out.value=u+(u.indexOf('?')<0?'?':'&')+'ref='+pg.getAttribute('data-code')};pg.onchange=f;f()}</script></body></html>`);
   };
@@ -534,8 +534,8 @@ var pg=document.getElementById('pg');if(pg){var out=document.getElementById('pgl
   const loginHtml = (acct, prog, { sent = false } = {}) => `<div class="card narrow"><h1>Partner dashboard</h1>
     ${sent ? '<p class="ok">If that email is one of our partners, a sign-in link is on its way. Check your inbox (and spam, just in case).</p>'
     : `<p class="m">Enter your email and we’ll send you a sign-in link. No password needed.</p>
-    <form method="post" action="/my/${acct.id}/partner/login"><input type="email" name="email" required autocomplete="email" placeholder="you@example.com" aria-label="Your email"><button class="b">Email me a sign-in link</button></form>`}
-    ${prog.signup_open ? `<p class="m small">Not a partner yet? <a href="/my/${acct.id}/partner/join">Become a partner</a></p>` : ''}</div>`;
+    <form method="post" action="/my/${acct.handle}/partner/login"><input type="email" name="email" required autocomplete="email" placeholder="you@example.com" aria-label="Your email"><button class="b">Email me a sign-in link</button></form>`}
+    ${prog.signup_open ? `<p class="m small">Not a partner yet? <a href="/my/${acct.handle}/partner/join">Become a partner</a></p>` : ''}</div>`;
 
   app.get('/my/:acct/partner', async (req, res) => {
     const acct = await publicAccount(req.params.acct);
@@ -546,7 +546,7 @@ var pg=document.getElementById('pg');if(pg){var out=document.getElementById('pgl
     const who = contact.email;
     if (!aff || aff.status === 'declined') {
       return page(res, acct, 'Partner dashboard', `<div class="card narrow"><h1>Partner dashboard</h1><p class="m">${esc(contact.email)} isn’t one of our partners.</p>
-        ${prog.signup_open ? `<p><a class="b" href="/my/${acct.id}/partner/join">Become a partner</a></p>` : ''}</div>`, { who });
+        ${prog.signup_open ? `<p><a class="b" href="/my/${acct.handle}/partner/join">Become a partner</a></p>` : ''}</div>`, { who });
     }
     if (aff.status === 'applied') return page(res, acct, 'Partner dashboard', `<div class="card narrow"><h1>Thanks for applying</h1><p class="m">We’ll email you as soon as you’re approved.</p></div>`, { who });
     const currency = await mainCurrency(acct.id);
@@ -576,16 +576,16 @@ var pg=document.getElementById('pg');if(pg){var out=document.getElementById('pgl
         <span class="amt">${x.note && /^Thank-you code/.test(x.note) ? 'Thank-you code' : esc(formatMoney(x.amount_cents, x.currency))}</span>${pill(x)}</div>`).join('')}</div>` : '<p class="m card">No sales yet. Share your link and they show up here.</p>'}
       ${payouts.length ? `<h2>Payments to you</h2><div class="card list">${payouts.map((p) => `<div class="row"><span>${esc(day(p.paid_on))}${p.note ? ` <span class="m">· ${esc(p.note)}</span>` : ''}</span><span class="amt">${esc(formatMoney(p.amount_cents, p.currency))}</span></div>`).join('')}</div>` : ''}
       ${aff.kind === 'partner' ? `<h2>How you get paid</h2><div class="card"><p class="m small">${esc(acct.name)} pays you directly, by PayPal or bank transfer. Tell them where to send it.</p>
-        <form method="post" action="/my/${acct.id}/partner/details"><input name="payout_details" maxlength="200" value="${esc(aff.payout_details)}" placeholder="e.g. PayPal: you@example.com" aria-label="Where to send your money"><button class="b sm">Save</button>${req.query.saved ? ' <span class="m">Saved</span>' : ''}</form></div>` : ''}`, { who });
+        <form method="post" action="/my/${acct.handle}/partner/details"><input name="payout_details" maxlength="200" value="${esc(aff.payout_details)}" placeholder="e.g. PayPal: you@example.com" aria-label="Where to send your money"><button class="b sm">Save</button>${req.query.saved ? ' <span class="m">Saved</span>' : ''}</form></div>` : ''}`, { who });
   });
 
   app.post('/my/:acct/partner/details', form, async (req, res) => {
     const acct = await publicAccount(req.params.acct);
     if (!acct) return res.status(404).type('text').send('Not found');
     const { aff } = await signedInPartner(req, acct);
-    if (!aff) return res.redirect(303, `/my/${acct.id}/partner`);
+    if (!aff) return res.redirect(303, `/my/${acct.handle}/partner`);
     await db().run('UPDATE affiliates SET payout_details = ? WHERE id = ? AND account_id = ?', String(req.body.payout_details || '').trim().slice(0, 200), aff.id, acct.id);
-    res.redirect(303, `/my/${acct.id}/partner?saved=1`);
+    res.redirect(303, `/my/${acct.handle}/partner?saved=1`);
   });
 
   app.post('/my/:acct/partner/login', form, async (req, res) => {
@@ -607,7 +607,7 @@ var pg=document.getElementById('pg');if(pg){var out=document.getElementById('pgl
   });
 
   app.get('/my/:acct/partner/enter/:token', async (req, res) => {
-    const acct = await publicAccount(req.params.acct);
+    const acct = await publicAccount(req.params.acct, { allowId: true });
     if (!acct) return res.status(404).type('text').send('Not found');
     const parts = String(req.params.token).split('.');
     const [cid, aid, exp, sig] = parts;
@@ -615,18 +615,18 @@ var pg=document.getElementById('pg');if(pg){var out=document.getElementById('pgl
       && await db().get('SELECT 1 FROM affiliates WHERE contact_id = ? AND account_id = ?', Number(cid), acct.id);
     if (!ok) return page(res, acct, 'Partner dashboard', loginHtml(acct, await program(acct.id)), { status: 401 });
     members.signIn(res, acct.id, Number(cid));
-    res.redirect(303, `/my/${acct.id}/partner`);
+    res.redirect(303, `/my/${acct.handle}/partner`);
   });
 
   // Public "Become a partner" page (only while the owner has it turned on).
   const joinHtml = (acct, prog, currency, { done = false, error = '' } = {}) => `<div class="card narrow"><h1>Become a ${esc(acct.name)} partner</h1>
     ${done ? '<p class="ok">Thanks! We’ll look at your application and email you when you’re approved.</p>'
     : `<p class="m">Share ${esc(acct.name)} with your audience and earn ${esc(termsText(prog, currency))}.</p>${error ? `<p class="err">${esc(error)}</p>` : ''}
-    <form method="post" action="/my/${acct.id}/partner/join"><input name="name" required maxlength="80" autocomplete="name" placeholder="Your name" aria-label="Your name">
+    <form method="post" action="/my/${acct.handle}/partner/join"><input name="name" required maxlength="80" autocomplete="name" placeholder="Your name" aria-label="Your name">
     <input type="email" name="email" required autocomplete="email" placeholder="you@example.com" aria-label="Your email">
     <textarea name="how" rows="3" maxlength="600" placeholder="Where will you share it? (your site, newsletter, Instagram…)" aria-label="Where will you share it?"></textarea>
     <input name="website" tabindex="-1" autocomplete="off" class="hp" aria-hidden="true"><button class="b">Apply</button></form>
-    <p class="m small">Already a partner? <a href="/my/${acct.id}/partner">Sign in</a></p>`}</div>`;
+    <p class="m small">Already a partner? <a href="/my/${acct.handle}/partner">Sign in</a></p>`}</div>`;
   app.get('/my/:acct/partner/join', async (req, res) => {
     const acct = await publicAccount(req.params.acct);
     const prog = acct && await program(acct.id);

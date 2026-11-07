@@ -159,7 +159,7 @@ function registerCourses(app, api, { getDb, HttpError, id, messaging, members, g
     const progress = {};
     for (const r of rows) if (ids.has(r.step_id)) progress[r.contact_id] = (progress[r.contact_id] || 0) + 1;
     res.json({ lessons: ids.size, dripped: items.filter((x) => x.lesson && (x.st.dripDays || x.st.dripDate)).length,
-      drip_emails: Boolean(row.drip_emails), portal_url: members.portalUrl(req.accountId), progress });
+      drip_emails: Boolean(row.drip_emails), portal_url: await members.portalUrl(req.accountId), progress });
   });
   api.put('/members-areas/:id/course', async (req, res) => {
     const f = await area(req);
@@ -168,7 +168,7 @@ function registerCourses(app, api, { getDb, HttpError, id, messaging, members, g
   });
 
   // ---------- Customer login: all courses and orders in one place ----------
-  const account = async (raw) => (/^\d{1,9}$/.test(String(raw)) ? db().get('SELECT id, name, from_name, brand_color FROM accounts WHERE id = ?', Number(raw)) : null);
+  const account = (raw, opts) => require('./handles').accountByHandle(db(), raw, opts);
   const signedInContact = async (req, acct) => {
     const cid = members.memberOf(req, { account_id: acct.id });
     return cid ? db().get('SELECT * FROM contacts WHERE id = ? AND account_id = ?', cid, acct.id) : null;
@@ -177,18 +177,18 @@ function registerCourses(app, api, { getDb, HttpError, id, messaging, members, g
   const portalLink = (acct, contactId, days = 7, to = '') => {
     const exp = Math.floor(Date.now() / 1000) + days * 86400;
     const body = `${contactId}.${acct.id}.${exp}`;
-    return `${members.base()}/my/${acct.id}/enter/${body}.${members.sign(`portal:${body}`)}${to ? `?to=${encodeURIComponent(to)}` : ''}`;
+    return `${members.base()}/my/${acct.handle}/enter/${body}.${members.sign(`portal:${body}`)}${to ? `?to=${encodeURIComponent(to)}` : ''}`;
   };
   const page = (res, acct, title, inner, status = 200) => {
     const brand = /^#[0-9a-f]{6}$/i.test(acct.brand_color || '') ? acct.brand_color : '#1B736D';
     res.set('X-Robots-Tag', 'noindex').status(status).type('html').send(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>${esc(title)} · ${esc(acct.name)}</title>
-<style>${PORTAL_CSS.replace(/BRAND/g, brand)}</style></head><body><header class="top"><div class="in"><b>${esc(acct.name)}</b>${inner.signedIn ? `<span class="who">${esc(inner.signedIn)} · <a href="/my/${acct.id}/logout">Sign out</a></span>` : ''}</div></header>
+<style>${PORTAL_CSS.replace(/BRAND/g, brand)}</style></head><body><header class="top"><div class="in"><b>${esc(acct.name)}</b>${inner.signedIn ? `<span class="who">${esc(inner.signedIn)} · <a href="/my/${acct.handle}/logout">Sign out</a></span>` : ''}</div></header>
 <main>${inner.html}</main></body></html>`);
   };
   const loginForm = (res, acct, { sent = false, status = 200 } = {}) => page(res, acct, 'Your account', { html: `<div class="card narrow"><h1>Your courses and orders</h1>
     ${sent ? '<p class="ok">If that email has bought from us or has a course, a sign-in link is on its way. Check your inbox (and spam, just in case).</p>'
     : `<p class="m">Enter the email you used when you bought or joined, and we’ll email you a sign-in link. No password needed.</p>
-    <form method="post" action="/my/${acct.id}/login"><input type="email" name="email" required autocomplete="email" placeholder="you@example.com" aria-label="Your email"><button class="b">Email me a sign-in link</button></form>`}</div>` }, status);
+    <form method="post" action="/my/${acct.handle}/login"><input type="email" name="email" required autocomplete="email" placeholder="you@example.com" aria-label="Your email"><button class="b">Email me a sign-in link</button></form>`}</div>` }, status);
 
   app.get('/my/:acct', async (req, res) => {
     const acct = await account(req.params.acct);
@@ -210,7 +210,7 @@ function registerCourses(app, api, { getDb, HttpError, id, messaging, members, g
       ${await portalExtra(acct, c)}
       <h2>Your courses</h2>${cards.length ? `<div class="grid">${cards.join('')}</div>` : '<p class="m card">No courses yet.</p>'}
       <h2>Your orders</h2>${orders.length ? `<div class="card list">${orders.map((o) => `<div class="row"><span><b>${esc(o.product_name)}</b><br><span class="m">${esc(shortDay(new Date(o.paid_at || o.created_at)))}, ${new Date(o.paid_at || o.created_at).getUTCFullYear()}</span></span>
-        <span class="amt">${esc(formatMoney(o.amount_cents, o.currency))}</span><a href="/my/${acct.id}/receipt/${o.id}">Receipt</a></div>`).join('')}</div>` : '<p class="m card">No orders yet.</p>'}` });
+        <span class="amt">${esc(formatMoney(o.amount_cents, o.currency))}</span><a href="/my/${acct.handle}/receipt/${o.id}">Receipt</a></div>`).join('')}</div>` : '<p class="m card">No orders yet.</p>'}` });
   });
   app.post('/my/:acct/login', form, async (req, res) => {
     const acct = await account(req.params.acct);
@@ -233,7 +233,7 @@ function registerCourses(app, api, { getDb, HttpError, id, messaging, members, g
     loginForm(res, acct, { sent: true });
   });
   app.get('/my/:acct/enter/:token', async (req, res) => {
-    const acct = await account(req.params.acct);
+    const acct = await account(req.params.acct, { allowId: true });
     if (!acct) return res.status(404).type('text').send('Not found');
     const parts = String(req.params.token).split('.');
     const [cid, aid, exp, sig] = parts;
@@ -242,13 +242,13 @@ function registerCourses(app, api, { getDb, HttpError, id, messaging, members, g
     if (!ok) return loginForm(res, acct, { status: 401 });
     members.signIn(res, acct.id, Number(cid));
     const to = String(req.query.to || '');
-    res.redirect(303, `/my/${acct.id}${/^community(\/[a-z0-9-]{1,40}){0,2}$/.test(to) ? `/${to}` : ''}`);
+    res.redirect(303, `/my/${acct.handle}${/^community(\/[a-z0-9-]{1,40}){0,2}$/.test(to) ? `/${to}` : ''}`);
   });
   app.get('/my/:acct/logout', async (req, res) => {
     const acct = await account(req.params.acct);
     if (!acct) return res.status(404).type('text').send('Not found');
     members.signOut(res, acct.id);
-    res.redirect(303, `/my/${acct.id}`);
+    res.redirect(303, `/my/${acct.handle}`);
   });
   app.get('/my/:acct/receipt/:order', async (req, res) => {
     const acct = await account(req.params.acct);
@@ -259,7 +259,7 @@ function registerCourses(app, api, { getDb, HttpError, id, messaging, members, g
     if (!o) return res.status(404).type('text').send('Not found');
     let items = parse(o.items); if (!Array.isArray(items) || !items.length) items = [{ name: o.product_name, qty: 1, price_cents: o.amount_cents }];
     const when = new Date(o.paid_at || o.created_at);
-    page(res, acct, `Receipt #${o.id}`, { signedIn: c.email, html: `<p><a href="/my/${acct.id}">&larr; Your account</a></p><div class="card receipt">
+    page(res, acct, `Receipt #${o.id}`, { signedIn: c.email, html: `<p><a href="/my/${acct.handle}">&larr; Your account</a></p><div class="card receipt">
       <div class="row"><h1>Receipt</h1><span class="m">#${o.id}</span></div>
       <p class="m">${esc(acct.name)}<br>Paid ${esc(fmtDay(when))}, ${when.getUTCFullYear()}${o.mode === 'test' ? ' (test purchase)' : ''}<br>To: ${esc(o.email || c.email)}</p>
       ${items.map((x) => `<div class="row"><span>${esc(x.name)}${Number(x.qty) > 1 ? ` &times; ${Number(x.qty)}` : ''}</span><span>${esc(formatMoney(Number(x.price_cents) * (Number(x.qty) || 1), o.currency))}</span></div>`).join('')}

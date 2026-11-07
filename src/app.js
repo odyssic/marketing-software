@@ -42,6 +42,7 @@ const { registerTexting } = require('./texting');
 const { registerTasks } = require('./tasks');
 const { registerReviews } = require('./reviews');
 const { registerChat } = require('./chat');
+const handles = require('./handles');
 const { registerMembers } = require('./members');
 const { registerCourses } = require('./courses');
 const { registerCommunity } = require('./community');
@@ -76,6 +77,7 @@ function createApp({ dbPath } = {}) {
   const init = () => (ready ??= (async () => {
     db = await openDb(dbOptions);
     secret = await appSecret(db);
+    for (const a of await db.all("SELECT id FROM accounts WHERE handle = '' LIMIT 5000")) await handles.handleOf(db, a.id).catch(() => {});
   })().catch((e) => { ready = null; throw e; }));
 
   const app = express();
@@ -317,6 +319,7 @@ function createApp({ dbPath } = {}) {
         const a = await t.get('INSERT INTO accounts (name, from_name, from_email, business_type) VALUES (?, ?, ?, ?) RETURNING id',
           workspace?.trim() || `${name.trim()}'s business`, name.trim(), email, business.cleanType(req.body?.business_type));
         await t.run('INSERT INTO memberships (user_id, account_id) VALUES (?, ?)', u.id, a.id);
+        await handles.handleOf(t, a.id);
         return { userId: u.id, accountId: a.id };
       });
     } catch (e) {
@@ -1453,6 +1456,14 @@ function createApp({ dbPath } = {}) {
   registerLibrary(api, { getDb: () => db, HttpError, id, ownHost, clearDomainCache: () => domainCache.clear() });
   registerPrint(api, app, { getDb: () => db, HttpError, id, logEvent, publicBase, toCsv: people.toCsv });
   registerAccounts(api, { getDb: () => db, HttpError, id, seed: (accountId) => workflows.seedDefaults(accountId), onChange: (userId) => billing.syncExtras(userId) });
+  // The short name in customer addresses (/my/<handle>). Old signed links keep working.
+  api.put('/account/handle', async (req, res) => {
+    const h = handles.cleanHandle(req.body?.handle);
+    if (!handles.valid(h)) throw new HttpError(400, 'Use 3 to 40 letters, numbers or dashes (not just numbers)');
+    if (await db.get('SELECT 1 FROM accounts WHERE handle = ? AND id <> ?', h, req.accountId)) throw new HttpError(409, 'That name is taken. Try another.');
+    await db.run('UPDATE accounts SET handle = ? WHERE id = ?', h, req.accountId);
+    res.json({ handle: h });
+  });
   api.put('/account/reviews', async (req, res) => {
     const url = String(req.body?.review_url || '').trim();
     if (url && !/^https:\/\/[^\s]+$/i.test(url)) throw new HttpError(400, 'Paste the full review link, starting with https://');
