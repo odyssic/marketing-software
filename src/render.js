@@ -302,8 +302,7 @@ const EMBED_STYLE = 'main{padding:28px 20px}.hero.first,.hero-min.first,.hero-sp
 const EMBED_SCRIPT = `<script>(function(){var s=function(){parent.postMessage({rillyEmbed:Math.ceil(document.body.getBoundingClientRect().height)},'*')};addEventListener('load',s);new ResizeObserver(s).observe(document.body);document.querySelectorAll('a[href^="http"]').forEach(function(a){if(a.host!==location.host)a.target='_top'})})()</script>`;
 const HTML_RESIZE = `<script>addEventListener('message',function(e){var d=e.data;if(!d||d.rillyHtml===undefined)return;var f=document.querySelector('iframe[data-html="'+d.rillyHtml+'"]');if(f&&e.source===f.contentWindow)f.style.height=Math.min(Math.max(20,d.h),20000)+'px'})</script>`;
 
-function renderPage({ title, blocks, settings = {}, nextUrl = '#', noUrl = '#', formAction = '#', buyAction = '#', products = {}, preview = false, oneClick = null, site = null, pageHref = (slug) => `#${slug}`, testimonials = {}, business = '', code = {}, ownDomain = false, embed = false, url = '', logo = '', coupons = false }) {
-function renderPage({ title, blocks, settings = {}, nextUrl = '#', noUrl = '#', formAction = '#', buyAction = '#', products = {}, preview = false, oneClick = null, site = null, pageHref = (slug) => `#${slug}`, testimonials = {}, business = '', code = {}, ownDomain = false, embed = false, url = '', logo = '', course = null }) {
+function renderPage({ title, blocks, settings = {}, nextUrl = '#', noUrl = '#', formAction = '#', buyAction = '#', products = {}, preview = false, oneClick = null, site = null, pageHref = (slug) => `#${slug}`, testimonials = {}, business = '', code = {}, ownDomain = false, embed = false, url = '', logo = '', coupons = false, course = null }) {
   const bg = color(settings.background, '#ffffff');
   const fg = color(settings.textColor, '#1f2937');
   const accent = color(settings.accent, '#4f46e5');
