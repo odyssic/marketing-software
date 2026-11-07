@@ -45,6 +45,7 @@ const { registerMetrics } = require('./metrics');
 const { registerBlog } = require('./blog');
 const { registerCheckout } = require('./checkout');
 const { createIntegrations } = require('./integrations');
+const { registerAffiliates } = require('./affiliates');
 
 const slugify = (s) => String(s || '').toLowerCase().normalize('NFKD').replace(/[^\w\s-]/g, '')
   .trim().replace(/[\s_]+/g, '-').replace(/-+/g, '-').slice(0, 60) || 'page';
@@ -93,7 +94,7 @@ function createApp({ dbPath } = {}) {
     if (a) domainCache.set(host, { account: a, at: Date.now() });
     return a || null;
   };
-  const PASS = /^\/(t|s|u|b|dl|m|my|pay|hooks|legal|checkout|stripe|unsubscribe|f)\//;
+  const PASS = /^\/(t|s|u|b|dl|m|my|pay|hooks|legal|checkout|stripe|unsubscribe|f|r)\//;
   // A custom domain's sitemap, robots rules and llms.txt (a plain summary for AI assistants).
   async function siteFiles(acct, host, path, res) {
     const base = `https://${host}`;
@@ -262,6 +263,7 @@ function createApp({ dbPath } = {}) {
     if (fresh) await invoices.onOrderPaid(order).catch((e) => console.error('invoice paid:', e.message));
     if (fresh) await members.onOrderPaid(order).catch((e) => console.error('members access:', e.message));
     if (fresh) await checkout.onOrderPaid(order).catch((e) => console.error('coupon use:', e.message));
+    if (fresh) await affiliates.onOrderPaid(order).catch((e) => console.error('partner commission:', e.message));
   }
 
   // ---------- API ----------
@@ -1481,6 +1483,9 @@ function createApp({ dbPath } = {}) {
     ownerViewing: (req, x) => ownerViewing(req, x) });
   const checkout = registerCheckout(app, api, { getDb: () => db, HttpError, id, messaging, publicBase, stripe,
     findPublicStep: (...a) => findPublicStep(...a), findBlock: (...a) => findBlock(...a) });
+  // Partners and referrals: links, commissions, payouts, the partner dashboard (/my/<business>/partner).
+  const affiliates = registerAffiliates(app, api, { getDb: () => db, HttpError, id, upsertContact, logEvent, messaging, members, publicBase, checkout, toCsv: people.toCsv });
+  messaging.hooks.extraFields = affiliates.emailFields;
   // Booking calendar routes (registered before the API's not-found handler and the public page route).
   const blog = registerBlog(app, api, { getDb: () => db, HttpError, id, publicBase });
   const bookings = registerBookings(app, api, { getDb: () => db, HttpError, id, upsertContact, logEvent, messaging, mailer, publicBase,
@@ -1595,6 +1600,7 @@ function createApp({ dbPath } = {}) {
     if (course?.locked) Object.assign(page, { blocks: course.lockedBlocks, settings: { ...page.settings, seoTitle: '', seoDescription: '', seoSummary: '' } });
     const buyer = page.blocks.some((x) => x.type === 'pricing') ? await buyerOrder(req, funnel) : null;
     const src = draft ? null : attribution.remember(req, res, auth.parseCookies(req.headers.cookie), [...ownHostList(), req.hostname.toLowerCase()]);
+    if (!draft && req.query.ref) await affiliates.track(req, res, funnel.account_id);
     const [products] = await Promise.all([
       productsMap(funnel.account_id),
       draft ? null : db.run("INSERT INTO page_events (account_id, funnel_id, step_id, type, variant, source) VALUES (?, ?, ?, 'view', ?, ?)", funnel.account_id, funnel.id, step.id, v, src?.source || ''),
@@ -1707,7 +1713,8 @@ function createApp({ dbPath } = {}) {
     const bump = bumpProduct && bumpProduct.billing === 'one_time' && bumpProduct.currency === product.currency ? bumpProduct : null;
     // A code, pay-in-parts, or a free trial (checkout.js); a bad code says why.
     let price;
-    try { price = await checkout.priceOrder(product, { coupon: String(req.body.coupon || '').slice(0, 40), plan: req.body.plan === '1' }); } catch (e) {
+    const friendCode = String(req.body.coupon || '').trim() ? '' : await affiliates.friendCoupon(req, funnel.account_id, product, req.body.email);
+    try { price = await checkout.priceOrder(product, { coupon: String(req.body.coupon || friendCode).slice(0, 40), plan: req.body.plan === '1' }); } catch (e) {
       if (e instanceof HttpError) return messagePage(res, 400, e.message, back);
       throw e;
     }
@@ -1721,6 +1728,7 @@ function createApp({ dbPath } = {}) {
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`, funnel.account_id, product.id, bump ? `${product.name} + ${bump.name}` : product.name,
     total, product.currency, account.stripe_secret_key ? 'stripe' : 'test', funnel.id, step.id, JSON.stringify(items), variantFor(req, null, step), email, buyer?.id || null, buySrc ? JSON.stringify(buySrc) : '',
     price.coupon?.code || '', price.off, price.parts, price.trialDays);
+    await affiliates.attachOrder(req, orderId, funnel.account_id);
     if (!account.stripe_secret_key) return res.redirect(303, `/checkout/test/${orderId}/${orderToken(orderId)}`);
     // Free with a code (one-time, nothing to charge): no card needed.
     if (!total && !price.parts && product.billing === 'one_time') {
@@ -1789,6 +1797,7 @@ function createApp({ dbPath } = {}) {
     const { id: orderId } = await db.get(`INSERT INTO orders (account_id, product_id, product_name, amount_cents, currency, mode, funnel_id, step_id, email, items, variant)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`, funnel.account_id, product.id, product.name, product.price_cents, product.currency,
     prev.mode, funnel.id, step.id, prev.email, JSON.stringify([{ name: product.name, qty: 1, price_cents: product.price_cents, one_click: true }]), variantFor(req, null, step));
+    await affiliates.attachOrder(req, orderId, funnel.account_id);
     const order = await db.get('SELECT * FROM orders WHERE id = ?', orderId);
     if (prev.mode === 'stripe') {
       const account = await db.get('SELECT stripe_secret_key FROM accounts WHERE id = ?', funnel.account_id);
@@ -1864,6 +1873,7 @@ ${order.status === 'paid' ? '<p>This order is already paid.</p>' : `<label>Name<
         await checkout.afterSession(order, session);
       }
     }
+    await affiliates.onStripeEvent(account.id, event).catch((e) => console.error('partner webhook:', e.message));
     res.json({ received: true });
   });
 
@@ -1961,7 +1971,7 @@ ${order.status === 'paid' ? '<p>This order is already paid.</p>' : `<label>Name<
   // the scheduled Netlify function.
   app.runJobs = async (now = new Date()) => {
     await init();
-    return { ...(await workflows.processDue({ now })), ...(await digest.sendDue(now)), ...(await bookings.sendReminders(now)), ...(await checkout.recoverCheckouts(now)), ...(await askForReviews(now)), ...(await sendScheduled(now)), ...(await invoices.remindOverdue(now)), ...(await onboarding.sendDue(now)), ...(await reports.sendDue(now)), ...(await integrations.processDue(now)), ...(await courses.sendUnlocks(now)) };
+    return { ...(await workflows.processDue({ now })), ...(await digest.sendDue(now)), ...(await bookings.sendReminders(now)), ...(await checkout.recoverCheckouts(now)), ...(await askForReviews(now)), ...(await sendScheduled(now)), ...(await invoices.remindOverdue(now)), ...(await onboarding.sendDue(now)), ...(await reports.sendDue(now)), ...(await integrations.processDue(now)), ...(await courses.sendUnlocks(now)), ...(await affiliates.processDue(now)) };
   };
   app.getDb = () => db; // for tests (seeding history)
   app.messaging = messaging; // for tests (signing tracking links)

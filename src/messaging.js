@@ -28,12 +28,15 @@ const GIF = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA
 // {{first_name}}, {{first_name|there}} (with a fallback), {{last_name}}, {{email}}, {{business}}.
 // When a fill-in has no "|fallback" and we don't have the detail, use these.
 const DEFAULTS = { first_name: 'there', name: 'there' };
-function merge(text, person, account) {
-  const values = { first_name: person.first_name, last_name: person.last_name, email: person.email, business: account?.name, name: [person.first_name, person.last_name].filter(Boolean).join(' ') };
+function merge(text, person, account, extra = {}) {
+  const values = { ...extra, first_name: person.first_name, last_name: person.last_name, email: person.email, business: account?.name, name: [person.first_name, person.last_name].filter(Boolean).join(' ') };
   return String(text || '').replace(/\{\{\s*(\w+)\s*(?:\|\s*([^}]*?)\s*)?\}\}/g, (m, k, fallback) => (k in values ? values[k] || fallback || DEFAULTS[k] || '' : m));
 }
 
 function createMessaging({ getDb, getSecret, publicBase, logEvent }) {
+  // hooks.extraFields(account, person): more fill-ins, e.g. {{referral_link}} (affiliates.js).
+  const hooks = {};
+  const extras = async (text, account, person) => (hooks.extraFields && /\{\{\s*referral_/.test(text) ? hooks.extraFields(account, person).catch(() => ({})) : {});
   const sign = (emailId) => `${emailId}.${crypto.createHmac('sha256', getSecret()).update(`email:${emailId}`).digest('hex').slice(0, 16)}`;
   const verify = (token) => {
     const [idPart] = String(token).split('.');
@@ -61,13 +64,14 @@ function createMessaging({ getDb, getSecret, publicBase, logEvent }) {
     if (person.unsubscribed) return { status: 'skipped', reason: 'unsubscribed' };
     const db = getDb();
     const base = publicBase();
-    const subj = merge(subject, person, account);
+    const extra = await extras(`${subject}${body}${preheader}`, account, person);
+    const subj = merge(subject, person, account, extra);
     const unsub = `${base}/unsubscribe/${unsubToken(person.id)}`;
-    const merged = `${merge(body, person, account)}\n\n--\nUnsubscribe: ${unsub}`;
+    const merged = `${merge(body, person, account, extra)}\n\n--\nUnsubscribe: ${unsub}`;
     const text = signText(emailBodyText(merged), account, base);
     const row = await db.get(`INSERT INTO email_log (account_id, broadcast_id, contact_id, to_email, subject, body, status, workflow_id, campaign_id${abVariant ? ', ab_variant' : ''})
       VALUES (?, ?, ?, ?, ?, ?, 'queued', ?, ?${abVariant ? ', ?' : ''}) RETURNING id`, account.id, broadcastId, person.id, person.email, subj, text, workflowId, campaignId, ...(abVariant ? [abVariant] : []));
-    const html = signHtml(toHtml(merged, sign(row.id), base, merge(preheader, person, account), account.brand_color), account, base);
+    const html = signHtml(toHtml(merged, sign(row.id), base, merge(preheader, person, account, extra), account.brand_color), account, base);
     try {
       // One-click unsubscribe headers (required by Gmail and Yahoo for bulk senders).
       const headers = { 'List-Unsubscribe': `<${unsub}>`, 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' };
@@ -95,8 +99,9 @@ function createMessaging({ getDb, getSecret, publicBase, logEvent }) {
   async function sendTest({ account, to, name, subject, body, preheader = '' }) {
     const [first, ...rest] = String(name || '').split(' ');
     const person = { first_name: first, last_name: rest.join(' '), email: to };
-    const subj = `[Test] ${merge(subject, person, account)}`;
-    const merged = `${merge(body, person, account)}\n\n--\nUnsubscribe: (your readers get a working link here)`;
+    const extra = await extras(`${subject}${body}`, account, person);
+    const subj = `[Test] ${merge(subject, person, account, extra)}`;
+    const merged = `${merge(body, person, account, extra)}\n\n--\nUnsubscribe: (your readers get a working link here)`;
     const base = publicBase();
     const text = signText(emailBodyText(merged), account, base);
     const html = signHtml(toHtml(merged, 'test', base, merge(preheader, person, account), account.brand_color), account, base).replace(/<img src="[^"]*\/t\/o\/[^"]*"[^>]*>/, '').replace(/href="[^"]*\/t\/c\/test\?u=([^"]*)"/g, (_, u) => `href="${decodeURIComponent(u)}"`);
@@ -147,7 +152,7 @@ function createMessaging({ getDb, getSecret, publicBase, logEvent }) {
     });
   }
 
-  return { sendToPerson, sendTest, sendTransactional, sendToOwner, registerTracking, merge, unsubToken, sign, verify };
+  return { sendToPerson, sendTest, sendTransactional, sendToOwner, registerTracking, merge, unsubToken, sign, verify, hooks };
 }
 
 module.exports = { createMessaging, merge };

@@ -15,6 +15,7 @@ const TRIGGERS = {
   subscribe: 'Subscribes to a newsletter',
   inquiry: 'Sends an inquiry',
   booking: 'Books a call',
+  referral: 'Sends a referral that buys',
   silent: 'Goes quiet (no activity for a while)',
   birthday: 'Has a birthday',
   anniversary: 'Reaches a customer anniversary (a year since their first purchase)',
@@ -148,7 +149,7 @@ const TEMPLATES = {
   },
   referral: {
     name: 'Referral ask', lever: 'lead', description: '60 days after an order, invite happy customers to share with a friend.',
-    graph: () => chain({ event: 'purchase', repeat: false }, [wait(60), email('Know someone who’d love this?', 'Hi {{first_name|there}},\n\nIf a friend would enjoy {{business}} too, forward them this link and you’ll both get [your thank-you]:\n\n[Referral link]\n\nThanks for spreading the word.')]),
+    graph: () => chain({ event: 'purchase', repeat: false }, [wait(60), email('Know someone who’d love this?', 'Hi {{first_name|there}},\n\nIf a friend would enjoy {{business}} too, here’s your own link to share. {{referral_reward}}\n\n{{referral_link}}\n\nThanks for spreading the word.')]),
   },
   winback: {
     name: 'Win-back', lever: 'continuity', description: 'After 180 days of silence, send a warm note; if they don’t respond, remind you to reach out personally.',
@@ -250,7 +251,7 @@ function createWorkflows({ getDb, HttpError, id, people, messaging, getAccount }
 
   // Called for every logged event. Only fresh events start workflows.
   async function onEvent(accountId, e) {
-    if (!e.person_id || !['signup', 'purchase', 'subscribe', 'inquiry', 'booking'].includes(e.type)) return;
+    if (!e.person_id || !['signup', 'purchase', 'subscribe', 'inquiry', 'booking', 'referral'].includes(e.type)) return;
     if (e.occurred_at && Date.now() - new Date(e.occurred_at).getTime() > FRESH_MS) return;
     for (const w of await activeWithTrigger(accountId, e.type)) {
       const t = w.graph.nodes[w.graph.root].config;
