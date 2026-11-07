@@ -27,10 +27,24 @@ function moneyParts(cents, currency = 'usd') {
 }
 const formatMoney = (cents, currency) => { const m = moneyParts(cents, currency); return m.symbol + m.amount; };
 
+// Checks a typed code on the server and says what it does; a ?coupon= link
+// (from a checkout reminder) fills it in. Runs once per page.
+const COUPON_JS = `<script>if(!window.__pcode){window.__pcode=1;addEventListener('DOMContentLoaded',function(){
+var pre=new URLSearchParams(location.search).get('coupon');
+document.querySelectorAll('.pcode').forEach(function(d){var f=d.closest('form'),i=d.querySelector('input'),m=d.querySelector('.pcode-msg');
+function go(){if(!i.value.trim()){m.textContent='';return}var pl=f.querySelector('input[name=plan]:checked');
+fetch(d.dataset.check+'?block='+encodeURIComponent(f.block.value)+'&code='+encodeURIComponent(i.value)+(pl&&pl.value?'&plan=1':'')).then(function(r){return r.json()}).then(function(j){m.textContent=j.message;m.className='pcode-msg '+(j.ok?'ok':'bad')}).catch(function(){})}
+d.querySelector('.pcode-go').onclick=go;i.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();go()}});
+f.querySelectorAll('input[name=plan]').forEach(function(r){r.addEventListener('change',go)});
+if(pre){i.value=pre;d.open=true;go()}})})}</script>`;
+
 function renderPricing(b, ctx) {
   const product = ctx.products?.[b.productId];
   const price = product ? moneyParts(product.price_cents, product.currency) : null;
-  const billing = b.billingText || (product ? BILLING_TEXT[product.billing] : '');
+  // A free trial says so plainly: "14 days free, then $29/month".
+  const trial = product && product.billing !== 'one_time' && product.trial_days > 0
+    ? `${product.trial_days} days free, then ${formatMoney(product.price_cents, product.currency)}/${product.billing === 'yearly' ? 'year' : 'month'}` : '';
+  const billing = trial || b.billingText || (product ? BILLING_TEXT[product.billing] : '');
   const features = String(b.features || '').split('\n').map((f) => f.trim()).filter(Boolean);
   const btnStyle = `background:${color(b.buttonColor, ctx.accent)}`;
   const label = `${esc(b.buttonLabel || 'Buy now')}&nbsp;&rarr;${b.buttonSubtext ? `<small>${esc(b.buttonSubtext)}</small>` : ''}`;
@@ -55,8 +69,18 @@ function renderPricing(b, ctx) {
       <span><b>${esc(b.bumpLabel || `Yes, add ${bump.name}`)}</b> for ${esc(formatMoney(bump.price_cents, bump.currency))}${bump.description ? `<br><small>${esc(bump.description)}</small>` : ''}</span></label>` : '';
     // Email first: it pre-fills checkout and lets us send one reminder if they don't finish.
     const emailHtml = b.askEmail === false ? '' : '<input class="pemail" type="email" name="email" required autocomplete="email" placeholder="Your email (for your receipt)" aria-label="Your email">';
+    // Pay in parts: pick "in full" or "3 × $33".
+    const parts = product.billing === 'one_time' && product.plan_parts >= 2 ? product.plan_parts : 0;
+    const planHtml = parts ? `<div class="plans" role="radiogroup" aria-label="How to pay">
+      <label><input type="radio" name="plan" value="" checked><span>Pay in full <b>${esc(formatMoney(product.price_cents, product.currency))}</b></span></label>
+      <label><input type="radio" name="plan" value="1"><span>${parts} monthly payments of <b>${esc(formatMoney(product.plan_part_cents || Math.ceil(product.price_cents / parts), product.currency))}</b></span></label></div>` : '';
+    // "Have a code?" only shows when the business has made at least one code.
+    const check = String(ctx.buyAction).replace(/\/buy$/, '/coupon');
+    const codeHtml = ctx.coupons ? `<details class="pcode" data-check="${esc(check)}"><summary>Have a code?</summary>
+      <div class="pcode-row"><input name="coupon" maxlength="30" autocomplete="off" placeholder="Enter code" aria-label="Discount code"><button type="button" class="pcode-go">Apply</button></div>
+      <div class="pcode-msg" role="status"></div></details>${COUPON_JS}` : '';
     cta = `<form method="post" action="${esc(ctx.buyAction)}"${blocked}><input type="hidden" name="block" value="${esc(b.id)}">
-      ${emailHtml}${bumpHtml}<button class="btn cta" style="${btnStyle}">${label}</button></form>`;
+      ${emailHtml}${planHtml}${bumpHtml}${codeHtml}<button class="btn cta" style="${btnStyle}">${label}</button></form>`;
   } else {
     cta = `<a class="btn cta" style="${btnStyle}" href="${esc(ctx.nextUrl)}">${label}</a>`
       + (ctx.preview ? '<p class="warn">Choose a product for this pricing card so the button takes payment.</p>' : '');
@@ -278,12 +302,12 @@ const EMBED_STYLE = 'main{padding:28px 20px}.hero.first,.hero-min.first,.hero-sp
 const EMBED_SCRIPT = `<script>(function(){var s=function(){parent.postMessage({rillyEmbed:Math.ceil(document.body.getBoundingClientRect().height)},'*')};addEventListener('load',s);new ResizeObserver(s).observe(document.body);document.querySelectorAll('a[href^="http"]').forEach(function(a){if(a.host!==location.host)a.target='_top'})})()</script>`;
 const HTML_RESIZE = `<script>addEventListener('message',function(e){var d=e.data;if(!d||d.rillyHtml===undefined)return;var f=document.querySelector('iframe[data-html="'+d.rillyHtml+'"]');if(f&&e.source===f.contentWindow)f.style.height=Math.min(Math.max(20,d.h),20000)+'px'})</script>`;
 
-function renderPage({ title, blocks, settings = {}, nextUrl = '#', noUrl = '#', formAction = '#', buyAction = '#', products = {}, preview = false, oneClick = null, site = null, pageHref = (slug) => `#${slug}`, testimonials = {}, business = '', code = {}, ownDomain = false, embed = false, url = '', logo = '' }) {
+function renderPage({ title, blocks, settings = {}, nextUrl = '#', noUrl = '#', formAction = '#', buyAction = '#', products = {}, preview = false, oneClick = null, site = null, pageHref = (slug) => `#${slug}`, testimonials = {}, business = '', code = {}, ownDomain = false, embed = false, url = '', logo = '', coupons = false }) {
   const bg = color(settings.background, '#ffffff');
   const fg = color(settings.textColor, '#1f2937');
   const accent = color(settings.accent, '#4f46e5');
   const width = Math.min(Math.max(Number(settings.width) || 720, 360), 1200);
-  const ctx = { nextUrl, noUrl, formAction, buyAction, products, preview, accent, background: bg, oneClick, pageHref, testimonials, business };
+  const ctx = { nextUrl, noUrl, formAction, buyAction, products, preview, accent, background: bg, oneClick, pageHref, testimonials, business, coupons };
   // Websites get a menu across the top and a footer.
   const nav = site ? `<header class="site"><div class="in"><a class="brand" href="${esc(site.home)}">${esc(site.name)}</a>
     <input type="checkbox" id="mnu" hidden><label for="mnu" class="burger" aria-label="Menu">☰</label>
@@ -326,7 +350,7 @@ body{overflow-x:hidden}
 .features{list-style:none;padding:0;margin:0 0 28px;display:grid;grid-template-columns:1fr 1fr;gap:10px 28px;text-align:left}
 .features li{position:relative;padding-left:40px;line-height:1.35}
 .features li::before{content:"✓";position:absolute;left:0;top:-1px;width:22px;height:22px;border:2px solid ${accent};color:${accent};border-radius:4px;display:grid;place-items:center;font-weight:800;font-size:.85rem}
-.consent{display:flex;gap:8px;align-items:flex-start;text-align:left;font-size:.8rem;opacity:.85;margin:4px 0 10px}.consent input{width:auto;margin-top:3px}.testimonial{margin:28px auto;max-width:560px;text-align:center}.testimonial img{width:64px;height:64px;border-radius:50%;object-fit:cover}.testimonial blockquote{font-size:1.15rem;font-style:italic;margin:10px 0}.testimonial figcaption{font-weight:600}.testimonial figcaption span{font-weight:400;opacity:.7}.pimg{width:100%;max-height:320px;object-fit:cover;border-radius:10px;margin-bottom:14px}.bump{display:flex;gap:10px;align-items:flex-start;text-align:left;border:2px dashed #f59e0b;background:#fffbeb;border-radius:8px;padding:12px;margin:0 0 14px;cursor:pointer;font-size:.95rem}.bump input{margin-top:4px;width:18px;height:18px}.pemail{display:block;width:100%;margin:0 0 12px;padding:14px 16px;border:1px solid #d1d5db;border-radius:8px;font:inherit}.pricing form{margin:0}.cta{display:block;width:100%;font-size:1.6rem;padding:16px 20px;border-radius:6px;font-weight:700}
+.consent{display:flex;gap:8px;align-items:flex-start;text-align:left;font-size:.8rem;opacity:.85;margin:4px 0 10px}.consent input{width:auto;margin-top:3px}.testimonial{margin:28px auto;max-width:560px;text-align:center}.testimonial img{width:64px;height:64px;border-radius:50%;object-fit:cover}.testimonial blockquote{font-size:1.15rem;font-style:italic;margin:10px 0}.testimonial figcaption{font-weight:600}.testimonial figcaption span{font-weight:400;opacity:.7}.pimg{width:100%;max-height:320px;object-fit:cover;border-radius:10px;margin-bottom:14px}.bump{display:flex;gap:10px;align-items:flex-start;text-align:left;border:2px dashed #f59e0b;background:#fffbeb;border-radius:8px;padding:12px;margin:0 0 14px;cursor:pointer;font-size:.95rem}.bump input{margin-top:4px;width:18px;height:18px}.pemail{display:block;width:100%;margin:0 0 12px;padding:14px 16px;border:1px solid #d1d5db;border-radius:8px;font:inherit}.pricing form{margin:0}.plans{display:grid;gap:8px;margin:0 0 14px;text-align:left}.plans label{display:flex;gap:10px;align-items:center;border:1px solid #d1d5db;border-radius:8px;padding:12px 14px;cursor:pointer}.plans label:has(input:checked){border-color:currentColor;box-shadow:0 0 0 1px currentColor}.plans input{width:18px;height:18px;margin:0}.pcode{text-align:left;margin:0 0 14px;font-size:.95rem}.pcode summary{cursor:pointer;opacity:.8}.pcode-row{display:flex;gap:8px;margin-top:8px}.pcode-row input{flex:1;min-width:0;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;font:inherit;text-transform:uppercase}.pcode-row input::placeholder{text-transform:none}.pcode-go{padding:10px 16px;border:1px solid #d1d5db;background:#f9fafb;border-radius:8px;font:inherit;cursor:pointer}.pcode-msg{font-size:.88rem;margin-top:6px}.pcode-msg.ok{color:#15803d}.pcode-msg.bad{color:#b91c1c}.cta{display:block;width:100%;font-size:1.6rem;padding:16px 20px;border-radius:6px;font-weight:700}
 .cta small{display:block;font-size:.8rem;font-weight:400;margin-top:6px;opacity:.95}
 .warn{color:#b45309;font-size:.85rem}.oneclick{font-size:.85rem;opacity:.75;margin:10px 0 0}
 @media(max-width:560px){.features{grid-template-columns:1fr}.price{font-size:4.2rem}.cta{font-size:1.25rem}}

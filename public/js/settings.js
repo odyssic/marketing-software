@@ -95,7 +95,8 @@ function viewSettings() {
         <p class="hint">Only needed if Rilly couldn’t add it for you. In Stripe → Developers → Webhooks, add an endpoint for <b>checkout.session.completed</b> pointing to:</p>
         <div class="copy" style="margin-bottom:10px"><input readonly aria-label="Webhook address" value="${esc(state.me.payments.webhookUrl)}"><button type="button" class="btn" data-copy="${esc(state.me.payments.webhookUrl)}">Copy</button></div>
         <label class="f">Its signing secret<input name="webhookSecret" type="password" autocomplete="off" placeholder="${state.me.payments.webhookSecretSet ? 'Saved. Paste a new one to replace it' : 'whsec_…'}"></label></details>
-      <label class="check" style="margin:4px 0 12px"><input type="checkbox" data-recover ${state.me.account.recover_checkouts === 0 ? '' : 'checked'}> Remind people who start checking out but don’t finish <span class="muted small">(one email, an hour later)</span></label>
+      <label class="check" style="margin:4px 0 12px"><input type="checkbox" data-recover ${state.me.account.recover_checkouts === 0 ? '' : 'checked'}> Remind people who start checking out but don’t finish <span class="muted small">(an hour later, and once more a day later)</span></label>
+      <div data-recover-coupon></div>
       <div class="err"></div>
       <div class="row"><button class="btn ${state.me.payments.canLogin && !state.me.payments.connected ? '' : 'primary'}">${state.me.payments.connected ? 'Save payment settings' : state.me.payments.canLogin ? 'Save' : 'Connect'}</button>
         ${state.me.payments.connected ? '<button type="button" class="btn danger" data-disconnect>Disconnect</button>' : ''}</div>
@@ -108,6 +109,7 @@ function viewSettings() {
     catch (err) { $('.err', f).textContent = err.message; }
   };
   $('[data-gravatar]').onchange = async (e) => { await api('PUT', '/api/account/gravatar', { on: e.target.checked }); state.me = await api('GET', '/api/me'); toast(e.target.checked ? 'Profile photos on' : 'Profile photos off'); };
+  couponsRecoveryPicker($('[data-recover-coupon]'));
   $('[data-recover]').onchange = async (e) => { await api('PUT', '/api/account/recovery', { on: e.target.checked }); state.me = await api('GET', '/api/me'); toast(e.target.checked ? 'Checkout reminders on' : 'Checkout reminders off'); };
   const bizForm = $('[data-business]');
   // Picking a type suggests its usual sections; the boxes can still be changed.

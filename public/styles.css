@@ -1493,3 +1493,6 @@ ul.tasks { list-style: none; padding: 0; margin: 10px 0 4px; }
 .blog-prev .bp-body a { color: inherit; }
 .blog-ed .cmp-form textarea[name=excerpt], .blog-ed .cmp-form textarea[name=seo_description] { min-height: 0; }
 .blog-ed .cmp-form div.f { margin-bottom: 14px; }
+/* Coupons (public/js/coupons.js) */
+.coupon-code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .04em; }
+.coupon-products { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 4px 12px; margin-top: 6px; }
