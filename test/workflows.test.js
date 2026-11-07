@@ -268,3 +268,43 @@ test('every step type does its job: the referral map plus tag, yes/no split and 
   const st = (await c('GET', `/api/workflows/${id}`)).body.stats;
   assert.equal(st.w.at || 0, 0); // nobody left waiting
 });
+
+test('date triggers: birthdays (a week ahead), customer anniversaries and subscription renewals, once a year each', async () => {
+  const c = await signup('wf-dates@example.com');
+  const now = new Date('2027-03-10T12:00:00Z');
+  const make = async (name, config) => {
+    const { id } = (await c('POST', '/api/workflows', { template: 'blank', name })).body;
+    const g = (await c('GET', `/api/workflows/${id}`)).body.graph;
+    g.nodes[g.root].config = config;
+    g.nodes.e1 = { type: 'email', config: { subject: `${name} for {{first_name|you}}`, body: 'Hello' } };
+    g.nodes[g.root].next = 'e1';
+    assert.equal((await c('PUT', `/api/workflows/${id}`, { graph: g })).status, 200);
+    assert.equal((await c('PUT', `/api/workflows/${id}/status`, { status: 'active' })).status, 200);
+  };
+  await make('Birthday', { event: 'birthday', before: 7 });
+  await make('Anniversary', { event: 'anniversary' });
+  await make('Renewal', { event: 'renewal', before: 3 });
+
+  const b = (await c('POST', '/api/contacts', { email: 'bday@example.com', first_name: 'Bea' })).body;
+  assert.equal((await c('PUT', `/api/contacts/${b.id}`, { birthday: '1990-03-17' })).body.birthday, '03-17');
+  const o = (await c('POST', '/api/contacts', { email: 'other@example.com' })).body;
+  assert.equal((await c('PUT', `/api/contacts/${o.id}`, { birthday: 'July 4' })).body.birthday, '07-04');
+
+  // A first purchase two years ago today, and a monthly subscription paid on Feb 13.
+  await c('POST', '/api/import/orders', { orders: [{ order_id: 'a1', email: 'anniv@example.com', total: 20, date: '2025-03-10T09:00:00Z' }] });
+  const acct = (await c('GET', '/api/me')).body.account.id;
+  const db = app.getDb();
+  const prod = await db.get("INSERT INTO products (account_id, name, price_cents, billing) VALUES (?, 'Club', 900, 'monthly') RETURNING id", acct);
+  const sub = (await c('POST', '/api/contacts', { email: 'sub@example.com' })).body;
+  await db.run("INSERT INTO orders (account_id, product_id, product_name, contact_id, email, amount_cents, currency, status, mode, paid_at) VALUES (?, ?, 'Club', ?, 'sub@example.com', 900, 'usd', 'paid', 'payment', ?)",
+    acct, prod.id, sub.id, '2027-02-13T10:00:00Z');
+
+  await run(c, now.toISOString());
+  await run(c, new Date(now.getTime() + 3600e3).toISOString()); // no repeats the same day
+  const mail = (await outbox(c)).filter((m) => m.contact_id);
+  assert.deepEqual(mail.map((m) => `${m.to_email}: ${m.subject}`).sort(), [
+    'anniv@example.com: Anniversary for you',
+    'bday@example.com: Birthday for Bea',
+    'sub@example.com: Renewal for you',
+  ]);
+});

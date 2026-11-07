@@ -82,6 +82,7 @@ const personForm = (c = {}) => `
   <label class="f">Last name<input name="last_name" value="${esc(c.last_name)}"></label></div>
   <div class="colors" style="grid-template-columns:3fr 2fr"><label class="f">Email <span class="hint">optional for print-only people</span><input name="email" type="email" value="${esc(c.email)}"></label>
   <label class="f">Phone<input name="phone" value="${esc(c.phone)}"></label></div>
+  <label class="f">Birthday <span class="hint">month and day, for birthday follow-ups</span><input name="birthday" type="date" value="${c.birthday ? `2000-${esc(c.birthday)}` : ''}" style="max-width:200px"></label>
   <label class="f">Mailing address<input name="address1" value="${esc(c.address1)}" placeholder="Street"></label>
   <input name="address2" value="${esc(c.address2)}" placeholder="Apt, suite (optional)" style="margin:-6px 0 8px">
   <div class="colors" style="grid-template-columns:2fr 1fr 1fr 1fr;margin-bottom:8px"><input name="city" value="${esc(c.city)}" placeholder="City">

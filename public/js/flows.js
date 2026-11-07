@@ -147,7 +147,7 @@ async function viewFollowupFlow(id) {
   for (let k = N[g.root].next, guard = 0; k && N[k] && guard < 80; guard++) { chainKeys.push(k); if (N[k].type === 'condition') break; k = N[k].next; }
   const stat = (k) => w.stats?.[k];
   const where = t.funnel_id ? funnels.find((f) => f.id === t.funnel_id)?.name : '';
-  const triggerText = `${(TRIGGER_UI[t.event] || w.triggerLabel || 'Something happens').replace(/^./, (x) => x.toLowerCase())}${t.event === 'tag_added' && t.tag ? ` “${t.tag}”` : ''}${t.event === 'silent' ? ` for ${t.days} days` : ''}${where ? ` on “${where}”` : ''}`;
+  const triggerText = `${(TRIGGER_UI[t.event] || w.triggerLabel || 'Something happens').replace(/^./, (x) => x.toLowerCase())}${t.event === 'tag_added' && t.tag ? ` “${t.tag}”` : ''}${t.event === 'silent' ? ` for ${t.days} days` : ''}${['birthday', 'anniversary', 'renewal'].includes(t.event) && t.before ? ` (${t.before} day${t.before > 1 ? 's' : ''} ahead)` : ''}${where ? ` on “${where}”` : ''}`;
   let day = 0;
   const card = (k) => {
     const n = N[k], c = n.config || {};
@@ -205,9 +205,10 @@ async function viewFollowupFlow(id) {
       <label class="f">Event<select name="event">${Object.entries(TRIGGER_UI).map(([k, l]) => `<option value="${k}" ${t.event === k ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>
       <label class="f" data-tf>On<select name="funnel_id"><option value="">Any page or import</option>${funnels.map((f) => `<option value="${f.id}" ${t.funnel_id === f.id ? 'selected' : ''}>${esc(f.name)}</option>`).join('')}</select></label>
       <label class="f" data-tt>Tag<input name="tag" value="${esc(t.tag || '')}" placeholder="e.g. vip"></label>
-      <label class="f" data-td>Quiet for (days)<input name="days" type="number" min="1" value="${t.days || 180}"></label>`, { submit: 'Save' });
+      <label class="f" data-td>Quiet for (days)<input name="days" type="number" min="1" value="${t.days || 180}"></label>
+      <label class="f" data-tb>When<select name="before">${[[0, 'On the day'], [1, '1 day before'], [3, '3 days before'], [7, 'A week before'], [14, 'Two weeks before']].map(([x, l]) => `<option value="${x}" ${Number(t.before || 0) === x ? 'selected' : ''}>${l}</option>`).join('')}</select></label>`, { submit: 'Save' });
     if (!v) return;
-    N[g.root].config = { ...t, event: v.event, funnel_id: v.funnel_id ? Number(v.funnel_id) : null, tag: v.tag || '', days: Number(v.days) || 180 };
+    N[g.root].config = { ...t, event: v.event, funnel_id: v.funnel_id ? Number(v.funnel_id) : null, tag: v.tag || '', days: Number(v.days) || 180, before: Number(v.before) || 0 };
     save(g, 'Trigger saved');
   };
   // Edit a step in place.

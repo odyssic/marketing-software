@@ -186,6 +186,7 @@ function renderBlock(b, ctx, index) {
         b.collectName ? '<input name="first_name" placeholder="First name" autocomplete="given-name">' : '',
         '<input name="email" type="email" placeholder="Your email address" required autocomplete="email">',
         b.collectPhone && !b.smsOptIn ? '<input name="phone" type="tel" placeholder="Phone number" autocomplete="tel">' : '',
+        b.collectBirthday ? '<label class="consent" style="display:block">Birthday (optional)<input name="birthday" type="date" autocomplete="bday" style="display:block;margin-top:4px"></label>' : '',
         b.collectMessage || String(b.purpose || '').toLowerCase() === 'review' ? `<textarea name="message" rows="4" placeholder="${String(b.purpose || '').toLowerCase() === 'review' ? 'What was it like?' : 'How can we help?'}" maxlength="2000"${String(b.purpose || '').toLowerCase() === 'review' ? ' required' : ''}></textarea>` : '',
         String(b.purpose || '').toLowerCase() === 'review' ? `<label class="consent"><input type="checkbox" name="share" value="1"> You may show my words and first name on your website.</label>` : '',
         // SMS compliance wording appears only when the form asks for text messages.

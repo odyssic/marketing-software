@@ -35,7 +35,7 @@ const BLOCKS = {
   form: { label: 'Form', icon: icon('form'), defaults: { buttonLabel: 'Get instant access', collectName: true, collectPhone: false, purpose: 'Sign up', tag: 'lead' },
     fields: [['purpose', 'select', 'What happens', ['Sign up', 'Newsletter', 'Inquiry', 'Review'], 'Sign up: a lead. Newsletter: also subscribes them. Inquiry: logs a request you should answer.'],
       ['newsletter', 'text', 'Newsletter name (for Newsletter forms)'],
-      ['buttonLabel', 'text', 'Button text'], ['collectName', 'check', 'Ask for first name'], ['collectPhone', 'check', 'Ask for phone number'], ['smsOptIn', 'check', 'SMS updates (adds a mobile number and the required text-message consent)'], ['collectMessage', 'check', 'Ask for a message'],
+      ['buttonLabel', 'text', 'Button text'], ['collectName', 'check', 'Ask for first name'], ['collectPhone', 'check', 'Ask for phone number'], ['collectBirthday', 'check', 'Ask for birthday (for birthday follow-ups)'], ['smsOptIn', 'check', 'SMS updates (adds a mobile number and the required text-message consent)'], ['collectMessage', 'check', 'Ask for a message'],
       ['tag', 'text', 'Tag new contacts with', null, 'Use tags to email this group later. Comma-separate for several.'],
       ['deliverUrl', 'file', 'Send them something (optional)'], ['deliverName', 'text', 'What it’s called in the email', null, 'e.g. the free typewriter care guide']] },
   bullets: { label: 'Bullet list', icon: icon('check'), defaults: { title: '', items: 'One clear benefit\nAnother benefit\nA third benefit', style: 'check', align: 'center' },

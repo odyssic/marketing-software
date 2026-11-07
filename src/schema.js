@@ -615,6 +615,8 @@ CREATE TABLE IF NOT EXISTS uploads (
 CREATE INDEX IF NOT EXISTS uploads_account ON uploads (account_id);
 ALTER TABLE uploads ADD COLUMN IF NOT EXISTS name TEXT NOT NULL DEFAULT '';
 ALTER TABLE uploads ADD COLUMN IF NOT EXISTS in_library INT NOT NULL DEFAULT 0;
+-- Birthdays (month and day, MM-DD) for date-based follow-ups.
+ALTER TABLE contacts ADD COLUMN IF NOT EXISTS birthday TEXT NOT NULL DEFAULT '';
 `;
 
 module.exports = { SCHEMA };

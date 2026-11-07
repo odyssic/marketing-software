@@ -17,7 +17,8 @@ const STEP_UI = {
 const PALETTE = ['email', 'sms', 'wait', 'condition', 'tag', 'subscribe', 'notify', 'deal'];
 const TRIGGER_UI = {
   signup: 'Signs up (any form or pageflow)', purchase: 'Buys something', tag_added: 'Gets a tag', subscribe: 'Subscribes to a newsletter',
-  inquiry: 'Sends an inquiry', silent: 'Goes quiet (no activity for a while)', manual: 'Added by hand',
+  inquiry: 'Sends an inquiry', booking: 'Books a call', silent: 'Goes quiet (no activity for a while)',
+  birthday: 'Has a birthday', anniversary: 'Reaches a customer anniversary', renewal: 'Has a subscription renewing soon', manual: 'Added by hand',
 };
 const CONDITION_UI = {
   purchased_since: 'Bought since entering this workflow?', purchased: 'Has ever bought?', opened: 'Opened an email from this workflow?',
@@ -326,6 +327,8 @@ function renderInspector() {
         + (c.event === 'purchase' ? field('Product name contains', `<input data-c="product" value="${esc(c.product)}" placeholder="Any product">`, 'optional') : '')
         + (c.event === 'tag_added' ? field('Tag', `<input data-c="tag" value="${esc(c.tag)}" placeholder="e.g. vip">`) : '')
         + (c.event === 'silent' ? field('Quiet for (days)', `<input type="number" min="1" data-c="days" data-num value="${c.days}">`, 'only past customers') : '')
+        + (['birthday', 'anniversary', 'renewal'].includes(c.event) ? field('When', `<select data-c="before" data-num>${[[0, 'On the day'], [1, '1 day before'], [3, '3 days before'], [7, 'A week before'], [14, 'Two weeks before']].map(([v, l]) => `<option value="${v}" ${Number(c.before || 0) === v ? 'selected' : ''}>${l}</option>`).join('')}</select>`,
+          c.event === 'birthday' ? 'uses the birthday on each person (People, or a form that asks for it)' : c.event === 'renewal' ? 'monthly and yearly products' : 'each year after their first purchase') : '')
         + (['purchase', 'inquiry', 'tag_added'].includes(c.event) ? `<label class="check"><input type="checkbox" data-c="repeat" ${c.repeat ? 'checked' : ''}>Run again each time it happens</label>` : '')
         + '<p class="hint">Events from imports older than 2 days never start a workflow, so importing history won’t email old customers.</p>';
       break;

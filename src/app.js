@@ -644,6 +644,15 @@ function createApp({ dbPath } = {}) {
     res.json({ created, updated, skipped });
   });
 
+  // Birthdays are kept as month and day ("07-14"); a full date or "July 14" both work.
+  const birthdayOf = (v) => {
+    const s = String(v || '').trim();
+    let m = s.match(/^(?:\d{4}-)?(\d{1,2})-(\d{1,2})$/) || s.match(/^(\d{1,2})\/(\d{1,2})(?:\/\d{2,4})?$/);
+    if (!m) { const d = new Date(`${s} 2000`); if (!Number.isNaN(d.getTime()) && s) m = [null, d.getMonth() + 1, d.getDate()]; }
+    if (!m) return '';
+    const mm = Number(m[1]), dd = Number(m[2]);
+    return mm >= 1 && mm <= 12 && dd >= 1 && dd <= 31 ? `${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}` : '';
+  };
   api.put('/contacts/:id', async (req, res) => {
     const c = await db.get('SELECT * FROM contacts WHERE id = ? AND account_id = ?', id(req.params.id), req.accountId);
     if (!c) throw new HttpError(404, 'Person not found');
@@ -658,6 +667,7 @@ function createApp({ dbPath } = {}) {
       val('phone'), JSON.stringify(b.tags !== undefined ? parseTags(b.tags) : JSON.parse(c.tags)),
       b.unsubscribed !== undefined ? Number(Boolean(b.unsubscribed)) : c.unsubscribed, ...ADDRESS.map(val), c.id);
       if (b.entry !== undefined) await db.run('UPDATE contacts SET entry = ? WHERE id = ?', String(b.entry).trim().slice(0, 160), c.id);
+      if (b.birthday !== undefined) await db.run('UPDATE contacts SET birthday = ? WHERE id = ?', birthdayOf(b.birthday), c.id);
       if (b.photo_url !== undefined) {
         const url = String(b.photo_url || '').trim();
         if (url && !/^https?:\/\//i.test(url)) throw new HttpError(400, 'Use an uploaded photo or a web link');
@@ -1615,6 +1625,7 @@ function createApp({ dbPath } = {}) {
     } else {
       await logEvent(db, funnel.account_id, { person_id: contact.id, type: 'signup', source: 'funnel', meta });
     }
+    if (block.collectBirthday && req.body.birthday) await db.run('UPDATE contacts SET birthday = ? WHERE id = ?', birthdayOf(req.body.birthday), contact.id);
     // SMS consent is recorded (with the exact wording shown) only when the form asked for it.
     if (block.smsOptIn && req.body.sms_consent === '1') {
       await db.run('UPDATE contacts SET sms_consent_at = COALESCE(sms_consent_at, now()) WHERE id = ?', contact.id);

@@ -16,6 +16,9 @@ const TRIGGERS = {
   inquiry: 'Sends an inquiry',
   booking: 'Books a call',
   silent: 'Goes quiet (no activity for a while)',
+  birthday: 'Has a birthday',
+  anniversary: 'Reaches a customer anniversary (a year since their first purchase)',
+  renewal: 'Has a subscription renewing soon',
   manual: 'Added by hand',
 };
 const CONDITIONS = {
@@ -63,6 +66,8 @@ function cleanConfig(type, c) {
       // Which page of the pageflow the follow-up is drawn after (display only).
       step_id: c.step_id ? int(c.step_id, 1, 1e9, null) : null,
       days: int(c.days, 1, 3650, 180), repeat: Boolean(c.repeat),
+      // Date triggers: how many days ahead (0 = on the day).
+      before: int(c.before, 0, 60, 0),
     };
     case 'wait': return { days: int(c.days, 0, 3650, 1), hours: int(c.hours, 0, 23, 0) };
     case 'email': return { subject: str(c.subject, 300), body: str(c.body, 20000) };
@@ -283,6 +288,44 @@ function createWorkflows({ getDb, HttpError, id, people, messaging, getAccount }
     }
   }
 
+  // Date triggers, checked through the day: birthdays, customer anniversaries and
+  // subscription renewals. Each person starts a workflow at most once per date.
+  let lastDateScan = 0;
+  async function scanDates(now) {
+    if (now.getTime() - lastDateScan < 10 * 60e3 && !process.env.ALLOW_TIME_TRAVEL) return;
+    lastDateScan = now.getTime();
+    const db = getDb();
+    const flows = (await db.all("SELECT * FROM workflows WHERE status = 'active'")).map(parse)
+      .filter((w) => ['birthday', 'anniversary', 'renewal'].includes(w.graph.nodes?.[w.graph.root]?.config?.event));
+    for (const w of flows) {
+      const c = w.graph.nodes[w.graph.root].config;
+      const day = new Date(now.getTime() + (c.before || 0) * 864e5);
+      const ymd = day.toISOString().slice(0, 10), md = ymd.slice(5), year = ymd.slice(0, 4);
+      if (c.event === 'birthday') {
+        for (const p of await db.all("SELECT id FROM contacts WHERE account_id = ? AND birthday = ? LIMIT 2000", w.account_id, md)) {
+          await enroll(w, p.id, `bday:${year}`, now);
+        }
+      } else if (c.event === 'anniversary') {
+        const rows = await db.all(`SELECT person_id, MIN(occurred_at) AS first FROM events WHERE account_id = ? AND type = 'purchase' AND person_id IS NOT NULL
+          GROUP BY person_id`, w.account_id);
+        for (const r of rows) {
+          const f = new Date(r.first).toISOString().slice(0, 10);
+          if (f.slice(5) === md && f.slice(0, 4) < year) await enroll(w, r.person_id, `anniv:${year}`, now);
+        }
+      } else {
+        // The latest paid order for each customer's monthly or yearly product: when does it renew?
+        const rows = await db.all(`SELECT DISTINCT ON (o.contact_id, o.product_id) o.contact_id, o.paid_at, p.billing FROM orders o JOIN products p ON p.id = o.product_id
+          WHERE o.account_id = ? AND o.status = 'paid' AND o.contact_id IS NOT NULL AND p.billing IN ('monthly', 'yearly')
+          ORDER BY o.contact_id, o.product_id, o.paid_at DESC`, w.account_id);
+        for (const r of rows) {
+          const next = new Date(r.paid_at);
+          if (r.billing === 'monthly') next.setUTCMonth(next.getUTCMonth() + 1); else next.setUTCFullYear(next.getUTCFullYear() + 1);
+          if (next.toISOString().slice(0, 10) === ymd) await enroll(w, r.contact_id, `renew:${ymd}`, now);
+        }
+      }
+    }
+  }
+
   // ---------- Runner ----------
   async function evaluate(check, value, run, person) {
     const db = getDb();
@@ -398,6 +441,7 @@ function createWorkflows({ getDb, HttpError, id, people, messaging, getAccount }
   // Advances every due run (all workspaces). Safe to call often.
   async function processDue({ now = new Date(), limit = 200 } = {}) {
     await scanSilent(now);
+    await scanDates(now);
     const due = await getDb().all(`SELECT r.* FROM workflow_runs r JOIN workflows w ON w.id = r.workflow_id
       WHERE r.status = 'active' AND w.status = 'active' AND r.wake_at <= ? ORDER BY r.wake_at LIMIT ?`, now.toISOString(), limit);
     const cache = new Map();
