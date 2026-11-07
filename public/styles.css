@@ -1524,3 +1524,4 @@ ul.tasks { list-style: none; padding: 0; margin: 10px 0 4px; }
 .crs-mini i { display: block; height: 100%; background: var(--brand); }
 .stars-sm { color: #f5b301; letter-spacing: 1px; }
 .stars-sm i { color: #d1d5db; font-style: normal; }
+.today-chip.go { background: #e0f2fe; color: #075985; }

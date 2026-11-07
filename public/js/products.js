@@ -28,7 +28,8 @@ async function viewProducts(tab) {
       <label class="f">Each payment <span class="hint">empty = price split evenly</span><input name="plan_part" type="number" min="0.5" step="0.01" value="${pr.plan_part_cents ? pr.plan_part_cents / 100 : ''}"></label></div>
     <label class="f" data-only="monthly yearly">Free trial <span class="hint">days free before the first payment; empty for none</span><input name="trial_days" type="number" min="0" max="365" step="1" inputmode="numeric" placeholder="e.g. 14" value="${pr.trial_days || ''}"></label>
     <label class="f">Photo <span class="hint">link to an image (https://…), shown on buy buttons</span><input name="image_url" value="${esc(pr.image_url || '')}" placeholder="https://"></label>
-    <label class="f">Tag buyers with <span class="hint">buyers are always tagged “customer” too</span><input name="tag" value="${esc(pr.tag)}" placeholder="e.g. bought-course"></label>`;
+    <label class="f">Tag buyers with <span class="hint">buyers are always tagged “customer” too</span><input name="tag" value="${esc(pr.tag)}" placeholder="e.g. bought-course"></label>
+    ${pr.id && items.length > 1 ? `<label class="f">Next offer for buyers <span class="hint">who shows up as “ready” on your dashboard</span><select name="next_product_id"><option value="">The next pricier product</option>${items.filter((x) => x.id !== pr.id).map((x) => `<option value="${x.id}" ${pr.next_product_id === x.id ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select></label>` : ''}`;
   if (orders) return;
   // One "New product" button: in the header once there are products, in the middle until then.
   $('[data-new]').onclick = async () => {

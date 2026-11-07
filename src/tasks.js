@@ -8,6 +8,8 @@ async function addTask(db, accountId, { contactId = null, title, dueAt = new Dat
     accountId, contactId, String(title).trim().slice(0, 300), dueAt.toISOString(), source);
 }
 
+const segments = require('./segments');
+
 function registerTasks(api, { getDb, HttpError, id }) {
   const db = () => getDb();
   const out = (t) => ({ ...t, done: Boolean(t.done_at), person: t.contact_id ? { id: t.contact_id, name: [t.first_name, t.last_name].filter(Boolean).join(' ') || t.email || '' } : null });
@@ -68,12 +70,19 @@ function registerTasks(api, { getDb, HttpError, id }) {
       d.get('SELECT COUNT(*)::int AS n FROM testimonials WHERE account_id = ? AND approved = 0 AND shareable = 1', a),
     ]);
     const name = (p) => [p.first_name, p.last_name].filter(Boolean).join(' ') || p.email || 'Someone';
+    // Customers ready for the next step up the offer ladder.
+    const ready = [];
+    for (const s of await segments.ladder(d, a)) {
+      const key = `next:${s.from.id}:${s.to.id}`;
+      const n = (await segments.members(d, a, key, { emailable: true })).length;
+      if (n) ready.push({ key, count: n, product: s.to.name, from: s.from.name });
+    }
     res.json({
       tasks: tasks.map(out), later: later.n,
       invoices: invoices.map((i) => ({ ...i, who: i.client_name || i.client_email || '' })),
       leads: leads.map((p) => ({ id: p.id, name: name(p), entry: p.entry || '', created_at: p.created_at })),
       bookings: bookings.map((b) => ({ id: b.id, starts_at: b.starts_at, contact_id: b.contact_id, name: name(b) })),
-      unread: unread.n, reviews: reviews.n,
+      unread: unread.n, reviews: reviews.n, ready: ready.sort((x, y) => y.count - x.count).slice(0, 3),
     });
   });
 }

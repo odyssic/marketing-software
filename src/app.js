@@ -748,6 +748,10 @@ function createApp({ dbPath } = {}) {
     const r = await db.run(`UPDATE products SET name = ?, description = ?, price_cents = ?, currency = ?, billing = ?, tag = ?, image_url = ?,
       plan_parts = ?, plan_part_cents = ?, trial_days = ? WHERE id = ? AND account_id = ?`, ...productInput(req.body || {}), id(req.params.id), req.accountId);
     if (!r.changes) throw new HttpError(404, 'Product not found');
+    if (req.body?.next_product_id !== undefined) {
+      const next = req.body.next_product_id ? await db.get('SELECT id FROM products WHERE id = ? AND account_id = ? AND id <> ?', id(req.body.next_product_id), req.accountId, id(req.params.id)) : null;
+      await db.run('UPDATE products SET next_product_id = ? WHERE id = ?', next?.id || null, id(req.params.id));
+    }
     res.json({ ok: true });
   });
 

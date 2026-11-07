@@ -48,6 +48,7 @@ async function loadTodayCard() {
   try { t = await api('GET', '/api/today'); } catch { box.hidden = true; return; }
   const items = [];
   if (t.unread) items.push(`<a class="today-chip" href="#/inbox">${icon('mail')} ${t.unread} conversation${t.unread === 1 ? '' : 's'} waiting for a reply</a>`);
+  (t.ready || []).forEach((r) => items.push(`<a class="today-chip go" href="#/email/new?segment=${encodeURIComponent(r.key)}" title="Bought ${esc(r.from)}, active lately, haven’t bought ${esc(r.product)} yet">${icon('trend')} ${r.count} customer${r.count === 1 ? ' is' : 's are'} ready for ${esc(r.product)}: email them</a>`));
   if (t.reviews) items.push(`<a class="today-chip" href="#/people/testimonials">${icon('quote')} ${t.reviews} new review${t.reviews === 1 ? '' : 's'} to approve for your pages</a>`);
   t.bookings.forEach((b) => items.push(`<a class="today-chip" href="#/calendar">${icon('calendar')} ${esc(todayTime(b.starts_at))} call with ${esc(b.name)}</a>`));
   t.invoices.forEach((i) => items.push(`<a class="today-chip warn" href="#/products/invoices">${icon('alert')} Invoice ${esc(i.number || '')} ${i.who ? `for ${esc(i.who)} ` : ''}is overdue (${esc(fmtMoney(i.total_cents, i.currency))})</a>`));
