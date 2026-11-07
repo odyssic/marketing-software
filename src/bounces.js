@@ -44,6 +44,7 @@ function registerBounces(app, { getDb, logEvent, onReceived }) {
       const rows = kind === 'complained'
         ? (last ? await db.all('UPDATE contacts SET unsubscribed = 1 WHERE lower(email) = ? AND account_id = ? AND unsubscribed = 0 RETURNING id, account_id', email, last.account_id) : [])
         : await db.all('UPDATE contacts SET unsubscribed = 1 WHERE lower(email) = ? AND unsubscribed = 0 RETURNING id, account_id', email);
+      if (kind === 'bounced') await db.run("UPDATE email_log SET status = 'bounced' WHERE id = (SELECT id FROM email_log WHERE lower(to_email) = ? ORDER BY id DESC LIMIT 1)", email).catch(() => {});
       for (const c of rows) {
         await logEvent(db, c.account_id, { person_id: c.id, type: 'unsubscribe', source: 'email', meta: { reason: kind === 'bounced' ? 'Email bounced' : 'Marked as spam' } });
         stopped++;

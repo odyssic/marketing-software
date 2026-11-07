@@ -1334,3 +1334,32 @@ html:not(.returning) #app > .boot { display: none; }
 
 .cmp-tools .tool-file { display: inline-flex; gap: 4px; align-items: center; cursor: pointer; }
 .cmp-tools .tool-file input { display: none; }
+
+/* Email: subject test, templates, report */
+.ab-box { border: 1px dashed var(--line); border-radius: 10px; padding: 6px 12px; margin: -4px 0 12px; }
+.ab-box summary { cursor: pointer; color: var(--brand); font-weight: 600; font-size: .88rem; padding: 4px 0; display: flex; gap: 6px; align-items: center; }
+.ab-box summary svg { width: 15px; height: 15px; }
+.starter.mine { border-color: #b9e0db; background: var(--brand-soft); }
+.er-kpis { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 16px; }
+.er-kpi { display: grid; gap: 2px; padding: 14px 16px; }
+.er-kpi b { font-size: 1.6rem; font-variant-numeric: tabular-nums; }
+.er-ab { margin-bottom: 16px; }
+.er-abrow { display: grid; grid-template-columns: auto 1fr auto auto; gap: 12px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.er-abrow.win b { color: var(--brand); }
+.er-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+.er-link { display: grid; grid-template-columns: minmax(0, 1.4fr) 1fr auto auto; gap: 10px; align-items: center; padding: 7px 0; border-bottom: 1px solid var(--line); font-size: .88rem; }
+.er-link a { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.er-bar { height: 8px; background: #eef1f0; border-radius: 4px; overflow: hidden; }
+.er-bar i { display: block; height: 100%; background: var(--brand); border-radius: 4px; }
+.er-filter { margin-bottom: 10px; flex-wrap: wrap; }
+.er-filter a { text-decoration: none; }
+.er-people { max-height: 460px; overflow: auto; margin-bottom: 12px; }
+.er-person { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: .9rem; }
+@media (max-width: 900px) { .er-kpis { grid-template-columns: repeat(2, 1fr); } .er-cols { grid-template-columns: 1fr; } }
+.er-filter a { padding: 5px 10px; color: var(--text); }
+.er-filter a.on { background: var(--brand); color: #fff; }
+
+.cmp-mail table { width: auto; }
+.cmp-mail img { max-width: 100%; }
+.cmp-tools .tool-file { border: 1px solid var(--line); background: #fff; border-radius: 99px; padding: 4px 11px; font-size: .8rem; }
+.cmp-tools .tool-file:hover { border-color: var(--brand); color: var(--brand); }

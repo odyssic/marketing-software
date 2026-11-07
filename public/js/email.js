@@ -42,11 +42,12 @@ const rate = (n, d) => (d ? `${Math.round((n / d) * 100)}%` : '—');
 const broadcastsHtml = (items) => (items.length ? `<div class="bc-list">${items.map((b) => `
   <article class="bc card">
     <a class="bc-main" href="#/email/${b.id}">
-      <span class="pill ${b.status === 'sent' ? 'ok' : b.status === 'sending' || b.status === 'scheduled' ? '' : 'warn'}">${b.status === 'draft' ? 'Draft' : b.status === 'sent' ? 'Sent' : b.status === 'scheduled' ? `Scheduled · ${esc(new Date(b.scheduled_at).toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }))}` : 'Sending'}</span>
+      <span class="pill ${b.status === 'sent' ? 'ok' : b.status === 'sending' || b.status === 'scheduled' || b.status === 'testing' ? '' : 'warn'}">${b.status === 'draft' ? 'Draft' : b.status === 'sent' ? 'Sent' : b.status === 'testing' ? 'Testing subjects' : b.status === 'scheduled' ? `Scheduled · ${esc(new Date(b.scheduled_at).toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }))}` : 'Sending'}</span>
       <b class="bc-subj">${esc(readableMerge(b.subject))}</b>
       <span class="muted small bc-pre">${esc(readableMerge(b.preheader || b.body.replace(/\s+/g, ' ').slice(0, 110)))}</span>
       <span class="muted small">${b.segment ? `To segment “${esc(SEG_LABELS[b.segment] || b.segment)}”` : b.tag ? `To contacts tagged “${esc(b.tag)}”` : 'To everyone subscribed'}${b.sent_at ? ` · sent ${fmtDate(b.sent_at)}` : ` · edited ${fmtDate(b.created_at)}`}</span></a>
-    ${b.status === 'sent' ? `<div class="bc-stats"><span><b>${b.sent_count}</b>sent</span><span><b>${rate(b.opened, b.sent_count)}</b>opened</span><span><b>${rate(b.clicked, b.sent_count)}</b>clicked</span>
+    ${b.status === 'sent' || b.status === 'testing' ? `<div class="bc-stats"><span><b>${b.sent_count}</b>sent</span><span><b>${rate(b.opened, b.sent_count)}</b>opened</span><span><b>${rate(b.clicked, b.sent_count)}</b>clicked</span>
+        <a class="btn sm" href="#/email/report/${b.id}">${icon('trend')} Report</a>
         ${b.sent_count > b.opened ? `<a class="btn sm" href="#/email/new?segment=${encodeURIComponent(`bc_noopen:${b.id}`)}&from=${b.id}" title="Same email, new subject line, to people who didn’t open">${icon('refresh')} Resend to ${b.sent_count - b.opened} who didn’t open</a>` : ''}</div>`
       : `<div class="bc-actions"><a class="btn sm" href="#/email/${b.id}">Edit</a><button class="btn sm primary" data-send="${b.id}">Send</button>
         <button class="btn sm danger icon" data-delb="${b.id}" title="Delete draft" aria-label="Delete draft">${icon('trash')}</button></div>`}
@@ -96,6 +97,7 @@ async function viewCompose(bid) {
   const locked = !['draft', 'scheduled'].includes(b.status);
   const acct = state.me.account;
   const sigs = await loadSignatures();
+  const templates = await api('GET', '/api/email-templates').catch(() => []);
   // New emails start with the default signature, if there is one.
   if (isNew && !orig && sigs.default) b.body = 'Hi {{first_name|there}},\n\n\n\n{{signature}}';
   const sample = people.find((p) => p.first_name) || { first_name: 'Alex', last_name: 'Reader', email: 'alex@example.com' };
@@ -103,8 +105,8 @@ async function viewCompose(bid) {
     <div class="compose">
       <div class="cmp-bar"><a class="btn sm" href="#/email">${icon('chevronDown').replace('class="i ', 'class="i rot90 ')} Emails</a>
         <span class="muted small" data-state>${locked ? `Sent ${fmtDate(b.sent_at)} to ${b.sent_count}` : isNew ? 'New email' : 'Draft'}</span>
-        ${locked ? '' : `<span class="cmp-actions"><button class="btn sm" data-test>${icon('mail')} Send me a test</button><button class="btn sm" data-save>Save draft</button><button class="btn sm primary" data-sendnow>Send…</button></span>`}</div>
-      ${isNew && !b.resendOf ? `<div class="starters" data-starters><span class="muted small">Start from</span>${EMAIL_STARTERS.map((t) => `<button type="button" class="starter" data-starter="${t.key}">${icon(t.icon)} ${esc(t.label)}</button>`).join('')}</div>` : ''}
+        ${locked ? '' : `<span class="cmp-actions"><button class="btn sm" data-savetpl title="Reuse this email’s design and words later">${icon('star')} Save as template</button><button class="btn sm" data-test>${icon('mail')} Send me a test</button><button class="btn sm" data-save>Save draft</button><button class="btn sm primary" data-sendnow>Send…</button></span>`}</div>
+      ${isNew && !b.resendOf ? `<div class="starters" data-starters><span class="muted small">Start from</span>${templates.map((t) => `<button type="button" class="starter mine" data-mytpl="${t.id}" title="Your template">${icon('star')} ${esc(t.name)}</button>`).join('')}${EMAIL_STARTERS.map((t) => `<button type="button" class="starter" data-starter="${t.key}">${icon(t.icon)} ${esc(t.label)}</button>`).join('')}</div>` : ''}
       ${b.status === 'scheduled' ? `<div class="banner cmp-sched">${icon('clock')} Scheduled for <b>${esc(new Date(b.scheduled_at).toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }))}</b>. You can still edit it. <button type="button" class="btn sm" data-unsched>Cancel schedule</button></div>` : ''}
       <form class="cmp-form" data-form>
         <label class="f">To<select name="to" ${locked ? 'disabled' : ''}><option value="">Everyone subscribed</option>
@@ -116,6 +118,11 @@ async function viewCompose(bid) {
           <datalist id="one-people">${people.filter((c) => c.email && !c.unsubscribed).slice(0, 2000).map((c) => `<option value="${esc(c.email)}">${esc(fullName(c) || c.email)}</option>`).join('')}</datalist>
           <button type="button" class="btn sm primary" data-oneok>Use</button><button type="button" class="btn sm ghost" data-onecancel>Cancel</button></div>
         <div class="f"><span class="lbl-row">Subject <span class="hint" data-sublen></span>${locked ? '' : fieldSelect('subject')}</span><input name="subject" maxlength="300" value="${esc(b.subject)}" placeholder="${b.resendOf ? `A new angle on “${esc(b.resendOf)}”` : 'A short, specific promise'}" ${locked ? 'disabled' : ''}></div>
+        <details class="ab-box" ${b.subject_b ? 'open' : ''} ${locked ? 'hidden' : ''}><summary>${icon('flask')} Test two subject lines</summary>
+          <label class="f">Subject B <span class="hint">A slice of your list gets each; the one more people open goes to everyone else</span><input name="subject_b" maxlength="300" value="${esc(b.subject_b || '')}" placeholder="Another way to say it"></label>
+          <div class="colors" style="grid-template-columns:1fr 1fr"><label class="f">Test on<select name="ab_pct">${[10, 20, 30, 50].map((p) => `<option value="${p}" ${(b.ab_pct || 20) === p ? 'selected' : ''}>${p}% of the list</option>`).join('')}</select></label>
+            <label class="f">Then pick the winner after<select name="ab_hours">${[1, 2, 4, 12, 24].map((h) => `<option value="${h}" ${(b.ab_hours || 4) === h ? 'selected' : ''}>${h} hour${h === 1 ? '' : 's'}</option>`).join('')}</select></label></div>
+          <p class="hint">Small lists (under 40 people) are split in half, and you see which subject did better.</p></details>
         <div class="f"><span class="lbl-row">Preview text <span class="hint">the grey line after the subject in the inbox</span>${locked ? '' : fieldSelect('preheader')}</span><input name="preheader" maxlength="200" value="${esc(b.preheader || '')}" placeholder="Adds context so more people open" ${locked ? 'disabled' : ''}></div>
         <div class="f">Message
           ${locked ? '' : `<div class="cmp-tools" role="toolbar" aria-label="Insert">
@@ -151,7 +158,8 @@ async function viewCompose(bid) {
 
   const form = $('[data-form]');
   const toParts = () => { const [k, ...r] = form.to.value.split(':'); const v = r.join(':'); return { tag: k === 'tag' ? v : '', segment: k === 'seg' ? v : '' }; };
-  const val = () => ({ subject: form.subject.value, preheader: form.preheader.value, body: form.body.value, ...toParts() });
+  const val = () => ({ subject: form.subject.value, preheader: form.preheader.value, body: form.body.value, ...toParts(),
+    subject_b: $('.ab-box')?.open ? form.subject_b.value : '', ab_pct: Number(form.ab_pct?.value || 20), ab_hours: Number(form.ab_hours?.value || 4) });
   const merge = (t) => String(t || '').replace(/\{\{\s*(\w+)\s*(?:\|\s*([^}]*?)\s*)?\}\}/g, (m, k, fb) => {
     const v = { first_name: sample.first_name, last_name: sample.last_name, email: sample.email, business: acct.name, name: [sample.first_name, sample.last_name].filter(Boolean).join(' ') };
     return k in v ? v[k] || fb || ({ first_name: 'there', name: 'there' }[k] || '') : m;
@@ -165,7 +173,7 @@ async function viewCompose(bid) {
     const v = val();
     $('[data-pfrom]').textContent = sender; $('[data-pfrom2]').textContent = sender;
     $('[data-psubj]').textContent = merge(v.subject) || '(no subject)'; $('[data-psubj2]').textContent = merge(v.subject) || '(no subject)';
-    $('[data-ppre]').textContent = `– ${merge(v.preheader) || merge(v.body).replace(/\{\{\s*signature[^}]*\}\}/g, '').replace(/\s+/g, ' ').trim().slice(0, 90)}`;
+    $('[data-ppre]').textContent = `– ${merge(v.preheader) || emailBodyText(merge(v.body)).replace(/\{\{\s*signature[^}]*\}\}/g, '').replace(/\s+/g, ' ').trim().slice(0, 90)}`;
     $('[data-pbody]').innerHTML = bodyHtml(v.body) || '<p class="muted">Your message appears here.</p>';
     const n = v.subject.length;
     $('[data-sublen]').textContent = n ? `${n} characters${n > 60 ? ' · may be cut off on phones' : ''}` : '';
@@ -284,6 +292,18 @@ async function viewCompose(bid) {
     else { savedId = (await api('POST', '/api/broadcasts', v)).id; history.replaceState(null, '', `#/email/${savedId}`); }
     dirty = false; $('[data-state]').textContent = 'Draft saved';
   };
+  $('[data-savetpl]').onclick = async () => {
+    const v = val();
+    if (!v.body.trim()) { toast('Write the message first', true); return; }
+    const r = await modal('Save as template', '<p class="muted small">It shows up under “Start from” on new emails.</p><label class="f">Name<input name="name" required maxlength="80" placeholder="e.g. Monthly newsletter"></label>',
+      { submit: 'Save template', onSubmit: (x) => api('POST', '/api/email-templates', { name: x.name, subject: v.subject, preheader: v.preheader, body: v.body }) });
+    if (r) toast(`Saved “${r.name}”. Start new emails from it any time`);
+  };
+  $$('[data-mytpl]').forEach((btn) => { btn.onclick = () => {
+    const t = templates.find((x) => String(x.id) === btn.dataset.mytpl);
+    form.subject.value = t.subject; form.preheader.value = t.preheader; form.body.value = t.body;
+    dirty = true; render(); toast(`Started from “${t.name}”`);
+  }; });
   $('[data-save]').onclick = async () => { try { await save(); toast('Draft saved'); } catch (err) { toast(err.message, true); } };
   $('[data-test]').onclick = async () => {
     try { const r = await api('POST', '/api/broadcasts/test', val()); tested = true; check(); toast(`Test sent to ${r.to}${r.status === 'logged' ? ' (test mode: see Outbox)' : ''}`); }

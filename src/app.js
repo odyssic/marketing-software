@@ -34,6 +34,7 @@ const { registerDomains } = require('./domains');
 const { registerSaved } = require('./saved');
 const { registerTeam } = require('./team');
 const { createReports } = require('./reports');
+const { registerEmailPlus, splitForTest, pickWinner } = require('./emailplus');
 const { registerTexting } = require('./texting');
 const { registerMembers } = require('./members');
 const { registerMetrics } = require('./metrics');
@@ -1233,7 +1234,8 @@ function createApp({ dbPath } = {}) {
   });
   const broadcastFields = (b = {}) => ({ subject: String(b.subject || '').trim().slice(0, 300), body: String(b.body || '').slice(0, 50000),
     tag: String(b.tag || '').trim().toLowerCase(), preheader: String(b.preheader || '').trim().slice(0, 200),
-    segment: segments.isSegment(b.segment) ? String(b.segment) : '' });
+    segment: segments.isSegment(b.segment) ? String(b.segment) : '',
+    subject_b: String(b.subject_b || '').trim().slice(0, 300), ab_pct: Math.min(50, Math.max(10, Number(b.ab_pct) || 20)), ab_hours: Math.min(48, Math.max(1, Number(b.ab_hours) || 4)) });
   // Who a broadcast goes to: a behaviour segment, a tag, or everyone emailable.
   const audience = async (accountId, { tag = '', segment = '' }) => {
     const rows = await db.all("SELECT * FROM contacts WHERE account_id = ? AND unsubscribed = 0 AND email <> ''", accountId);
@@ -1244,15 +1246,15 @@ function createApp({ dbPath } = {}) {
   api.post('/broadcasts', async (req, res) => {
     const v = broadcastFields(req.body);
     if (!v.subject || !v.body.trim()) throw new HttpError(400, 'Subject and message are required');
-    const r = await db.get('INSERT INTO broadcasts (account_id, subject, body, tag, preheader, segment) VALUES (?, ?, ?, ?, ?, ?) RETURNING id',
-      req.accountId, v.subject, v.body, v.tag, v.preheader, v.segment);
+    const r = await db.get('INSERT INTO broadcasts (account_id, subject, body, tag, preheader, segment, subject_b, ab_pct, ab_hours) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id',
+      req.accountId, v.subject, v.body, v.tag, v.preheader, v.segment, v.subject_b, v.ab_pct, v.ab_hours);
     res.status(201).json({ id: r.id });
   });
   api.put('/broadcasts/:id', async (req, res) => {
     const v = broadcastFields(req.body);
     if (!v.subject || !v.body.trim()) throw new HttpError(400, 'Subject and message are required');
-    const r = await db.get("UPDATE broadcasts SET subject = ?, body = ?, tag = ?, preheader = ?, segment = ? WHERE id = ? AND account_id = ? AND status IN ('draft', 'scheduled') RETURNING id",
-      v.subject, v.body, v.tag, v.preheader, v.segment, id(req.params.id), req.accountId);
+    const r = await db.get("UPDATE broadcasts SET subject = ?, body = ?, tag = ?, preheader = ?, segment = ?, subject_b = ?, ab_pct = ?, ab_hours = ? WHERE id = ? AND account_id = ? AND status IN ('draft', 'scheduled') RETURNING id",
+      v.subject, v.body, v.tag, v.preheader, v.segment, v.subject_b, v.ab_pct, v.ab_hours, id(req.params.id), req.accountId);
     if (!r) throw new HttpError(409, 'Only drafts can be edited');
     res.json({ ok: true });
   });
@@ -1274,6 +1276,23 @@ function createApp({ dbPath } = {}) {
   async function deliverBroadcast(b) {
     const account = await db.get('SELECT * FROM accounts WHERE id = ?', b.account_id);
     const recipients = await audience(b.account_id, { tag: b.tag, segment: b.segment });
+    // Subject test: A and B to a slice now; the job runner sends the winner to the rest later.
+    if (b.subject_b && recipients.length >= 2) {
+      const { a, b: bb, rest } = splitForTest(recipients, b.ab_pct);
+      let sent = 0;
+      for (const [list, subject, v] of [[a, b.subject, 'a'], [bb, b.subject_b, 'b']]) {
+        for (const c of list) {
+          const r = await messaging.sendToPerson({ account, person: c, subject, body: b.body, preheader: b.preheader, broadcastId: b.id, abVariant: v });
+          if (r.status === 'sent' || r.status === 'logged') sent++;
+        }
+      }
+      if (rest.length) {
+        await db.run("UPDATE broadcasts SET status = 'testing', sent_count = ?, sent_at = now(), ab_ends_at = ? WHERE id = ?", sent, new Date(Date.now() + b.ab_hours * 3600e3).toISOString(), b.id);
+      } else {
+        await db.run("UPDATE broadcasts SET status = 'sent', sent_count = ?, sent_at = now() WHERE id = ?", sent, b.id);
+      }
+      return { sent, total: recipients.length, testing: Boolean(rest.length), rest: rest.length };
+    }
     let sent = 0;
     // Same sender as workflows and campaigns: merge fields, unsubscribe link, open/click tracking.
     for (const c of recipients) {
@@ -1308,6 +1327,7 @@ function createApp({ dbPath } = {}) {
     res.json({ ok: true });
   });
 
+  registerEmailPlus(api, { getDb: () => db, HttpError, id });
   api.get('/outbox', async (req, res) => {
     res.json(await db.all('SELECT * FROM email_log WHERE account_id = ? ORDER BY id DESC LIMIT 200', req.accountId));
   });
@@ -1757,6 +1777,23 @@ ${order.status === 'paid' ? '<p>This order is already paid.</p>' : `<label>Name<
     for (const { id: bid } of due) {
       const b = await db.get("UPDATE broadcasts SET status = 'sending' WHERE id = ? AND status = 'scheduled' RETURNING *", bid);
       if (b) sent += (await deliverBroadcast(b)).sent;
+    }
+    // Subject tests that have run their time: the winning subject goes to everyone else.
+    const tests = await db.all("SELECT id FROM broadcasts WHERE status = 'testing' AND ab_ends_at <= ?", now.toISOString());
+    for (const { id: bid } of tests) {
+      const b = await db.get("UPDATE broadcasts SET status = 'sending' WHERE id = ? AND status = 'testing' RETURNING *", bid);
+      if (!b) continue;
+      const stats = async (v) => db.get("SELECT COUNT(*)::int AS sent, COUNT(opened_at)::int AS opened FROM email_log WHERE broadcast_id = ? AND ab_variant = ?", b.id, v);
+      const winner = pickWinner(await stats('a'), await stats('b'));
+      const done = new Set((await db.all('SELECT contact_id FROM email_log WHERE broadcast_id = ?', b.id)).map((r) => r.contact_id));
+      const account = await db.get('SELECT * FROM accounts WHERE id = ?', b.account_id);
+      let n = 0;
+      for (const c of (await audience(b.account_id, { tag: b.tag, segment: b.segment })).filter((x) => !done.has(x.id))) {
+        const r = await messaging.sendToPerson({ account, person: c, subject: winner === 'b' ? b.subject_b : b.subject, body: b.body, preheader: b.preheader, broadcastId: b.id, abVariant: winner });
+        if (r.status === 'sent' || r.status === 'logged') n++;
+      }
+      await db.run("UPDATE broadcasts SET status = 'sent', ab_winner = ?, sent_count = sent_count + ? WHERE id = ?", winner, n, b.id);
+      sent += n;
     }
     return { scheduled_sent: sent };
   }

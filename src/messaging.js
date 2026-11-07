@@ -56,7 +56,7 @@ function createMessaging({ getDb, getSecret, publicBase, logEvent }) {
 
   // Sends one email to one person. Never throws for a bad address or an
   // unsubscribed person; returns { status: 'sent' | 'logged' | 'skipped' | 'failed', reason }.
-  async function sendToPerson({ account, person, subject, body, preheader = '', workflowId = null, campaignId = null, broadcastId = null }) {
+  async function sendToPerson({ account, person, subject, body, preheader = '', workflowId = null, campaignId = null, broadcastId = null, abVariant = '' }) {
     if (!person.email) return { status: 'skipped', reason: 'no email address' };
     if (person.unsubscribed) return { status: 'skipped', reason: 'unsubscribed' };
     const db = getDb();
@@ -65,8 +65,8 @@ function createMessaging({ getDb, getSecret, publicBase, logEvent }) {
     const unsub = `${base}/unsubscribe/${unsubToken(person.id)}`;
     const merged = `${merge(body, person, account)}\n\n--\nUnsubscribe: ${unsub}`;
     const text = signText(emailBodyText(merged), account, base);
-    const row = await db.get(`INSERT INTO email_log (account_id, broadcast_id, contact_id, to_email, subject, body, status, workflow_id, campaign_id)
-      VALUES (?, ?, ?, ?, ?, ?, 'queued', ?, ?) RETURNING id`, account.id, broadcastId, person.id, person.email, subj, text, workflowId, campaignId);
+    const row = await db.get(`INSERT INTO email_log (account_id, broadcast_id, contact_id, to_email, subject, body, status, workflow_id, campaign_id${abVariant ? ', ab_variant' : ''})
+      VALUES (?, ?, ?, ?, ?, ?, 'queued', ?, ?${abVariant ? ', ?' : ''}) RETURNING id`, account.id, broadcastId, person.id, person.email, subj, text, workflowId, campaignId, ...(abVariant ? [abVariant] : []));
     const html = signHtml(toHtml(merged, sign(row.id), base, merge(preheader, person, account), account.brand_color), account, base);
     try {
       // One-click unsubscribe headers (required by Gmail and Yahoo for bulk senders).
@@ -142,6 +142,7 @@ function createMessaging({ getDb, getSecret, publicBase, logEvent }) {
       const email = emailId && /^https?:\/\//i.test(url) && await getDb().get('SELECT body FROM email_log WHERE id = ?', emailId);
       if (!email || !email.body.includes(url)) return res.status(400).type('text').send('This link is no longer valid.');
       await track(emailId, 'click').catch((e) => console.error('click tracking:', e.message));
+      await getDb().run('INSERT INTO email_clicks (email_id, url) VALUES (?, ?)', emailId, url.slice(0, 2000)).catch(() => {});
       res.redirect(302, url);
     });
   }
