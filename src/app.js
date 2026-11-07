@@ -41,6 +41,7 @@ const { registerTexting } = require('./texting');
 const { registerTasks } = require('./tasks');
 const { registerMembers } = require('./members');
 const { registerCourses } = require('./courses');
+const { registerCommunity } = require('./community');
 const { registerMetrics } = require('./metrics');
 const { registerBlog } = require('./blog');
 const { registerCheckout } = require('./checkout');
@@ -261,6 +262,7 @@ function createApp({ dbPath } = {}) {
     });
     if (fresh) await invoices.onOrderPaid(order).catch((e) => console.error('invoice paid:', e.message));
     if (fresh) await members.onOrderPaid(order).catch((e) => console.error('members access:', e.message));
+    if (fresh) await community.onOrderPaid(order).catch((e) => console.error('community access:', e.message));
     if (fresh) await checkout.onOrderPaid(order).catch((e) => console.error('coupon use:', e.message));
   }
 
@@ -1473,7 +1475,8 @@ function createApp({ dbPath } = {}) {
   registerMetrics(api, { getDb: () => db });
   const members = registerMembers(app, api, { getDb: () => db, HttpError, id, upsertContact, messaging, publicBase, getSecret: () => secret,
     createFunnel: (...x) => createFunnel(...x), getFunnel: (...x) => getFunnel(...x) });
-  const courses = registerCourses(app, api, { getDb: () => db, HttpError, id, messaging, members, getFunnel: (...x) => getFunnel(...x) });
+  const courses = registerCourses(app, api, { getDb: () => db, HttpError, id, messaging, members, getFunnel: (...x) => getFunnel(...x), portalExtra: (...x) => community.portalCard(...x) });
+  const community = registerCommunity(app, api, { getDb: () => db, HttpError, id, upsertContact, logEvent, messaging, members, courses, ownerViewing: (...a) => ownerViewing(...a) });
   const texting = registerTexting(app, api, { getDb: () => db, HttpError, id, upsertContact, logEvent, messaging, publicBase, getSecret: () => secret });
   registerSetup(api, { getDb: () => db, HttpError, createFunnel, TEMPLATES, getAccount });
   registerTasks(api, { getDb: () => db, HttpError, id });
@@ -1961,7 +1964,7 @@ ${order.status === 'paid' ? '<p>This order is already paid.</p>' : `<label>Name<
   // the scheduled Netlify function.
   app.runJobs = async (now = new Date()) => {
     await init();
-    return { ...(await workflows.processDue({ now })), ...(await digest.sendDue(now)), ...(await bookings.sendReminders(now)), ...(await checkout.recoverCheckouts(now)), ...(await askForReviews(now)), ...(await sendScheduled(now)), ...(await invoices.remindOverdue(now)), ...(await onboarding.sendDue(now)), ...(await reports.sendDue(now)), ...(await integrations.processDue(now)), ...(await courses.sendUnlocks(now)) };
+    return { ...(await workflows.processDue({ now })), ...(await digest.sendDue(now)), ...(await bookings.sendReminders(now)), ...(await checkout.recoverCheckouts(now)), ...(await askForReviews(now)), ...(await sendScheduled(now)), ...(await invoices.remindOverdue(now)), ...(await onboarding.sendDue(now)), ...(await reports.sendDue(now)), ...(await integrations.processDue(now)), ...(await courses.sendUnlocks(now)), ...(await community.runJobs(now)) };
   };
   app.getDb = () => db; // for tests (seeding history)
   app.messaging = messaging; // for tests (signing tracking links)

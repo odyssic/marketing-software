@@ -18,7 +18,7 @@ const PALETTE = ['email', 'sms', 'wait', 'condition', 'tag', 'subscribe', 'notif
 const TRIGGER_UI = {
   signup: 'Signs up (any form or pageflow)', purchase: 'Buys something', tag_added: 'Gets a tag', subscribe: 'Subscribes to a newsletter',
   inquiry: 'Sends an inquiry', booking: 'Books a call', silent: 'Goes quiet (no activity for a while)',
-  birthday: 'Has a birthday', anniversary: 'Reaches a customer anniversary', renewal: 'Has a subscription renewing soon', manual: 'Added by hand',
+  birthday: 'Has a birthday', anniversary: 'Reaches a customer anniversary', renewal: 'Has a subscription renewing soon', community_join: 'Joins the community', manual: 'Added by hand',
 };
 const CONDITION_UI = {
   purchased_since: 'Bought since entering this workflow?', purchased: 'Has ever bought?', opened: 'Opened an email from this workflow?',
