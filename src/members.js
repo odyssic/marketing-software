@@ -1,4 +1,5 @@
-// Members areas: lesson pages only members can open (courses, client
+// Members areas: lesson pages only members can open (course menu, progress
+// and lessons that open later are in courses.js) (courses, client
 // portals, paid communities' resources). Stored like a website (funnel
 // kind = 'members'): pages in menu order, edited in the same page editor.
 //
@@ -16,14 +17,12 @@ const MEMBERS_TEMPLATE = {
     label: 'Members area', description: 'A welcome page and lessons only members can open.', workflows: [],
     steps: () => [
       { name: 'Welcome', slug: 'welcome', settings: { accent: '#1f7f78', width: 760 }, blocks: [
-        h('Welcome in!', 'large'), p('Here’s everything that comes with your membership. Start with Lesson 1 and go at your own pace. Come back any time on this device and you’ll still be signed in.'),
-        { id: uid(), type: 'button', label: 'Start Lesson 1', url: 'page:lesson-1', align: 'left' }] },
+        h('Welcome in!', 'large'), p('Here’s everything that comes with your membership. Start with Lesson 1 and go at your own pace. Come back any time on this device and you’ll still be signed in.')] },
       { name: 'Lesson 1', slug: 'lesson-1', settings: { accent: '#1f7f78', width: 760 }, blocks: [
-        h('Lesson 1: [Title]'), { id: uid(), type: 'video', url: '' }, p('[What this lesson covers, and the one thing to do after watching.]'),
-        { id: uid(), type: 'button', label: 'Next: Lesson 2', url: 'page:lesson-2', align: 'left' }] },
+        h('Lesson 1: [Title]'), { id: uid(), type: 'video', url: '' }, p('[What this lesson covers, and the one thing to do after watching.]')] },
       { name: 'Lesson 2', slug: 'lesson-2', settings: { accent: '#1f7f78', width: 760 }, blocks: [
         h('Lesson 2: [Title]'), { id: uid(), type: 'video', url: '' }, p('[What this lesson covers.]')] },
-      { name: 'Downloads', slug: 'downloads', settings: { accent: '#1f7f78', width: 760 }, blocks: [
+      { name: 'Downloads', slug: 'downloads', settings: { accent: '#1f7f78', width: 760, lesson: false }, blocks: [
         h('Downloads'), p('[Worksheets, templates and recordings. Add a button for each file.]')] },
     ],
   },
@@ -39,11 +38,13 @@ function registerMembers(app, api, { getDb, HttpError, id, upsertContact, messag
   const cookieName = (accountId) => `rm${accountId}`;
   const base = () => (process.env.PUBLIC_URL || publicBase()).replace(/\/$/, '');
 
-  const enterLink = (funnel, contactId, days = 7) => {
+  // `to`: a page of the area to land on (e.g. a lesson that just unlocked).
+  const enterLink = (funnel, contactId, days = 7, to = '') => {
     const exp = Math.floor(Date.now() / 1000) + days * 86400;
     const body = `${contactId}.${funnel.id}.${exp}`;
-    return `${base()}/m/${funnel.slug}/enter/${body}.${mac(`enter:${body}`)}`;
+    return `${base()}/m/${funnel.slug}/enter/${body}.${mac(`enter:${body}`)}${to ? `?to=${encodeURIComponent(to)}` : ''}`;
   };
+  const portalUrl = (accountId) => `${base()}/my/${accountId}`;
   const hasAccess = (funnelId, contactId) => db().get('SELECT 1 FROM member_access WHERE funnel_id = ? AND contact_id = ? AND revoked_at IS NULL', funnelId, contactId);
 
   async function grant(funnel, contactId, source) {
@@ -56,9 +57,15 @@ function registerMembers(app, api, { getDb, HttpError, id, upsertContact, messag
     const link = enterLink(funnel, contact.id);
     await messaging.sendTransactional({ account, to: contact.email, contactId: contact.id,
       subject: first ? `You’re in: ${funnel.name}` : `Your link to ${funnel.name}`,
-      text: `Hi ${contact.first_name || 'there'},\n\n${first ? `You now have access to ${funnel.name}.` : `Here’s your sign-in link for ${funnel.name}.`}\n\nOpen it here: ${link}\n\nThe link works for 7 days and keeps you signed in on this device. Lost it? Go to ${base()}/f/${funnel.slug} and ask for a new one.\n\n${account.from_name || account.name}` });
+      text: `Hi ${contact.first_name || 'there'},\n\n${first ? `You now have access to ${funnel.name}.` : `Here’s your sign-in link for ${funnel.name}.`}\n\nOpen it here: ${link}\n\nThe link works for 7 days and keeps you signed in on this device. Lost it? Go to ${base()}/f/${funnel.slug} and ask for a new one.\n\nAll your courses and orders, in one place: ${portalUrl(funnel.account_id)}\n\n${account.from_name || account.name}` });
   }
 
+  // Signed in on this device for 30 days: one cookie per business, so it opens every area they have.
+  const signIn = (res, accountId, cid) => {
+    const secure = /^https:/.test(base()) ? '; Secure' : '';
+    res.append('Set-Cookie', `${cookieName(accountId)}=${encodeURIComponent(`${cid}.${mac(`member:${cid}`)}`)}; Path=/; Max-Age=${30 * 86400}; HttpOnly; SameSite=Lax${secure}`);
+  };
+  const signOut = (res, accountId) => res.append('Set-Cookie', `${cookieName(accountId)}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax`);
   // Who is looking at a members page: the signed-in member, or nobody.
   function memberOf(req, funnel) {
     const raw = String(req.headers.cookie || '').split(/;\s*/).find((c) => c.startsWith(`${cookieName(funnel.account_id)}=`));
@@ -74,7 +81,8 @@ function registerMembers(app, api, { getDb, HttpError, id, upsertContact, messag
     <body><div class="c"><div class="m">${escH(accountName)}</div><h1>${escH(funnel.name)}</h1>
     ${sent ? '<p class="ok">If that email has access, a sign-in link is on its way. Check your inbox (and spam, just in case).</p>'
     : `<p class="m">Members only. Enter the email you joined with and we’ll send you a sign-in link.</p>
-      <form method="post" action="/m/${escH(funnel.slug)}/login"><input type="email" name="email" required autocomplete="email" placeholder="you@example.com" aria-label="Your email"><button>Email me a sign-in link</button></form>`}</div></body></html>`);
+      <form method="post" action="/m/${escH(funnel.slug)}/login"><input type="email" name="email" required autocomplete="email" placeholder="you@example.com" aria-label="Your email"><button>Email me a sign-in link</button></form>`}
+    <p class="m" style="font-size:.9rem;margin:16px 0 0"><a href="/my/${Number(funnel.account_id)}" style="color:#1B736D">See all your courses and orders</a></p></div></body></html>`);
 
   // Called by the public page route before showing a members page. Returns true to show it.
   async function gate(req, res, funnel, ownerViewing) {
@@ -113,13 +121,13 @@ function registerMembers(app, api, { getDb, HttpError, id, upsertContact, messag
     const acct = await db().get('SELECT name FROM accounts WHERE id = ?', funnel.account_id);
     const ok = same(sig, mac(`enter:${cid}.${fid}.${exp}`)) && Number(fid) === funnel.id && Number(exp) * 1000 > Date.now() && await hasAccess(funnel.id, Number(cid));
     if (!ok) return loginPage(res, funnel, acct.name, { status: 401 });
-    const secure = /^https:/.test(base()) ? '; Secure' : '';
-    res.set('Set-Cookie', `${cookieName(funnel.account_id)}=${encodeURIComponent(`${cid}.${mac(`member:${cid}`)}`)}; Path=/; Max-Age=${30 * 86400}; HttpOnly; SameSite=Lax${secure}`);
-    res.redirect(303, `/f/${funnel.slug}`);
+    signIn(res, funnel.account_id, cid);
+    const to = String(req.query.to || '');
+    res.redirect(303, `/f/${funnel.slug}${/^[a-z0-9-]{1,80}$/.test(to) ? `/${to}` : ''}`);
   });
   app.get('/m/:slug/logout', async (req, res) => {
     const funnel = await areaBySlug(req.params.slug);
-    if (funnel) res.set('Set-Cookie', `${cookieName(funnel.account_id)}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax`);
+    if (funnel) signOut(res, funnel.account_id);
     res.redirect(303, funnel ? `/f/${funnel.slug}` : '/');
   });
 
@@ -191,7 +199,7 @@ function registerMembers(app, api, { getDb, HttpError, id, upsertContact, messag
     await sendAccess(f, await db().get('SELECT * FROM contacts WHERE id = ?', o.contact_id), { first: true });
   }
 
-  return { gate, onOrderPaid, memberOf };
+  return { gate, onOrderPaid, memberOf, hasAccess, enterLink, portalUrl, signIn, signOut, sign: mac, same, base };
 }
 
 module.exports = { registerMembers, MEMBERS_TEMPLATE };

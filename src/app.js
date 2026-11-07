@@ -40,6 +40,7 @@ const { registerEmailPlus, splitForTest, pickWinner } = require('./emailplus');
 const { registerTexting } = require('./texting');
 const { registerTasks } = require('./tasks');
 const { registerMembers } = require('./members');
+const { registerCourses } = require('./courses');
 const { registerMetrics } = require('./metrics');
 const { registerBlog } = require('./blog');
 const { registerCheckout } = require('./checkout');
@@ -93,6 +94,7 @@ function createApp({ dbPath } = {}) {
     return a || null;
   };
   const PASS = /^\/(t|s|u|b|dl|m|pay|hooks|legal|checkout|stripe|unsubscribe|f)\//;
+  const PASS = /^\/(t|s|u|b|dl|m|my|pay|hooks|checkout|stripe|unsubscribe|f)\//;
   // A custom domain's sitemap, robots rules and llms.txt (a plain summary for AI assistants).
   async function siteFiles(acct, host, path, res) {
     const base = `https://${host}`;
@@ -1472,6 +1474,7 @@ function createApp({ dbPath } = {}) {
   registerMetrics(api, { getDb: () => db });
   const members = registerMembers(app, api, { getDb: () => db, HttpError, id, upsertContact, messaging, publicBase, getSecret: () => secret,
     createFunnel: (...x) => createFunnel(...x), getFunnel: (...x) => getFunnel(...x) });
+  const courses = registerCourses(app, api, { getDb: () => db, HttpError, id, messaging, members, getFunnel: (...x) => getFunnel(...x) });
   const texting = registerTexting(app, api, { getDb: () => db, HttpError, id, upsertContact, logEvent, messaging, publicBase, getSecret: () => secret });
   registerSetup(api, { getDb: () => db, HttpError, createFunnel, TEMPLATES, getAccount });
   registerTasks(api, { getDb: () => db, HttpError, id });
@@ -1585,6 +1588,12 @@ function createApp({ dbPath } = {}) {
     if (funnel.kind === 'members' && !await members.gate(req, res, funnel, ownerViewing)) return;
     const v = req.query.v === 'b' && draft ? 'b' : variantFor(req, res, step);
     const page = pageOf(step, v);
+    const embed = req.query.embed === '1';
+    const chrome = embed ? {} : await siteChrome(req, funnel, step);
+    // Courses: lessons that haven't opened yet show when they open instead of their content.
+    const course = funnel.kind === 'members' ? await courses.view(req, funnel, step, { owner: await ownerViewing(req, funnel),
+      pageHref: chrome.pageHref || ((slug) => `/f/${funnel.slug}/${slug}`), home: chrome.site?.home || `/f/${funnel.slug}` }) : null;
+    if (course?.locked) Object.assign(page, { blocks: course.lockedBlocks, settings: { ...page.settings, seoTitle: '', seoDescription: '', seoSummary: '' } });
     const buyer = page.blocks.some((x) => x.type === 'pricing') ? await buyerOrder(req, funnel) : null;
     const src = draft ? null : attribution.remember(req, res, auth.parseCookies(req.headers.cookie), [...ownHostList(), req.hostname.toLowerCase()]);
     const [products] = await Promise.all([
@@ -1593,11 +1602,10 @@ function createApp({ dbPath } = {}) {
     ]);
     if (!draft) await funnelKit.decideWinner(step.id);
     if (draft) res.set('X-Robots-Tag', 'noindex');
-    const embed = req.query.embed === '1';
     const withEmbed = (u) => (embed && u && u !== '#' && u.startsWith('/') ? `${u}${u.includes('?') ? '&' : '?'}embed=1` : u);
     res.type('html').send((draft && !embed ? '<div style="position:sticky;top:0;z-index:9;background:#fef3c7;color:#92400e;font:600 14px system-ui;text-align:center;padding:8px">Draft preview: only you can see this page until the funnel is published.</div>' : '') + renderPage({
       title: step.name, blocks: page.blocks, settings: page.settings, embed,
-      ...(embed ? {} : await siteChrome(req, funnel, step)),
+      ...chrome, ...(course && !embed ? { course: course.course } : {}),
       nextUrl: withEmbed(nextUrl), noUrl: withEmbed(noUrl), formAction: withEmbed(`/f/${funnel.slug}/${step.slug}/optin`), buyAction: `/f/${funnel.slug}/${step.slug}/buy`,
       products, oneClick: buyer ? `/f/${funnel.slug}/${step.slug}/oneclick` : null, coupons: page.blocks.some((x) => x.type === 'pricing') && await checkout.hasCoupons(funnel.account_id),
       testimonials: await approvedTestimonials(db, funnel.account_id), ...(await (async () => {
@@ -1956,6 +1964,7 @@ ${order.status === 'paid' ? '<p>This order is already paid.</p>' : `<label>Name<
     await init();
     return { ...(await workflows.processDue({ now })), ...(await digest.sendDue(now)), ...(await bookings.sendReminders(now)), ...(await checkout.recoverCheckouts(now)), ...(await askForReviews(now)), ...(await sendScheduled(now)), ...(await invoices.remindOverdue(now)), ...(await onboarding.sendDue(now)), ...(await reports.sendDue(now)) };
     return { ...(await workflows.processDue({ now })), ...(await digest.sendDue(now)), ...(await bookings.sendReminders(now)), ...(await recoverCheckouts(now)), ...(await askForReviews(now)), ...(await sendScheduled(now)), ...(await invoices.remindOverdue(now)), ...(await onboarding.sendDue(now)), ...(await reports.sendDue(now)), ...(await integrations.processDue(now)) };
+    return { ...(await workflows.processDue({ now })), ...(await digest.sendDue(now)), ...(await bookings.sendReminders(now)), ...(await recoverCheckouts(now)), ...(await askForReviews(now)), ...(await sendScheduled(now)), ...(await invoices.remindOverdue(now)), ...(await onboarding.sendDue(now)), ...(await reports.sendDue(now)), ...(await courses.sendUnlocks(now)) };
   };
   app.getDb = () => db; // for tests (seeding history)
   app.messaging = messaging; // for tests (signing tracking links)
