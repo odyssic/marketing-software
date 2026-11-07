@@ -9,6 +9,8 @@ const MERGE_FIELDS = [
   { code: '{{last_name}}', label: 'Last name', hint: '' },
   { code: '{{email}}', label: 'Email address', hint: '' },
   { code: '{{business}}', label: 'Business name', hint: 'your business' },
+  { code: '{{referral_link}}', label: 'Their referral link', hint: 'their own link to share' },
+  { code: '{{referral_reward}}', label: 'Referral reward', hint: 'e.g. “They get 10% off…”' },
 ];
 
 const fieldSelect = (target) => `<select class="ins-field" data-insfor="${target}" aria-label="Insert a fill-in field">
