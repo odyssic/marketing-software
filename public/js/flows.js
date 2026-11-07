@@ -5,7 +5,7 @@
 // websites, pageflows and members areas (pages, with their follow-up emails on
 // the same map), and follow-ups that start on their own (someone buys, goes
 // quiet, gets a tag). Set things up once, where you see them.
-const FLOW_TABS = [['', 'All'], ['websites', 'Websites'], ['pageflows', 'Pageflows'], ['members', 'Members areas'], ['followups', 'Follow-ups'], ['blog', 'Blog']];
+const FLOW_TABS = [['', 'All'], ['websites', 'Websites'], ['pageflows', 'Pageflows'], ['members', 'Members areas'], ['followups', 'Follow-ups'], ['blog', 'Blog'], ['community', 'Community']];
 const FLOW_OPEN = { website: 'websites', members: 'members', funnel: 'funnels' };
 const STEP_WORD = { email: 'Email', sms: 'Text', wait: 'Wait', condition: 'Split', tag: 'Tag', notify: 'Notify me', subscribe: 'Subscribe', deal: 'Deal' };
 const STEP_ICON = { email: 'mail', sms: 'chat', wait: 'clock', condition: 'branch', tag: 'tag', notify: 'bell', subscribe: 'inbox', deal: 'briefcase' };
@@ -19,6 +19,7 @@ async function viewFlows() {
   const params = new URLSearchParams(location.hash.split('?')[1] || '');
   const show = FLOW_TABS.some(([k]) => k === params.get('show')) ? params.get('show') : '';
   if (show === 'blog') return viewBlog();
+  if (show === 'community') return viewCommunityAdmin();
   const q = (params.get('q') || '').toLowerCase();
   const [groupsAll, wfs] = await Promise.all([api('GET', '/api/page-groups'), api('GET', '/api/workflows')]);
   const kindOk = (g) => !show || (show === 'websites' && g.kind === 'website') || (show === 'members' && g.kind === 'members') || (show === 'pageflows' && g.kind !== 'website' && g.kind !== 'members');

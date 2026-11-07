@@ -28,7 +28,7 @@ const fmtDay = (d, now = new Date()) => d.toLocaleDateString('en-US', { weekday:
   ...(d.getUTCFullYear() !== now.getUTCFullYear() ? { year: 'numeric' } : {}) });
 const shortDay = (d) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
 
-function registerCourses(app, api, { getDb, HttpError, id, messaging, members, getFunnel }) {
+function registerCourses(app, api, { getDb, HttpError, id, messaging, members, getFunnel, portalExtra = async () => '' }) {
   const db = () => getDb();
 
   // The course in menu order. Hidden pages stay out of the menu (but keep working by link).
@@ -173,10 +173,11 @@ function registerCourses(app, api, { getDb, HttpError, id, messaging, members, g
     const cid = members.memberOf(req, { account_id: acct.id });
     return cid ? db().get('SELECT * FROM contacts WHERE id = ? AND account_id = ?', cid, acct.id) : null;
   };
-  const portalLink = (acct, contactId, days = 7) => {
+  // `to`: a part of the customer area to land on (e.g. 'community').
+  const portalLink = (acct, contactId, days = 7, to = '') => {
     const exp = Math.floor(Date.now() / 1000) + days * 86400;
     const body = `${contactId}.${acct.id}.${exp}`;
-    return `${members.base()}/my/${acct.id}/enter/${body}.${members.sign(`portal:${body}`)}`;
+    return `${members.base()}/my/${acct.id}/enter/${body}.${members.sign(`portal:${body}`)}${to ? `?to=${encodeURIComponent(to)}` : ''}`;
   };
   const page = (res, acct, title, inner, status = 200) => {
     const brand = /^#[0-9a-f]{6}$/i.test(acct.brand_color || '') ? acct.brand_color : '#1B736D';
@@ -206,6 +207,7 @@ function registerCourses(app, api, { getDb, HttpError, id, messaging, members, g
     const orders = await db().all(`SELECT id, product_name, amount_cents, currency, paid_at, created_at FROM orders
       WHERE account_id = ? AND contact_id = ? AND status = 'paid' ORDER BY COALESCE(paid_at, created_at) DESC LIMIT 100`, acct.id, c.id);
     page(res, acct, 'Your account', { signedIn: c.email, html: `<h1>Hi ${esc(c.first_name || 'there')}</h1>
+      ${await portalExtra(acct, c)}
       <h2>Your courses</h2>${cards.length ? `<div class="grid">${cards.join('')}</div>` : '<p class="m card">No courses yet.</p>'}
       <h2>Your orders</h2>${orders.length ? `<div class="card list">${orders.map((o) => `<div class="row"><span><b>${esc(o.product_name)}</b><br><span class="m">${esc(shortDay(new Date(o.paid_at || o.created_at)))}, ${new Date(o.paid_at || o.created_at).getUTCFullYear()}</span></span>
         <span class="amt">${esc(formatMoney(o.amount_cents, o.currency))}</span><a href="/my/${acct.id}/receipt/${o.id}">Receipt</a></div>`).join('')}</div>` : '<p class="m card">No orders yet.</p>'}` });
@@ -218,7 +220,8 @@ function registerCourses(app, api, { getDb, HttpError, id, messaging, members, g
     if (EMAIL_RE.test(email)) {
       const c = await db().get('SELECT * FROM contacts WHERE account_id = ? AND email = ?', acct.id, email);
       const known = c && (await db().get('SELECT 1 FROM member_access WHERE contact_id = ? AND account_id = ? AND revoked_at IS NULL', c.id, acct.id)
-        || await db().get("SELECT 1 FROM orders WHERE contact_id = ? AND account_id = ? AND status = 'paid'", c.id, acct.id));
+        || await db().get("SELECT 1 FROM orders WHERE contact_id = ? AND account_id = ? AND status = 'paid'", c.id, acct.id)
+        || await db().get("SELECT 1 FROM community_members WHERE contact_id = ? AND account_id = ? AND status = 'active'", c.id, acct.id));
       const recent = known && await db().get("SELECT 1 FROM email_log WHERE contact_id = ? AND subject LIKE 'Your sign-in link%' AND created_at > now() - interval '2 minutes'", c.id);
       if (known && !recent) {
         const full = await db().get('SELECT * FROM accounts WHERE id = ?', acct.id);
@@ -238,7 +241,8 @@ function registerCourses(app, api, { getDb, HttpError, id, messaging, members, g
       && await db().get('SELECT 1 FROM contacts WHERE id = ? AND account_id = ?', Number(cid), acct.id);
     if (!ok) return loginForm(res, acct, { status: 401 });
     members.signIn(res, acct.id, Number(cid));
-    res.redirect(303, `/my/${acct.id}`);
+    const to = String(req.query.to || '');
+    res.redirect(303, `/my/${acct.id}${/^community(\/[a-z0-9-]{1,40}){0,2}$/.test(to) ? `/${to}` : ''}`);
   });
   app.get('/my/:acct/logout', async (req, res) => {
     const acct = await account(req.params.acct);
@@ -291,7 +295,7 @@ function registerCourses(app, api, { getDb, HttpError, id, messaging, members, g
     return { lesson_ready_emails: sent };
   }
 
-  return { view, sendUnlocks };
+  return { view, sendUnlocks, portalLink, account, signedInContact };
 }
 
 const COURSE_CSS = `

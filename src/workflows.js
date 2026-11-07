@@ -19,6 +19,7 @@ const TRIGGERS = {
   birthday: 'Has a birthday',
   anniversary: 'Reaches a customer anniversary (a year since their first purchase)',
   renewal: 'Has a subscription renewing soon',
+  community_join: 'Joins the community',
   manual: 'Added by hand',
 };
 const CONDITIONS = {
@@ -250,7 +251,7 @@ function createWorkflows({ getDb, HttpError, id, people, messaging, getAccount }
 
   // Called for every logged event. Only fresh events start workflows.
   async function onEvent(accountId, e) {
-    if (!e.person_id || !['signup', 'purchase', 'subscribe', 'inquiry', 'booking'].includes(e.type)) return;
+    if (!e.person_id || !['signup', 'purchase', 'subscribe', 'inquiry', 'booking', 'community_join'].includes(e.type)) return;
     if (e.occurred_at && Date.now() - new Date(e.occurred_at).getTime() > FRESH_MS) return;
     for (const w of await activeWithTrigger(accountId, e.type)) {
       const t = w.graph.nodes[w.graph.root].config;
