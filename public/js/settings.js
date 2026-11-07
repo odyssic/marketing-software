@@ -219,17 +219,23 @@ async function loadTextingSettings() {
     <label class="f">Your ${BRAND} number <span class="hint">the number customers text and call</span><input name="sms_number" type="tel" value="${esc(t.sms_number)}" placeholder="+1 555 010 0000"></label></details>
     <label class="f">Ring my phone <span class="hint">calls forward here for 20 seconds first</span><input name="forward_to" type="tel" value="${esc(t.forward_to)}" placeholder="Your mobile (leave empty to text every caller back)"></label>
     <label class="f">Missed-call text <span class="hint">sent once per caller every 12 hours</span><textarea name="missed_call_text" rows="2" placeholder="${esc(t.default_text)}">${esc(t.missed_call_text)}</textarea></label>
+    <div class="a2p ${esc(t.registration?.status || '')}" ${t.live ? '' : 'hidden'}><b>Texting approval:</b> <span class="pill ${t.registration?.status === 'approved' ? 'ok' : t.registration?.status === 'failed' ? 'bad' : 'warn'}">${esc(t.registration?.label || '')}</span> <span class="muted small">${esc(t.registration?.note || '')}</span></div>
     <details ${t.sms_number && !b.legal_name ? 'open' : ''}><summary><b>Business details for texting approval</b> <span class="muted small">US carriers require these before a business can text (called 10DLC). Approval usually takes 1 to 3 weeks.</span></summary>
       <div class="colors" style="grid-template-columns:1fr 1fr">${bf('legal_name', 'Legal business name', 'As on your tax records')}${bf('ein', 'EIN (tax ID)', '12-3456789', 'sole traders can skip')}</div>
       ${bf('address', 'Business address', 'Street, city, state, ZIP')}${bf('website', 'Website', 'https://')}
       <div class="colors">${bf('contact_name', 'Contact name')}${bf('contact_email', 'Contact email')}${bf('contact_phone', 'Contact phone')}</div>
       ${bf('use_case', 'What you text about', 'e.g. Appointment reminders, replies to customer questions, occasional offers')}
       ${bf('sample', 'A sample text', `e.g. Hi Sam, it’s ${state.me.account.name}. Your appointment is tomorrow at 10am. Reply STOP to opt out.`)}
+      <div class="a2p-answers"><p class="small"><b>Ready to paste into the registration form</b> <span class="muted">(Twilio → Messaging → Regulatory compliance)</span></p>
+        ${(t.answers || []).map(([k, v]) => `<div class="a2p-row"><span class="muted small">${esc(k)}</span><p>${esc(v)}</p><button type="button" class="btn sm" data-copyans="${esc(v)}">Copy</button></div>`).join('')}
+        ${t.optin_page ? '' : '<p class="small warn-text">Carriers want to see where people agree to texts. Add a form with “SMS updates” switched on to a published page.</p>'}
+        <p class="small"><a href="${esc(t.terms_url)}" target="_blank" rel="noopener">Your texting terms and privacy page</a> is made for you from these details.</p></div>
     </details>
     ${t.live ? `<details class="hint"><summary>Connecting the number</summary><p>In Twilio, set the number’s “A message comes in” webhook to <code>${esc(t.hooks.sms)}</code> and “A call comes in” to <code>${esc(t.hooks.voice)}</code> (both HTTP POST).</p></details>` : ''}
     <div class="err"></div><button class="btn primary">Save texting</button>`;
   addressSuggest($('[name=b_address]', form));
   const gn = $('[data-getnum]', form); if (gn) gn.onclick = () => getNumber(loadTextingSettings);
+  $$('[data-copyans]', form).forEach((btn) => { btn.onclick = async () => { try { await navigator.clipboard.writeText(btn.dataset.copyans); toast('Copied'); } catch { toast('Couldn’t copy; select the text instead', true); } }; });
   // Pre-filled suggestions that were never saved count as something to save.
   trackDirty(form, { dirty: !Object.keys(b).length && Object.values(start).some(Boolean) && Boolean(t.sms_number) });
   form.onsubmit = async (e) => {

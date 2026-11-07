@@ -125,3 +125,26 @@ test('workflow texts need permission; email replies thread into the inbox', asyn
   assert.equal(thread.at(-1).body, 'Yes please!');
 });
 const secretOf = async () => (await app.getDb().get("SELECT value FROM meta WHERE key = 'secret'"))?.value;
+
+test('texting approval: status, ready-to-paste answers and a public terms page', async () => {
+  process.env.PUBLIC_URL = base;
+  const c = client();
+  await c('POST', '/api/auth/signup', { name: 'Reg', email: 'reg@example.com', password: 'password123', workspace: 'Reg <Roofing>', business_type: 'services' });
+  await c('PUT', '/api/account/texting', { sms_number: '+15550100009', brand: { legal_name: 'Reg Roofing LLC', use_case: 'quotes and job reminders', contact_email: 'hi@reg.test' } });
+  const t = (await c('GET', '/api/account/texting')).body;
+  assert.equal(t.registration.status, 'test');
+  const ans = Object.fromEntries(t.answers);
+  assert.match(ans['Campaign description'], /Reg Roofing LLC texts customers .*quotes and job reminders/);
+  assert.match(ans['How people opt in'], /Reply STOP to opt out/);
+  assert.equal(ans['Privacy policy and terms'], t.terms_url);
+  assert.equal(t.optin_page, '', 'no page asks for texts yet');
+
+  const page = await fetch(t.terms_url.replace(process.env.PUBLIC_URL, base));
+  assert.equal(page.status, 200);
+  const html = await page.text();
+  assert.match(html, /Reply <b>STOP<\/b>/);
+  assert.match(html, /do not sell, rent or share mobile numbers/);
+  assert.match(html, /Reg &lt;Roofing&gt;/, 'escaped');
+  assert.match(html, /hi@reg\.test/);
+  assert.equal((await fetch(`${base}/legal/999999/texting`)).status, 404);
+});

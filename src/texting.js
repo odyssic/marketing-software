@@ -312,12 +312,74 @@ function registerTexting(app, api, { getDb, HttpError, id, upsertContact, logEve
     res.json({ ok: true, sms_number: n.phone_number || phone });
   });
 
+  // Business texting approval (US carriers' 10DLC registration): where it stands.
+  let regCache = null;
+  async function registration() {
+    if (!live()) return { status: 'test', label: 'Test mode', note: 'Texts are saved in the Inbox but not sent.' };
+    const svc = process.env.TWILIO_MESSAGING_SERVICE_SID;
+    if (!svc) return { status: 'not_registered', label: 'Not registered yet', note: 'Until it’s approved, carriers may block texts to US numbers.' };
+    if (regCache && Date.now() - regCache.at < 10 * 60e3) return regCache.value;
+    let value;
+    try {
+      const r = await twilio('GET', `/v1/Services/${svc}/Compliance/Usa2p`, undefined, 'messaging');
+      const st = String((r.compliance || [])[0]?.campaign_status || '').toUpperCase();
+      value = st === 'VERIFIED' ? { status: 'approved', label: 'Approved', note: 'Carriers have approved texting. You’re good to go.' }
+        : st === 'FAILED' ? { status: 'failed', label: 'Needs changes', note: 'Carriers turned the registration down. Check the details below, then resubmit in Twilio.' }
+        : st ? { status: 'pending', label: 'Waiting for approval', note: 'Carriers usually decide within 1 to 3 weeks.' }
+        : { status: 'not_registered', label: 'Not registered yet', note: 'Until it’s approved, carriers may block texts to US numbers.' };
+    } catch { value = { status: 'unknown', label: 'Couldn’t check', note: 'Twilio didn’t answer; try again later.' }; }
+    regCache = { at: Date.now(), value };
+    return value;
+  }
+  // A published page whose form asks for text-message consent: the "how people opt in" proof carriers ask for.
+  async function optInPage(accountId) {
+    const rows = await db().all(`SELECT f.slug, s.slug AS step, s.id AS step_id, f.entry_step_id, s.blocks FROM funnels f JOIN funnel_steps s ON s.funnel_id = f.id
+      WHERE f.account_id = ? AND s.blocks LIKE '%smsOptIn%' ORDER BY f.id LIMIT 50`, accountId);
+    const hit = rows.find((r) => { try { return JSON.parse(r.blocks).some((b) => b.type === 'form' && b.smsOptIn); } catch { return false; } });
+    if (!hit) return '';
+    const base = (process.env.PUBLIC_URL || publicBase()).replace(/\/$/, '');
+    return `${base}/f/${hit.slug}${hit.step_id === hit.entry_step_id ? '' : `/${hit.step}`}`;
+  }
+  const termsUrl = (accountId) => `${(process.env.PUBLIC_URL || publicBase()).replace(/\/$/, '')}/legal/${accountId}/texting`;
+
   api.get('/account/texting', async (req, res) => {
     const a = await db().get('SELECT name, sms_number, forward_to, missed_call_text, sms_brand FROM accounts WHERE id = ?', req.accountId);
     let brand = {}; try { brand = JSON.parse(a.sms_brand || '{}'); } catch { /* empty */ }
     const base = (process.env.PUBLIC_URL || publicBase()).replace(/\/$/, '');
+    const optin = await optInPage(req.accountId);
+    const name = brand.legal_name || a.name;
+    // Answers for the registration form, written from what Rilly knows, ready to paste.
+    const answers = [
+      ['Campaign description', `${name} texts customers who asked to hear from us: ${brand.use_case || 'replies to their questions, appointment reminders and occasional offers'}.`],
+      ['How people opt in', `People give their mobile number and tick an unticked box saying “Yes, text me updates from ${a.name}. Msg & data rates may apply. Msg frequency varies. Reply STOP to opt out, HELP for help. Consent is not a condition of purchase.” on our website${optin ? ` (${optin})` : ''}. People who text us first get a reply only to that conversation.`],
+      ['Sample message 1', brand.sample || `Hi Sam, it’s ${a.name}. Your appointment is tomorrow at 10am. Reply STOP to opt out.`],
+      ['Sample message 2', `${a.name}: thanks for your message! We’ll get back to you shortly. Reply STOP to opt out.`],
+      ['Opt-out keywords and reply', 'STOP, STOPALL, UNSUBSCRIBE, CANCEL, END, QUIT. Reply: You have been unsubscribed and will not receive any more messages.'],
+      ['Help keywords and reply', `HELP, INFO. Reply: ${a.name}: reply here and we’ll get back to you. Reply STOP to opt out. Msg & data rates may apply.`],
+      ['Privacy policy and terms', termsUrl(req.accountId)],
+    ];
     res.json({ live: live(), sms_number: a.sms_number, forward_to: a.forward_to, missed_call_text: a.missed_call_text, default_text: DEFAULT_TEXT_BACK(a), brand,
+      registration: await registration(), answers, optin_page: optin, terms_url: termsUrl(req.accountId),
       hooks: { sms: `${base}/hooks/sms`, voice: `${base}/hooks/voice` } });
+  });
+
+  // Texting terms and privacy, one public page per business: carriers check for it.
+  app.get('/legal/:accountId/texting', async (req, res) => {
+    const a = await db().get('SELECT id, name, sms_brand FROM accounts WHERE id = ?', id(req.params.accountId));
+    if (!a) return res.status(404).type('text').send('Not found');
+    let b = {}; try { b = JSON.parse(a.sms_brand || '{}'); } catch { /* empty */ }
+    const h = (s) => String(s || '').replace(/[<>&"']/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;' }[c]));
+    const who = h(b.legal_name || a.name), contact = [b.contact_email, b.contact_phone].filter(Boolean).map(h).join(' or ');
+    res.type('html').send(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Text messages from ${h(a.name)}</title><style>body{font:16px/1.6 system-ui,sans-serif;max-width:680px;margin:40px auto;padding:0 16px;color:#222}h1{font-size:26px}h2{font-size:18px;margin-top:28px}</style></head><body>
+<h1>Text messages from ${h(a.name)}</h1>
+<h2>What you’ll get</h2><p>If you agree to texts from ${who}, we text you about ${h(b.use_case || 'your questions, appointments and occasional offers')}. Message frequency varies. Message and data rates may apply.</p>
+<h2>How to stop</h2><p>Reply <b>STOP</b> to any message to stop all texts. We’ll send one message confirming you’re unsubscribed and nothing after that. Reply <b>START</b> to sign up again.</p>
+<h2>Help</h2><p>Reply <b>HELP</b> for help${contact ? `, or contact us at ${contact}` : ''}.</p>
+<h2>Consent</h2><p>Agreeing to texts is never a condition of buying anything. Carriers are not liable for delayed or undelivered messages.</p>
+<h2>Privacy</h2><p>We use your mobile number only to send the messages you agreed to. <b>We do not sell, rent or share mobile numbers or text-message consent with third parties or affiliates for their marketing.</b> Your number is shared only with the companies that deliver our texts, for that purpose alone.</p>
+${b.address ? `<p style="color:#666;font-size:14px;margin-top:32px">${who} · ${h(b.address)}</p>` : ''}
+</body></html>`);
   });
 
   // ---------- Email replies into the inbox ----------
