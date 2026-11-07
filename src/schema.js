@@ -613,6 +613,8 @@ CREATE TABLE IF NOT EXISTS uploads (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS uploads_account ON uploads (account_id);
+ALTER TABLE uploads ADD COLUMN IF NOT EXISTS name TEXT NOT NULL DEFAULT '';
+ALTER TABLE uploads ADD COLUMN IF NOT EXISTS in_library INT NOT NULL DEFAULT 0;
 `;
 
 module.exports = { SCHEMA };

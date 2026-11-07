@@ -33,6 +33,7 @@ const { createOnboarding } = require('./onboarding');
 const { registerDomains } = require('./domains');
 const { registerSaved } = require('./saved');
 const { registerTeam } = require('./team');
+const { registerFiles } = require('./files');
 const { createReports } = require('./reports');
 const { registerEmailPlus, splitForTest, pickWinner } = require('./emailplus');
 const { registerTexting } = require('./texting');
@@ -86,7 +87,7 @@ function createApp({ dbPath } = {}) {
     if (a) domainCache.set(host, { account: a, at: Date.now() });
     return a || null;
   };
-  const PASS = /^\/(t|s|u|b|m|pay|hooks|checkout|stripe|unsubscribe|f)\//;
+  const PASS = /^\/(t|s|u|b|dl|m|pay|hooks|checkout|stripe|unsubscribe|f)\//;
   app.use(async (req, res, next) => {
     let host = String(req.hostname || '').toLowerCase();
     let path = req.path;
@@ -1328,6 +1329,7 @@ function createApp({ dbPath } = {}) {
   });
 
   registerEmailPlus(api, { getDb: () => db, HttpError, id });
+  const files = registerFiles(app, api, { getDb: () => db, HttpError, getSecret: () => secret, publicBase: () => publicBase(), logEvent });
   api.get('/outbox', async (req, res) => {
     res.json(await db.all('SELECT * FROM email_log WHERE account_id = ? ORDER BY id DESC LIMIT 200', req.accountId));
   });
@@ -1562,8 +1564,11 @@ function createApp({ dbPath } = {}) {
       const account = await db.get('SELECT * FROM accounts WHERE id = ?', funnel.account_id);
       const what = String(block.deliverName || 'your free download').trim();
       const first = String(req.body.first_name || '').trim() || 'there';
+      const fileId = files.ownFileId(block.deliverUrl);
+      const own = fileId && await db.get('SELECT id FROM uploads WHERE id = ? AND account_id = ?', fileId, funnel.account_id);
+      const link = own ? files.linkFor(contact.id, fileId) : block.deliverUrl;
       await messaging.sendTransactional({ account, to: String(req.body.email || '').trim().toLowerCase(), contactId: contact.id, subject: `Here’s ${what}`,
-        text: `Hi ${first},\n\nThanks for signing up. Here’s ${what}:\n${block.deliverUrl}\n\nEnjoy, and just reply if you have any questions.\n\n${account.from_name || account.name}` })
+        text: `Hi ${first},\n\nThanks for signing up. Here’s ${what}:\n${link}\n\nEnjoy, and just reply if you have any questions.\n\n${account.from_name || account.name}` })
         .catch((e) => console.error('lead magnet email:', e.message));
       await logEvent(db, funnel.account_id, { person_id: contact.id, type: 'note', source: 'funnel', meta: { ...meta, note: `Sent ${what}` } }, { recompute: false });
     }

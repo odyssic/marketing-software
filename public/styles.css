@@ -1366,3 +1366,15 @@ html:not(.returning) #app > .boot { display: none; }
 
 .embed-code { display: flex; gap: 8px; align-items: flex-start; margin-bottom: 8px; }
 .embed-code textarea { flex: 1; margin: 0; font: .78rem/1.45 ui-monospace, Menlo, monospace; resize: vertical; }
+
+/* Products → Files */
+.files-why { margin: -4px 0 14px; max-width: 720px; }
+.files-list { padding: 4px 0; }
+.file-row { display: grid; grid-template-columns: auto 1fr auto auto; gap: 14px; align-items: center; padding: 12px 18px; }
+.file-row + .file-row { border-top: 1px solid var(--line); }
+.file-ico { width: 40px; height: 40px; border-radius: 10px; background: var(--brand-soft); color: var(--brand); display: grid; place-items: center; }
+.file-main { display: grid; gap: 2px; min-width: 0; }
+.file-name { border: 1px solid transparent; background: transparent; font-weight: 600; padding: 3px 6px; margin: 0 0 0 -6px; border-radius: 6px; }
+.file-name:hover, .file-name:focus { border-color: var(--line); background: #fff; }
+.file-dl { display: grid; text-align: right; }
+.file-dl b { font-size: 1.2rem; font-variant-numeric: tabular-nums; }

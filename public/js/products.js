@@ -5,6 +5,7 @@ const BILLING_LABEL = { one_time: 'One-time', monthly: 'Monthly', yearly: 'Yearl
 
 async function viewProducts(tab) {
   if (tab === 'invoices') return viewInvoices();
+  if (tab === 'files') return viewFiles();
   const orders = tab === 'orders';
   const items = await api('GET', orders ? '/api/orders' : '/api/products');
   const p = state.me.payments;
@@ -65,7 +66,7 @@ const ordersHtml = (items) => (items.length ? `<div class="card table-wrap"><tab
     <td class="muted small">${fmtDate(o.paid_at || o.created_at)}</td></tr>`).join('')}
   </table></div>` : '<div class="card empty"><div class="big">' + icon('receipt') + '</div><h2>No orders yet</h2><p>Orders appear here when someone buys from a page or pays an invoice or payment link.</p></div>');
 
-const productTabs = (on) => `<div class="tabs">${[['products', 'Products', '#/products'], ['invoices', 'Invoices & links', '#/products/invoices'], ['orders', 'Orders', '#/products/orders']]
+const productTabs = (on) => `<div class="tabs">${[['products', 'Products', '#/products'], ['invoices', 'Invoices & links', '#/products/invoices'], ['orders', 'Orders', '#/products/orders'], ['files', 'Files', '#/products/files']]
   .map(([k, l, h]) => `<a href="${h}" class="${on === k ? 'active' : ''}">${l}</a>`).join('')}</div>`;
 
 // ---------------- Invoices & payment links ----------------

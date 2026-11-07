@@ -94,11 +94,11 @@ const personForm = (c = {}) => `
 // Where someone came from, in a few words: "Glaze guide → Opt-in page · from Instagram".
 const cameFrom = (c) => [c.entry, c.came_from?.source && c.came_from.source !== 'Direct' ? `from ${c.came_from.source}${c.came_from.campaign ? ` (“${c.came_from.campaign}”)` : ''}` : ''].filter(Boolean).join(' · ');
 
-const EVENT_ICON = { booking: icon('calendar'), signup: icon('pencil'), inquiry: icon('chat'), purchase: icon('bag'), subscribe: icon('inbox'), unsubscribe: icon('door'), open: icon('eye'), click: icon('cursor'), listen: icon('headphones'), scan: icon('camera'), visit: icon('globe'), note: icon('note') };
-const EVENT_LABEL = { booking: 'Booked a call', signup: 'Signed up', inquiry: 'Inquiry', purchase: 'Bought', subscribe: 'Subscribed', unsubscribe: 'Unsubscribed', open: 'Opened an email', click: 'Clicked a link', listen: 'Listened', scan: 'Scanned a QR code', visit: 'Visited', note: 'Note' };
+const EVENT_ICON = { booking: icon('calendar'), signup: icon('pencil'), inquiry: icon('chat'), purchase: icon('bag'), subscribe: icon('inbox'), unsubscribe: icon('door'), open: icon('eye'), click: icon('cursor'), listen: icon('headphones'), scan: icon('camera'), visit: icon('globe'), note: icon('note'), download: icon('download') };
+const EVENT_LABEL = { booking: 'Booked a call', signup: 'Signed up', inquiry: 'Inquiry', purchase: 'Bought', subscribe: 'Subscribed', unsubscribe: 'Unsubscribed', open: 'Opened an email', click: 'Clicked a link', listen: 'Listened', scan: 'Scanned a QR code', visit: 'Visited', note: 'Note', download: 'Downloaded' };
 const eventText = (e) => {
   const m = e.meta || {};
-  const bits = [m.items || m.product, m.funnel && `funnel “${m.funnel}”`, m.format && `${m.format}`, m.campaign, m.url, m.note].filter(Boolean);
+  const bits = [m.items || m.product, e.type === 'download' && m.name && `“${m.name}”`, m.funnel && `funnel “${m.funnel}”`, m.format && `${m.format}`, m.campaign, m.url, m.note].filter(Boolean);
   return bits.map(esc).join(' · ');
 };
 
