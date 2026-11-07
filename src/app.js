@@ -40,6 +40,7 @@ const { registerEmailPlus, splitForTest, pickWinner } = require('./emailplus');
 const { registerTexting } = require('./texting');
 const { registerMembers } = require('./members');
 const { registerMetrics } = require('./metrics');
+const { registerCheckout } = require('./checkout');
 
 const slugify = (s) => String(s || '').toLowerCase().normalize('NFKD').replace(/[^\w\s-]/g, '')
   .trim().replace(/[\s_]+/g, '-').replace(/-+/g, '-').slice(0, 60) || 'page';
@@ -246,6 +247,7 @@ function createApp({ dbPath } = {}) {
     });
     if (fresh) await invoices.onOrderPaid(order).catch((e) => console.error('invoice paid:', e.message));
     if (fresh) await members.onOrderPaid(order).catch((e) => console.error('members access:', e.message));
+    if (fresh) await checkout.onOrderPaid(order).catch((e) => console.error('coupon use:', e.message));
   }
 
   // ---------- API ----------
@@ -694,7 +696,14 @@ function createApp({ dbPath } = {}) {
     const billing = BILLING.includes(b.billing) ? b.billing : 'one_time';
     const image = String(b.image_url || '').trim();
     if (image && !/^https?:\/\/\S+$/i.test(image)) throw new HttpError(400, 'The photo must be a link starting with https://');
-    return [name, String(b.description || '').trim(), price, currency, billing, parseTags(b.tag).join(','), image];
+    // Pay in parts (one-time products) or a free trial (monthly/yearly).
+    const parts = billing === 'one_time' ? Math.round(Number(b.plan_parts) || 0) : 0;
+    if (parts && (parts < 2 || parts > 24)) throw new HttpError(400, 'Payments in parts must be between 2 and 24');
+    const part = parts && Number(b.plan_part) ? Math.round(Number(b.plan_part) * 100) : 0;
+    if (parts && part && part < 50) throw new HttpError(400, 'Each payment must be at least 0.50');
+    const trial = billing === 'one_time' ? 0 : Math.round(Number(b.trial_days) || 0);
+    if (trial < 0 || trial > 365) throw new HttpError(400, 'A free trial can be up to 365 days');
+    return [name, String(b.description || '').trim(), price, currency, billing, parseTags(b.tag).join(','), image, parts, part, trial];
   };
   const productOut = (p) => ({ ...p, price: p.price_cents / 100, priceLabel: formatMoney(p.price_cents, p.currency) });
 
@@ -705,14 +714,14 @@ function createApp({ dbPath } = {}) {
   });
 
   api.post('/products', async (req, res) => {
-    const r = await db.get(`INSERT INTO products (account_id, name, description, price_cents, currency, billing, tag, image_url)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`, req.accountId, ...productInput(req.body || {}));
+    const r = await db.get(`INSERT INTO products (account_id, name, description, price_cents, currency, billing, tag, image_url, plan_parts, plan_part_cents, trial_days)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`, req.accountId, ...productInput(req.body || {}));
     res.status(201).json({ id: r.id });
   });
 
   api.put('/products/:id', async (req, res) => {
-    const r = await db.run(`UPDATE products SET name = ?, description = ?, price_cents = ?, currency = ?, billing = ?, tag = ?, image_url = ?
-      WHERE id = ? AND account_id = ?`, ...productInput(req.body || {}), id(req.params.id), req.accountId);
+    const r = await db.run(`UPDATE products SET name = ?, description = ?, price_cents = ?, currency = ?, billing = ?, tag = ?, image_url = ?,
+      plan_parts = ?, plan_part_cents = ?, trial_days = ? WHERE id = ? AND account_id = ?`, ...productInput(req.body || {}), id(req.params.id), req.accountId);
     if (!r.changes) throw new HttpError(404, 'Product not found');
     res.json({ ok: true });
   });
@@ -725,7 +734,7 @@ function createApp({ dbPath } = {}) {
   api.get('/orders', async (req, res) => {
     res.json((await db.all(`SELECT o.*, f.name AS funnel_name FROM orders o LEFT JOIN funnels f ON f.id = o.funnel_id
       WHERE o.account_id = ? ORDER BY o.id DESC LIMIT 500`, req.accountId))
-      .map((o) => ({ ...o, amountLabel: formatMoney(o.amount_cents, o.currency) })));
+      .map((o) => ({ ...o, amountLabel: formatMoney(o.amount_cents, o.currency), discountLabel: formatMoney(o.discount_cents || 0, o.currency) })));
   });
 
   // Funnels
@@ -1444,6 +1453,8 @@ function createApp({ dbPath } = {}) {
   registerSetup(api, { getDb: () => db, HttpError, createFunnel, TEMPLATES, getAccount });
   const invoices = registerInvoices(app, api, { getDb: () => db, HttpError, id, upsertContact, messaging, publicBase, stripe, orderToken: (...a) => orderToken(...a),
     ownerViewing: (req, x) => ownerViewing(req, x) });
+  const checkout = registerCheckout(app, api, { getDb: () => db, HttpError, id, messaging, publicBase, stripe,
+    findPublicStep: (...a) => findPublicStep(...a), findBlock: (...a) => findBlock(...a) });
   // Booking calendar routes (registered before the API's not-found handler and the public page route).
   const bookings = registerBookings(app, api, { getDb: () => db, HttpError, id, upsertContact, logEvent, messaging, mailer, publicBase,
     ownerViewing: (...a) => ownerViewing(...a), findPublicStep: (...a) => findPublicStep(...a), attachSource: (...a) => attachSource(...a) });
@@ -1562,7 +1573,7 @@ function createApp({ dbPath } = {}) {
       title: step.name, blocks: page.blocks, settings: page.settings, embed,
       ...(embed ? {} : await siteChrome(req, funnel, step)),
       nextUrl: withEmbed(nextUrl), noUrl: withEmbed(noUrl), formAction: withEmbed(`/f/${funnel.slug}/${step.slug}/optin`), buyAction: `/f/${funnel.slug}/${step.slug}/buy`,
-      products, oneClick: buyer ? `/f/${funnel.slug}/${step.slug}/oneclick` : null,
+      products, oneClick: buyer ? `/f/${funnel.slug}/${step.slug}/oneclick` : null, coupons: page.blocks.some((x) => x.type === 'pricing') && await checkout.hasCoupons(funnel.account_id),
       testimonials: await approvedTestimonials(db, funnel.account_id), ...(await (async () => {
         const acct = await getAccount(funnel.account_id);
         let code = {}; try { code = JSON.parse(acct.page_code || '{}'); } catch { /* none */ }
@@ -1660,18 +1671,36 @@ function createApp({ dbPath } = {}) {
     // Order bump: only a one-time item in the same currency joins the payment.
     const bumpProduct = req.body.bump === '1' && block.bumpProductId && await db.get('SELECT * FROM products WHERE id = ? AND account_id = ?', id(block.bumpProductId), funnel.account_id);
     const bump = bumpProduct && bumpProduct.billing === 'one_time' && bumpProduct.currency === product.currency ? bumpProduct : null;
-    const items = [{ name: product.name, qty: 1, price_cents: product.price_cents }, ...(bump ? [{ name: bump.name, qty: 1, price_cents: bump.price_cents, bump: true }] : [])];
+    // A code, pay-in-parts, or a free trial (checkout.js); a bad code says why.
+    let price;
+    try { price = await checkout.priceOrder(product, { coupon: String(req.body.coupon || '').slice(0, 40), plan: req.body.plan === '1' }); } catch (e) {
+      if (e instanceof HttpError) return messagePage(res, 400, e.message, back);
+      throw e;
+    }
+    const items = [price.item, ...(bump ? [{ name: bump.name, qty: 1, price_cents: bump.price_cents, bump: true }] : [])];
     const account = await db.get('SELECT stripe_secret_key FROM accounts WHERE id = ?', funnel.account_id);
     const email = EMAIL_RE.test(String(req.body.email || '').trim()) ? String(req.body.email).trim().toLowerCase() : '';
     const buyer = email ? await upsertContact(db, funnel.account_id, { email, source: 'funnel', entry: `${funnel.name} → ${step.name} (checkout)` }).catch(() => null) : null;
     const buySrc = buyer ? await attachSource(db, buyer.id, req) : visitSource(req);
-    const { id: orderId } = await db.get(`INSERT INTO orders (account_id, product_id, product_name, amount_cents, currency, mode, funnel_id, step_id, items, variant, email, contact_id, attribution)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`, funnel.account_id, product.id, bump ? `${product.name} + ${bump.name}` : product.name,
-    product.price_cents + (bump ? bump.price_cents : 0), product.currency, account.stripe_secret_key ? 'stripe' : 'test', funnel.id, step.id, JSON.stringify(items), variantFor(req, null, step), email, buyer?.id || null, buySrc ? JSON.stringify(buySrc) : '');
+    const total = price.today + (bump ? bump.price_cents : 0);
+    const { id: orderId } = await db.get(`INSERT INTO orders (account_id, product_id, product_name, amount_cents, currency, mode, funnel_id, step_id, items, variant, email, contact_id, attribution, coupon_code, discount_cents, plan_parts, trial_days)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`, funnel.account_id, product.id, bump ? `${product.name} + ${bump.name}` : product.name,
+    total, product.currency, account.stripe_secret_key ? 'stripe' : 'test', funnel.id, step.id, JSON.stringify(items), variantFor(req, null, step), email, buyer?.id || null, buySrc ? JSON.stringify(buySrc) : '',
+    price.coupon?.code || '', price.off, price.parts, price.trialDays);
     if (!account.stripe_secret_key) return res.redirect(303, `/checkout/test/${orderId}/${orderToken(orderId)}`);
+    // Free with a code (one-time, nothing to charge): no card needed.
+    if (!total && !price.parts && product.billing === 'one_time') {
+      if (!email) return messagePage(res, 400, 'Enter your email to get this for free.', back);
+      const order = await db.get('SELECT * FROM orders WHERE id = ?', orderId);
+      await fulfilOrder(order, { email });
+      rememberBuyer(req, res, order);
+      const next = await stepAfter(step.id);
+      return next ? res.redirect(303, next) : messagePage(res, 200, `Thank you! ${product.name} is yours.`);
+    }
     try {
       const session = await stripe.createCheckoutSession(account.stripe_secret_key, {
         product, extra: bump, orderId, email: email || undefined,
+        unitAmount: price.unit, planParts: price.parts, trialDays: price.trialDays, couponCode: price.coupon?.code || '',
         successUrl: `${baseUrl(req)}/checkout/success/${orderId}?session_id={CHECKOUT_SESSION_ID}`,
         cancelUrl: `${baseUrl(req)}${back}`,
       });
@@ -1698,6 +1727,7 @@ function createApp({ dbPath } = {}) {
         await fulfilOrder(order, { email: session.customer_details?.email, name: session.customer_details?.name || '', sessionId: session.id,
           customer: typeof session.customer === 'string' ? session.customer : session.customer?.id || null,
           paymentMethod: typeof session.payment_intent === 'object' ? (session.payment_intent?.payment_method?.id || session.payment_intent?.payment_method || null) : null });
+        await checkout.afterSession(order, session);
       } catch (e) {
         console.error('Stripe confirmation failed:', e.message);
         return messagePage(res, 502, 'We couldn’t confirm your payment yet. Please refresh this page in a moment.');
@@ -1765,6 +1795,7 @@ input,button{width:100%;padding:12px;border-radius:8px;font:inherit;box-sizing:b
 button{background:#1f7f78;color:#fff;border:0;font-weight:600;cursor:pointer;margin-top:14px}.p{font-size:2rem;font-weight:800;margin:6px 0 14px}</style></head>
 <body><form class="c" method="post"><div class="t"><b>Test mode.</b> Stripe isn’t connected for this business yet, so no card is charged.</div>
 <div>${esc(order.product_name)}</div><div class="p">${esc(formatMoney(order.amount_cents, order.currency))}</div>
+${checkout.orderTerms(order, order.product_id && await db.get('SELECT * FROM products WHERE id = ?', order.product_id)).map((x) => `<p style="margin:-6px 0 12px;color:#4b5563;font-size:.9rem">${esc(x)}</p>`).join('')}
 ${order.status === 'paid' ? '<p>This order is already paid.</p>' : `<label>Name<input name="name" autocomplete="name"></label>
 <label>Email<input name="email" type="email" required autocomplete="email" value="${esc(order.email || '')}"></label><button>Complete test purchase</button>`}</form></body></html>`);
   });
@@ -1796,6 +1827,7 @@ ${order.status === 'paid' ? '<p>This order is already paid.</p>' : `<label>Name<
       const order = await db.get('SELECT * FROM orders WHERE id = ? AND account_id = ?', id(session.client_reference_id), account.id);
       if (order && stripe.isPaid(session)) {
         await fulfilOrder(order, { email: session.customer_details?.email, name: session.customer_details?.name || '', sessionId: session.id });
+        await checkout.afterSession(order, session);
       }
     }
     res.json({ received: true });
@@ -1837,9 +1869,6 @@ ${order.status === 'paid' ? '<p>This order is already paid.</p>' : `<label>Name<
     res.status(status).send(status === 500 ? 'Something went wrong' : esc(err.message));
   });
 
-  // Abandoned checkouts: an hour after someone starts paying and doesn't finish,
-  // one friendly email with a link back to the page. Never if they bought it
-  // since, never twice, never to people who unsubscribed (sendToPerson checks).
   async function sendScheduled(now = new Date()) {
     const due = await db.all("SELECT id FROM broadcasts WHERE status = 'scheduled' AND scheduled_at <= ?", now.toISOString());
     let sent = 0;
@@ -1865,29 +1894,6 @@ ${order.status === 'paid' ? '<p>This order is already paid.</p>' : `<label>Name<
       sent += n;
     }
     return { scheduled_sent: sent };
-  }
-
-  async function recoverCheckouts(now = new Date()) {
-    const due = await db.all(`SELECT o.*, f.slug AS funnel_slug, s.slug AS step_slug FROM orders o
-        JOIN accounts a ON a.id = o.account_id AND a.recover_checkouts = 1
-        LEFT JOIN funnels f ON f.id = o.funnel_id LEFT JOIN funnel_steps s ON s.id = o.step_id
-      WHERE o.status = 'pending' AND o.email <> '' AND o.contact_id IS NOT NULL AND o.recovery_sent_at IS NULL
-        AND o.created_at <= ? AND o.created_at > ?`, new Date(now.getTime() - 3600e3).toISOString(), new Date(now.getTime() - 48 * 3600e3).toISOString());
-    let sent = 0;
-    for (const o of due) {
-      const claimed = await db.get('UPDATE orders SET recovery_sent_at = ? WHERE id = ? AND recovery_sent_at IS NULL RETURNING id', now.toISOString(), o.id);
-      if (!claimed || !o.funnel_slug) continue;
-      const bought = await db.get("SELECT 1 FROM orders WHERE account_id = ? AND email = ? AND product_id IS NOT DISTINCT FROM ? AND status = 'paid' AND created_at >= ?", o.account_id, o.email, o.product_id, o.created_at);
-      if (bought) continue;
-      const [account, person] = await Promise.all([db.get('SELECT * FROM accounts WHERE id = ?', o.account_id), db.get('SELECT * FROM contacts WHERE id = ?', o.contact_id)]);
-      if (!person) continue;
-      const link = `${publicBase()}/f/${o.funnel_slug}${o.step_slug ? `/${o.step_slug}` : ''}`;
-      const r = await messaging.sendToPerson({ account, person, subject: `Your ${o.product_name} is still waiting`,
-        preheader: 'Pick up where you left off, or reply with any questions.',
-        body: `Hi {{first_name|there}},\n\nYou started checking out ${o.product_name} but didn’t quite finish. If something got in the way or you have a question, just reply to this email.\n\nPick up where you left off: ${link}\n\n${account.from_name || account.name}` });
-      if (r.status === 'sent' || r.status === 'logged') sent++;
-    }
-    return { recovered: sent };
   }
 
   // Review requests: a few hours after an appointment ends, or five days after
@@ -1921,7 +1927,7 @@ ${order.status === 'paid' ? '<p>This order is already paid.</p>' : `<label>Name<
   // the scheduled Netlify function.
   app.runJobs = async (now = new Date()) => {
     await init();
-    return { ...(await workflows.processDue({ now })), ...(await digest.sendDue(now)), ...(await bookings.sendReminders(now)), ...(await recoverCheckouts(now)), ...(await askForReviews(now)), ...(await sendScheduled(now)), ...(await invoices.remindOverdue(now)), ...(await onboarding.sendDue(now)), ...(await reports.sendDue(now)) };
+    return { ...(await workflows.processDue({ now })), ...(await digest.sendDue(now)), ...(await bookings.sendReminders(now)), ...(await checkout.recoverCheckouts(now)), ...(await askForReviews(now)), ...(await sendScheduled(now)), ...(await invoices.remindOverdue(now)), ...(await onboarding.sendDue(now)), ...(await reports.sendDue(now)) };
   };
   app.getDb = () => db; // for tests (seeding history)
   app.messaging = messaging; // for tests (signing tracking links)

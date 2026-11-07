@@ -28,24 +28,30 @@ async function call(secretKey, method, path, params) {
   return data;
 }
 
-function createCheckoutSession(secretKey, { product, extra = null, orderId, email, successUrl, cancelUrl }) {
-  const recurring = product.billing === 'monthly' ? { interval: 'month' }
+// unitAmount: the price after any code. planParts: a payment plan, charged
+// monthly as a subscription that we end after the last part (see checkout.js).
+// trialDays: free days before a monthly/yearly subscription's first charge.
+function createCheckoutSession(secretKey, { product, extra = null, orderId, email, successUrl, cancelUrl, unitAmount = product.price_cents, planParts = 0, trialDays = 0, couponCode = '' }) {
+  const recurring = planParts ? { interval: 'month' } : product.billing === 'monthly' ? { interval: 'month' }
     : product.billing === 'yearly' ? { interval: 'year' } : undefined;
+  const subMeta = { order_id: orderId, ...(planParts ? { plan_parts: planParts } : {}), ...(couponCode ? { coupon: couponCode } : {}) };
   return call(secretKey, 'POST', '/checkout/sessions', {
     mode: recurring ? 'subscription' : 'payment',
     line_items: { 0: {
       quantity: 1,
       price_data: {
         currency: product.currency,
-        unit_amount: product.price_cents,
-        product_data: { name: product.name, description: product.description || undefined },
+        unit_amount: unitAmount,
+        product_data: { name: planParts ? `${product.name} (${planParts} monthly payments)` : product.name,
+          description: [product.description, couponCode ? `Code ${couponCode} applied` : ''].filter(Boolean).join(' · ') || undefined },
         recurring,
       },
     },
     // Order bump: a second one-time item in the same payment.
     ...(extra ? { 1: { quantity: 1, price_data: { currency: extra.currency, unit_amount: extra.price_cents, product_data: { name: extra.name } } } } : {}) },
     // One-time payments save the card so a later upsell can be one click.
-    ...(recurring ? {} : { payment_intent_data: { setup_future_usage: 'off_session' }, customer_creation: 'always' }),
+    ...(recurring ? { subscription_data: { metadata: subMeta, ...(trialDays ? { trial_period_days: trialDays } : {}) } }
+      : { payment_intent_data: { setup_future_usage: 'off_session' }, customer_creation: 'always' }),
     client_reference_id: orderId,
     customer_email: email || undefined,
     metadata: { order_id: orderId },
