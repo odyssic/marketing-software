@@ -64,7 +64,7 @@ async function viewWebsite(id) {
       <tr><th>Menu order</th><th>${isArea ? 'Lesson or page' : 'Page'}</th><th>Address</th><th>Visits</th>${isArea ? '' : '<th>Leads</th>'}<th></th></tr>
       ${pages.map((p, i) => `<tr><td style="white-space:nowrap"><button class="btn sm icon" data-mv="${i}:-1" ${i ? '' : 'disabled'} aria-label="Move up">↑</button>
           <button class="btn sm icon" data-mv="${i}:1" ${i < pages.length - 1 ? '' : 'disabled'} aria-label="Move down">↓</button></td>
-        <td><strong>${esc(p.name)}</strong>${i === 0 ? ` <span class="pill">${isArea ? 'first page' : 'home'}</span>` : ''}${p.settings.hideInMenu ? ' <span class="pill warn">hidden from menu</span>' : ''}</td>
+        <td><strong>${esc(p.name)}</strong>${i === 0 ? ` <span class="pill">${isArea ? 'first page' : 'home'}</span>` : ''}${p.settings.hideInMenu ? ' <span class="pill warn">hidden from menu</span>' : ''}${isArea ? coursePagePills(p, i === 0) : ''}</td>
         <td class="muted small">/${i === 0 ? '' : esc(p.slug)}</td><td>${p.views}</td>${isArea ? '' : `<td>${p.optins}</td>`}
         <td style="text-align:right;white-space:nowrap"><a class="btn sm primary" href="#/editor/${p.id}">Edit</a>
           <button class="btn sm" data-pmenu="${p.id}">${icon('more')}</button></td></tr>`).join('')}
@@ -91,8 +91,10 @@ async function viewWebsite(id) {
       <label class="f">Name in the menu<input name="name" value="${esc(p.name)}" required></label>
       <label class="f">Address <span class="hint">/${esc(p.slug)}</span><input name="slug" value="${esc(p.slug)}"></label>
       <label class="check"><input type="checkbox" name="hide" ${p.settings.hideInMenu ? 'checked' : ''}> Hide from the menu (still reachable by link)</label>
+      ${isArea ? courseLessonFieldsHtml(p, p === pages[0]) : ''}
       <button type="button" class="btn danger sm" data-delpage>Delete page</button>`,
-    { onSubmit: (v) => api('PUT', `/api/steps/${p.id}`, { name: v.name, slug: v.slug, settings: { ...p.settings, hideInMenu: v.hide } }) });
+    { onSubmit: (v) => api('PUT', `/api/steps/${p.id}`, { name: v.name, slug: v.slug, settings: isArea ? courseLessonSettings(v, { ...p.settings, hideInMenu: v.hide }, p === pages[0]) : { ...p.settings, hideInMenu: v.hide } }) });
+    if (isArea) courseBindLessonFields();
     $('[data-delpage]').onclick = async () => {
       $('.modal-bg [data-x]').click();
       if (pages.length < 2) { toast('A website needs at least one page', true); return; }
@@ -151,7 +153,7 @@ async function viewMembersAreas() {
 
 async function renderMembersPanel(f) {
   const box = $('[data-members]');
-  const { members, products } = await api('GET', `/api/members-areas/${f.id}/members`);
+  const [{ members, products }, course] = await Promise.all([api('GET', `/api/members-areas/${f.id}/members`), api('GET', `/api/members-areas/${f.id}/course`)]);
   const seen = (m) => (m.last_seen_at ? `last in ${fmtDate(m.last_seen_at)}` : 'not signed in yet');
   box.innerHTML = `
     ${f.status === 'live' ? '' : '<div class="banner" style="margin-top:16px"><b>This area is still a draft.</b> Members can’t get in until you publish it, so publish before you send anyone their link.</div>'}
@@ -159,7 +161,7 @@ async function renderMembersPanel(f) {
       <div><h2 style="margin:0">Members</h2><div class="muted small">${members.length} with access. They sign in with a link we email them.</div></div>
       <button class="btn primary" data-addm>${icon('plus')} Add a member</button></div>
       ${members.length ? `<div class="mem-list">${members.map((m) => `<div class="mem" data-mem="${m.id}">${avatarHtml(m, 34)}
-        <div class="who"><b>${esc(fullName(m) || m.email)}</b><div class="muted small">${esc(m.email)} · ${m.source === 'purchase' ? 'bought' : 'added'} ${fmtDate(m.granted_at)} · ${seen(m)}</div></div>
+        <div class="who"><b>${esc(fullName(m) || m.email)}</b><div class="muted small">${esc(m.email)} · ${m.source === 'purchase' ? 'bought' : 'added'} ${fmtDate(m.granted_at)} · ${seen(m)}</div></div>${courseMemberProgress(course, m.id)}
         <button class="btn sm" data-resend="${esc(m.email)}">Send link</button><button class="btn sm" data-rm="${m.id}">Remove</button></div>`).join('')}</div>`
       : `<p class="muted" style="margin:12px 0 0">No members yet. ${products.length ? 'Link a product below and buyers get in automatically, or add someone by hand.' : 'Add someone by hand, or create a product to sell access.'}</p>`}
     </section>
@@ -167,7 +169,8 @@ async function renderMembersPanel(f) {
       <p class="muted small" style="margin-top:0">Anyone who buys one of these gets access and a sign-in link straight away.</p>
       ${products.length ? `<div class="prod-picks">${products.map((p) => `<label class="check"><input type="checkbox" data-prod="${p.id}" ${p.linked ? 'checked' : ''}> ${esc(p.name)}${p.elsewhere ? ' <span class="muted small">(opens another area; ticking moves it here)</span>' : ''}</label>`).join('')}</div>`
       : '<p class="muted small"><a href="#/products">Create a product</a> to sell access.</p>'}
-    </section>`;
+    </section>${courseSettingsCardHtml(course)}`;
+  courseBindSettingsCard(f, box, course);
   const reload = () => renderMembersPanel(f);
   $('[data-addm]', box).onclick = async () => {
     const r = await modal('Add a member', `<label class="f">Email<input name="email" type="email" required></label><label class="f">Name <span class="hint">optional</span><input name="name"></label>
