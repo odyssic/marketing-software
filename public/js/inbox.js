@@ -3,8 +3,8 @@
 // ---------------- Inbox ----------------
 // Every conversation in one place: texts, missed calls, email replies and
 // inquiry forms. Pick a person, read the thread, answer by text or email.
-const CH_ICON = { sms: 'chat', email: 'mail', call: 'phone', form: 'note' };
-const CH_WORD = { sms: 'Text', email: 'Email', call: 'Call', form: 'Form' };
+const CH_ICON = { sms: 'chat', email: 'mail', call: 'phone', form: 'note', chat: 'chat' };
+const CH_WORD = { sms: 'Text', email: 'Email', call: 'Call', form: 'Form', chat: 'Website chat' };
 const ago = (t) => {
   const s = (Date.now() - new Date(t)) / 1000;
   if (s < 60) return 'now';
@@ -40,7 +40,7 @@ async function viewInbox(contactId) {
   const { conversations, texting } = await api('GET', '/api/inbox');
   const open = contactId && /^\d+$/.test(contactId) ? Number(contactId) : null;
   shell('inbox', `
-    <div class="head"><div><h1>Inbox</h1><div class="muted">Texts, missed calls, email replies and form inquiries, all in one place.</div></div></div>
+    <div class="head"><div><h1>Inbox</h1><div class="muted">Texts, missed calls, website chats, email replies and form inquiries, all in one place.</div></div></div>
     ${texting.live && texting.number ? '' : `<div class="banner">${texting.number ? '<b>Test mode:</b> texts are saved here but not sent until texting is switched on.' : '<b>Texting isn’t set up yet.</b> Email replies and form inquiries still land here.'} <a href="#/settings">Set up texting and calls</a></div>`}
     ${conversations.length ? `<div class="inbox ${open ? 'has-thread' : ''}">
       <div class="ib-list-wrap"><div class="card ib-list" role="list">${conversations.map((c) => `
@@ -66,7 +66,8 @@ async function renderThread(contactId, texting) {
   const canEmail = Boolean(c.email) && !c.unsubscribed;
   // Answer the way they reached you: a text gets a text, everything else an email (when possible).
   const lastIn = [...data.messages].reverse().find((m) => m.direction === 'in');
-  let channel = (lastIn?.channel === 'sms' || lastIn?.channel === 'call') && canText ? 'sms' : canEmail ? 'email' : canText ? 'sms' : '';
+  const canChat = data.messages.some((m) => m.channel === 'chat');
+  let channel = lastIn?.channel === 'chat' ? 'chat' : (lastIn?.channel === 'sms' || lastIn?.channel === 'call') && canText ? 'sms' : canEmail ? 'email' : canText ? 'sms' : '';
   const time = (t) => new Date(t).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
   const bubble = (m) => (m.channel === 'call'
     ? `<div class="ib-m event">${icon('phone')} ${esc(m.body)} · ${time(m.created_at)}</div>`
@@ -80,6 +81,7 @@ async function renderThread(contactId, texting) {
     <form class="ib-reply" data-reply>
       ${channel ? `<textarea name="body" required placeholder="Write a reply…" aria-label="Reply"></textarea>
       <div class="row"><div class="seg" role="group" aria-label="Reply by">
+        ${canChat ? `<button type="button" data-ch="chat" aria-pressed="${channel === 'chat'}" title="Shows in their chat; emailed if they’ve left the page">${icon('chat')} Chat</button>` : ''}
         <button type="button" data-ch="sms" aria-pressed="${channel === 'sms'}" ${canText ? '' : 'disabled title="No mobile number, or they replied STOP"'}>${icon('chat')} Text</button>
         <button type="button" data-ch="email" aria-pressed="${channel === 'email'}" ${canEmail ? '' : 'disabled title="No email address, or they unsubscribed"'}>${icon('mail')} Email</button></div>
         <span class="muted small" data-count></span><button class="btn primary">Send</button></div>`
@@ -101,7 +103,7 @@ async function renderThread(contactId, texting) {
     btn.disabled = true;
     try {
       const r = await api('POST', `/api/inbox/${contactId}/reply`, { channel, body: ta.value });
-      toast(r.status === 'logged' ? 'Saved (test mode: not sent)' : channel === 'sms' ? 'Text sent' : 'Email sent');
+      toast(r.status === 'logged' ? 'Saved (test mode: not sent)' : r.status === 'emailed' ? 'Sent: they’ve left the page, so it went by email too' : channel === 'chat' ? 'Sent to their chat' : channel === 'sms' ? 'Text sent' : 'Email sent');
       await renderThread(contactId, texting);
     } catch (err) { toast(err.message, true); btn.disabled = false; }
   };

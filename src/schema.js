@@ -736,6 +736,10 @@ ALTER TABLE testimonials ADD COLUMN IF NOT EXISTS rating INT NOT NULL DEFAULT 0;
 ALTER TABLE testimonials ADD COLUMN IF NOT EXISTS shareable INT NOT NULL DEFAULT 1;
 -- The offer ladder: what to offer a product's buyers next (empty: the next pricier product).
 ALTER TABLE products ADD COLUMN IF NOT EXISTS next_product_id INT REFERENCES products(id) ON DELETE SET NULL;
+-- Website chat.
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS chat_on INT NOT NULL DEFAULT 0;
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS chat_greeting TEXT NOT NULL DEFAULT '';
+ALTER TABLE contacts ADD COLUMN IF NOT EXISTS chat_seen_at TIMESTAMPTZ;
 `;
 
 module.exports = { SCHEMA };

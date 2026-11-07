@@ -248,6 +248,10 @@ function registerTexting(app, api, { getDb, HttpError, id, upsertContact, logEve
     const account = await db().get('SELECT * FROM accounts WHERE id = ?', req.accountId);
     const body = String(req.body?.body || '').trim().slice(0, 5000);
     if (!body) throw new HttpError(400, 'Write a message first');
+    if (req.body?.channel === 'chat' && messaging.sendChat) {
+      const r = await messaging.sendChat({ account, contact, body, inboxAddress });
+      return res.json({ ok: true, status: r.emailed ? 'emailed' : 'sent' });
+    }
     if (req.body?.channel === 'sms') {
       if (body.length > 640) throw new HttpError(400, 'Keep texts under 640 characters (about 4 texts)');
       const r = await sendText({ account, contact, body });

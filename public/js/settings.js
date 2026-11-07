@@ -52,6 +52,7 @@ function viewSettings() {
       <div data-sigsummary class="muted small">Loading…</div>
       <button type="button" class="btn" data-sigmanage style="margin-top:8px">${icon('pencil')} Make or edit signatures</button></div>
     <form class="card" style="max-width:560px;margin-top:16px" data-texting><h2>Texting and calls</h2><p class="muted small">Loading…</p></form>
+    <form class="card" style="max-width:560px;margin-top:16px" data-chat><h2>Website chat</h2><p class="muted small">Loading…</p></form>
     <form class="card" style="max-width:560px;margin-top:16px" data-pagecode><h2>Tracking and custom CSS</h2><p class="muted small">Loading…</p></form>
     <form class="card" style="max-width:560px;margin-top:16px" data-domain>
       <h2>Your domain</h2>
@@ -198,6 +199,7 @@ function viewSettings() {
   confirmPlanReturn();
   if (/[?&]plan=1/.test(location.hash)) setTimeout(() => $('#set-plan')?.scrollIntoView({ block: 'start' }));
   loadTextingSettings();
+  loadChatSettings();
 }
 
 // Texting and calls: the workspace's number, where calls ring, the missed-call text,
@@ -253,12 +255,34 @@ async function loadTextingSettings() {
   };
 }
 
+// Website chat: a bubble on your pages; conversations land in the Inbox.
+async function loadChatSettings() {
+  const form = $('[data-chat]');
+  if (!form) return;
+  const c = await api('GET', '/api/account/chat').catch(() => null);
+  if (!c) { form.hidden = true; return; }
+  form.innerHTML = `<h2>Website chat</h2>
+    <p class="muted small">A chat bubble on your pages. Visitors leave their name and email, chats land in your <a href="#/inbox">Inbox</a>, and if they’ve left when you reply, your reply goes by email.</p>
+    <label class="check"><input type="checkbox" name="on" ${c.on ? 'checked' : ''}> Show the chat bubble on my ${BRAND} pages</label>
+    <label class="f">Greeting<input name="greeting" maxlength="300" value="${esc(c.greeting)}" placeholder="${esc(c.default_greeting)}"></label>
+    <details class="hint" ${c.on ? '' : 'hidden'} data-chatsnip><summary>Add it to another website</summary><p class="small">Paste this just before <code>&lt;/body&gt;</code>:</p>
+      <div class="row" style="gap:8px"><code style="flex:1;word-break:break-all">${esc(c.snippet)}</code><button type="button" class="btn sm" data-copychat>Copy</button></div></details>
+    <div class="err"></div><button class="btn primary">Save chat</button>`;
+  trackDirty(form);
+  $('[data-copychat]', form).onclick = async () => { try { await navigator.clipboard.writeText(c.snippet); toast('Copied'); } catch { toast('Couldn’t copy; select the text instead', true); } };
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    try { await api('PUT', '/api/account/chat', { on: form.on.checked, greeting: form.greeting.value }); toast(form.on.checked ? 'Chat is on' : 'Chat is off'); loadChatSettings(); }
+    catch (err) { $('.err', form).textContent = err.message; }
+  };
+}
+
 // Settings in a few short sections with an index, instead of one long scroll.
 const SETTINGS_SECTIONS = [
   ['plan', 'Your plan', ['[data-plan]']],
   ['business', 'Business', ['[data-form]', '[data-business]', '[data-voice]']],
   ['email', 'Email', ['[data-senddomain]', '[data-sigcard]', '[data-digestcard]', '[data-reviews]']],
-  ['texting', 'Texting and calls', ['[data-texting]']],
+  ['texting', 'Texting, calls and chat', ['[data-texting]', '[data-chat]']],
   ['payments', 'Payments', ['[data-stripe]']],
   ['address', 'Website', ['[data-domain]', '[data-pagecode]']],
   ['team', 'People with access', ['[data-team]']],

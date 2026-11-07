@@ -40,6 +40,7 @@ const { registerEmailPlus, splitForTest, pickWinner } = require('./emailplus');
 const { registerTexting } = require('./texting');
 const { registerTasks } = require('./tasks');
 const { registerReviews } = require('./reviews');
+const { registerChat } = require('./chat');
 const { registerMembers } = require('./members');
 const { registerCourses } = require('./courses');
 const { registerMetrics } = require('./metrics');
@@ -94,7 +95,7 @@ function createApp({ dbPath } = {}) {
     if (a) domainCache.set(host, { account: a, at: Date.now() });
     return a || null;
   };
-  const PASS = /^\/(t|s|u|b|dl|m|my|rv|pay|hooks|legal|checkout|stripe|unsubscribe|f)\//;
+  const PASS = /^\/(t|s|u|b|dl|m|my|rv|chat|pay|hooks|legal|checkout|stripe|unsubscribe|f)\//;
   // A custom domain's sitemap, robots rules and llms.txt (a plain summary for AI assistants).
   async function siteFiles(acct, host, path, res) {
     const base = `https://${host}`;
@@ -1483,6 +1484,7 @@ function createApp({ dbPath } = {}) {
   registerSetup(api, { getDb: () => db, HttpError, createFunnel, TEMPLATES, getAccount });
   registerTasks(api, { getDb: () => db, HttpError, id });
   const reviews = registerReviews(app, { getDb: () => db, id, getSecret: () => secret, logEvent });
+  const chat = registerChat(app, api, { getDb: () => db, HttpError, id, upsertContact, logEvent, messaging, publicBase, getSecret: () => secret });
   const invoices = registerInvoices(app, api, { getDb: () => db, HttpError, id, upsertContact, messaging, publicBase, stripe, orderToken: (...a) => orderToken(...a),
     ownerViewing: (req, x) => ownerViewing(req, x) });
   const checkout = registerCheckout(app, api, { getDb: () => db, HttpError, id, messaging, publicBase, stripe,
@@ -1608,7 +1610,9 @@ function createApp({ dbPath } = {}) {
     if (!draft) await funnelKit.decideWinner(step.id);
     if (draft) res.set('X-Robots-Tag', 'noindex');
     const withEmbed = (u) => (embed && u && u !== '#' && u.startsWith('/') ? `${u}${u.includes('?') ? '&' : '?'}embed=1` : u);
-    res.type('html').send((draft && !embed ? '<div style="position:sticky;top:0;z-index:9;background:#fef3c7;color:#92400e;font:600 14px system-ui;text-align:center;padding:8px">Draft preview: only you can see this page until the funnel is published.</div>' : '') + renderPage({
+    // Website chat, when it's on, sits on every page (not in embedded copies).
+    const chatTag = !embed && (await getAccount(funnel.account_id)).chat_on ? chat.tagFor({ id: funnel.account_id }) : '';
+    res.type('html').send((draft && !embed ? '<div style="position:sticky;top:0;z-index:9;background:#fef3c7;color:#92400e;font:600 14px system-ui;text-align:center;padding:8px">Draft preview: only you can see this page until the funnel is published.</div>' : '') + withChat(chatTag, renderPage({
       title: step.name, blocks: page.blocks, settings: page.settings, embed,
       ...chrome, ...(course && !embed ? { course: course.course } : {}),
       nextUrl: withEmbed(nextUrl), noUrl: withEmbed(noUrl), formAction: withEmbed(`/f/${funnel.slug}/${step.slug}/optin`), buyAction: `/f/${funnel.slug}/${step.slug}/buy`,
@@ -1621,8 +1625,9 @@ function createApp({ dbPath } = {}) {
           : `${publicBase()}/f/${funnel.slug}${entry ? '' : `/${step.slug}`}`;
         return { business: acct.name, code, ownDomain: !ownHostList().includes(req.hostname.toLowerCase()), url };
       })()),
-    }));
+    })));
   });
+  function withChat(tag, html) { return tag ? html.replace(/<\/body>(?![\s\S]*<\/body>)/, `${tag}</body>`) : html; }
 
   app.post('/f/:funnel/:step/optin', express.urlencoded({ extended: false, limit: '20kb' }), async (req, res) => {
     const found = await findPublicStep(req.params.funnel, req.params.step);
