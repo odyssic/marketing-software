@@ -93,8 +93,10 @@ function registerLibrary(api, { getDb, HttpError, id, ownHost, clearDomainCache 
     res.status(201).json(out(r));
   });
   api.put('/testimonials/:id', async (req, res) => {
+    const t = await db().get('SELECT shareable FROM testimonials WHERE id = ? AND account_id = ?', id(req.params.id), req.accountId);
+    if (!t) throw new HttpError(404, 'Testimonial not found');
+    if (req.body?.approved && !t.shareable) throw new HttpError(409, 'They asked to keep this private, so it can’t go on your pages');
     const r = await db().get('UPDATE testimonials SET approved = ? WHERE id = ? AND account_id = ? RETURNING *', req.body?.approved ? 1 : 0, id(req.params.id), req.accountId);
-    if (!r) throw new HttpError(404, 'Testimonial not found');
     res.json(out(r));
   });
   api.delete('/testimonials/:id', async (req, res) => {

@@ -1522,3 +1522,5 @@ ul.tasks { list-style: none; padding: 0; margin: 10px 0 4px; }
 .crs-mini { display: flex; align-items: center; gap: 8px; font-size: .85rem; color: var(--muted); white-space: nowrap; }
 .crs-mini span { width: 70px; height: 6px; border-radius: 99px; background: var(--line); overflow: hidden; }
 .crs-mini i { display: block; height: 100%; background: var(--brand); }
+.stars-sm { color: #f5b301; letter-spacing: 1px; }
+.stars-sm i { color: #d1d5db; font-style: normal; }

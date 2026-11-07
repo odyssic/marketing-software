@@ -39,6 +39,7 @@ const { createReports } = require('./reports');
 const { registerEmailPlus, splitForTest, pickWinner } = require('./emailplus');
 const { registerTexting } = require('./texting');
 const { registerTasks } = require('./tasks');
+const { registerReviews } = require('./reviews');
 const { registerMembers } = require('./members');
 const { registerCourses } = require('./courses');
 const { registerMetrics } = require('./metrics');
@@ -93,7 +94,7 @@ function createApp({ dbPath } = {}) {
     if (a) domainCache.set(host, { account: a, at: Date.now() });
     return a || null;
   };
-  const PASS = /^\/(t|s|u|b|dl|m|my|pay|hooks|legal|checkout|stripe|unsubscribe|f)\//;
+  const PASS = /^\/(t|s|u|b|dl|m|my|rv|pay|hooks|legal|checkout|stripe|unsubscribe|f)\//;
   // A custom domain's sitemap, robots rules and llms.txt (a plain summary for AI assistants).
   async function siteFiles(acct, host, path, res) {
     const base = `https://${host}`;
@@ -1477,6 +1478,7 @@ function createApp({ dbPath } = {}) {
   const texting = registerTexting(app, api, { getDb: () => db, HttpError, id, upsertContact, logEvent, messaging, publicBase, getSecret: () => secret });
   registerSetup(api, { getDb: () => db, HttpError, createFunnel, TEMPLATES, getAccount });
   registerTasks(api, { getDb: () => db, HttpError, id });
+  const reviews = registerReviews(app, { getDb: () => db, id, getSecret: () => secret, logEvent });
   const invoices = registerInvoices(app, api, { getDb: () => db, HttpError, id, upsertContact, messaging, publicBase, stripe, orderToken: (...a) => orderToken(...a),
     ownerViewing: (req, x) => ownerViewing(req, x) });
   const checkout = registerCheckout(app, api, { getDb: () => db, HttpError, id, messaging, publicBase, stripe,
@@ -1949,9 +1951,12 @@ ${order.status === 'paid' ? '<p>This order is already paid.</p>' : `<label>Name<
         AND (review_asked_at IS NULL OR review_asked_at < ?) RETURNING *`, now.toISOString(), d.contact_id, d.account_id, at(90 * 24));
       if (!person) continue;
       const account = await db.get('SELECT * FROM accounts WHERE id = ?', d.account_id);
-      const r = await messaging.sendToPerson({ account, person, subject: 'Would you leave a quick review?',
-        preheader: 'It takes a minute and helps a small business a lot.',
-        body: `Hi {{first_name|there}},\n\nThank you for ${d.why === 'booking' ? 'your time today' : 'your order'}. If you have a minute, a short review would mean a lot. It helps other people find us.\n\nLeave a review: ${account.review_url}\n\nThank you!\n${account.from_name || account.name}` });
+      // The link opens a one-tap rating page; their words become a testimonial (after your approval),
+      // and everyone is then offered the Google review button.
+      const link = `${(process.env.PUBLIC_URL || publicBase()).replace(/\/$/, '')}/rv/${reviews.reviewToken(person.id)}`;
+      const r = await messaging.sendToPerson({ account, person, subject: 'How did we do?',
+        preheader: 'One tap. It helps a small business a lot.',
+        body: `Hi {{first_name|there}},\n\nThank you for ${d.why === 'booking' ? 'your time today' : 'your order'}. How did we do? It takes ten seconds.\n\n[Rate us](${link})\n\nThank you!\n${account.from_name || account.name}` });
       if (r.status === 'sent' || r.status === 'logged') sent++;
     }
     return { reviews_asked: sent };

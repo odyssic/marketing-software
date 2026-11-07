@@ -48,6 +48,7 @@ async function loadTodayCard() {
   try { t = await api('GET', '/api/today'); } catch { box.hidden = true; return; }
   const items = [];
   if (t.unread) items.push(`<a class="today-chip" href="#/inbox">${icon('mail')} ${t.unread} conversation${t.unread === 1 ? '' : 's'} waiting for a reply</a>`);
+  if (t.reviews) items.push(`<a class="today-chip" href="#/people/testimonials">${icon('quote')} ${t.reviews} new review${t.reviews === 1 ? '' : 's'} to approve for your pages</a>`);
   t.bookings.forEach((b) => items.push(`<a class="today-chip" href="#/calendar">${icon('calendar')} ${esc(todayTime(b.starts_at))} call with ${esc(b.name)}</a>`));
   t.invoices.forEach((i) => items.push(`<a class="today-chip warn" href="#/products/invoices">${icon('alert')} Invoice ${esc(i.number || '')} ${i.who ? `for ${esc(i.who)} ` : ''}is overdue (${esc(fmtMoney(i.total_cents, i.currency))})</a>`));
   if (t.leads.length) items.push(`<span class="today-chip">${icon('people')} <span>New in the last day: ${t.leads.slice(0, 4).map((p) => `<a href="#/people/${p.id}">${esc(p.name)}</a>`).join(', ')}${t.leads.length > 4 ? ` and ${t.leads.length - 4} more` : ''}</span></span>`);

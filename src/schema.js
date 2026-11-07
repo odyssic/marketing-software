@@ -731,6 +731,9 @@ CREATE TABLE IF NOT EXISTS member_lessons (
 );
 CREATE INDEX IF NOT EXISTS member_lessons_funnel ON member_lessons (funnel_id, contact_id);
 ALTER TABLE funnels ADD COLUMN IF NOT EXISTS drip_emails INT NOT NULL DEFAULT 1;
+-- Star ratings from review requests, and whether the customer said their words may be shown.
+ALTER TABLE testimonials ADD COLUMN IF NOT EXISTS rating INT NOT NULL DEFAULT 0;
+ALTER TABLE testimonials ADD COLUMN IF NOT EXISTS shareable INT NOT NULL DEFAULT 1;
 `;
 
 module.exports = { SCHEMA };

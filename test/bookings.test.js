@@ -144,7 +144,25 @@ test('review requests: after an appointment ends, once per 90 days, only with a 
   assert.equal((await c('POST', '/api/jobs/run', { now: after(1) })).body.reviews_asked, 0); // not straight away
   assert.equal((await c('POST', '/api/jobs/run', { now: after(3) })).body.reviews_asked, 1);
   assert.equal((await c('POST', '/api/jobs/run', { now: after(4) })).body.reviews_asked, 0); // once
-  const m = (await c('GET', '/api/outbox')).body.find((x) => x.subject === 'Would you leave a quick review?');
+  const m = (await c('GET', '/api/outbox')).body.find((x) => x.subject === 'How did we do?');
   assert.equal(m.to_email, 'vi@example.com');
-  assert.match(m.body, /Thank you for your time today[\s\S]*https:\/\/g\.page\/r\/abc\/review/);
+  assert.match(m.body, /Thank you for your time today/);
+  const link = m.body.match(/\/rv\/[\w.]+/)[0];
+
+  // The rating page; a forged link is refused.
+  assert.match(await (await fetch(base + link)).text(), /How did we do, Vi\?/);
+  assert.equal((await fetch(base + link.replace(/\.\w+$/, '.0000000000000000'))).status, 404);
+  const send = (body) => fetch(base + link, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams(body) }).then((r) => r.text());
+  // Everyone gets the Google button, whatever they rated (no review gating).
+  const low = await send({ rating: '2', words: 'Ran late, but kind.' });
+  assert.match(low, /https:\/\/g\.page\/r\/abc\/review/);
+  let list = (await c('GET', '/api/testimonials')).body;
+  assert.equal(list.length, 1);
+  assert.equal(list[0].shareable, 0, 'not ticked means private');
+  assert.equal((await c('PUT', `/api/testimonials/${list[0].id}`, { approved: true })).status, 409);
+  // Sending again replaces it; ticked means it may be shown once approved.
+  await send({ rating: '5', words: 'Wonderful, would book again!', share: '1' });
+  list = (await c('GET', '/api/testimonials')).body;
+  assert.deepEqual(list.map((t) => [t.rating, t.quote, t.name, t.approved]), [[5, 'Wonderful, would book again!', 'Vi V.', false]]);
+  assert.equal((await c('PUT', `/api/testimonials/${list[0].id}`, { approved: true })).status, 200);
 });

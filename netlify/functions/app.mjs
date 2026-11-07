@@ -30,5 +30,5 @@ export default async (req, context) => {
 };
 
 export const config = {
-  path: ['/api/*', '/f/*', '/checkout/*', '/stripe/*', '/unsubscribe/*', '/auth/*', '/s/*', '/t/*', '/d/*', '/u/*', '/hooks/*', '/b/*', '/pay/*', '/m/*', '/dl/*', '/legal/*', '/blog/*', '/my/*'],
+  path: ['/api/*', '/f/*', '/checkout/*', '/stripe/*', '/unsubscribe/*', '/auth/*', '/s/*', '/t/*', '/d/*', '/u/*', '/hooks/*', '/b/*', '/pay/*', '/m/*', '/dl/*', '/legal/*', '/blog/*', '/my/*', '/rv/*'],
 };

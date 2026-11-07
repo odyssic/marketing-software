@@ -58,14 +58,18 @@ async function viewPages() {
 }
 
 // ---------------- Testimonials (real records only) ----------------
+const ratingStars = (n) => (n ? `<span class="stars-sm" title="${n} of 5">${'★'.repeat(n)}<i>${'★'.repeat(5 - n)}</i></span> ` : '');
 async function viewTestimonials() {
   const list = await api('GET', '/api/testimonials');
+  const rated = list.filter((t) => t.rating);
+  const avg = rated.length ? (rated.reduce((s, t) => s + t.rating, 0) / rated.length).toFixed(1) : null;
   shell('people', `
     <div class="head"><div><h1>Testimonials</h1><div class="muted">Only real customers’ words, shared with their permission. Pages show approved ones; nothing is ever made up.</div></div>
       <a class="btn" href="#/people">← People</a></div>
-    ${list.length ? `<div class="card">${list.map((t) => `<div class="li"><span style="max-width:70%"><b>“${esc(t.quote)}”</b><br>
+    ${avg ? `<div class="card row" style="gap:14px;margin-bottom:14px"><b style="font-size:28px">${avg}</b>${ratingStars(Math.round(avg))}<span class="muted small">from ${rated.length} review request${rated.length === 1 ? '' : 's'}. Set them up in Settings → Email → Reviews.</span></div>` : ''}
+    ${list.length ? `<div class="card">${list.map((t) => `<div class="li"><span style="max-width:70%">${ratingStars(t.rating)}<b>“${esc(t.quote)}”</b><br>
         <span class="muted small">${esc(t.name)}${t.detail ? ` · ${esc(t.detail)}` : ''} · ${esc(t.source)}${t.person_id ? ` · <a href="#/people/${t.person_id}">${esc(t.person_name || 'person')}</a>` : ''} · ${fmtDate(t.created_at)}</span></span>
-      <span class="row">${t.approved ? '<span class="pill ok">shown on pages</span><button class="btn sm" data-ap="' + t.id + ':0">Hide</button>' : '<span class="pill warn">waiting for approval</span><button class="btn sm primary" data-ap="' + t.id + ':1">Approve</button>'}
+      <span class="row">${!t.shareable ? '<span class="pill">private: for your eyes only</span>' : t.approved ? '<span class="pill ok">shown on pages</span><button class="btn sm" data-ap="' + t.id + ':0">Hide</button>' : '<span class="pill warn">waiting for approval</span><button class="btn sm primary" data-ap="' + t.id + ':1">Approve</button>'}
         <button class="btn sm danger" data-delt="${t.id}">Delete</button></span></div>`).join('')}</div>`
       : '<div class="card empty"><div class="big">' + icon('quote') + '</div><h2>No testimonials yet</h2><p>Add one from a customer’s page (People → a person → Add testimonial), or put a Review form on your website. Reviews wait here for your approval.</p></div>'}`);
   $$('[data-ap]').forEach((b) => { b.onclick = async () => { const [tid, v] = b.dataset.ap.split(':'); await api('PUT', `/api/testimonials/${tid}`, { approved: v === '1' }); viewTestimonials(); }; });

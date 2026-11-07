@@ -56,7 +56,7 @@ function registerTasks(api, { getDb, HttpError, id }) {
   // Today: what needs you now. Each list is short; the counts say if there's more.
   api.get('/today', async (req, res) => {
     const a = req.accountId, d = db();
-    const [tasks, later, invoices, leads, bookings, unread] = await Promise.all([
+    const [tasks, later, invoices, leads, bookings, unread, reviews] = await Promise.all([
       d.all(`${SELECT} WHERE t.account_id = ? AND t.done_at IS NULL AND t.due_at < date_trunc('day', now()) + interval '1 day' ORDER BY t.due_at LIMIT 20`, a),
       d.get(`SELECT COUNT(*)::int AS n FROM tasks WHERE account_id = ? AND done_at IS NULL AND due_at >= date_trunc('day', now()) + interval '1 day'`, a),
       d.all(`SELECT id, number, title, total_cents, currency, due_date, client_name, client_email FROM invoices
@@ -65,6 +65,7 @@ function registerTasks(api, { getDb, HttpError, id }) {
       d.all(`SELECT b.id, b.starts_at, b.name AS first_name, '' AS last_name, b.email, b.contact_id FROM bookings b
         WHERE b.account_id = ? AND b.status = 'confirmed' AND b.starts_at >= now() - interval '1 hour' AND b.starts_at < date_trunc('day', now()) + interval '1 day' ORDER BY b.starts_at LIMIT 10`, a),
       d.get("SELECT COUNT(DISTINCT contact_id)::int AS n FROM messages WHERE account_id = ? AND direction = 'in' AND read_at IS NULL", a),
+      d.get('SELECT COUNT(*)::int AS n FROM testimonials WHERE account_id = ? AND approved = 0 AND shareable = 1', a),
     ]);
     const name = (p) => [p.first_name, p.last_name].filter(Boolean).join(' ') || p.email || 'Someone';
     res.json({
@@ -72,7 +73,7 @@ function registerTasks(api, { getDb, HttpError, id }) {
       invoices: invoices.map((i) => ({ ...i, who: i.client_name || i.client_email || '' })),
       leads: leads.map((p) => ({ id: p.id, name: name(p), entry: p.entry || '', created_at: p.created_at })),
       bookings: bookings.map((b) => ({ id: b.id, starts_at: b.starts_at, contact_id: b.contact_id, name: name(b) })),
-      unread: unread.n,
+      unread: unread.n, reviews: reviews.n,
     });
   });
 }

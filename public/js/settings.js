@@ -26,7 +26,7 @@ function viewSettings() {
     </form>
     <form class="card" style="max-width:560px;margin-top:16px" data-reviews>
       <h2>Reviews</h2>
-      <p class="muted small">Paste your Google review link (Google Business Profile → <b>Ask for reviews</b> → copy link), or any review page. Rilly asks happy customers once, at the right moment.</p>
+      <p class="muted small">Paste your Google review link (Google Business Profile → <b>Ask for reviews</b> → copy link), or any review page. Rilly asks each customer once, at the right moment, for a star rating and a few words. Their words land in <a href="#/people/testimonials">Testimonials</a> for you to approve, and everyone is offered your Google review button.</p>
       <label class="f">Review link<input name="review_url" type="url" value="${esc(a.review_url || '')}" placeholder="https://g.page/r/…/review"></label>
       <label class="check"><input type="checkbox" name="after_booking" ${a.review_after_booking === 0 ? '' : 'checked'}> A few hours after an appointment</label>
       <label class="check"><input type="checkbox" name="after_purchase" ${a.review_after_purchase === 0 ? '' : 'checked'}> Five days after a purchase</label>
