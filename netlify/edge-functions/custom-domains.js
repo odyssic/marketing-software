@@ -14,5 +14,5 @@ export default async (request, context) => {
 export const config = {
   path: '/*',
   // These already go to the app on every host (tracking, checkout, short links, pages by slug).
-  excludedPath: ['/api/*', '/f/*', '/t/*', '/s/*', '/checkout/*', '/stripe/*', '/unsubscribe/*', '/auth/*', '/d/*', '/u/*', '/hooks/*', '/b/*', '/pay/*', '/m/*', '/dl/*', '/legal/*', '/blog/*', '/my/*'],
+  excludedPath: ['/api/*', '/f/*', '/t/*', '/s/*', '/checkout/*', '/stripe/*', '/unsubscribe/*', '/auth/*', '/d/*', '/u/*', '/hooks/*', '/b/*', '/pay/*', '/m/*', '/dl/*', '/legal/*', '/blog/*', '/my/*', '/cal/*'],
 };

@@ -31,7 +31,7 @@ async function call(secretKey, method, path, params) {
 // unitAmount: the price after any code. planParts: a payment plan, charged
 // monthly as a subscription that we end after the last part (see checkout.js).
 // trialDays: free days before a monthly/yearly subscription's first charge.
-function createCheckoutSession(secretKey, { product, extra = null, orderId, email, successUrl, cancelUrl, unitAmount = product.price_cents, planParts = 0, trialDays = 0, couponCode = '' }) {
+function createCheckoutSession(secretKey, { product, extra = null, orderId, email, successUrl, cancelUrl, unitAmount = product.price_cents, planParts = 0, trialDays = 0, couponCode = '', expiresAt }) {
   const recurring = planParts ? { interval: 'month' } : product.billing === 'monthly' ? { interval: 'month' }
     : product.billing === 'yearly' ? { interval: 'year' } : undefined;
   const subMeta = { order_id: orderId, ...(planParts ? { plan_parts: planParts } : {}), ...(couponCode ? { coupon: couponCode } : {}) };
@@ -57,6 +57,7 @@ function createCheckoutSession(secretKey, { product, extra = null, orderId, emai
     metadata: { order_id: orderId },
     success_url: successUrl,
     cancel_url: cancelUrl,
+    expires_at: expiresAt, // optional (unix seconds, 30 minutes to 24 hours ahead)
   });
 }
 

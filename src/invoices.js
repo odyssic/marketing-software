@@ -43,7 +43,10 @@ function registerInvoices(app, api, { getDb, HttpError, id, upsertContact, messa
     res.json(rows.map(out));
   });
   api.post('/invoices', async (req, res) => {
-    const b = req.body || {};
+    res.status(201).json(await createInvoice(req.accountId, req.body || {}));
+  });
+  // Also used for a booking's balance (paidbookings.js).
+  async function createInvoice(accountId, b) {
     const kind = b.kind === 'link' ? 'link' : 'invoice';
     const items = cleanItems(b.items);
     if (!items.length) throw new HttpError(400, kind === 'link' ? 'Add what it’s for and the amount' : 'Add at least one line with an amount');
@@ -53,21 +56,21 @@ function registerInvoices(app, api, { getDb, HttpError, id, upsertContact, messa
       clientName = String(b.client_name || '').trim().slice(0, 120);
       if (!EMAIL_RE.test(clientEmail)) throw new HttpError(400, 'Add the client’s email so we can send it');
       const [first, ...rest] = clientName.split(/\s+/);
-      contactId = (await upsertContact(db(), req.accountId, { email: clientEmail, first_name: first || '', last_name: rest.join(' '), source: 'manual', entry: 'Added by hand (sent an invoice)' })).id;
+      contactId = (await upsertContact(db(), accountId, { email: clientEmail, first_name: first || '', last_name: rest.join(' '), source: 'manual', entry: 'Added by hand (sent an invoice)' })).id;
     }
     const due = /^\d{4}-\d{2}-\d{2}$/.test(String(b.due_date || '')) ? b.due_date : null;
     const currency = /^[a-z]{3}$/.test(String(b.currency || '')) ? b.currency : 'usd';
-    const num = (await db().get('SELECT COALESCE(MAX(number), 1000) + 1 AS n FROM invoices WHERE account_id = ?', req.accountId)).n;
+    const num = (await db().get('SELECT COALESCE(MAX(number), 1000) + 1 AS n FROM invoices WHERE account_id = ?', accountId)).n;
     const r = await db().get(`INSERT INTO invoices (account_id, contact_id, kind, number, title, items, currency, total_cents, due_date, note, status, token, client_email, client_name)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *`, req.accountId, contactId, kind, num, String(b.title || '').trim().slice(0, 120),
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *`, accountId, contactId, kind, num, String(b.title || '').trim().slice(0, 120),
     JSON.stringify(items), currency, totalOf(items), due, String(b.note || '').trim().slice(0, 1000), kind === 'link' ? 'active' : 'draft',
     crypto.randomBytes(15).toString('base64url'), clientEmail, clientName);
     if (kind === 'invoice' && b.send) {
       await emailInvoice(r);
       await db().run("UPDATE invoices SET status = 'sent', sent_at = now() WHERE id = ?", r.id);
     }
-    res.status(201).json(out(await db().get('SELECT * FROM invoices WHERE id = ?', r.id)));
-  });
+    return out(await db().get('SELECT * FROM invoices WHERE id = ?', r.id));
+  }
   const mine = async (req) => {
     const r = await db().get('SELECT * FROM invoices WHERE id = ? AND account_id = ?', id(req.params.id), req.accountId);
     if (!r) throw new HttpError(404, 'Not found');
@@ -170,7 +173,7 @@ function registerInvoices(app, api, { getDb, HttpError, id, upsertContact, messa
     return { invoice_reminders: sent };
   }
 
-  return { onOrderPaid, remindOverdue };
+  return { onOrderPaid, remindOverdue, createInvoice };
 }
 
 module.exports = { registerInvoices, cleanItems, totalOf, money };

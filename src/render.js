@@ -4,6 +4,7 @@
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => (
   { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
 ));
+const { payOf, payLabel, money: payMoney } = require('./paidbookings'); // paid Booking blocks
 
 const color = (c, fallback) => (/^#[0-9a-f]{3,8}$/i.test(c || '') ? c : fallback);
 const align = (a) => (['left', 'center', 'right'].includes(a) ? a : 'center');
@@ -191,7 +192,10 @@ function renderBlock(b, ctx, index) {
       const live = ctx.formAction && ctx.formAction !== '#';
       const book = live ? ctx.formAction.replace(/\/optin$/, '/book') : '';
       const slots = live ? ctx.formAction.replace(/\/[^/]+\/optin$/, '/slots') : '';
-      return `<div class="booking" data-book="${esc(book)}" data-slots="${esc(slots)}" data-next="${esc(ctx.nextUrl || '#')}" data-phone="${b.collectPhone ? 1 : ''}" data-note="${b.askNote === false ? '' : 1}" data-btn="${esc(b.buttonLabel || 'Confirm booking')}">
+      // Paid: the price shows up front; the button goes to payment (paidbookings.js).
+      const pay = payOf(b), due = pay.kind ? payMoney(pay.due, pay.currency) : '';
+      const btnLabel = pay.kind ? (/pay|\$|€|£/i.test(b.buttonLabel || '') ? b.buttonLabel : `Continue to pay ${due}`) : b.buttonLabel || 'Confirm booking';
+      return `<div class="booking" data-book="${esc(book)}" data-slots="${esc(slots)}" data-next="${esc(ctx.nextUrl || '#')}" data-phone="${b.collectPhone ? 1 : ''}" data-note="${b.askNote === false ? '' : 1}" data-btn="${esc(btnLabel)}" data-pay="${esc(payLabel(pay))}">
         ${b.heading ? `<h2${f('heading')}>${esc(b.heading)}</h2>` : ''}
         <p class="bk-meta"></p>
         <div class="bk-days" role="tablist" aria-label="Choose a day"></div>
@@ -202,7 +206,9 @@ function renderBlock(b, ctx, index) {
           ${b.collectPhone ? '<input name="phone" type="tel" placeholder="Phone (optional)" autocomplete="tel">' : ''}
           ${b.askNote === false ? '' : '<textarea name="note" rows="3" placeholder="Anything I should know before we talk? (optional)"></textarea>'}
           <input class="hp" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
-          <button class="btn" type="submit">${esc(b.buttonLabel || 'Confirm booking')}</button><p class="bk-err" role="alert"></p></form>
+          ${pay.kind ? `<input name="code" class="bk-code" placeholder="Discount code (optional)" autocomplete="off" hidden>
+          <p class="bk-paynote">You’ll pay <b>${esc(due)}</b> now${pay.kind === 'deposit' ? ` as a deposit, and ${esc(payMoney(pay.balance, pay.currency))} at the appointment` : ''}. We hold this time for 15 minutes while you pay.</p>` : ''}
+          <button class="btn" type="submit">${esc(btnLabel)}</button><p class="bk-err" role="alert"></p></form>
         <div class="bk-done" hidden></div></div>`;
     }
     case 'form': {
@@ -475,6 +481,8 @@ const BOOKING_SCRIPT = `<style>
 .bk-form{display:grid;gap:10px;max-width:420px;margin:14px auto 0;text-align:left}.bk-form input,.bk-form textarea{padding:13px 14px;border:1px solid #d1d5db;border-radius:10px;font:inherit}
 .bk-form .btn{width:100%}.bk-picked{font-weight:600;text-align:center;margin:0}.bk-err{color:#b91c1c;font-size:.9rem;margin:0}
 .bk-done{padding:22px;border-radius:14px;background:color-mix(in srgb,var(--bk-accent) 8%,transparent)}.bk-done h3{margin:0 0 6px}
+.bk-price{display:inline-block;margin:0 0 14px;padding:5px 12px;border-radius:99px;font-weight:600;font-size:.9rem;background:color-mix(in srgb,var(--bk-accent) 10%,transparent);color:var(--bk-accent)}
+.bk-paynote{font-size:.85rem;opacity:.75;margin:0;text-align:center}
 </style><script>(function(){document.querySelectorAll('.booking').forEach(function(el){
 var acc=getComputedStyle(document.querySelector('.btn')||el).backgroundColor||'#1F7F78';el.style.setProperty('--bk-accent',acc);
 var tz=Intl.DateTimeFormat().resolvedOptions().timeZone,days=el.querySelector('.bk-days'),times=el.querySelector('.bk-times'),form=el.querySelector('.bk-form'),picked=null,byDay={};
@@ -484,6 +492,8 @@ var fmtLong=function(d){return d.toLocaleString(undefined,{weekday:'long',month:
 el.querySelector('.bk-tz').textContent='Times are shown in your time zone ('+tz.replace(/_/g,' ')+').';
 var demo=function(){var out=[],n=new Date();for(var i=1;out.length<40&&i<20;i++){var d=new Date(n.getFullYear(),n.getMonth(),n.getDate()+i);if(d.getDay()%6===0)continue;for(var h=9;h<17;h++){var s=new Date(d.getFullYear(),d.getMonth(),d.getDate(),h,0);out.push({start:s.toISOString()});}}return{title:'Sample times (preview)',length:30,slots:out};};
 var show=function(data){var meta=el.querySelector('.bk-meta');meta.textContent=[data.title,data.length?data.length+' minutes':'',data.location].filter(Boolean).join(' · ');
+ if(el.dataset.pay&&!el.querySelector('.bk-price')){var pr=document.createElement('p');pr.className='bk-price';pr.textContent=el.dataset.pay;meta.after(pr);}
+ var code=form.querySelector('.bk-code');if(code&&data.codes)code.hidden=false;
  if(!data.slots.length){times.innerHTML='<p class="bk-msg">No open times right now. Please check back soon.</p>';return;}
  data.slots.forEach(function(s){var d=new Date(s.start),k=fmtDay(d);(byDay[k]=byDay[k]||[]).push(d);});
  Object.keys(byDay).forEach(function(k,i){var d=byDay[k][0],b=document.createElement('button');b.type='button';b.setAttribute('role','tab');
@@ -498,6 +508,7 @@ form.onsubmit=function(e){e.preventDefault();if(!picked)return;var err=form.quer
  var v={start:picked.toISOString()};new FormData(form).forEach(function(val,key){v[key]=val});
  fetch(el.dataset.book,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(v),credentials:'same-origin'}).then(function(r){return r.json().then(function(j){return{ok:r.ok,j:j}})}).then(function(x){
   if(!x.ok){err.textContent=x.j.error||'Something went wrong. Please try again.';btn.disabled=false;btn.textContent=el.dataset.btn;if(/taken/.test(x.j.error||''))location.reload();return;}
+  if(x.j.pay){btn.textContent='Taking you to payment…';location.href=x.j.pay;return;}
   var done=el.querySelector('.bk-done');done.innerHTML='<h3>You’re booked!</h3><p></p><p style="opacity:.75;margin:0">A confirmation is on its way to your inbox.</p>';done.querySelector('p').textContent=fmtLong(new Date(x.j.start));
   done.hidden=false;form.hidden=true;times.hidden=true;days.hidden=true;el.querySelector('.bk-tz').hidden=true;
   if(x.j.next)setTimeout(function(){location.href=x.j.next},2500);}).catch(function(){err.textContent='Couldn’t reach the server. Please try again.';btn.disabled=false;btn.textContent=el.dataset.btn;});};
