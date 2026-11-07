@@ -3,8 +3,19 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Rilly · Simple Marketing</title>
-  <meta name="description" content="Rilly puts your website, sign-up pages, emails, follow-ups, bookings and customers in one simple place. Start free.">
+  <title>Rilly · All your marketing in one simple place</title>
+  <meta name="description" content="Rilly puts your website, sign-up pages, emails, follow-ups, bookings and customers in one simple place. Built for small businesses and the agencies that serve them. Start free for 14 days.">
+  <link rel="canonical" href="https://getrilly.com/">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Rilly">
+  <meta property="og:title" content="Rilly · All your marketing in one simple place">
+  <meta property="og:description" content="Website, pages, emails, follow-ups, bookings and customers, set up together. Start free.">
+  <meta property="og:url" content="https://getrilly.com/">
+  <meta property="og:image" content="https://getrilly.com/img/shot-dashboard.jpg">
+  <meta name="twitter:card" content="summary_large_image">
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Rilly","applicationCategory":"BusinessApplication","operatingSystem":"Web","description":"All your marketing in one simple place: website, pages, emails, follow-ups, bookings and customers.","url":"https://getrilly.com/","offers":{"@type":"Offer","price":"29","priceCurrency":"USD","description":"Per month for one business; each extra business 19 USD per month. 14-day free trial."}}</script>
+  <!-- People who have signed in on this browser (or open a link into the app) skip the sales page. -->
+  <script>try{if(localStorage.getItem('rillySignedIn')==='1'||/^#\/./.test(location.hash))document.documentElement.classList.add('returning')}catch(e){}</script>
   <link rel="icon" type="image/svg+xml" href="/brand/rilly-icon-small.svg">
   <link rel="icon" type="image/png" sizes="16x16" href="/icons/icon-16.png">
   <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-32.png">
@@ -15,7 +26,101 @@
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-  <div id="app"><div class="boot">Loading…</div></div>
+  <div id="app"><div class="land" data-static-landing>
+    <header class="land-nav"><a href="/" class="land-logo" aria-label="Rilly home"><img class="lockup" src="/brand/rilly-lockup-ink.svg" alt="Rilly" width="102" height="35"></a>
+      <nav aria-label="Main"><a href="#features" data-jump="features">Features</a><a href="#agencies" data-jump="agencies">Agencies</a><a href="#pricing" data-jump="pricing">Pricing</a><a href="#faq" data-jump="faq">FAQ</a>
+        <a href="#/signin" class="btn" data-signin>Sign in</a><a href="#/signup" class="btn primary" data-start>Start free</a></nav></header>
+    <main>
+      <section class="land-hero">
+        <div class="land-copy">
+          <p class="land-kicker">Simple Marketing.</p>
+          <h1>All your marketing in one simple place.</h1>
+          <p class="land-sub">Your website, sign-up pages, emails, follow-ups, bookings and customers, set up together. No juggling five tools. No setting the same thing up three times.</p>
+          <div class="land-cta"><a href="#/signup" class="btn primary big" data-start>Start free for <span data-trial>14</span> days</a><a href="#/signin" class="btn big" data-signin>Sign in</a></div>
+          <p class="muted small">No card needed to start. Then <span data-price-main>$29</span>/month. Cancel any time.</p>
+        </div>
+        <figure class="land-shot hero-shot"><div class="ls-bar" aria-hidden="true"><i></i><i></i><i></i></div>
+          <img src="/img/shot-dashboard.jpg" width="1280" height="800" alt="The Rilly dashboard: revenue, recurring revenue, new customers and new leads for the last 30 days, with a revenue chart and where sales came from"></figure>
+      </section>
+
+      <section class="land-sec land-problem">
+        <h2>One place instead of five</h2>
+        <p class="land-lead">Most small businesses glue together a website builder, an email tool, a booking app, a payment page and a spreadsheet of customers. Change one thing and you fix it in three places. Rilly keeps it all in one flow, so it just works.</p>
+        <div class="land-compare">
+          <div><h3>Before</h3><ul><li>Pages in one tool, emails in another</li><li>Leads copied between apps by hand</li><li>No idea which page or post brought the sale</li><li>A different login and bill for each</li></ul></div>
+          <div class="on"><h3>With Rilly</h3><ul><li>A page and its follow-up emails, set up together</li><li>Everyone who signs up, books or buys lands in one list</li><li>Every sale shows where it came from</li><li>One login, one simple price</li></ul></div>
+        </div>
+      </section>
+
+      <section class="land-feature" id="features">
+        <div class="lf-words"><p class="land-kicker">Flows</p><h2>See the whole journey on one map</h2>
+          <p>Your page, the emails that follow it and the next page, side by side. Tap <b>+</b> to add an email, a text or a page. Switch follow-ups on and off right there.</p>
+          <ul class="land-ticks"><li>Websites, sign-up pages, sales pages and members areas</li><li>Follow-up emails and texts that send themselves</li><li>Split tests that pick the winner for you</li></ul></div>
+        <figure class="land-shot"><div class="ls-bar" aria-hidden="true"><i></i><i></i><i></i></div><img src="/img/shot-map.jpg" width="1280" height="800" loading="lazy" alt="A flow in Rilly: a free guide page, its three follow-up emails, and the thank-you page"></figure>
+      </section>
+      <section class="land-feature flip">
+        <div class="lf-words"><p class="land-kicker">Pages</p><h2>Beautiful pages without a designer</h2>
+          <p>Start from an elegant template, change the words, pick your colour, and publish. One colour becomes a whole matching palette, applied to every page in a click.</p>
+          <ul class="land-ticks"><li>Elegant, modern and classic looks</li><li>Forms, bookings, pricing and checkout built in</li><li>Saved sections: change your header once, it changes everywhere</li><li>Your own domain, tracking pixels and custom code</li></ul></div>
+        <figure class="land-shot"><div class="ls-bar" aria-hidden="true"><i></i><i></i><i></i></div><img src="/img/shot-editor.jpg" width="1280" height="800" loading="lazy" alt="The Rilly page editor with blocks on the left and an elegant free-guide page on the right"></figure>
+      </section>
+
+      <section class="land-sec">
+        <h2>Everything a small business needs to grow</h2>
+        <div class="land-grid">
+          <div class="land-feat"><h3>Your people</h3><p>Everyone who signs up, books or buys, with where they came from and what they did. Import a list in seconds.</p></div>
+          <div class="land-feat"><h3>Email and texts</h3><p>Newsletters, follow-ups and a shared inbox for replies and texts. Send from your own domain.</p></div>
+          <div class="land-feat"><h3>Bookings</h3><p>People pick a time from your calendar. Confirmations and reminders go out on their own.</p></div>
+          <div class="land-feat"><h3>Products and payments</h3><p>Products, subscriptions, invoices and payment links, paid straight to your Stripe.</p></div>
+          <div class="land-feat"><h3>Missed-call text-back</h3><p>Miss a call and Rilly texts them back for you, so the job doesn’t go to someone else.</p></div>
+          <div class="land-feat"><h3>A dashboard in plain words</h3><p>Revenue, new customers and leads, with one suggested move each week and a Monday summary by email.</p></div>
+        </div>
+      </section>
+
+      <section class="land-agency" id="agencies">
+        <div class="la-inner">
+          <p class="land-kicker">For agencies</p>
+          <h2>Run every client from one login</h2>
+          <p class="land-lead">Add a business for each client, keep their pages, people and results separate, and show it all under your own brand.</p>
+          <div class="land-grid">
+            <div class="land-feat"><h3>Invite your clients</h3><p>Clients log in to their own business only. They can edit, but can’t see your other clients or your bill.</p></div>
+            <div class="land-feat"><h3>Your brand, not ours</h3><p>Your name, logo and colour on the app your clients use, and on every email it sends them.</p></div>
+            <div class="land-feat"><h3>Monthly client reports</h3><p>On the 1st, each client gets last month’s visitors, leads, customers and sales next to the month before.</p></div>
+            <div class="land-feat"><h3>Reuse your best work</h3><p>Copy a winning flow, with its emails, into another client’s business in two clicks.</p></div>
+          </div>
+          <p class="la-price">Each extra business is <b><span data-price-extra>$19</span>/month</b>. Ten clients cost less than most tools charge for one.</p>
+        </div>
+      </section>
+
+      <section class="land-sec" id="pricing">
+        <h2>One simple price</h2>
+        <div class="land-price card">
+          <div class="lp-amt"><span data-price-main>$29</span><span class="per">/month</span></div>
+          <p class="muted">Everything included, for one business.</p>
+          <ul><li>Websites, pages and members areas</li><li>Email, texting and automatic follow-ups</li><li>Bookings, products, invoices and payments</li><li>Unlimited contacts, pages and emails</li><li>Extra businesses <span data-price-extra>$19</span>/month each</li><li><span data-trial>14</span>-day free trial, no card needed</li></ul>
+          <a href="#/signup" class="btn primary big" data-start>Start free</a>
+          <p class="muted small lp-eg">For example: 3 businesses = <span data-price-three>$67</span>/month.</p>
+        </div>
+      </section>
+
+      <section class="land-sec land-faq" id="faq">
+        <h2>Questions</h2>
+        <div class="faq-list">
+          <details><summary>Do I need a card to start?</summary><p>No. You get the full product free for <span data-trial>14</span> days. Add a card only if you want to keep going.</p></details>
+          <details><summary>What happens when the free trial ends?</summary><p>Nothing is deleted and your published pages keep working. Editing and sending pause until you choose a plan.</p></details>
+          <details><summary>Can I cancel any time?</summary><p>Yes. There’s no contract. Cancel in Settings in a couple of clicks, and you can export your people as a spreadsheet whenever you like.</p></details>
+          <details><summary>Can I use my own domain?</summary><p>Yes, for your website and pages, and for sending email (like hello@yourbusiness.com). Rilly walks you through it.</p></details>
+          <details><summary>How do I take payments?</summary><p>Connect your Stripe account and money goes straight to you. Until you do, checkouts run in test mode so you can try everything.</p></details>
+          <details><summary>Can I text my customers?</summary><p>Yes, in the US. Get a local number in a minute; texts and calls land in your inbox. Carriers ask for a few business details before marketing texts go out.</p></details>
+          <details><summary>Can I bring my existing contacts?</summary><p>Yes. Upload a spreadsheet, paste a list, or even take a photo of a paper sign-up sheet.</p></details>
+          <details><summary>I run an agency. How does pricing work?</summary><p><span data-price-main>$29</span>/month covers your first business, and each client business is <span data-price-extra>$19</span>/month more. Clients you invite never pay Rilly themselves.</p></details>
+        </div>
+      </section>
+
+      <section class="land-end"><h2>Ready to make marketing simple?</h2><a href="#/signup" class="btn primary big" data-start>Start free for <span data-trial>14</span> days</a></section>
+    </main>
+    <footer class="land-foot"><img class="lockup" src="/brand/rilly-lockup-ink.svg" alt="Rilly" width="70" height="24"><span class="muted small">© 2026 Rilly · Simple Marketing.</span><a href="#/signin" data-signin class="small">Sign in</a></footer>
+  </div><div class="boot">Loading…</div></div>
   <div id="toast" role="status" aria-live="polite"></div>
   <script src="/js/icons.js"></script>
   <script src="/js/core.js"></script>
