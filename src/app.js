@@ -24,7 +24,8 @@ const business = require('./business');
 const { registerBounces } = require('./bounces');
 const { rillyEmail } = require('./emailhtml');
 const segments = require('./segments');
-const { registerBookings } = require('./bookings');
+const { registerBookings, settingsOf: bookingSettingsOf } = require('./bookings');
+const { createCalSync } = require('./calsync');
 const attribution = require('./attribution');
 const { registerInvoices } = require('./invoices');
 const { registerSetup } = require('./setup');
@@ -96,7 +97,7 @@ function createApp({ dbPath } = {}) {
     if (a) domainCache.set(host, { account: a, at: Date.now() });
     return a || null;
   };
-  const PASS = /^\/(t|s|u|b|dl|m|my|rv|chat|pay|hooks|legal|checkout|stripe|unsubscribe|f)\//;
+  const PASS = /^\/(t|s|u|b|dl|m|my|rv|chat|pay|hooks|legal|checkout|stripe|unsubscribe|f|cal)\//;
   // A custom domain's sitemap, robots rules and llms.txt (a plain summary for AI assistants).
   async function siteFiles(acct, host, path, res) {
     const base = `https://${host}`;
@@ -266,6 +267,7 @@ function createApp({ dbPath } = {}) {
     if (fresh) await members.onOrderPaid(order).catch((e) => console.error('members access:', e.message));
     if (fresh) await community.onOrderPaid(order).catch((e) => console.error('community access:', e.message));
     if (fresh) await checkout.onOrderPaid(order).catch((e) => console.error('coupon use:', e.message));
+    if (fresh) await bookings.onOrderPaid(order).catch((e) => console.error('paid booking:', e.message));
   }
 
   // ---------- API ----------
@@ -1494,8 +1496,13 @@ function createApp({ dbPath } = {}) {
     findPublicStep: (...a) => findPublicStep(...a), findBlock: (...a) => findBlock(...a) });
   // Booking calendar routes (registered before the API's not-found handler and the public page route).
   const blog = registerBlog(app, api, { getDb: () => db, HttpError, id, publicBase });
+  // Calendar sync: the private bookings feed and busy times read from the owner's own calendar.
+  const calsync = createCalSync({ getDb: () => db, HttpError, publicBase, settingsOf: bookingSettingsOf,
+    sign: (text) => crypto.createHmac('sha256', secret).update(text).digest('hex') });
   const bookings = registerBookings(app, api, { getDb: () => db, HttpError, id, upsertContact, logEvent, messaging, mailer, publicBase,
-    ownerViewing: (...a) => ownerViewing(...a), findPublicStep: (...a) => findPublicStep(...a), attachSource: (...a) => attachSource(...a) });
+    ownerViewing: (...a) => ownerViewing(...a), findPublicStep: (...a) => findPublicStep(...a), attachSource: (...a) => attachSource(...a),
+    calsync, stripe, orderToken: (...a) => orderToken(...a), checkout, invoices, fulfilOrder: (...a) => fulfilOrder(...a) });
+  calsync.register(app, api);
   integrations.register(app, api); // also mounts the public API at /api/v1 (before /api below)
   api.use((req, res) => res.status(404).json({ error: 'Not found' }));
   app.use('/api', api);
@@ -1782,6 +1789,7 @@ function createApp({ dbPath } = {}) {
       }
     }
     rememberBuyer(req, res, order);
+    if (order.source === 'booking') { const back = await bookings.returnUrl(order); if (back) return res.redirect(303, back); }
     if (order.source === 'invoice') { const back = String(order.external_id || '').match(/^inv:(\d+):/) && await db.get('SELECT token FROM invoices WHERE id = ?', Number(order.external_id.split(':')[1])); if (back) return res.redirect(303, `/pay/${back.token}?paid=1`); }
     const next = order.step_id && await stepAfter(order.step_id);
     if (next) return res.redirect(303, next);
@@ -1853,6 +1861,7 @@ ${order.status === 'paid' ? '<p>This order is already paid.</p>' : `<label>Name<
     if (!EMAIL_RE.test(String(req.body.email || '').trim())) return messagePage(res, 400, 'Please enter a valid email.', req.originalUrl);
     await fulfilOrder(order, { email: String(req.body.email).trim(), name: String(req.body.name || '').trim() });
     rememberBuyer(req, res, order);
+    if (order.source === 'booking') { const back = await bookings.returnUrl(order); if (back) return res.redirect(303, back); }
     if (order.source === 'invoice') { const back = String(order.external_id || '').match(/^inv:(\d+):/) && await db.get('SELECT token FROM invoices WHERE id = ?', Number(order.external_id.split(':')[1])); if (back) return res.redirect(303, `/pay/${back.token}?paid=1`); }
     const next = order.step_id && await stepAfter(order.step_id);
     if (next) return res.redirect(303, next);
@@ -1978,7 +1987,7 @@ ${order.status === 'paid' ? '<p>This order is already paid.</p>' : `<label>Name<
   // the scheduled Netlify function.
   app.runJobs = async (now = new Date()) => {
     await init();
-    return { ...(await workflows.processDue({ now })), ...(await digest.sendDue(now)), ...(await bookings.sendReminders(now)), ...(await checkout.recoverCheckouts(now)), ...(await askForReviews(now)), ...(await sendScheduled(now)), ...(await invoices.remindOverdue(now)), ...(await onboarding.sendDue(now)), ...(await reports.sendDue(now)), ...(await integrations.processDue(now)), ...(await courses.sendUnlocks(now)), ...(await community.runJobs(now)) };
+    return { ...(await bookings.expireHolds(now)), ...(await workflows.processDue({ now })), ...(await digest.sendDue(now)), ...(await bookings.sendReminders(now)), ...(await checkout.recoverCheckouts(now)), ...(await askForReviews(now)), ...(await sendScheduled(now)), ...(await invoices.remindOverdue(now)), ...(await onboarding.sendDue(now)), ...(await reports.sendDue(now)), ...(await integrations.processDue(now)), ...(await courses.sendUnlocks(now)), ...(await community.runJobs(now)), ...(await calsync.syncDue(now)) };
   };
   app.getDb = () => db; // for tests (seeding history)
   app.messaging = messaging; // for tests (signing tracking links)

@@ -1569,3 +1569,32 @@ ul.tasks { list-style: none; padding: 0; margin: 10px 0 4px; }
 .cma-pick { display: flex; align-items: center; gap: 8px; font-size: .9rem; }
 .cma-pick input { width: auto; margin: 0; }
 @media (max-width: 900px) { .cma-grid { grid-template-columns: 1fr; } }
+
+/* Paid bookings and calendar sync (public/js/calsync.js) */
+.cal-outside { display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; padding: 6px 16px; margin-bottom: 6px; border: 1px dashed var(--line); border-radius: 10px; color: var(--muted); font-size: .88rem;
+  background: repeating-linear-gradient(135deg, #f7f9f9, #f7f9f9 8px, #eff3f3 8px, #eff3f3 16px); }
+.cal-outside .cal-otime { min-width: 84px; font-weight: 600; }
+.cal-outside .cal-olabel { color: var(--text); opacity: .7; }
+.cal-bk.held { border-left: 3px solid #f59e0b; }
+.cal-pay { display: block; margin-top: 6px; font-size: .85rem; color: var(--text); }
+.cal-pay svg { width: 14px; height: 14px; vertical-align: -2px; color: var(--brand); }
+.cal-pay.held { color: #92400e; } .cal-pay.held svg { color: #d97706; }
+.cal-pay.bad { color: #b91c1c; } .cal-pay.bad svg { color: #b91c1c; }
+.cal-pay a { color: var(--brand); }
+.link-btn { background: none; border: 0; padding: 0; color: var(--brand); font: inherit; cursor: pointer; text-decoration: underline; }
+.link-btn:disabled { opacity: .5; cursor: default; }
+.cal-sync h2 { margin-top: 0; }
+.cal-sync .cs-step { border-top: 1px solid var(--line); padding-top: 12px; margin-top: 12px; }
+.cal-sync .cs-step:first-of-type { border-top: 0; padding-top: 0; margin-top: 0; }
+.cal-sync h3 { font-size: .95rem; margin: 0 0 4px; display: flex; align-items: center; gap: 8px; }
+.cal-sync .cs-n { width: 22px; height: 22px; border-radius: 50%; background: var(--brand-soft); color: var(--brand); display: inline-grid; place-items: center; font-size: .8rem; flex: none; }
+.cal-sync .cs-copy { display: flex; gap: 6px; margin: 8px 0; }
+.cal-sync .cs-copy input { flex: 1; min-width: 0; font-size: .85rem; }
+.cal-sync .cs-copy .btn { flex: none; }
+.cal-sync .cs-how { border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; margin: 6px 0; font-size: .85rem; }
+.cal-sync .cs-how summary { cursor: pointer; font-weight: 600; }
+.cal-sync .cs-how ol { margin: 8px 0 4px; padding-left: 20px; display: grid; gap: 4px; }
+.cal-sync .cs-status { font-size: .85rem; margin: 6px 0; padding: 6px 10px; border-radius: 8px; }
+.cal-sync .cs-status.ok { background: #ecfdf5; color: #065f46; } .cal-sync .cs-status.bad { background: #fef2f2; color: #991b1b; }
+.cal-sync .cs-status svg { width: 14px; height: 14px; vertical-align: -2px; }
+.cal-sync .cs-actions { display: flex; gap: 6px; flex-wrap: wrap; }

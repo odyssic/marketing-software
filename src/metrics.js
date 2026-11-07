@@ -4,7 +4,7 @@
 // Test-mode orders (no real money) are left out.
 const DAY = 864e5;
 const RANGES = { '7d': 7, '30d': 30, '90d': 90, '12m': 365, all: null };
-const NICE_SOURCE = { funnel: 'Your pages', invoice: 'Invoices', import: 'Imported', store: 'Store', stripe: 'Stripe', paypal: 'PayPal', etsy: 'Etsy', manual: 'Added by hand' };
+const NICE_SOURCE = { funnel: 'Your pages', invoice: 'Invoices', import: 'Imported', store: 'Store', stripe: 'Stripe', paypal: 'PayPal', etsy: 'Etsy', manual: 'Added by hand', booking: 'Bookings' };
 
 function registerMetrics(api, { getDb }) {
   const db = () => getDb();

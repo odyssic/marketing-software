@@ -6,6 +6,7 @@
 const crypto = require('node:crypto');
 const express = require('express');
 const { rillyEmail } = require('./emailhtml');
+const { createPaidBookings, payOf, cancelRule, paidLine, balanceOf, money } = require('./paidbookings');
 
 const DEFAULTS = {
   tz: 'America/New_York', days: [1, 2, 3, 4, 5], start: '09:00', end: '17:00',
@@ -55,6 +56,7 @@ function cleanSettings(b = {}) {
     start: HHMM.test(b.start) ? b.start : DEFAULTS.start, end: HHMM.test(b.end) ? b.end : DEFAULTS.end,
     length: n(b.length, 10, 240, 30), buffer: n(b.buffer, 0, 120, 0), notice_hours: n(b.notice_hours, 0, 720, 12), horizon_days: n(b.horizon_days, 1, 120, 21),
     title: String(b.title || DEFAULTS.title).trim().slice(0, 100), location: String(b.location || '').trim().slice(0, 300),
+    cancel_hours: n(b.cancel_hours, 0, 720, 24), // paid bookings: free cancellation up to this many hours before
     breaks: (Array.isArray(b.breaks) ? b.breaks : []).filter((x) => HHMM.test(x?.start) && HHMM.test(x?.end) && x.end > x.start).slice(0, 3).map((x) => ({ start: x.start, end: x.end })),
   };
   // Different hours per day: { 1: [['09:00','12:00'], ['14:00','17:00']], 6: [['10:00','14:00']] }.
@@ -116,13 +118,19 @@ function ics({ uid, start, end, title, description, location, organizer }) {
 }
 const when = (iso, tz) => new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'long', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' }).format(new Date(iso));
 
-function registerBookings(app, api, { getDb, HttpError, id, upsertContact, logEvent, messaging, mailer, publicBase, ownerViewing, findPublicStep, attachSource = async () => null }) {
+function registerBookings(app, api, { getDb, HttpError, id, upsertContact, logEvent, messaging, mailer, publicBase, ownerViewing, findPublicStep, attachSource = async () => null,
+  calsync = null, stripe = null, orderToken = null, checkout = null, invoices = null, fulfilOrder = null }) {
   const db = () => getDb();
-  const confirmed = (accountId) => db().all("SELECT starts_at, ends_at FROM bookings WHERE account_id = ? AND status = 'confirmed' AND ends_at > now() - interval '1 day'", accountId);
+  // Taken times: confirmed bookings, times held while someone pays, and busy times from the owner's own calendar.
+  const confirmed = async (accountId) => [
+    ...await db().all("SELECT starts_at, ends_at FROM bookings WHERE account_id = ? AND (status = 'confirmed' OR (status = 'held' AND hold_until > now())) AND ends_at > now() - interval '1 day'", accountId),
+    ...(calsync ? await calsync.busyFor(accountId) : [])];
   const page = (res, status, title, body) => res.status(status).type('html').send(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title>
     <style>body{font:16px/1.55 -apple-system,system-ui,sans-serif;color:#14282B;background:#F4F7F6;margin:0;padding:40px 16px}.c{max-width:460px;margin:0 auto;background:#fff;border:1px solid #E3E9E8;border-radius:16px;padding:28px}
-    h1{font-size:1.4rem;margin:0 0 12px}.m{color:#5B6B70}details{border-top:1px solid #E3E9E8;padding:12px 0}summary{cursor:pointer;font-weight:600;color:#1F7F78}.col{display:grid;gap:10px;margin-top:10px}.col label{display:grid;gap:4px;font-size:.9rem}input,select,textarea{padding:11px 12px;border:1px solid #d1d5db;border-radius:10px;font:inherit}.ok{background:#e6f4f2;color:#14524d;padding:10px 12px;border-radius:10px}button{background:#1F7F78;color:#fff;border:0;border-radius:10px;padding:12px 20px;font:600 1rem system-ui;cursor:pointer}button.d{background:#b91c1c}</style></head><body><div class="c">${body}</div></body></html>`);
+    h1{font-size:1.4rem;margin:0 0 12px}.m{color:#5B6B70}details{border-top:1px solid #E3E9E8;padding:12px 0}summary{cursor:pointer;font-weight:600;color:#1F7F78}.col{display:grid;gap:10px;margin-top:10px}.col label{display:grid;gap:4px;font-size:.9rem}input,select,textarea{padding:11px 12px;border:1px solid #d1d5db;border-radius:10px;font:inherit}.ok{background:#e6f4f2;color:#14524d;padding:10px 12px;border-radius:10px;margin-top:0}button{background:#1F7F78;color:#fff;border:0;border-radius:10px;padding:12px 20px;font:600 1rem system-ui;cursor:pointer}button.d{background:#b91c1c}button.link{background:none;color:#5B6B70;padding:4px 0;font-weight:500;text-decoration:underline}.pill{display:inline-block;background:#fef3c7;color:#92400e;border-radius:99px;padding:3px 10px;font-size:.8rem;font-weight:600;margin:0 0 10px}.paybox{background:#F4F7F6;border-radius:10px;padding:10px 12px}a.btn{display:inline-block;background:#1F7F78;color:#fff;border-radius:10px;padding:12px 20px;font-weight:600;text-decoration:none}.addcal{font-size:.9rem}.addcal a{color:#1F7F78}</style></head><body><div class="c">${body}</div></body></html>`);
   const escH = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  // Paid bookings (paidbookings.js), when the app passes in checkout and Stripe.
+  const paid = fulfilOrder ? createPaidBookings({ getDb, HttpError, stripe, orderToken, checkout, invoices, fulfilOrder, messaging, publicBase, logEvent, settingsOf, when, sendConfirmation, escH }) : null;
 
   // ---------- Public: open times and booking ----------
   app.get('/f/:funnel/slots', async (req, res) => {
@@ -130,7 +138,10 @@ function registerBookings(app, api, { getDb, HttpError, id, upsertContact, logEv
     if (!funnel || (funnel.status !== 'live' && !await ownerViewing(req, funnel))) return res.status(404).json({ error: 'Not found' });
     const account = await db().get('SELECT * FROM accounts WHERE id = ?', funnel.account_id);
     const s = settingsOf(account);
-    res.set('Cache-Control', 'no-store').json({ title: s.title, length: s.length, location: s.location, slots: s.configured ? slotsFor(s, await confirmed(account.id)) : [] });
+    if (calsync && s.configured) await calsync.refreshIfStale(account.id).catch(() => {});
+    if (paid) await paid.expireHolds(new Date(), account.id);
+    const codes = checkout ? await checkout.hasCoupons(account.id) : false;
+    res.set('Cache-Control', 'no-store').json({ title: s.title, length: s.length, location: s.location, codes, slots: s.configured ? slotsFor(s, await confirmed(account.id)) : [] });
   });
 
   app.post('/f/:funnel/:step/book', express.json({ limit: '10kb' }), async (req, res) => {
@@ -152,6 +163,14 @@ function registerBookings(app, api, { getDb, HttpError, id, upsertContact, logEv
     const block = blocks.find((x) => x.type === 'booking') || {};
     const [first, ...rest] = name.split(/\s+/);
     const contact = await upsertContact(db(), account.id, { email, first_name: first, entry: `${funnel.name} → booked a time`, last_name: rest.join(' '), phone: String(b.phone || '').slice(0, 40), tags: block.tag ? [String(block.tag).toLowerCase()] : [], source: 'funnel' });
+    // A paid booking: hold the time for 15 minutes and send them to pay.
+    const pay = payOf(block);
+    if (pay.kind && paid) {
+      try {
+        const source = await attachSource(db(), contact.id, req);
+        return res.json(await paid.start({ account, funnel, step, s, slot, contact, name, email, b, pay, source }));
+      } catch (e) { if (e instanceof HttpError) return res.status(e.status).json({ error: e.message }); throw e; }
+    }
     const token = crypto.randomBytes(18).toString('base64url');
     let booking;
     try {
@@ -173,14 +192,17 @@ function registerBookings(app, api, { getDb, HttpError, id, upsertContact, logEv
     const base = publicBase();
     const manage = `${base}/b/${bk.token}`;
     const whenTxt = when(bk.starts_at, s.tz);
-    const text = `Hi ${bk.name.split(' ')[0]},\n\n${movedFrom ? `Your booking has moved from ${when(movedFrom, s.tz)}.\n\n` : ''}You’re booked: ${s.title}\n${whenTxt} (${s.length} minutes)\n${s.location ? `\n${s.location}\n` : ''}\nNeed to change the time or cancel? ${manage}\n\n${account.from_name || account.name}`;
+    const { googleCalendarLink } = require('./calsync');
+    const google = googleCalendarLink({ title: `${s.title} with ${account.name}`, start: bk.starts_at, end: bk.ends_at, details: `Manage: ${manage}`, location: s.location });
+    const money1 = paidLine(bk) ? `\n${paidLine(bk)}.${bk.pay_kind ? ` ${cancelRule(s, bk).text}` : ''}\n` : '';
+    const text = `Hi ${bk.name.split(' ')[0]},\n\n${movedFrom ? `Your booking has moved from ${when(movedFrom, s.tz)}.\n\n` : ''}You’re booked: ${s.title}\n${whenTxt} (${s.length} minutes)\n${s.location ? `\n${s.location}\n` : ''}${money1}\nAdd it to your calendar:\nGoogle: ${google}\nApple, Outlook and others: ${manage}/calendar.ics (also attached)\n\nNeed to change the time or cancel? ${manage}\n\n${account.from_name || account.name}`;
     await messaging.sendTransactional({ account, to: bk.email, contactId: bk.contact_id, subject: `Booked: ${s.title}, ${whenTxt}`, text,
       attachments: [{ filename: 'booking.ics', content: ics({ uid: `booking-${bk.id}`, start: bk.starts_at, end: bk.ends_at, title: `${s.title} with ${account.name}`, description: `${s.location}\n\nManage: ${manage}`, location: s.location, organizer: account.name }), contentType: 'text/calendar; charset=utf-8' }] });
     await messaging.sendToOwner({ account, subject: `${movedFrom ? 'Moved' : 'New booking'}: ${bk.name}, ${whenTxt}`,
-      body: `${bk.name} <${bk.email}>${bk.phone ? `\n${bk.phone}` : ''} booked ${s.title}\n${whenTxt}${bk.note ? `\n\nNote: ${bk.note}` : ''}\n\nCalendar: ${base}/#/calendar`,
+      body: `${bk.name} <${bk.email}>${bk.phone ? `\n${bk.phone}` : ''} booked ${s.title}\n${whenTxt}${paidLine(bk) ? `\n${paidLine(bk)}` : ''}${bk.note ? `\n\nNote: ${bk.note}` : ''}\n\nCalendar: ${base}/#/calendar`,
       html: rillyEmail({ base, title: `${movedFrom ? 'Booking moved' : 'New booking'}: ${bk.name}`, preheader: whenTxt, blocks: [
         ...(movedFrom ? [{ p: `Was ${when(movedFrom, s.tz)}.` }] : []),
-        { rows: [['When', whenTxt], ['Who', bk.name], ['Email', bk.email], ...(bk.phone ? [['Phone', bk.phone]] : [])] },
+        { rows: [['When', whenTxt], ['Who', bk.name], ['Email', bk.email], ...(bk.phone ? [['Phone', bk.phone]] : []), ...(paidLine(bk) ? [['Payment', paidLine(bk)]] : [])] },
         ...(bk.note ? [{ p: `“${bk.note}”` }] : []), { button: ['Open your calendar', `${base}/#/calendar`] }] }) });
   }
 
@@ -191,12 +213,19 @@ function registerBookings(app, api, { getDb, HttpError, id, upsertContact, logEv
     if (!bk) return page(res, 404, 'Not found', '<h1>Booking not found</h1><p class="m">This link may be old or mistyped.</p>');
     const s = settingsOf({ booking: bk.acct_booking });
     if (bk.status === 'cancelled') return page(res, 200, 'Cancelled', `<h1>This booking is cancelled</h1><p class="m">${escH(s.title)} with ${escH(bk.acct_name)}, ${escH(when(bk.starts_at, s.tz))}.</p>`);
+    const extra = paid ? await paid.pagePart(bk, s, req.query) : { html: '', final: false };
+    if (extra.final) return page(res, 200, 'Your booking', extra.html);
     if (new Date(bk.starts_at) < new Date()) return page(res, 200, 'Your booking', `<h1>${escH(s.title)}</h1><p class="m">This was on ${escH(when(bk.starts_at, s.tz))}.</p>`);
+    const rule = extra.rule, locked = rule && !rule.free; // paid, and inside the free-cancellation window
+    const kept = rule ? `${money(bk.paid_cents, bk.currency)} ${rule.what}` : '';
+    const google = require('./calsync').googleCalendarLink({ title: `${s.title} with ${bk.acct_name}`, start: bk.starts_at, end: bk.ends_at, details: `Manage: ${publicBase()}/b/${bk.token}`, location: s.location });
     const open = slotsFor(s, (await confirmed(bk.account_id)).filter((x) => new Date(x.starts_at).getTime() !== new Date(bk.starts_at).getTime()));
     const saved = req.query.saved ? `<p class="ok">${req.query.saved === 'time' ? 'Your new time is booked. A confirmation is on its way.' : 'Saved.'}</p>` : '';
-    return page(res, 200, 'Your booking', `${saved}<h1>${escH(s.title)}</h1><p><b>${escH(when(bk.starts_at, s.tz))}</b><br><span class="m">with ${escH(bk.acct_name)} · ${s.length} minutes</span></p>
-      ${s.location ? `<p class="m">${escH(s.location)}</p>` : ''}
-      <details ${req.query.change ? 'open' : ''}><summary>Change the time</summary>
+    return page(res, 200, 'Your booking', `${saved}${extra.top || ''}<h1>${escH(s.title)}</h1><p><b>${escH(when(bk.starts_at, s.tz))}</b><br><span class="m">with ${escH(bk.acct_name)} · ${s.length} minutes</span></p>
+      ${s.location ? `<p class="m">${escH(s.location)}</p>` : ''}${extra.html}
+      <p class="addcal">Add to your calendar: <a href="${escH(google)}" target="_blank" rel="noopener">Google</a> · <a href="/b/${escH(bk.token)}/calendar.ics">Apple, Outlook &amp; others</a></p>
+      ${locked ? `<p class="m" style="border-top:1px solid #E3E9E8;padding-top:12px">It’s too close to the time to change it online. Reply to your confirmation email and ${escH(bk.acct_name)} will help.</p>` : ''}
+      <details ${req.query.change ? 'open' : ''} ${locked ? 'hidden' : ''}><summary>Change the time</summary>
         <form method="post" action="/b/${escH(bk.token)}/move" class="col"><label>New time <span class="m">(your time zone is detected below)</span>
           <select name="start" required data-slots='${escH(JSON.stringify(open.map((x) => x.start)))}'><option value="">Loading times…</option></select></label>
           <button>Move my booking</button></form></details>
@@ -206,7 +235,8 @@ function registerBookings(app, api, { getDb, HttpError, id, upsertContact, logEv
           <label>Phone<input name="phone" value="${escH(bk.phone)}"></label>
           <label>Note<textarea name="note" rows="3">${escH(bk.note)}</textarea></label>
           <button>Save</button></form></details>
-      <form method="post" action="/b/${escH(bk.token)}/cancel" onsubmit="return confirm('Cancel this booking?')" style="margin-top:18px"><button class="d">Cancel this booking</button></form>
+      ${locked ? `<p class="m" style="margin:18px 0 0">If you cancel now, your ${escH(kept)} is kept.</p>` : ''}
+      <form method="post" action="/b/${escH(bk.token)}/cancel" onsubmit="return confirm(${escH(JSON.stringify(locked ? `Cancel this booking? Your ${kept} is kept.` : rule ? `Cancel this booking? ${bk.acct_name} will refund your ${kept}.` : 'Cancel this booking?'))})" style="margin-top:${locked ? 10 : 18}px"><button class="d">${locked ? `Cancel (${escH(rule.what)} kept)` : 'Cancel this booking'}</button></form>
       <script>(function(){var sel=document.querySelector('select[data-slots]');var list=JSON.parse(sel.dataset.slots);
         sel.innerHTML=list.length?'<option value="">Pick a new time</option>'+list.map(function(s){return '<option value="'+s+'">'+new Date(s).toLocaleString(undefined,{weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})+'</option>'}).join(''):'<option value="">No other open times right now</option>';
         var p=document.createElement('p');p.className='m';p.style.fontSize='.85rem';p.textContent='Times shown in '+Intl.DateTimeFormat().resolvedOptions().timeZone.replace(/_/g,' ');sel.parentNode.after(p);})();<\/script>`);
@@ -214,9 +244,34 @@ function registerBookings(app, api, { getDb, HttpError, id, upsertContact, logEv
   app.post('/b/:token/cancel', express.urlencoded({ extended: false, limit: '1kb' }), async (req, res) => {
     const bk = await byToken(req.params.token);
     if (!bk) return page(res, 404, 'Not found', '<h1>Booking not found</h1>');
-    const done = await cancel(bk, 'visitor');
     const s = settingsOf({ booking: bk.acct_booking });
-    return page(res, 200, 'Cancelled', `<h1>${done ? 'Cancelled' : 'Already cancelled'}</h1><p class="m">${escH(s.title)}, ${escH(when(bk.starts_at, s.tz))}. ${done ? 'We’ve let them know.' : ''}</p>`);
+    const rule = bk.pay_kind && bk.paid_cents ? cancelRule(s, bk) : null;
+    const done = await cancel(bk, 'visitor');
+    const amt = rule ? `${money(bk.paid_cents, bk.currency)} ${rule.what}` : '';
+    const moneyNote = !done || !rule ? '' : rule.free ? ` ${escH(bk.acct_name)} will refund your ${escH(amt)} to your card.` : ` As it was within ${escH(rule.hours >= 48 && rule.hours % 24 === 0 ? `${rule.hours / 24} days` : `${rule.hours} hours`)} of the time, your ${escH(amt)} is kept.`;
+    return page(res, 200, 'Cancelled', `<h1>${done ? 'Cancelled' : 'Already cancelled'}</h1><p class="m">${escH(s.title)}, ${escH(when(bk.starts_at, s.tz))}. ${done ? 'We’ve let them know.' : ''}${moneyNote}</p>`);
+  });
+  // Paying for a held time, or letting it go.
+  app.post('/b/:token/pay', async (req, res) => {
+    const bk = await byToken(req.params.token);
+    if (!bk) return page(res, 404, 'Not found', '<h1>Booking not found</h1>');
+    let url = null;
+    try { url = paid && await paid.resume(bk); } catch (e) { console.error('booking checkout:', e.message); }
+    res.redirect(303, url || `/b/${bk.token}`);
+  });
+  app.post('/b/:token/release', async (req, res) => {
+    const bk = await byToken(req.params.token);
+    if (!bk) return page(res, 404, 'Not found', '<h1>Booking not found</h1>');
+    if (paid) await paid.release(bk);
+    res.redirect(303, `/b/${bk.token}`);
+  });
+  // "Add to Apple / Outlook calendar" from the email and the booking page.
+  app.get('/b/:token/calendar.ics', async (req, res) => {
+    const bk = await byToken(req.params.token);
+    if (!bk || bk.status !== 'confirmed') return page(res, 404, 'Not found', '<h1>Booking not found</h1>');
+    const s = settingsOf({ booking: bk.acct_booking });
+    res.set('Content-Disposition', 'attachment; filename="booking.ics"').type('text/calendar; charset=utf-8')
+      .send(ics({ uid: `booking-${bk.id}`, start: bk.starts_at, end: bk.ends_at, title: `${s.title} with ${bk.acct_name}`, description: `${s.location}\n\nManage: ${publicBase()}/b/${bk.token}`, location: s.location, organizer: bk.acct_name }));
   });
 
   app.post('/b/:token/move', express.urlencoded({ extended: false, limit: '1kb' }), async (req, res) => {
@@ -224,6 +279,7 @@ function registerBookings(app, api, { getDb, HttpError, id, upsertContact, logEv
     if (!bk || bk.status !== 'confirmed' || new Date(bk.starts_at) < new Date()) return page(res, 404, 'Not found', '<h1>This booking can’t be changed</h1>');
     const account = await db().get('SELECT * FROM accounts WHERE id = ?', bk.account_id);
     const s = settingsOf(account);
+    if (bk.pay_kind && bk.paid_cents && !cancelRule(s, bk).free) return res.redirect(303, `/b/${bk.token}`); // too close to change online
     const asked = new Date(String(req.body.start || ''));
     const others = (await confirmed(bk.account_id)).filter((x) => new Date(x.starts_at).getTime() !== new Date(bk.starts_at).getTime());
     const slot = Number.isNaN(asked.getTime()) ? null : slotsFor(s, others).find((x) => x.start === asked.toISOString());
@@ -249,8 +305,16 @@ function registerBookings(app, api, { getDb, HttpError, id, upsertContact, logEv
     if (!r) return false;
     const account = await db().get('SELECT * FROM accounts WHERE id = ?', bk.account_id);
     const s = settingsOf(account), whenTxt = when(bk.starts_at, s.tz);
-    if (by === 'visitor') await messaging.sendToOwner({ account, subject: `Cancelled: ${bk.name}, ${whenTxt}`, body: `${bk.name} <${bk.email}> cancelled ${s.title} on ${whenTxt}. The time is open again.` }).catch(() => {});
-    else await messaging.sendTransactional({ account, to: bk.email, contactId: bk.contact_id, subject: `Cancelled: ${s.title}, ${whenTxt}`, text: `Hi ${bk.name.split(' ')[0]},\n\nSorry, ${s.title} on ${whenTxt} has been cancelled. Reply to this email to find another time.\n\n${account.from_name || account.name}` }).catch(() => {});
+    // Paid: say who keeps the money, and where to refund it.
+    let moneyNote = '';
+    if (bk.pay_kind && bk.paid_cents && paid) {
+      const rule = cancelRule(s, bk), [v] = await paid.ownerView([bk], bk.account_id), amt = money(bk.paid_cents, bk.currency);
+      moneyNote = by !== 'visitor' ? `\n\nYour ${amt} payment will be refunded to your card.`
+        : rule.free ? `\n\nThey paid ${amt} and cancelled before your free-cancellation cutoff, so please refund them.${v.refund_url ? `\nRefund in Stripe: ${v.refund_url}` : ' (It was a test payment, so there’s nothing to refund.)'}`
+          : `\n\nThey cancelled within ${rule.hours} hours of the time, so the ${amt} ${rule.what} is kept.`;
+    }
+    if (by === 'visitor') await messaging.sendToOwner({ account, subject: `Cancelled: ${bk.name}, ${whenTxt}`, body: `${bk.name} <${bk.email}> cancelled ${s.title} on ${whenTxt}. The time is open again.${moneyNote}` }).catch(() => {});
+    else await messaging.sendTransactional({ account, to: bk.email, contactId: bk.contact_id, subject: `Cancelled: ${s.title}, ${whenTxt}`, text: `Hi ${bk.name.split(' ')[0]},\n\nSorry, ${s.title} on ${whenTxt} has been cancelled.${moneyNote} Reply to this email to find another time.\n\n${account.from_name || account.name}` }).catch(() => {});
     return true;
   }
 
@@ -275,10 +339,11 @@ function registerBookings(app, api, { getDb, HttpError, id, upsertContact, logEv
   api.get('/bookings', async (req, res) => {
     const account = await db().get('SELECT * FROM accounts WHERE id = ?', req.accountId);
     const past = req.query.when === 'past';
-    const rows = await db().all(`SELECT b.id, b.contact_id, b.funnel_id, b.starts_at, b.ends_at, b.name, b.email, b.phone, b.note, b.status, b.created_at, f.name AS funnel_name
-      FROM bookings b LEFT JOIN funnels f ON f.id = b.funnel_id WHERE b.account_id = ? AND ${past ? 'b.ends_at <= now()' : "b.ends_at > now() AND b.status = 'confirmed'"}
+    const rows = await db().all(`SELECT b.id, b.contact_id, b.funnel_id, b.starts_at, b.ends_at, b.name, b.email, b.phone, b.note, b.status, b.created_at, f.name AS funnel_name,
+        b.pay_kind, b.price_cents, b.paid_cents, b.currency, b.hold_until, b.stripe_payment, b.order_id, b.balance_invoice_id
+      FROM bookings b LEFT JOIN funnels f ON f.id = b.funnel_id WHERE b.account_id = ? AND ${past ? "b.ends_at <= now() AND b.status IN ('confirmed', 'cancelled', 'clash')" : "b.ends_at > now() AND (b.status IN ('confirmed', 'clash') OR (b.status = 'held' AND b.hold_until > now()))"}
       ORDER BY b.starts_at ${past ? 'DESC' : 'ASC'} LIMIT 300`, req.accountId);
-    res.json({ settings: settingsOf(account), bookings: rows });
+    res.json({ settings: settingsOf(account), bookings: paid ? await paid.ownerView(rows, req.accountId) : rows });
   });
   api.put('/bookings/settings', async (req, res) => {
     let s;
@@ -322,10 +387,17 @@ function registerBookings(app, api, { getDb, HttpError, id, upsertContact, logEv
   api.post('/bookings/:id/cancel', async (req, res) => {
     const bk = await db().get('SELECT * FROM bookings WHERE id = ? AND account_id = ?', id(req.params.id), req.accountId);
     if (!bk) throw new HttpError(404, 'Booking not found');
-    res.json({ cancelled: await cancel(bk, 'owner') });
+    const [v] = paid ? await paid.ownerView([bk], req.accountId) : [{}];
+    res.json({ cancelled: await cancel(bk, 'owner'), refund_url: v.refund_url || '', paid_label: bk.paid_cents ? money(bk.paid_cents, bk.currency) : '' });
+  });
+  // Deposit bookings: email them a payment link (an invoice) for the rest.
+  api.post('/bookings/:id/balance-link', async (req, res) => {
+    if (!paid) throw new HttpError(400, 'Payments aren’t available');
+    res.json(await paid.sendBalance(req.accountId, id(req.params.id)));
   });
 
-  return { sendReminders, slotsFor, settingsOf };
+  const noop = async () => ({});
+  return { sendReminders, slotsFor, settingsOf, expireHolds: paid ? paid.expireHolds : noop, onOrderPaid: paid ? paid.onOrderPaid : noop, returnUrl: paid ? paid.returnUrl : async () => null };
 }
 
 module.exports = { registerBookings, slotsFor, zonedToUtc, offsetMinutes, settingsOf, cleanSettings, ics, DEFAULTS };
