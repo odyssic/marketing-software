@@ -1658,3 +1658,4 @@ ul.tasks { list-style: none; padding: 0; margin: 10px 0 4px; }
 .logo-row img { height: 48px; width: auto; max-width: 160px; object-fit: contain; border: 1px solid var(--line); border-radius: 8px; padding: 4px; background: #fff; }
 .swatch-lg { width: 30px; height: 30px; border-radius: 8px; border: 1px solid var(--line); display: inline-block; }
 [data-hit], .chart svg:focus, svg [data-hit]:focus { outline: none; }
+.land-shot.plain { border: 0; background: none; box-shadow: 0 24px 60px rgba(60, 40, 20, .14); }
