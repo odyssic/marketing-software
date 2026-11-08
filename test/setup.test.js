@@ -95,11 +95,36 @@ test('a logo from setup goes on the page, with a brand colour from it', async ()
   assert.equal(me.logo_url, 'https://example.com/logo.png');
   assert.equal(me.brand_color, '#1d4ed8');
   const f = (await c('GET', `/api/funnels/${r.body.funnel_id}`)).body;
-  assert.equal(f.steps[0].blocks.find((b) => b.type === 'hero').background, '#1d4ed8');
+  assert.equal(f.steps[0].blocks.find((b) => b.type === 'hero').background, require('../src/palette').paletteFrom('#1d4ed8').band, 'one colour: the band is a deeper shade of it');
+  assert.equal(f.steps[0].settings.accent, '#1d4ed8');
   await c('POST', `/api/funnels/${f.id}/publish`);
   const html = (await client()('GET', `/f/${f.slug}`)).body;
   assert.match(html, /<div class="logo-bar"><img class="site-logo" src="https:\/\/example.com\/logo.png" alt="Budden Coaching"><\/div>/);
   assert.equal((await c('PUT', '/api/account/logo', { logo: 'javascript:alert(1)' })).status, 400);
   await c('PUT', '/api/account/logo', { logo: '' });
   assert.doesNotMatch((await client()('GET', `/f/${f.slug}`)).body, /<div class="logo-bar">/);
+});
+
+test('two logo colours make the palette: the darker one on top, the other on buttons; Settings can spread it with undo', async () => {
+  const c = client();
+  await c('POST', '/api/auth/signup', { name: 'Pa', email: 'pa-pal@example.com', password: 'password123', workspace: 'p', business_type: 'coach' });
+  const old = (await c('POST', '/api/funnels', { name: 'Old page', template: 'optin' })).body;
+  const r = await c('POST', '/api/setup/build', { business_type: 'coach', name: 'Budden', goal: 'list', incentive: 'news', logo: 'https://example.com/l.png', color: '#ea580c', color2: '#1e3a8a' });
+  const me = (await c('GET', '/api/me')).body.account;
+  assert.equal(me.brand_color2, '#1e3a8a', 'navy is the band');
+  const f = (await c('GET', `/api/funnels/${r.body.funnel_id}`)).body;
+  assert.equal(f.steps[0].blocks.find((b) => b.type === 'hero').background, '#1e3a8a');
+  assert.equal(f.steps[0].settings.accent, me.brand_color);
+  assert.notEqual(me.brand_color, '#ea580c', 'orange darkened so white text reads on buttons');
+  // Older pages change only when asked, and Undo puts them back.
+  const oldBefore = (await c('GET', `/api/funnels/${old.id}`)).body.steps[0].settings;
+  const applied = (await c('POST', '/api/account/palette/apply')).body;
+  assert.ok(applied.pages >= 3);
+  assert.equal((await c('GET', `/api/funnels/${old.id}`)).body.steps[0].settings.accent, me.brand_color);
+  await c('POST', '/api/account/palette/restore', { before: applied.before });
+  assert.deepEqual((await c('GET', `/api/funnels/${old.id}`)).body.steps[0].settings, oldBefore);
+  // Someone else's pages can't be "restored" into this account.
+  const o = client();
+  await o('POST', '/api/auth/signup', { name: 'Ox', email: 'ox-pal@example.com', password: 'password123', workspace: 'o', business_type: 'coach' });
+  assert.equal((await o('POST', '/api/account/palette/restore', { before: applied.before })).body.pages, 0);
 });

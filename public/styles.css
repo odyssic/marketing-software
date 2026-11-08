@@ -1656,3 +1656,4 @@ ul.tasks { list-style: none; padding: 0; margin: 10px 0 4px; }
 .setup-logo .swatch { width: 24px; height: 24px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 1px var(--line); }
 .logo-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
 .logo-row img { height: 48px; width: auto; max-width: 160px; object-fit: contain; border: 1px solid var(--line); border-radius: 8px; padding: 4px; background: #fff; }
+.swatch-lg { width: 30px; height: 30px; border-radius: 8px; border: 1px solid var(--line); display: inline-block; }

@@ -20,7 +20,9 @@ function viewSettings() {
       <p class="muted small">Shown at the top of your pages and in your website’s menu.</p>
       <div class="logo-row">${a.logo_url ? `<img src="${esc(a.logo_url)}" alt="Your logo">` : ''}
         <label class="btn">${icon('camera')} ${a.logo_url ? 'Change logo' : 'Add your logo'}<input type="file" accept="image/png,image/jpeg,image/webp" hidden data-logofile></label>
-        ${a.logo_url ? '<button type="button" class="btn ghost sm" data-logooff>Remove</button>' : ''}</div></div>
+        ${a.logo_url ? '<button type="button" class="btn ghost sm" data-logooff>Remove</button>' : ''}</div>
+      ${a.brand_color ? `<div class="logo-row" style="margin-top:12px">${(() => { const p = paletteFrom(a.brand_color, 'My brand', a.brand_color2); return [p.band, p.accent, p.bg].map((c) => `<span class="swatch-lg" style="background:${c}"></span>`).join(''); })()}
+        <button type="button" class="btn sm" data-palapply>${icon('sparkle')} Use these colours on all my pages</button></div>` : ''}</div>
     <form class="card" style="max-width:560px;margin-top:16px" data-business>
       <h2>Kind of business</h2>
       <p class="muted small">Sets the starting follow-ups and which sections you see. Nothing is deleted when you change it.</p>
@@ -132,9 +134,16 @@ function viewSettings() {
     try {
       toast('Uploading logo…');
       const logo = await uploadImage(file);
-      const color = await setupColorFrom(logo).catch(() => '');
-      await api('PUT', '/api/account/logo', { logo, color });
-      state.me = await api('GET', '/api/me'); toast('Logo saved'); viewSettings();
+      const cols = await setupColorsFrom(logo).catch(() => ({}));
+      await api('PUT', '/api/account/logo', { logo, ...cols });
+      state.me = await api('GET', '/api/me'); toast('Logo saved, with colours to match'); viewSettings();
+    } catch (err) { toast(err.message, true); }
+  };
+  const pa = $('[data-palapply]');
+  if (pa) pa.onclick = async () => {
+    try {
+      const r = await api('POST', '/api/account/palette/apply');
+      undoToast(`Your colours are on ${r.pages} page${r.pages === 1 ? '' : 's'}`, async () => { await api('POST', '/api/account/palette/restore', { before: r.before }); toast('Pages put back'); });
     } catch (err) { toast(err.message, true); }
   };
   const lo = $('[data-logooff]');

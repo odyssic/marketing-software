@@ -5,6 +5,7 @@
 const business = require('./business');
 const { cleanSettings, settingsOf } = require('./bookings');
 const { problems } = require('./workflows');
+const palette = require('./palette');
 
 // What the first page should do, and the template that does it.
 const GOALS = {
@@ -30,7 +31,7 @@ function fallbackCopy(goal, name, offer) {
 // this page can go live as it is.
 const INCENTIVES = ['discount', 'guide', 'news'];
 const DEFAULT_INCENTIVE = { shop: 'discount', local: 'discount' };
-function listPage({ incentive, name, offer, guide, pct }) {
+function listPage({ incentive, name, offer, guide, pct, shop = false }) {
   const about = offer ? `${offer.replace(/\s+/g, ' ').trim().replace(/([^.!?])$/, '$1.')}` : '';
   if (incentive === 'discount') {
     return {
@@ -49,8 +50,8 @@ function listPage({ incentive, name, offer, guide, pct }) {
   }
   return {
     eyebrow: 'Members list', headline: `Hear from ${name} first`,
-    subheadline: `${about ? `${about} ` : ''}New arrivals, offers and tips, about twice a month.`.trim(),
-    button: 'Keep me posted', bullets: ['New arrivals and news before anyone else', 'Members-only offers and early access', 'A short, useful note about twice a month'],
+    subheadline: `${about ? `${about} ` : ''}${shop ? 'New arrivals, offers and tips' : 'Ideas, news and offers'}, about twice a month.`.trim(),
+    button: 'Keep me posted', bullets: [shop ? 'New arrivals and news before anyone else' : 'News and new offers before anyone else', 'Members-only offers and early access', 'A short, useful note about twice a month'],
     thank_you: 'You’re on the list', thank_text: 'Welcome! Your first email is on its way.', about,
   };
 }
@@ -71,7 +72,7 @@ function plainPricing(TEMPLATES, offer) {
   };
 }
 
-function registerSetup(api, { getDb, HttpError, createFunnel, TEMPLATES, getAccount }) {
+function registerSetup(api, { getDb, HttpError, createFunnel, TEMPLATES, getAccount, saveLogoColors }) {
   const db = () => getDb();
 
   api.get('/setup/goals', (req, res) => res.json({ goals: Object.entries(GOALS).map(([key, g]) => ({ key, label: g.label })), defaults: DEFAULT_GOAL }));
@@ -88,7 +89,7 @@ function registerSetup(api, { getDb, HttpError, createFunnel, TEMPLATES, getAcco
     let incentive = INCENTIVES.includes(b.incentive) ? b.incentive : DEFAULT_INCENTIVE[type] || 'news';
     if (incentive === 'guide' && !guide) throw new HttpError(400, 'What’s the free guide called?');
     const pct = Math.min(50, Math.max(5, Math.round(Number(b.percent) || 10)));
-    const list = goal === 'list' ? listPage({ incentive, name, offer, guide, pct }) : null;
+    const list = goal === 'list' ? listPage({ incentive, name, offer, guide, pct, shop: ['shop', 'local'].includes(type) }) : null;
 
     // Booking hours, if they take bookings (checked before anything is created).
     let booking = null;
@@ -112,7 +113,7 @@ function registerSetup(api, { getDb, HttpError, createFunnel, TEMPLATES, getAcco
     // Their logo, and a brand colour from it unless they already chose one.
     const logo = String(b.logo || '').trim().slice(0, 500);
     if (/^(https?:\/\/|\/u\/)/.test(logo)) await db().run('UPDATE accounts SET logo_url = ? WHERE id = ?', logo, req.accountId);
-    if (/^#[0-9a-f]{6}$/i.test(b.color || '')) await db().run("UPDATE accounts SET brand_color = ? WHERE id = ? AND brand_color = ''", String(b.color).toLowerCase(), req.accountId);
+    if (/^#[0-9a-f]{6}$/i.test(b.color || '')) await saveLogoColors(req.accountId, b.color, b.color2, { replace: Boolean(logo) });
     if (booking) {
       const prev = settingsOf(before);
       await db().run('UPDATE accounts SET booking = ? WHERE id = ?', JSON.stringify({ ...booking, busy: prev.busy || [] }), req.accountId);
@@ -153,6 +154,16 @@ function registerSetup(api, { getDb, HttpError, createFunnel, TEMPLATES, getAcco
       // A real code for the welcome offer.
       if (incentive === 'discount') {
         await db().run("INSERT INTO coupons (account_id, code, percent_off) VALUES (?, ?, ?) ON CONFLICT (account_id, code) DO NOTHING", req.accountId, `WELCOME${pct}`, pct);
+      }
+    }
+    // The whole page in the business's colours (from its logo or brand colour).
+    const acctNow = await getAccount(req.accountId);
+    if (/^#[0-9a-f]{6}$/i.test(acctNow.brand_color || '')) {
+      const pal = palette.paletteFrom(acctNow.brand_color, acctNow.brand_color2);
+      for (const s of await db().all('SELECT id, blocks, settings FROM funnel_steps WHERE funnel_id = ?', f.id)) {
+        const st = JSON.parse(s.settings || '{}'), bl = JSON.parse(s.blocks);
+        palette.applyPalette(pal, st, bl);
+        await db().run('UPDATE funnel_steps SET blocks = ?, settings = ? WHERE id = ?', JSON.stringify(bl), JSON.stringify(st), s.id);
       }
     }
     if (productId) {

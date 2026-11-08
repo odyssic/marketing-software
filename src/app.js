@@ -43,6 +43,7 @@ const { registerTasks } = require('./tasks');
 const { registerReviews } = require('./reviews');
 const { registerChat } = require('./chat');
 const handles = require('./handles');
+const palette = require('./palette');
 const { registerMembers } = require('./members');
 const { registerCourses } = require('./courses');
 const { registerCommunity } = require('./community');
@@ -518,19 +519,55 @@ function createApp({ dbPath } = {}) {
   });
 
   // The business's logo (and, when it has none yet, a brand colour taken from it).
+  // A new logo brings its colours with it (pages change only when the owner says so).
   api.put('/account/logo', async (req, res) => {
     const logo = String(req.body?.logo || '').trim().slice(0, 500);
     if (logo && !/^https?:\/\//.test(logo) && !logo.startsWith('/u/')) throw new HttpError(400, 'Upload a logo picture');
-    const color = String(req.body?.color || '').trim().toLowerCase();
     await db.run('UPDATE accounts SET logo_url = ? WHERE id = ?', logo, req.accountId);
-    if (/^#[0-9a-f]{6}$/.test(color)) await db.run("UPDATE accounts SET brand_color = ? WHERE id = ? AND brand_color = ''", color, req.accountId);
-    res.json({ ok: true, logo });
+    const colors = await saveLogoColors(req.accountId, req.body?.color, req.body?.color2, { replace: true });
+    res.json({ ok: true, logo, ...colors });
+  });
+  async function saveLogoColors(accountId, c1, c2, { replace = false } = {}) {
+    const one = String(c1 || '').toLowerCase(), two = String(c2 || '').toLowerCase();
+    if (!palette.HEX.test(one)) return {};
+    const pal = palette.paletteFrom(one, palette.HEX.test(two) ? two : '');
+    // Stored ready to use: the button colour, and the band only when the logo had a second colour.
+    const second = palette.HEX.test(two) ? pal.band : '';
+    await db.run(`UPDATE accounts SET brand_color = ?, brand_color2 = ? WHERE id = ?${replace ? '' : " AND brand_color = ''"}`, pal.accent, second, accountId);
+    return { brand_color: pal.accent, brand_color2: second };
+  }
+  app.saveLogoColors = saveLogoColors;
+  // Brand colours on every page (Undo puts each page back as it was).
+  api.post('/account/palette/apply', async (req, res) => {
+    const a = await db.get('SELECT brand_color, brand_color2 FROM accounts WHERE id = ?', req.accountId);
+    if (!palette.HEX.test(a.brand_color || '')) throw new HttpError(400, 'Add your logo or pick a brand colour first');
+    const pal = palette.paletteFrom(a.brand_color, a.brand_color2);
+    const steps = await db.all(`SELECT s.id, s.settings, s.blocks FROM funnel_steps s JOIN funnels f ON f.id = s.funnel_id
+      WHERE f.account_id = ? AND f.status <> 'archived' ORDER BY s.id LIMIT 500`, req.accountId);
+    const before = [];
+    for (const s of steps) {
+      const settings = JSON.parse(s.settings || '{}'), blocks = JSON.parse(s.blocks || '[]');
+      before.push({ id: s.id, settings: s.settings, blocks: s.blocks });
+      palette.applyPalette(pal, settings, blocks);
+      await db.run('UPDATE funnel_steps SET settings = ?, blocks = ?, updated_at = now() WHERE id = ?', JSON.stringify(settings), JSON.stringify(blocks), s.id);
+    }
+    res.json({ pages: steps.length, before });
+  });
+  api.post('/account/palette/restore', async (req, res) => {
+    let n = 0;
+    for (const b of (Array.isArray(req.body?.before) ? req.body.before : []).slice(0, 500)) {
+      try { JSON.parse(b.settings); JSON.parse(b.blocks); } catch { continue; }
+      const r = await db.run(`UPDATE funnel_steps SET settings = ?, blocks = ?, updated_at = now() WHERE id = ?
+        AND funnel_id IN (SELECT id FROM funnels WHERE account_id = ?)`, String(b.settings), String(b.blocks), id(b.id), req.accountId);
+      n += r.changes || 0;
+    }
+    res.json({ pages: n });
   });
   // The business's brand colour, for the one-click palette.
   api.put('/account/brand', async (req, res) => {
     const color = String(req.body?.color || '').trim().toLowerCase();
     if (color && !/^#[0-9a-f]{6}$/.test(color)) throw new HttpError(400, 'Pick a colour');
-    await db.run('UPDATE accounts SET brand_color = ? WHERE id = ?', color, req.accountId);
+    await db.run("UPDATE accounts SET brand_color = ?, brand_color2 = '' WHERE id = ?", color, req.accountId);
     res.json({ ok: true, color });
   });
 
@@ -1508,7 +1545,7 @@ function createApp({ dbPath } = {}) {
   const courses = registerCourses(app, api, { getDb: () => db, HttpError, id, messaging, members, getFunnel: (...x) => getFunnel(...x), portalExtra: (...x) => community.portalCard(...x) });
   const community = registerCommunity(app, api, { getDb: () => db, HttpError, id, upsertContact, logEvent, messaging, members, courses, ownerViewing: (...a) => ownerViewing(...a) });
   const texting = registerTexting(app, api, { getDb: () => db, HttpError, id, upsertContact, logEvent, messaging, publicBase, getSecret: () => secret });
-  registerSetup(api, { getDb: () => db, HttpError, createFunnel, TEMPLATES, getAccount });
+  registerSetup(api, { getDb: () => db, HttpError, createFunnel, TEMPLATES, getAccount, saveLogoColors: (...a) => saveLogoColors(...a) });
   registerTasks(api, { getDb: () => db, HttpError, id });
   const reviews = registerReviews(app, { getDb: () => db, id, getSecret: () => secret, logEvent });
   const chat = registerChat(app, api, { getDb: () => db, HttpError, id, upsertContact, logEvent, messaging, publicBase, getSecret: () => secret });

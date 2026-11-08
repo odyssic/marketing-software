@@ -76,17 +76,25 @@ const PALETTES = [
 // A whole palette from one brand colour: buttons in that colour (darkened until
 // white text reads well), a deeper band, a near-white background with a hint of
 // it, and near-black text with a hint of it.
-function paletteFrom(hex, name = 'My brand') {
+function paletteFrom(hex, name = 'My brand', hex2 = '') {
   const rgb = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
   const hexOf = (c) => `#${c.map((v) => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, '0')).join('')}`;
   const mix = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);
   const lum = (c) => { const [r, g, b] = c.map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
   const onWhite = (c) => 1.05 / (lum(c) + 0.05);
-  let accent = rgb(/^#[0-9a-f]{6}$/i.test(hex || '') ? hex : '#1b736d');
-  for (let i = 0; i < 20 && onWhite(accent) < 4.6; i++) accent = mix(accent, [0, 0, 0], 0.08);
-  return { name, bg: hexOf(mix(accent, [255, 255, 255], 0.97)), text: hexOf(mix(accent, [8, 10, 12], 0.88)), accent: hexOf(accent), band: hexOf(mix(accent, [0, 0, 0], 0.22)) };
+  const readable = (c) => { for (let i = 0; i < 20 && onWhite(c) < 4.6; i++) c = mix(c, [0, 0, 0], 0.08); return c; };
+  // Same rules as src/palette.js: with two colours, the darker is the band, the other the buttons.
+  let a = rgb(/^#[0-9a-f]{6}$/i.test(hex || '') ? hex : '#1b736d'), band;
+  if (/^#[0-9a-f]{6}$/i.test(hex2 || '') && hex2.toLowerCase() !== String(hex).toLowerCase()) {
+    let b = rgb(hex2);
+    if (lum(b) > lum(a)) [a, b] = [b, a];
+    band = readable(b);
+  }
+  const accent = readable(a);
+  band ||= mix(accent, [0, 0, 0], 0.22);
+  return { name, bg: hexOf(mix(accent, [255, 255, 255], 0.97)), text: hexOf(mix(band, [8, 10, 12], 0.88)), accent: hexOf(accent), band: hexOf(band) };
 }
-const allPalettes = () => [...(state.me.account.brand_color ? [paletteFrom(state.me.account.brand_color)] : []), ...PALETTES];
+const allPalettes = () => [...(state.me.account.brand_color ? [paletteFrom(state.me.account.brand_color, 'My brand', state.me.account.brand_color2)] : []), ...PALETTES];
 const palButton = (p, on) => `<button type="button" class="pal ${on ? 'on' : ''}" data-pal="${p.name}" title="${p.name}" aria-label="${p.name} palette" aria-pressed="${on}">
         <span style="background:${p.bg}"></span><span style="background:${p.band}"></span><span style="background:${p.accent}"></span><small>${p.name}</small></button>`;
 // The palette applied to one page's settings and coloured blocks.
@@ -280,7 +288,7 @@ async function viewEditor(stepId) {
     // One pick: a palette from that colour, saved as this business's brand, on this page now.
     $('[data-brandcolor]').onchange = async (e) => {
       try { await api('PUT', '/api/account/brand', { color: e.target.value }); } catch (err) { toast(err.message, true); return; }
-      state.me.account.brand_color = e.target.value.toLowerCase();
+      state.me.account.brand_color = e.target.value.toLowerCase(); state.me.account.brand_color2 = '';
       usePalette(paletteFrom(state.me.account.brand_color));
       toast('Your brand palette is on. “Use this look on every page” spreads it');
     };
