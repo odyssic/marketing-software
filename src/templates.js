@@ -9,6 +9,31 @@ const ELEGANT = { font: 'elegant', background: '#fbf9f6', textColor: '#1f1b16', 
 const MODERN = { font: 'modern', background: '#ffffff', textColor: '#0b1220', accent: '#111827', width: 1040 };
 
 const TEMPLATES = {
+  list_page: {
+    label: 'Join my list',
+    description: 'A sign-up page with a reason to join (a discount, a free guide or early news), what they get, and a welcome series.',
+    workflows: ['welcome'],
+    steps: () => [
+      {
+        name: 'Join the list', slug: 'join', settings: { width: 760, accent: '#0f766e' },
+        blocks: [
+          { id: id(), type: 'hero', style: 'wave', eyebrow: 'Welcome offer', text: 'Get 10% off your first order', subtext: 'Join the list and your code arrives straight away.' },
+          { id: id(), type: 'form', buttonLabel: 'Get my code', collectName: true, collectPhone: false, purpose: 'Sign up', tag: 'lead' },
+          { id: id(), type: 'text', text: 'No spam. One click to unsubscribe, any time.', align: 'center' },
+          { id: id(), type: 'bullets', title: 'What you’ll get', items: '10% off your first order\nFirst look at new arrivals\nShort, useful tips', style: 'check', align: 'center' },
+          { id: id(), type: 'reviews', limit: 2 },
+          { id: id(), type: 'text', text: '', align: 'center' },
+        ],
+      },
+      {
+        name: 'Thank you', slug: 'thank-you', settings: { width: 760, accent: '#0f766e' },
+        blocks: [
+          { id: id(), type: 'heading', text: 'You’re in!', align: 'center' },
+          { id: id(), type: 'text', text: 'Check your inbox in the next few minutes.', align: 'center' },
+        ],
+      },
+    ],
+  },
   elegant_guide: {
     label: 'Elegant free guide',
     description: 'A refined page for a free PDF or guide: photo beside the headline, what’s inside, and a welcome series.',

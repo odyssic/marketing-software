@@ -10,7 +10,7 @@ const { problems } = require('./workflows');
 const GOALS = {
   booked: { template: 'booking', label: 'Get booked', purpose: 'bookings' },
   inquiries: { template: 'consult', label: 'Get inquiries and quote requests', purpose: 'leads' },
-  list: { template: 'optin', label: 'Grow my list', purpose: 'leads' },
+  list: { template: 'list_page', label: 'Grow my list', purpose: 'leads' },
   sell: { template: 'pricing', label: 'Sell something', purpose: 'sales' },
 };
 const DEFAULT_GOAL = { services: 'inquiries', coach: 'booked', local: 'list', shop: 'list', nonprofit: 'list', other: 'inquiries' };
@@ -24,6 +24,35 @@ function fallbackCopy(goal, name, offer) {
     list: { headline: `Join the ${name} list`, subheadline: sub ? `${sub} Get news and offers first.` : 'Get news, offers and the occasional tip. No spam.', button: 'Count me in', thank_you: 'You’re on the list. Welcome!' },
     sell: { headline: offer || name, subheadline: '', button: 'Buy now', thank_you: 'Payment received. Thank you!' },
   }[goal];
+}
+
+// What people get for joining the list, and the words for each. Never placeholders:
+// this page can go live as it is.
+const INCENTIVES = ['discount', 'guide', 'news'];
+const DEFAULT_INCENTIVE = { shop: 'discount', local: 'discount' };
+function listPage({ incentive, name, offer, guide, pct }) {
+  const about = offer ? `${offer.replace(/\s+/g, ' ').trim().replace(/([^.!?])$/, '$1.')}` : '';
+  if (incentive === 'discount') {
+    return {
+      eyebrow: 'Welcome offer', headline: `${pct}% off your first order`,
+      subheadline: `Join the ${name} list and your code arrives straight away.`,
+      button: `Get my ${pct}% off`, bullets: [`${pct}% off your first order, sent right now`, 'First look at new arrivals and restocks', 'Stories and tips worth reading. Never spam.'],
+      thank_you: 'You’re in! Here’s your code', thank_text: `Use code WELCOME${pct} at checkout for ${pct}% off your first order.`, about,
+    };
+  }
+  if (incentive === 'guide') {
+    return {
+      eyebrow: 'Free guide', headline: guide, subheadline: `${about ? `${about} ` : ''}Free, straight to your inbox.`.trim(),
+      button: 'Send me the guide', bullets: ['Clear, practical advice you can use straight away', `Written by ${name}, from real experience`, 'Free. Unsubscribe any time with one click.'],
+      thank_you: 'It’s on its way', thank_text: 'Check your inbox in the next few minutes. If it’s not there, look in Promotions or Spam.', about: '',
+    };
+  }
+  return {
+    eyebrow: 'Members list', headline: `Hear from ${name} first`,
+    subheadline: `${about ? `${about} ` : ''}New arrivals, offers and tips, about twice a month.`.trim(),
+    button: 'Keep me posted', bullets: ['New arrivals and news before anyone else', 'Members-only offers and early access', 'A short, useful note about twice a month'],
+    thank_you: 'You’re on the list', thank_text: 'Welcome! Your first email is on its way.', about,
+  };
 }
 
 // A pricing page without the software-sounding sample features.
@@ -54,6 +83,12 @@ function registerSetup(api, { getDb, HttpError, createFunnel, TEMPLATES, getAcco
     const name = String(b.name || '').trim().slice(0, 80);
     const offer = String(b.offer || '').trim().slice(0, 300);
     if (!name) throw new HttpError(400, 'What’s your business called?');
+    // Growing a list: what people get for joining.
+    const guide = String(b.guide || '').trim().slice(0, 120);
+    let incentive = INCENTIVES.includes(b.incentive) ? b.incentive : DEFAULT_INCENTIVE[type] || 'news';
+    if (incentive === 'guide' && !guide) throw new HttpError(400, 'What’s the free guide called?');
+    const pct = Math.min(50, Math.max(5, Math.round(Number(b.percent) || 10)));
+    const list = goal === 'list' ? listPage({ incentive, name, offer, guide, pct }) : null;
 
     // Booking hours, if they take bookings (checked before anything is created).
     let booking = null;
@@ -82,8 +117,8 @@ function registerSetup(api, { getDb, HttpError, createFunnel, TEMPLATES, getAcco
     // AI writes the page in their words; plain copy if AI isn't connected.
     const account = await getAccount(req.accountId);
     const tpl = GOALS[goal].template;
-    let copy = fallbackCopy(goal, name, offer), drafted = false;
-    if (offer && goal !== 'sell') {
+    let copy = list || fallbackCopy(goal, name, offer), drafted = false;
+    if (offer && goal !== 'sell' && goal !== 'list') {
       try {
         const plan = await require('./ai').describeFunnel({
           account, sentence: `${name}: ${offer}. The page should: ${GOALS[goal].label.toLowerCase()}.`,
@@ -95,6 +130,27 @@ function registerSetup(api, { getDb, HttpError, createFunnel, TEMPLATES, getAcco
     const pageName = `${name.slice(0, 40)} ${goal === 'booked' ? 'booking' : goal === 'inquiries' ? 'quotes' : goal === 'sell' ? 'shop' : 'list'}`;
     const f = await createFunnel(req.accountId, pageName, tpl, copy, { templates: goal === 'sell' ? plainPricing(TEMPLATES, offer) : TEMPLATES });
     await db().run('UPDATE funnels SET purpose = ? WHERE id = ?', GOALS[goal].purpose, f.id);
+    if (list) {
+      // The parts the general copy step doesn't touch: eyebrow, what they get, who's behind it, the thank-you.
+      const steps = await db().all('SELECT id, blocks, settings FROM funnel_steps WHERE funnel_id = ? ORDER BY position, id', f.id);
+      const brand = /^#[0-9a-f]{6}$/i.test(account.brand_color || '') ? account.brand_color : '';
+      for (const [i, s] of steps.entries()) {
+        const blocks = JSON.parse(s.blocks).flatMap((x) => {
+          if (i === 0 && x.type === 'hero') return [{ ...x, eyebrow: list.eyebrow, ...(brand ? { background: brand } : {}) }];
+          if (i === 0 && x.type === 'bullets') return [{ ...x, items: list.bullets.join('\n') }];
+          if (i === 0 && x.type === 'form' && incentive === 'guide') return [{ ...x, deliverName: guide }];
+          if (i === 0 && x.type === 'text' && !x.text) return list.about ? [{ ...x, text: `About ${name}: ${list.about}` }] : [];
+          if (i > 0 && x.type === 'text') return [{ ...x, text: list.thank_text }];
+          return [x];
+        });
+        const st = { ...JSON.parse(s.settings || '{}'), ...(brand ? { accent: brand } : {}) };
+        await db().run('UPDATE funnel_steps SET blocks = ?, settings = ? WHERE id = ?', JSON.stringify(blocks), JSON.stringify(st), s.id);
+      }
+      // A real code for the welcome offer.
+      if (incentive === 'discount') {
+        await db().run("INSERT INTO coupons (account_id, code, percent_off) VALUES (?, ?, ?) ON CONFLICT (account_id, code) DO NOTHING", req.accountId, `WELCOME${pct}`, pct);
+      }
+    }
     if (productId) {
       for (const s of await db().all('SELECT id, blocks FROM funnel_steps WHERE funnel_id = ?', f.id)) {
         const blocks = JSON.parse(s.blocks).map((x) => (x.type === 'pricing' ? { ...x, productId } : x));
@@ -116,8 +172,8 @@ function registerSetup(api, { getDb, HttpError, createFunnel, TEMPLATES, getAcco
         first: emails[0]?.config.subject || '', ready: !problems(g).length && !missing.length, needs: [...new Set(missing)].map((m) => m.slice(1, -1)),
       };
     });
-    res.status(201).json({ funnel_id: f.id, goal, drafted, booking: Boolean(booking), followups });
+    res.status(201).json({ funnel_id: f.id, goal, drafted, booking: Boolean(booking), followups, incentive: list ? incentive : null, coupon: list && incentive === 'discount' ? `WELCOME${pct}` : null, guide_needs_file: list && incentive === 'guide' });
   });
 }
 
-module.exports = { registerSetup, GOALS, DEFAULT_GOAL, fallbackCopy };
+module.exports = { registerSetup, GOALS, DEFAULT_GOAL, fallbackCopy, listPage };

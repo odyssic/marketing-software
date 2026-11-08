@@ -56,3 +56,32 @@ test('setup can sell one thing: a product and a plain pricing page', async () =>
   assert.equal(pricing.productId, prods[0].id);
   assert.equal(pricing.features, '');
 });
+
+test('growing a list: a real reason to join (discount with a real code, free guide, or news), no placeholders', async () => {
+  const c = client();
+  await c('POST', '/api/auth/signup', { name: 'Ty', email: 'ty-list@example.com', password: 'password123', workspace: 'z', business_type: 'shop' });
+  const r = await c('POST', '/api/setup/build', { business_type: 'shop', name: 'Classic Typewriter', offer: 'Restored vintage typewriters, ready to write', goal: 'list', incentive: 'discount', percent: 15 });
+  assert.equal(r.status, 201);
+  assert.equal(r.body.coupon, 'WELCOME15');
+  const f = (await c('GET', `/api/funnels/${r.body.funnel_id}`)).body;
+  const [join, thanks] = f.steps;
+  const hero = join.blocks.find((b) => b.type === 'hero');
+  assert.equal(hero.text, '15% off your first order');
+  assert.equal(join.blocks.find((b) => b.type === 'form').buttonLabel, 'Get my 15% off');
+  assert.match(join.blocks.find((b) => b.type === 'bullets').items, /15% off your first order/);
+  assert.match(join.blocks.at(-1).text, /About Classic Typewriter: Restored vintage typewriters/);
+  assert.match(thanks.blocks.find((b) => b.type === 'text').text, /WELCOME15/);
+  const words = f.steps.flatMap((st) => st.blocks.flatMap((x) => [x.text, x.subtext, x.items, x.buttonLabel, x.title])).filter(Boolean).join(' ');
+  assert.doesNotMatch(words, /\[[^\]]{2,}\]/, 'no [placeholders]');
+  const coupons = (await c('GET', '/api/coupons')).body;
+  assert.ok(coupons.some((x) => x.code === 'WELCOME15'));
+
+  const c2 = client();
+  await c2('POST', '/api/auth/signup', { name: 'Gu', email: 'gu-list@example.com', password: 'password123', workspace: 'g', business_type: 'coach' });
+  assert.equal((await c2('POST', '/api/setup/build', { business_type: 'coach', name: 'Gu', goal: 'list', incentive: 'guide' })).status, 400, 'a guide needs a name');
+  const g = await c2('POST', '/api/setup/build', { business_type: 'coach', name: 'Gu Coaching', goal: 'list', incentive: 'guide', guide: 'The 5-minute morning reset' });
+  assert.equal(g.body.guide_needs_file, true);
+  const gf = (await c2('GET', `/api/funnels/${g.body.funnel_id}`)).body;
+  assert.equal(gf.steps[0].blocks.find((b) => b.type === 'hero').text, 'The 5-minute morning reset');
+  assert.equal(gf.steps[0].blocks.find((b) => b.type === 'form').deliverName, 'The 5-minute morning reset');
+});

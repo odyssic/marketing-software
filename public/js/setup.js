@@ -55,10 +55,17 @@ async function viewSetup() {
   // 3. What should the page do? (Hours or a price only when needed.)
   const step3 = () => {
     s.goal = s.goal || SETUP_DEFAULT_GOAL[s.type] || 'inquiries';
+    s.incentive = s.incentive || (['shop', 'local'].includes(s.type) ? 'discount' : 'news');
+    s.percent = s.percent || 10;
     const extra = s.goal === 'booked' ? `<div class="setup-extra"><div class="f"><span>When can people book?</span>
         <div class="day-chips">${[1, 2, 3, 4, 5, 6, 0].map((d) => `<button type="button" class="chip ${s.days.includes(d) ? 'on' : ''}" data-day="${d}" aria-pressed="${s.days.includes(d)}">${WEEKDAYS[d]}</button>`).join('')}</div></div>
         <div class="colors"><label class="f">From<input type="time" name="start" value="${s.start}"></label><label class="f">Until<input type="time" name="end" value="${s.end}"></label>
         <label class="f">Each booking<select name="length">${[15, 30, 45, 60, 90].map((m) => `<option value="${m}" ${s.length === m ? 'selected' : ''}>${m} min</option>`).join('')}</select></label></div></div>`
+      : s.goal === 'list' ? `<div class="setup-extra"><div class="f"><span>What do people get for joining?</span>
+        <div class="day-chips">${[['discount', 'A discount'], ['guide', 'A free guide'], ['news', 'First look at news']].map(([k, l]) => `<button type="button" class="chip ${s.incentive === k ? 'on' : ''}" data-inc="${k}" aria-pressed="${s.incentive === k}">${l}</button>`).join('')}</div></div>
+        ${s.incentive === 'discount' ? `<label class="f">How much off their first order?<select name="percent">${[5, 10, 15, 20, 25].map((p) => `<option value="${p}" ${Number(s.percent) === p ? 'selected' : ''}>${p}%</option>`).join('')}</select></label>` : ''}
+        ${s.incentive === 'guide' ? `<label class="f">What’s the guide called?<input name="guide" required value="${esc(s.guide)}" placeholder="e.g. The Magnificent 7: classic typewriters worth owning"></label>` : ''}
+        <p class="hint">A clear reason to join is what turns visitors into subscribers.</p></div>`
       : s.goal === 'sell' ? `<div class="setup-extra"><div class="colors"><label class="f">What are you selling?<input name="offer2" value="${esc(s.offer)}" required></label>
         <label class="f">Price<input name="price" type="number" min="0.5" step="0.01" inputmode="decimal" required value="${esc(s.price)}" placeholder="24.00"></label></div></div>` : '';
     frame(`<h1>What should your page do first?</h1><p class="muted">Start with one. You can add more pages any time.</p>
@@ -69,7 +76,10 @@ async function viewSetup() {
       const f = $('[data-f]');
       if (f.start) { s.start = f.start.value; s.end = f.end.value; s.length = Number(f.length.value); }
       if (f.price) { s.price = f.price.value; s.offer = f.offer2.value.trim(); }
+      if (f.percent) s.percent = Number(f.percent.value);
+      if (f.guide) s.guide = f.guide.value.trim();
     };
+    $$('[data-inc]').forEach((b) => { b.onclick = () => { keep(); s.incentive = b.dataset.inc; step3(); }; });
     $$('[data-goal]').forEach((b) => { b.onclick = () => { keep(); s.goal = b.dataset.goal; step3(); }; });
     $$('[data-day]').forEach((b) => { b.onclick = () => { const d = Number(b.dataset.day); s.days = s.days.includes(d) ? s.days.filter((x) => x !== d) : [...s.days, d]; b.classList.toggle('on'); b.setAttribute('aria-pressed', s.days.includes(d)); }; });
     $('[data-f]').onsubmit = async (e) => {
@@ -77,7 +87,7 @@ async function viewSetup() {
       if (s.goal === 'booked' && !s.days.length) { $('.err').textContent = 'Pick at least one day'; return; }
       s.step = 4; building();
       try {
-        const r = await api('POST', '/api/setup/build', { business_type: s.type, name: s.name, offer: s.offer, goal: s.goal, days: s.days, start: s.start, end: s.end, length: s.length, price: s.price, tz: Intl.DateTimeFormat().resolvedOptions().timeZone });
+        const r = await api('POST', '/api/setup/build', { business_type: s.type, name: s.name, offer: s.offer, goal: s.goal, incentive: s.incentive, percent: s.percent, guide: s.guide, days: s.days, start: s.start, end: s.end, length: s.length, price: s.price, tz: Intl.DateTimeFormat().resolvedOptions().timeZone });
         state.me = await api('GET', '/api/me');
         ready(r);
       } catch (err) { s.step = 3; step3(); $('.err').textContent = err.message; }
@@ -93,6 +103,8 @@ async function viewSetup() {
     const url = publicUrl(`/f/${f.slug}`);
     frame(`<h1>Here’s your page</h1><p class="muted">Have a look. Nothing is public until you publish.</p>
       <div class="setup-preview"><div class="bar"><i></i><i></i><i></i><span>${esc(url.replace(/^https?:\/\//, ''))}</span></div><iframe src="/f/${esc(f.slug)}" title="Page preview" loading="lazy"></iframe></div>
+      ${r.coupon ? `<p class="small">${icon('tag')} We made the code <b>${esc(r.coupon)}</b> for your welcome offer. It’s in Products → Coupons.</p>` : ''}
+      ${r.guide_needs_file ? `<p class="small">${icon('info')} To send the guide automatically: <b>Edit the page first</b> → the form → <b>Send them something</b>, and upload your PDF.</p>` : ''}
       ${followupsHtml(r)}
       <div class="err"></div>
       <div class="setup-actions"><a class="btn" href="#/funnels/${f.id}">Edit the page first</a><button class="btn primary big" data-pub>Publish my page</button></div>`, { back: false });
