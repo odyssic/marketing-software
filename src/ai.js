@@ -23,6 +23,7 @@ function voiceSystem(account) {
       ? `Match the voice in these samples of the owner's writing: sentence length, warmth, vocabulary, punctuation habits. Don't copy their content.\n\n${samples.map((s, i) => `<sample ${i + 1}>\n${String(s).slice(0, 4000)}\n</sample ${i + 1}>`).join('\n\n')}`
       : 'No writing samples yet: write plainly and warmly, like a person, not a brand.',
     account.voice_notes ? `Tone notes from the owner: ${account.voice_notes}` : '',
+    require('./salesstyle').styleOf(account).ai,
     'Rules: plain text only (no markdown, no emoji unless the samples use them). Keep it short and specific. Never invent facts, prices, discounts, dates or links, and never write testimonials, reviews, customer quotes, ratings, star counts or customer numbers (social proof only ever comes from the owner’s real records): where the owner must fill something in, write a [short placeholder in square brackets]. In emails, greet with {{first_name|there}}; the app fills in the name. Don\'t add an unsubscribe line; the app adds it.',
   ].filter(Boolean).join('\n\n');
 }

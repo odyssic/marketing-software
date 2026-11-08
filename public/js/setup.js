@@ -80,9 +80,15 @@ async function viewSetup() {
         <p class="hint">A clear reason to join is what turns visitors into subscribers.</p></div>`
       : s.goal === 'sell' ? `<div class="setup-extra"><div class="colors"><label class="f">What are you selling?<input name="offer2" value="${esc(s.offer)}" required></label>
         <label class="f">Price<input name="price" type="number" min="0.5" step="0.01" inputmode="decimal" required value="${esc(s.price)}" placeholder="24.00"></label></div></div>` : '';
+    const STYLE_WORDS = { 1: ['Gentle', 'Inform and invite. Follow-ups spaced well apart, one checkout reminder.'], 2: ['Soft', 'Warm and helpful, with relaxed calls to action.'], 3: ['Balanced', 'Friendly and clear, one confident call to action.'], 4: ['Confident', 'Lead with the result; follow-ups a little closer together.'], 5: ['Direct', 'Bold and action-first; follow-ups close together, two checkout reminders.'] };
+    s.style = s.style || 3;
+    const styleRow = `<div class="f setup-style"><span>How do you like to sell?</span>
+        <input type="range" min="1" max="5" step="1" value="${s.style}" data-style aria-label="Sales style, gentle to direct">
+        <div class="style-ends"><span>Gentle</span><b data-stylename>${STYLE_WORDS[s.style][0]}</b><span>Direct</span></div>
+        <p class="hint" data-stylehint>${STYLE_WORDS[s.style][1]} No fake deadlines or scarcity at any level.</p></div>`;
     frame(`<h1>What should your page do first?</h1><p class="muted">Start with one. You can add more pages any time.</p>
       <form data-f><div class="choice-grid two">${SETUP_GOALS.map(([k, l, h, ic]) => `<button type="button" class="choice ${s.goal === k ? 'on' : ''}" data-goal="${k}" aria-pressed="${s.goal === k}">
-        <span class="ic">${icon(ic)}</span><b>${l}</b><span>${h}</span></button>`).join('')}</div>${extra}
+        <span class="ic">${icon(ic)}</span><b>${l}</b><span>${h}</span></button>`).join('')}</div>${extra}${styleRow}
       <div class="err"></div><button class="btn primary big">Build my page</button></form>`);
     const keep = () => {
       const f = $('[data-f]');
@@ -92,6 +98,7 @@ async function viewSetup() {
       if (f.guide) s.guide = f.guide.value.trim();
     };
     $$('[data-inc]').forEach((b) => { b.onclick = () => { keep(); s.incentive = b.dataset.inc; step3(); }; });
+    $('[data-style]').oninput = (e) => { s.style = Number(e.target.value); $('[data-stylename]').textContent = STYLE_WORDS[s.style][0]; $('[data-stylehint]').textContent = `${STYLE_WORDS[s.style][1]} No fake deadlines or scarcity at any level.`; };
     $$('[data-goal]').forEach((b) => { b.onclick = () => { keep(); s.goal = b.dataset.goal; step3(); }; });
     $$('[data-day]').forEach((b) => { b.onclick = () => { const d = Number(b.dataset.day); s.days = s.days.includes(d) ? s.days.filter((x) => x !== d) : [...s.days, d]; b.classList.toggle('on'); b.setAttribute('aria-pressed', s.days.includes(d)); }; });
     $('[data-f]').onsubmit = async (e) => {
@@ -99,7 +106,7 @@ async function viewSetup() {
       if (s.goal === 'booked' && !s.days.length) { $('.err').textContent = 'Pick at least one day'; return; }
       s.step = 4; building();
       try {
-        const r = await api('POST', '/api/setup/build', { business_type: s.type, name: s.name, offer: s.offer, goal: s.goal, logo: s.logo || '', color: s.color || '', color2: s.color2 || '', incentive: s.incentive, percent: s.percent, guide: s.guide, days: s.days, start: s.start, end: s.end, length: s.length, price: s.price, tz: Intl.DateTimeFormat().resolvedOptions().timeZone });
+        const r = await api('POST', '/api/setup/build', { business_type: s.type, name: s.name, offer: s.offer, goal: s.goal, sales_style: s.style || 3, logo: s.logo || '', color: s.color || '', color2: s.color2 || '', incentive: s.incentive, percent: s.percent, guide: s.guide, days: s.days, start: s.start, end: s.end, length: s.length, price: s.price, tz: Intl.DateTimeFormat().resolvedOptions().timeZone });
         state.me = await api('GET', '/api/me');
         ready(r);
       } catch (err) { s.step = 3; step3(); $('.err').textContent = err.message; }

@@ -40,6 +40,12 @@ function viewSettings() {
       <p class="hint">At most once every 90 days per person, and never to anyone who unsubscribed.</p>
       <div class="err"></div><button class="btn primary">Save</button>
     </form>
+    <div class="card" style="max-width:560px;margin-top:16px" data-salesstyle>
+      <h2>Sales style</h2>
+      <p class="muted small">How hard your pages, follow-ups and drafts push. Gentle informs and invites; Direct is bold and action-first. At every level: no fake deadlines, no made-up scarcity.</p>
+      <input type="range" min="1" max="5" step="1" value="${a.sales_style || 3}" data-stylerange aria-label="Sales style, gentle to direct" style="width:100%">
+      <div class="style-ends"><span>Gentle</span><b data-stylelabel>${['', 'Gentle', 'Soft', 'Balanced', 'Confident', 'Direct'][a.sales_style || 3]}</b><span>Direct</span></div>
+      <p class="hint">Applies to drafts and checkout reminders now, and to the words and pacing of new pages and follow-ups.</p></div>
     <form class="card" style="max-width:560px;margin-top:16px" data-voice>
       <h2>Your voice</h2>
       <p class="muted small">Paste 3 to 5 things you’ve written (an email, a product description, a post). Drafts copy your tone, not your words. ${state.me.aiLive ? '' : '<b>AI drafting isn’t connected</b> (set ANTHROPIC_API_KEY on the server), so drafts are templates for now.'}</p>
@@ -174,6 +180,9 @@ function viewSettings() {
   $('[data-digestday]').onchange = async (e) => { const r = await api('PUT', '/api/account/digest', { day: Number(e.target.value) }); state.me = await api('GET', '/api/me'); toast(`Digest moves to ${r.day}s`); };
   $('[data-digestpreview]').onclick = async () => { const d = await api('GET', '/api/digest/preview'); modal(d.subject, `<pre class="mail" style="max-height:60vh">${esc(d.text)}</pre>`, { submit: 'Close' }); };
   $('[data-digestsend]').onclick = async () => { const r = await api('POST', '/api/digest/send'); toast(`Sent to ${r.to}${r.status === 'logged' ? ' (dev mode: see Email → Outbox)' : ''}`); };
+  const sr = $('[data-stylerange]');
+  sr.oninput = () => { $('[data-stylelabel]').textContent = ['', 'Gentle', 'Soft', 'Balanced', 'Confident', 'Direct'][sr.value]; };
+  sr.onchange = async () => { await api('PUT', '/api/account/sales-style', { style: Number(sr.value) }); state.me.account.sales_style = Number(sr.value); toast(`Sales style: ${$('[data-stylelabel]').textContent}`); };
   $('[data-voice]').onsubmit = async (e) => {
     e.preventDefault();
     const v = Object.fromEntries(new FormData(e.target));
@@ -319,7 +328,7 @@ async function loadChatSettings() {
 // Settings in a few short sections with an index, instead of one long scroll.
 const SETTINGS_SECTIONS = [
   ['plan', 'Your plan', ['[data-plan]']],
-  ['business', 'Business', ['[data-form]', '[data-logocard]', '[data-business]', '[data-voice]']],
+  ['business', 'Business', ['[data-form]', '[data-logocard]', '[data-business]', '[data-salesstyle]', '[data-voice]']],
   ['email', 'Email', ['[data-senddomain]', '[data-sigcard]', '[data-digestcard]', '[data-reviews]']],
   ['texting', 'Texting, calls and chat', ['[data-texting]', '[data-chat]']],
   ['payments', 'Payments', ['[data-stripe]']],

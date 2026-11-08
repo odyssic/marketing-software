@@ -186,7 +186,7 @@ function registerCheckout(app, api, { getDb, HttpError, id, messaging, publicBas
         LEFT JOIN funnels f ON f.id = o.funnel_id LEFT JOIN funnel_steps s ON s.id = o.step_id
       WHERE o.status = 'pending' AND o.email <> '' AND o.contact_id IS NOT NULL
         AND ((o.recovery_step = 0 AND o.recovery_sent_at IS NULL AND o.created_at <= ? AND o.created_at > ?)
-          OR (o.recovery_step = 1 AND o.created_at <= ? AND o.created_at > ? AND o.recovery_sent_at <= ?))
+          OR (o.recovery_step = 1 AND a.sales_style >= 3 AND o.created_at <= ? AND o.created_at > ? AND o.recovery_sent_at <= ?))
       ORDER BY o.id`, ago(1), ago(48), ago(24), ago(72), ago(12));
     let sent = 0;
     for (const o of due) {

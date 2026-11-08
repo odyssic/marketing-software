@@ -289,6 +289,20 @@ test('abandoned checkout: an hour later, then a day later with the chosen code; 
   assert.doesNotMatch(late[0].body, /COMEBACK/);
 });
 
+test('a gentle sales style sends one checkout reminder, not two', async () => {
+  const c = await owner('recover-gentle@example.com');
+  await c('PUT', '/api/account/sales-style', { style: 1 });
+  const s = await shop(c, { name: 'Pottery Class', price: 60 });
+  const start = Date.now();
+  const at = (h) => ({ now: new Date(start + h * 3600e3).toISOString() });
+  const count = async () => (await c('GET', '/api/outbox')).body.filter((m) => /Pottery Class/.test(m.subject)).length;
+  await client()('POST', s.buy, null, { form: { block: s.block.id, email: 'gentle-buyer@example.com' } });
+  await c('POST', '/api/jobs/run', at(1.5));
+  assert.equal(await count(), 1);
+  await c('POST', '/api/jobs/run', at(26));
+  assert.equal(await count(), 1);
+});
+
 test('upsell → downsell: "No thanks" leads to the lighter offer, which is one click too', async () => {
   const c = await owner('downsell@example.com');
   const main = (await c('POST', '/api/products', { name: 'Glaze kit', price: 49 })).body;

@@ -128,3 +128,29 @@ test('two logo colours make the palette: the darker one on top, the other on but
   await o('POST', '/api/auth/signup', { name: 'Ox', email: 'ox-pal@example.com', password: 'password123', workspace: 'o', business_type: 'coach' });
   assert.equal((await o('POST', '/api/account/palette/restore', { before: applied.before })).body.pages, 0);
 });
+
+test('sales style: gentle and direct change the words and the pacing, never the facts', async () => {
+  const build = async (style, email) => {
+    const c = client();
+    await c('POST', '/api/auth/signup', { name: 'St', email, password: 'password123', workspace: 's', business_type: 'services' });
+    const r = (await c('POST', '/api/setup/build', { business_type: 'services', name: 'Oak & Iron', offer: 'Custom kitchens', goal: 'inquiries', sales_style: style })).body;
+    const f = (await c('GET', `/api/funnels/${r.funnel_id}`)).body;
+    const wf = (await c('GET', '/api/workflows')).body.filter((w) => w.funnel_id === f.id)[0];
+    const g = (await c('GET', `/api/workflows/${wf.id}`)).body.graph;
+    const waits = Object.values(g.nodes).filter((n) => n.type === 'wait').map((n) => n.config.days * 24 + n.config.hours);
+    return { c, f, waits, me: (await c('GET', '/api/me')).body.account };
+  };
+  const gentle = await build(1, 'gentle@example.com');
+  const direct = await build(5, 'direct@example.com');
+  const hero = (x) => x.f.steps[0].blocks.find((b) => b.type === 'hero');
+  const button = (x) => x.f.steps[0].blocks.find((b) => b.type === 'form').buttonLabel;
+  assert.equal(gentle.me.sales_style, 1);
+  assert.equal(hero(gentle).eyebrow, 'No pressure, no obligation');
+  assert.equal(button(gentle), 'Send my question');
+  assert.match(hero(direct).text, /today/);
+  assert.equal(button(direct), 'Get my free quote');
+  assert.ok(gentle.waits.length && gentle.waits.every((h, i) => h === direct.waits[i] * 4), 'gentle waits are four times the direct ones');
+  // No invented urgency anywhere, even at Direct.
+  assert.doesNotMatch(JSON.stringify(direct.f.steps), /only \d+ left|spots? (are )?(filling|left)|ends (tonight|soon)|limited time/i);
+  assert.equal((await gentle.c('PUT', '/api/account/sales-style', { style: 9 })).body.style, 5);
+});

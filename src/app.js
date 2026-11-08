@@ -1502,6 +1502,12 @@ function createApp({ dbPath } = {}) {
   registerLibrary(api, { getDb: () => db, HttpError, id, ownHost, clearDomainCache: () => domainCache.clear() });
   registerPrint(api, app, { getDb: () => db, HttpError, id, logEvent, publicBase, toCsv: people.toCsv });
   registerAccounts(api, { getDb: () => db, HttpError, id, seed: (accountId) => workflows.seedDefaults(accountId), onChange: (userId) => billing.syncExtras(userId) });
+  // How the business likes to sell (1 gentle … 5 direct).
+  api.put('/account/sales-style', async (req, res) => {
+    const v = require('./salesstyle').level(req.body?.style);
+    await db.run('UPDATE accounts SET sales_style = ? WHERE id = ?', v, req.accountId);
+    res.json({ style: v });
+  });
   // The short name in customer addresses (/my/<handle>). Old signed links keep working.
   api.put('/account/handle', async (req, res) => {
     const h = handles.cleanHandle(req.body?.handle);

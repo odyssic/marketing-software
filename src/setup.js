@@ -6,6 +6,7 @@ const business = require('./business');
 const { cleanSettings, settingsOf } = require('./bookings');
 const { problems } = require('./workflows');
 const palette = require('./palette');
+const salesStyle = require('./salesstyle');
 
 // What the first page should do, and the template that does it.
 const GOALS = {
@@ -17,8 +18,25 @@ const GOALS = {
 const DEFAULT_GOAL = { services: 'inquiries', coach: 'booked', local: 'list', shop: 'list', nonprofit: 'list', other: 'inquiries' };
 
 // Plain starting copy when AI isn't connected (or fails): specific to the business, never lorem.
-function fallbackCopy(goal, name, offer) {
+// The sales style (low, mid, high) changes the push, never the facts.
+function fallbackCopy(goal, name, offer, t = 'mid') {
   const sub = offer ? offer.replace(/\s+/g, ' ').trim().replace(/([^.!?])$/, '$1.') : '';
+  if (t === 'low') {
+    return {
+      booked: { eyebrow: 'Whenever you’re ready', headline: `Book a time with ${name}`, subheadline: sub || 'Pick a time that suits you. You can change it any time.', button: 'Book a time', thank_you: 'You’re booked. See you soon!' },
+      inquiries: { eyebrow: 'No pressure, no obligation', headline: 'Tell us about your project', subheadline: sub ? `${sub} Ask us anything; we’ll reply within one business day.` : 'Ask us anything; we’ll reply within one business day.', button: 'Send my question', thank_you: 'Thanks! We’ll be in touch soon.' },
+      list: null,
+      sell: { headline: offer || name, subheadline: '', button: 'Buy', thank_you: 'Payment received. Thank you!' },
+    }[goal];
+  }
+  if (t === 'high') {
+    return {
+      booked: { eyebrow: 'Free call', headline: `Book your free call with ${name} today`, subheadline: sub ? `${sub} Pick a time now; it takes 30 seconds.` : 'Pick a time now; it takes 30 seconds.', button: 'Book my call now', thank_you: 'You’re booked. Talk soon!' },
+      inquiries: { eyebrow: 'Free quote', headline: `Get your free quote from ${name} today`, subheadline: sub ? `${sub} Tell us what you need; you’ll have an answer within one business day.` : 'Tell us what you need; you’ll have an answer within one business day.', button: 'Get my free quote', thank_you: 'Got it! Your quote is on the way.' },
+      list: null,
+      sell: { headline: offer || name, subheadline: '', button: 'Get yours today', thank_you: 'Payment received. Thank you!' },
+    }[goal];
+  }
   return {
     booked: { headline: `Book a time with ${name}`, subheadline: sub || 'Pick a time that suits you. You’ll get a confirmation straight away.', button: 'Confirm my booking', thank_you: 'You’re booked. See you soon!' },
     inquiries: { headline: `Get a free quote from ${name}`, subheadline: sub ? `${sub} Tell us what you need and we’ll reply within one business day.` : 'Tell us what you need and we’ll reply within one business day.', button: 'Request my quote', thank_you: 'Thanks! We’ll be in touch soon.' },
@@ -35,27 +53,28 @@ const TYPE_FONT = { coach: 'elegant', shop: 'elegant', services: 'modern', local
 // this page can go live as it is.
 const INCENTIVES = ['discount', 'guide', 'news'];
 const DEFAULT_INCENTIVE = { shop: 'discount', local: 'discount' };
-function listPage({ incentive, name, offer, guide, pct, shop = false }) {
+function listPage({ incentive, name, offer, guide, pct, shop = false, t = 'mid' }) {
+  const btn = (low, mid, high) => (t === 'low' ? low : t === 'high' ? high : mid);
   const about = offer ? `${offer.replace(/\s+/g, ' ').trim().replace(/([^.!?])$/, '$1.')}` : '';
   if (incentive === 'discount') {
     return {
       eyebrow: 'Welcome offer', headline: `${pct}% off your first order`,
       subheadline: `Join the ${name} list and your code arrives straight away.`,
-      button: `Get my ${pct}% off`, bullets: [`${pct}% off your first order, sent right now`, 'First look at new arrivals and restocks', 'Stories and tips worth reading. Never spam.'],
+      button: btn('Send me the code', `Get my ${pct}% off`, `Claim my ${pct}% off`), bullets: [`${pct}% off your first order, sent right now`, 'First look at new arrivals and restocks', 'Stories and tips worth reading. Never spam.'],
       thank_you: 'You’re in! Here’s your code', thank_text: `Use code WELCOME${pct} at checkout for ${pct}% off your first order.`, about,
     };
   }
   if (incentive === 'guide') {
     return {
       eyebrow: 'Free guide', headline: guide, subheadline: `${about ? `${about} ` : ''}Free, straight to your inbox.`.trim(),
-      button: 'Send me the guide', bullets: ['Clear, practical advice you can use straight away', `Written by ${name}, from real experience`, 'Free. Unsubscribe any time with one click.'],
+      button: btn('Send me the guide', 'Send me the guide', 'Get the free guide now'), bullets: ['Clear, practical advice you can use straight away', `Written by ${name}, from real experience`, 'Free. Unsubscribe any time with one click.'],
       thank_you: 'It’s on its way', thank_text: 'Check your inbox in the next few minutes. If it’s not there, look in Promotions or Spam.', about: '',
     };
   }
   return {
     eyebrow: 'Members list', headline: `Hear from ${name} first`,
     subheadline: `${about ? `${about} ` : ''}${shop ? 'New arrivals, offers and tips' : 'Ideas, news and offers'}, about twice a month.`.trim(),
-    button: 'Keep me posted', bullets: [shop ? 'New arrivals and news before anyone else' : 'News and new offers before anyone else', 'Members-only offers and early access', 'A short, useful note about twice a month'],
+    button: btn('Sign me up', 'Keep me posted', 'Yes, keep me posted'), bullets: [shop ? 'New arrivals and news before anyone else' : 'News and new offers before anyone else', 'Members-only offers and early access', 'A short, useful note about twice a month'],
     thank_you: 'You’re on the list', thank_text: 'Welcome! Your first email is on its way.', about,
   };
 }
@@ -88,12 +107,16 @@ function registerSetup(api, { getDb, HttpError, createFunnel, TEMPLATES, getAcco
     const name = String(b.name || '').trim().slice(0, 80);
     const offer = String(b.offer || '').trim().slice(0, 300);
     if (!name) throw new HttpError(400, 'What’s your business called?');
+    // How they like to sell (kept on the business; the slider in setup and Settings).
+    const style = salesStyle.level(b.sales_style ?? 3);
+    const t = salesStyle.tier(style);
+    await db().run('UPDATE accounts SET sales_style = ? WHERE id = ?', style, req.accountId);
     // Growing a list: what people get for joining.
     const guide = String(b.guide || '').trim().slice(0, 120);
     let incentive = INCENTIVES.includes(b.incentive) ? b.incentive : DEFAULT_INCENTIVE[type] || 'news';
     if (incentive === 'guide' && !guide) throw new HttpError(400, 'What’s the free guide called?');
     const pct = Math.min(50, Math.max(5, Math.round(Number(b.percent) || 10)));
-    const list = goal === 'list' ? listPage({ incentive, name, offer, guide, pct, shop: ['shop', 'local'].includes(type) }) : null;
+    const list = goal === 'list' ? listPage({ incentive, name, offer, guide, pct, shop: ['shop', 'local'].includes(type), t }) : null;
 
     // Booking hours, if they take bookings (checked before anything is created).
     let booking = null;
@@ -126,7 +149,7 @@ function registerSetup(api, { getDb, HttpError, createFunnel, TEMPLATES, getAcco
     // AI writes the page in their words; plain copy if AI isn't connected.
     const account = await getAccount(req.accountId);
     const tpl = GOALS[goal].template;
-    let copy = list || fallbackCopy(goal, name, offer), drafted = false;
+    let copy = list || fallbackCopy(goal, name, offer, t) || fallbackCopy(goal, name, offer), drafted = false;
     if (offer && goal !== 'sell' && goal !== 'list') {
       try {
         const plan = await require('./ai').describeFunnel({
@@ -151,6 +174,7 @@ function registerSetup(api, { getDb, HttpError, createFunnel, TEMPLATES, getAcco
         const st = JSON.parse(s.settings || '{}');
         let bl = JSON.parse(s.blocks).flatMap((x) => (x.type === 'text' && !x.text ? (i === 0 && about ? [{ ...x, text: about }] : list ? [x] : []) : [x]));
         if (i > 0 && copy.thank_you) { const h = bl.find((x) => x.type === 'hero'); if (h && !list) h.text = copy.thank_you; }
+        if (i === 0 && copy.eyebrow && !list) { const h = bl.find((x) => x.type === 'hero'); if (h) h.eyebrow = copy.eyebrow; }
         palette.applyPalette(pal, st, bl);
         if (!st.font && TYPE_FONT[type]) st.font = TYPE_FONT[type];
         await db().run('UPDATE funnel_steps SET blocks = ?, settings = ? WHERE id = ?', JSON.stringify(bl), JSON.stringify(st), s.id);
@@ -187,6 +211,12 @@ function registerSetup(api, { getDb, HttpError, createFunnel, TEMPLATES, getAcco
     // Follow-ups: only the ones this page brought with it (not every follow-up in the workspace).
     // Ready ones are ticked; ones that still need something from the owner (a link, a review URL) say what.
     const wfs = await db().all("SELECT id, name, graph, template, status, funnel_id FROM workflows WHERE account_id = ? AND status <> 'archived' AND (funnel_id = ? OR id > ?) ORDER BY id", req.accountId, f.id, lastWf);
+    // Follow-ups paced for the sales style: gentle spreads them out, direct brings them closer.
+    for (const w of wfs) {
+      const g = salesStyle.paceGraph(JSON.parse(w.graph), style);
+      w.graph = JSON.stringify(g);
+      await db().run('UPDATE workflows SET graph = ? WHERE id = ?', w.graph, w.id);
+    }
     const followups = wfs.map((w) => {
       const g = JSON.parse(w.graph);
       const emails = Object.values(g.nodes || {}).filter((n) => n.type === 'email');
