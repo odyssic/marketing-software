@@ -1696,3 +1696,30 @@ ul.tasks { list-style: none; padding: 0; margin: 10px 0 4px; }
 .grow-fold { margin-top: 22px; } .grow-fold > summary { cursor: pointer; list-style: none; } .grow-fold > summary::-webkit-details-marker { display: none; }
 .grow-fold > summary::before { content: '▸ '; color: var(--brand); } .grow-fold[open] > summary::before { content: '▾ '; }
 .grow-fold .grow { margin-top: 12px; }
+
+/* Phones: the bottom tab bar replaces the sideways-scrolling menu. */
+.tabbar { display: none; }
+@media (max-width: 640px) {
+  .sidebar .nav { display: none; }
+  .sidebar { overflow: visible; }
+  .main { padding-bottom: calc(88px + env(safe-area-inset-bottom)); }
+  .tabbar { display: grid; grid-template-columns: repeat(5, 1fr); position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
+    background: #fff; border-top: 1px solid var(--line); padding: 6px 4px calc(6px + env(safe-area-inset-bottom)); box-shadow: 0 -6px 20px rgba(0, 0, 0, .05); }
+  .tabbar > a, .tabbar > button { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 2px; border: 0; background: none; color: var(--muted);
+    font: 600 .72rem system-ui, sans-serif; text-decoration: none; border-radius: 10px; cursor: pointer; }
+  .tabbar .ti { position: relative; display: grid; place-items: center; width: 44px; height: 28px; border-radius: 99px; }
+  .tabbar .ti svg { width: 21px; height: 21px; }
+  .tabbar .on { color: var(--brand); } .tabbar .on .ti { background: var(--brand-soft); }
+  .tabbar .nav-badge { position: absolute; top: -2px; right: 4px; }
+  .tabmore { position: absolute; right: 8px; bottom: calc(100% + 8px); background: #fff; border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 12px 34px rgba(0, 0, 0, .16); padding: 6px; min-width: 210px; display: grid; }
+  .tabmore[hidden] { display: none; }
+  .tabmore a, .tabmore button { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 10px; color: var(--text); text-decoration: none; border: 0; background: none; font: inherit; text-align: left; cursor: pointer; }
+  .tabmore a.on { background: var(--brand-soft); color: var(--brand); }
+  .tabmore svg { width: 19px; height: 19px; color: var(--brand); }
+}
+@media (max-width: 640px) {
+  .tabs { overflow-x: auto; scrollbar-width: none; flex-wrap: nowrap; -webkit-mask-image: linear-gradient(90deg, #000 85%, transparent); mask-image: linear-gradient(90deg, #000 85%, transparent); }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tabs a { white-space: nowrap; flex: none; padding: 8px 12px; }
+}
+@media (max-width: 900px) { .shell { grid-template-rows: auto 1fr; align-content: start; } }

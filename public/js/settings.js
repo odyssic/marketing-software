@@ -13,7 +13,7 @@ function viewSettings() {
       <label class="f">Sender name <span class="hint">what people see in their inbox</span><input name="from_name" value="${esc(a.from_name || '')}" placeholder="${esc(a.name)}"></label>
       <label class="f">Replies go to <span class="hint">your own email</span><input name="from_email" type="email" value="${esc(a.from_email || '')}"></label>
       <p class="muted small">${state.me.emailLive ? `Email is <b>connected</b>. Emails are sent from Rilly’s verified address under your sender name, and replies come straight to you.` : 'Email is in <b>test mode</b>: messages are saved to Email → Outbox but not delivered.'}</p>
-      <label class="check" style="margin:10px 0"><input type="checkbox" data-gravatar ${a.gravatar === 0 ? '' : 'checked'}> Show people’s public profile photos <span class="muted small">(from Gravatar, where they have one; looked up by a scrambled form of their email)</span></label>
+      <label class="check" style="margin:10px 0"><input type="checkbox" data-gravatar ${a.gravatar === 0 ? '' : 'checked'}><span>Show people’s public profile photos <span class="muted small">(from Gravatar, where they have one; looked up by a scrambled form of their email)</span></span></label>
       <div class="err"></div><button class="btn primary">Save settings</button>
     </form>
     <div class="card" style="max-width:560px;margin-top:16px" data-logocard><h2>Logo</h2>

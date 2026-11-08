@@ -106,8 +106,7 @@ addEventListener('pagehide', () => {
 async function refreshUnread() {
   try {
     const { unread } = await api('GET', '/api/inbox/unread');
-    const b = $('[data-unread]');
-    if (b) { b.hidden = !unread; b.textContent = unread > 9 ? '9+' : String(unread); b.setAttribute('aria-label', `${unread} unread`); }
+    $$('[data-unread]').forEach((b) => { b.hidden = !unread; b.textContent = unread > 9 ? '9+' : String(unread); b.setAttribute('aria-label', `${unread} unread`); });
   } catch { /* badge is optional */ }
 }
 
@@ -371,11 +370,32 @@ function shell(section, html) {
       <nav class="nav">${NAV.filter(([k]) => !(state.me.account.hidden_sections || []).includes(k)).map(([k, i, l]) => `<a href="#/${k}" class="${(FLOW_SECTIONS.includes(section) ? 'flows' : NAV_HOME[section] || section) === k ? 'active' : ''}"><span class="ico">${i}</span>${l}${k === 'inbox' ? '<span class="nav-badge" data-unread hidden></span>' : ''}</a>`).join('')}</nav>
       <div class="foot"><div class="muted">${esc(state.me.user.email)}</div><button data-logout>Sign out</button></div>
     </aside>
-    <main class="main">${planBanner()}${html}</main></div>`;
+    <main class="main">${planBanner()}${html}</main>${phoneTabs(section)}</div>`;
   $('[data-logout]').onclick = logout;
+  bindPhoneTabs();
   applyAgencyBrand();
   refreshUnread();
   $('[data-acct]').onclick = (e) => { e.stopPropagation(); accountMenu(e.currentTarget); };
+}
+// Phones: a tab bar along the bottom (Home, Inbox, Flows, People) and More for the rest.
+const PHONE_MAIN = ['', 'inbox', 'flows', 'people'];
+function phoneTabs(section) {
+  const hidden = state.me.account.hidden_sections || [];
+  const on = FLOW_SECTIONS.includes(section) ? 'flows' : NAV_HOME[section] || section;
+  const items = NAV.filter(([k]) => !hidden.includes(k));
+  const main = items.filter(([k]) => PHONE_MAIN.includes(k)), more = items.filter(([k]) => !PHONE_MAIN.includes(k));
+  const label = (k, l) => (k === '' ? 'Home' : l);
+  return `<nav class="tabbar" aria-label="Main">${main.map(([k, i, l]) => `<a href="#/${k}" class="${on === k ? 'on' : ''}"${on === k ? ' aria-current="page"' : ''}><span class="ti">${i}${k === 'inbox' ? '<span class="nav-badge" data-unread hidden></span>' : ''}</span><span>${label(k, l)}</span></a>`).join('')}
+    <button type="button" class="${more.some(([k]) => k === on) ? 'on' : ''}" data-tabmore aria-haspopup="menu" aria-expanded="false"><span class="ti">${icon('more')}</span><span>More</span></button>
+    <div class="tabmore" role="menu" hidden>${more.map(([k, i, l]) => `<a role="menuitem" href="#/${k}" class="${on === k ? 'on' : ''}">${i}<span>${l}</span></a>`).join('')}
+      <button role="menuitem" type="button" data-tablogout>${icon('door')}<span>Sign out</span></button></div></nav>`;
+}
+function bindPhoneTabs() {
+  const btn = $('[data-tabmore]'), menu = $('.tabmore');
+  if (!btn || !menu) return;
+  btn.onclick = (e) => { e.stopPropagation(); menu.hidden = !menu.hidden; btn.setAttribute('aria-expanded', String(!menu.hidden)); };
+  document.addEventListener('click', (e) => { if (!menu.hidden && !menu.contains(e.target)) { menu.hidden = true; btn.setAttribute('aria-expanded', 'false'); } });
+  $('[data-tablogout]').onclick = logout;
 }
 async function logout() { await api('POST', '/api/auth/logout'); state.me = null; renderAuth(); }
 
