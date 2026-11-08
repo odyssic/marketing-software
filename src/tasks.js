@@ -55,6 +55,30 @@ function registerTasks(api, { getDb, HttpError, id }) {
     res.json({ ok: true });
   });
 
+  // The path to a first sale: done or not, and the one thing to do next.
+  api.get('/first-steps', async (req, res) => {
+    const a = req.accountId, d = db();
+    const n = async (sql, ...p) => Number((await d.get(sql, a, ...p).catch(() => null))?.n || 0);
+    const acct = await d.get('SELECT stripe_secret_key, stripe_account_id, hidden_sections, business_type FROM accounts WHERE id = ?', a);
+    const live = await d.get("SELECT id, slug FROM funnels WHERE account_id = ? AND status = 'live' ORDER BY id LIMIT 1", a);
+    const anyPage = await n('SELECT COUNT(*)::int AS n FROM funnels WHERE account_id = ?');
+    const sells = !require('./business').hiddenSections(acct).includes('products');
+    const steps = [
+      { key: 'page', title: 'Put your first page live', done: Boolean(live), action: anyPage ? 'Publish your page' : 'Build my page', href: anyPage ? '#/flows' : '#/setup' },
+      { key: 'signup', title: 'Get your first sign-up', done: (await n("SELECT COUNT(*)::int AS n FROM events WHERE account_id = ? AND type IN ('signup', 'inquiry', 'booking', 'purchase')")) > 0,
+        action: 'Copy your page link to share', copy: live ? `/f/${live.slug}` : '' },
+      { key: 'followup', title: 'Turn on a follow-up or send an email', done: (await n("SELECT COUNT(*)::int AS n FROM workflows WHERE account_id = ? AND status = 'active'")) + (await n("SELECT COUNT(*)::int AS n FROM broadcasts WHERE account_id = ? AND status = 'sent'")) > 0,
+        action: 'Choose your follow-ups', href: '#/flows?show=followups' },
+      ...(sells ? [
+        { key: 'payments', title: 'Connect payments', done: Boolean(acct.stripe_secret_key || acct.stripe_account_id), action: 'Connect Stripe', href: '#/settings?s=payments' },
+        { key: 'sale', title: 'Make your first sale', done: (await n("SELECT COUNT(*)::int AS n FROM orders WHERE account_id = ? AND status = 'paid'")) > 0,
+          action: (await n('SELECT COUNT(*)::int AS n FROM products WHERE account_id = ?')) ? 'Share your sales page' : 'Add something to sell', href: '#/products' },
+      ] : []),
+    ];
+    const next = steps.find((s) => !s.done) || null;
+    res.json({ steps, done: steps.filter((s) => s.done).length, total: steps.length, next: next?.key || null });
+  });
+
   // Today: what needs you now. Each list is short; the counts say if there's more.
   api.get('/today', async (req, res) => {
     const a = req.accountId, d = db();

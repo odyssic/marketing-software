@@ -246,6 +246,7 @@ function viewSettings() {
   bindPlanCard();
   confirmPlanReturn();
   if (/[?&]plan=1/.test(location.hash)) setTimeout(() => $('#set-plan')?.scrollIntoView({ block: 'start' }));
+  { const m = location.hash.match(/[?&]s=([a-z]+)/); if (m) setTimeout(() => $(`#set-${m[1]}`)?.scrollIntoView({ block: 'start' }), 50); }
   loadTextingSettings();
   loadChatSettings();
 }

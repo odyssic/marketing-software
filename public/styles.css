@@ -1679,3 +1679,20 @@ ul.tasks { list-style: none; padding: 0; margin: 10px 0 4px; }
   .range-row { display: flex; flex-wrap: nowrap; width: 100%; }
   .range-row button { flex: 1 1 auto; padding: 8px 6px; font-size: .82rem; white-space: nowrap; }
 }
+
+/* Path to a first sale */
+.firststeps { margin-bottom: 18px; border-color: color-mix(in srgb, var(--brand) 30%, var(--line)); }
+.fs-head { display: flex; justify-content: space-between; align-items: center; gap: 14px; flex-wrap: wrap; }
+.fs-head h2 { margin: 2px 0 0; font-size: 1.2rem; }
+.fs-bar { height: 6px; border-radius: 99px; background: var(--brand-soft); margin: 14px 0 12px; overflow: hidden; }
+.fs-bar i { display: block; height: 100%; background: var(--brand); border-radius: 99px; }
+.fs-steps { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: .88rem; color: var(--muted); }
+.fs-steps li { display: inline-flex; align-items: center; gap: 6px; }
+.fs-steps li.done { color: var(--text); } .fs-steps li.now { color: var(--brand); font-weight: 600; }
+.fs-dot { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--line); display: inline-grid; place-items: center; }
+.fs-steps li.done .fs-dot { background: var(--brand); border-color: var(--brand); color: #fff; }
+.fs-steps li.now .fs-dot { border-color: var(--brand); }
+.fs-dot svg { width: 10px; height: 10px; }
+.grow-fold { margin-top: 22px; } .grow-fold > summary { cursor: pointer; list-style: none; } .grow-fold > summary::-webkit-details-marker { display: none; }
+.grow-fold > summary::before { content: '▸ '; color: var(--brand); } .grow-fold[open] > summary::before { content: '▾ '; }
+.grow-fold .grow { margin-top: 12px; }

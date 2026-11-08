@@ -42,6 +42,8 @@ async function renderMetrics() {
     return `<span class="kd ${d > 0 ? 'up' : d < 0 ? 'down' : ''}">${d > 0 ? '▲' : d < 0 ? '▼' : ''} ${d === 0 ? 'Same' : size} ${esc(prevWord)}</span>`;
   };
   const c = m.current, p = m.previous;
+  // A brand-new business: no empty charts, just the numbers.
+  const quiet = !c.revenue && !c.leads && !p.revenue && !p.leads && !m.customers && !m.mrr;
   const kpi = (label, value, sub, help) => `<div class="kpi" ${help ? `title="${esc(help)}"` : ''}><div class="kl">${label}</div><div class="kv">${value}</div>${sub}</div>`;
   box.innerHTML = `
     <div class="range-row" role="group" aria-label="Timeframe">${RANGE_UI.map(([k, l]) => `<button type="button" data-range="${k}" aria-pressed="${k === range}" class="${k === range ? 'on' : ''}">${l}</button>`).join('')}</div>
@@ -58,7 +60,7 @@ async function renderMetrics() {
       ${kpi('Lifetime value', m.ltv === null ? '—' : money(Math.round(m.ltv), cur), '<span class="kd">per customer, all time</span>', 'Everything a customer has spent, on average')}
       ${kpi('Repeat customers', fmtPct(m.repeatRate), `<span class="kd">of ${m.customers} customer${m.customers === 1 ? '' : 's'}, all time</span>`, 'Customers who bought more than once')}
     </div></details>
-    <div class="chart-grid">
+    ${quiet ? '<p class="muted small" style="margin:6px 0 0">Charts appear here once you have sign-ups or sales.</p>' : `<div class="chart-grid">
       <section class="card chart wide"><header><h2>Revenue</h2>
         <div class="legend"><span><i class="lg-rect" style="background:${VIZ.revenue}"></i>This period</span>${range === 'all' ? '' : `<span><i class="lg-dash"></i>Previous period</span>`}</div></header>
         <div class="viz" data-viz="revenue"></div></section>
@@ -68,11 +70,13 @@ async function renderMetrics() {
       <section class="card chart"><header><h2>Where revenue came from</h2></header>
         <div class="viz" data-viz="sources"></div></section>
     </div>
-    <details class="viz-table"><summary>Show these numbers as a table</summary>${tableHtml(m)}</details>`;
+    <details class="viz-table"><summary>Show these numbers as a table</summary>${tableHtml(m)}</details>`}`;
   const km = $('.kpi-more', box); if (km) km.addEventListener('toggle', () => { metricsState.moreOpen = km.open; try { localStorage.setItem('dashMoreNumbers', km.open ? '1' : ''); } catch { /* optional */ } });
-  revenueChart($('[data-viz=revenue]', box), m);
-  peopleChart($('[data-viz=people]', box), m);
-  sourcesChart($('[data-viz=sources]', box), m);
+  if (!quiet) {
+    revenueChart($('[data-viz=revenue]', box), m);
+    peopleChart($('[data-viz=people]', box), m);
+    sourcesChart($('[data-viz=sources]', box), m);
+  }
   $$('[data-range]', box).forEach((b) => { b.onclick = () => {
     metricsState.range = b.dataset.range;
     try { localStorage.setItem('dashRange', b.dataset.range); } catch { /* optional */ }

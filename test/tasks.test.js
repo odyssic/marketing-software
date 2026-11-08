@@ -67,3 +67,21 @@ test('a workflow follow-up step lands on Today', async () => {
   const today = (await c('GET', '/api/today')).body;
   assert.deepEqual(today.tasks.map((t) => [t.title, t.source]), [['Follow up with Vi: Send a thank-you card', 'follow-up']]);
 });
+
+test('path to a first sale: steps tick off, the next one has one button, and it goes away when done', async () => {
+  const c = client();
+  await c('POST', '/api/auth/signup', { name: 'Fi', email: 'first-steps@example.com', password: 'password123', workspace: 'Fi', business_type: 'shop' });
+  let r = (await c('GET', '/api/first-steps')).body;
+  assert.equal(r.next, 'page');
+  assert.equal(r.steps[0].href, '#/setup');
+  assert.equal(r.total, 5, 'a shop sells, so payments and a first sale are on the path');
+  const f = (await c('POST', '/api/funnels', { name: 'Home', template: 'list_page' })).body;
+  await c('POST', `/api/funnels/${f.id}/publish`);
+  r = (await c('GET', '/api/first-steps')).body;
+  assert.equal(r.next, 'signup');
+  assert.match(r.steps[1].copy, /^\/f\//);
+  // A local business that doesn't sell online: no payment steps.
+  const l = client();
+  await l('POST', '/api/auth/signup', { name: 'Lo', email: 'first-local@example.com', password: 'password123', workspace: 'Lo', business_type: 'local' });
+  assert.equal((await l('GET', '/api/first-steps')).body.total, 3);
+});

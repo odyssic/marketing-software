@@ -38,20 +38,18 @@ function renderDashboard() {
     <div class="head"><div><h1>Hi ${esc(state.me.user.name.split(' ')[0])}</h1>
       <div class="muted">${esc(state.me.account.name)} · this week’s focus: <b style="color:${LEVER_UI[focus].color}">${esc(LEVER_FOCUS[focus] || LEVER_UI[focus].label)}</b>${dash.levers.pinned ? ' (pinned)' : ''}</div></div>
       <span class="row" style="gap:8px"><a class="btn" href="#/report">${icon('trend')} Report</a>${createMenu()}</span></div>
-    ${dash.noPages && !dash.customize ? `<div class="card setup-nudge"><div><b>Get your first page live in about two minutes</b>
-      <div class="muted small">Tell us what kind of business this is. We’ll build the page, booking hours and follow-ups.</div></div>
-      <a class="btn primary" href="#/setup">Set it up</a></div>` : ''}
+    ${dash.customize ? '' : '<section class="card firststeps" data-firststeps hidden></section>'}
     ${dash.customize ? '' : '<section class="card today" data-today hidden></section>'}
     ${dash.customize ? '' : '<section data-metrics aria-label="Business numbers"></section>'}
     ${!dash.customize && dash.week?.length ? `<section class="card week"><h2>This week, in plain words</h2><ul>${dash.week.map((l) => `<li>${esc(l)}</li>`).join('')}</ul></section>` : ''}
-    <h2 class="section-h" style="margin-top:26px">Where to grow next</h2>
-    ${dash.customize ? '' : `<section class="card grow">
+    ${dash.customize ? '' : `<details class="grow-fold" ${dash.growOpen ? 'open' : ''}><summary><h2 class="section-h" style="display:inline">Where to grow next</h2> <span class="muted small">your four areas, scored, with this week’s idea</span></summary>
+    <section class="card grow">
       <div data-growmove><div class="skeleton"></div></div>
       <div class="grow-areas">${['lead', 'conversion', 'upsell', 'continuity'].map((k) => { const l = dash.levers.levers[k] || {}; return `<button type="button" class="grow-row" data-growlever="${k}" style="--c:${LEVER_UI[k].color}">
         <i class="dot"></i><b>${esc(LEVER_UI[k].label)}</b>${k === focus ? '<span class="pill" style="margin-left:4px">focus</span>' : ''}
         <span class="gbar">${l.score === null || l.score === undefined ? '<span class="muted small">too early to tell</span>' : `<i style="width:${Math.max(4, l.score)}%"></i>`}</span>
         <span class="muted small">${esc([l.valueLabel, l.changeLabel].filter(Boolean).join(' · '))}</span></button>`; }).join('')}</div>
-    </section>`}
+    </section></details>`}
     <details class="grow-more" ${dash.customize || dash.moreOpen ? 'open' : ''}><summary>See all charts${dash.customize ? '' : ' and customize'}</summary>
     <div class="row" style="justify-content:flex-end;margin:6px 0 10px"><button class="btn ${dash.customize ? 'primary' : ''}" data-customize>${dash.customize ? 'Done' : icon('gear') + ' Customize'}</button></div>
     <div class="leverbar" role="tablist">${Object.entries(LEVER_UI).map(([k, l]) => `<button role="tab" aria-selected="${k === lv}" data-lever="${k}" style="--c:${l.color}" class="${k === lv ? 'on' : ''}"><i class="dot"></i>
@@ -67,6 +65,8 @@ function renderDashboard() {
     </div></details>`);
   renderMetrics();
   loadTodayCard();
+  loadFirstSteps();
+  const gf = $('.grow-fold'); if (gf) gf.addEventListener('toggle', () => { dash.growOpen = gf.open; });
   bindCreateMenu();
   fillGrowCard();
   const more = $('.grow-more'); if (more) more.addEventListener('toggle', () => { dash.moreOpen = more.open; if (more.open) fillTiles(); });
@@ -284,4 +284,23 @@ async function newSplitTest() {
   const r = await modal('Split test a page', `<p class="muted small">Half your visitors see the page as it is, half see a new version. The one that gets more signups or sales wins.</p>
     <label class="f">Which page?<select name="page" required>${Object.entries(groups).map(([g, ps]) => `<optgroup label="${esc(g)}">${ps.map((p) => `<option value="${p.id}">${esc(p.name)}</option>`).join('')}</optgroup>`).join('')}</select></label>`, { submit: 'Next' });
   if (r) location.hash = `#/editor/${r.page}?abtest=1`;
+}
+
+// The path to a first sale: a few steps, a progress bar, and one button for the next one.
+// Gone once every step is done.
+async function loadFirstSteps() {
+  const box = $('[data-firststeps]');
+  if (!box) return;
+  const r = await api('GET', '/api/first-steps').catch(() => null);
+  if (!r || !r.next) { box.hidden = true; return; }
+  const next = r.steps.find((s) => s.key === r.next);
+  const url = next.copy ? publicUrl(next.copy) : '';
+  box.hidden = false;
+  box.innerHTML = `<div class="fs-head"><div><span class="muted small">Your path to a first sale · ${r.done} of ${r.total} done</span>
+      <h2>${esc(next.title)}</h2></div>
+      ${url ? `<button class="btn primary" data-fscopy>${icon('copy')} ${esc(next.action)}</button>` : `<a class="btn primary" href="${esc(next.href)}">${esc(next.action)} ${icon('arrowRight')}</a>`}</div>
+    <div class="fs-bar"><i style="width:${Math.round((r.done / r.total) * 100)}%"></i></div>
+    <ol class="fs-steps">${r.steps.map((s) => `<li class="${s.done ? 'done' : s.key === r.next ? 'now' : ''}"><span class="fs-dot">${s.done ? icon('check') : ''}</span>${esc(s.title)}</li>`).join('')}</ol>`;
+  const cp = $('[data-fscopy]', box);
+  if (cp) cp.onclick = async () => { try { await navigator.clipboard.writeText(url); toast('Link copied: share it in your bio, emails or a post'); } catch { toast(url); } };
 }
