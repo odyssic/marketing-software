@@ -23,6 +23,7 @@ const TRIGGER_UI = {
 const CONDITION_UI = {
   purchased_since: 'Bought since entering this workflow?', purchased: 'Has ever bought?', opened: 'Opened an email from this workflow?',
   clicked: 'Clicked an email from this workflow?', has_tag: 'Has a tag?', stage_is: 'Is at a stage?', has_email: 'Can be emailed?',
+  clicked_last: 'Clicked a link in the last email?', opened_last: 'Opened the last email?', replied: 'Replied (text, email or chat)?', booked_since: 'Booked a call?',
 };
 const leverPill = (k) => `<span class="lever-tag" style="--c:${LEVER_UI[k]?.color || '#64748b'}">${esc(LEVER_UI[k]?.label || k)}</span>`;
 

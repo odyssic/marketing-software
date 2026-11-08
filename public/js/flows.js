@@ -157,13 +157,24 @@ async function viewFollowupFlow(id) {
     const when = day < 0.5 ? 'Right away' : `Day ${Math.round(day)}`;
     const s = stat(k);
     if (n.type === 'condition') {
-      const side = (key, label) => {
-        const b = key && N[key];
-        const text = !b ? 'Nothing' : b.type === 'email' ? flowText(b.config.subject) || 'Email' : b.type === 'sms' ? flowText(b.config.body) : STEP_WORD[b.type] || b.type;
-        return `<div class="ffs-side ${label === 'Yes' ? 'yes' : 'no'}"><b>${label}</b><span>${esc(text)}</span>${b && ['email', 'sms'].includes(b.type) ? `<button type="button" class="fc-edit" data-ffedit="${key}">${icon('pencil')} Edit</button>` : ''}${b?.next ? '<span class="muted small">+ more steps</span>' : ''}</div>`;
+      const side = (start, yes) => {
+        const rows = [];
+        for (let p = start, guard = 0; p && N[p] && guard < 40; guard++, p = N[p].next) {
+          const b = N[p], bc = b.config || {};
+          if (b.type === 'condition') { rows.push(`<div class="ffp-row"><span class="ffp-ico">${icon('branch')}</span><a class="ffp-t" href="#/workflows/${id}">Another split: open the advanced editor</a></div>`); break; }
+          const text = b.type === 'email' ? flowText(bc.subject) || 'Email' : b.type === 'sms' ? flowText(bc.body) || 'Text'
+            : b.type === 'wait' ? `Wait ${bc.days || 0} day${bc.days === 1 ? '' : 's'}${bc.hours ? ` ${bc.hours}h` : ''}` : b.type === 'tag' ? `Tag: ${bc.add || bc.remove || ''}` : b.type === 'notify' ? `Notify me${bc.message ? `: ${flowText(bc.message)}` : ''}` : STEP_WORD[b.type] || b.type;
+          const s = stat(p);
+          rows.push(`<div class="ffp-row"><span class="ffp-ico">${icon(STEP_ICON[b.type] || 'bolt')}</span><span class="ffp-t">${esc(text)}${s && ['email', 'sms'].includes(b.type) ? ` <span class="muted">· ${s.sent || 0} sent</span>` : ''}</span>
+            ${['email', 'sms', 'wait', 'tag', 'notify'].includes(b.type) ? `<button type="button" class="ffp-b" data-ffedit="${p}" aria-label="Edit">${icon('pencil')}</button>` : `<a class="ffp-b" href="#/workflows/${id}" aria-label="Edit">${icon('pencil')}</a>`}
+            <button type="button" class="ffp-b" data-ffdel="${p}" aria-label="Remove">${icon('x')}</button></div>`);
+          if (b.type === 'condition') break;
+        }
+        return `<div class="ffs-side ${yes ? 'yes' : 'no'}"><b>${yes ? 'Yes' : 'No'}</b><div class="ffp">${rows.join('') || `<span class="muted small">${yes ? 'Nothing more' : 'Nothing: they stop here'}</span>`}
+          <button type="button" class="ffp-add" data-ffaddpath="${k}:${yes ? 'yes' : 'no'}">${icon('plus')} Add a step</button></div></div>`;
       };
       return `<div class="ff-step split"><div class="ffs-top">${icon('branch')}<span>${when} · ${esc((CONDITION_UI[c.check] || 'Check').replace(/\?$/, ''))}${c.value ? ` “${esc(c.value)}”` : ''}</span><button type="button" class="ffs-x" data-ffdel="${k}" aria-label="Remove this split">${icon('x')}</button></div>
-        ${side(n.yes, 'Yes')}${side(n.no, 'No')}<a class="fc-more" href="#/workflows/${id}">Edit both paths in the advanced editor</a></div>`;
+        ${side(n.yes, true)}${side(n.no, false)}</div>`;
     }
     const body = n.type === 'email' ? `<div class="fc-subj">${esc(flowText(c.subject) || 'Untitled email')}</div><div class="fc-pre">${esc(flowText(c.body).split('\n').map((x) => x.trim()).filter((x) => x && !/^(hi|hello|hey|dear)\b.{0,30},?$/i.test(x))[0] || '')}</div>`
       : n.type === 'sms' ? `<div class="fc-pre">${esc(flowText(c.body))}</div>`
@@ -186,7 +197,7 @@ async function viewFollowupFlow(id) {
       <button type="button" class="ff-step start" data-fftrigger><div class="ffs-top">${icon('bolt')}<span>Starts when</span></div><div class="fc-subj">Someone ${esc(triggerText)}</div><span class="fc-edit">${icon('pencil')} Change</span></button>
       ${plus(g.root)}${steps}
     </div></div>
-    <p class="muted small">Tap <b>+</b> to add an email, a text, a wait or a yes/no split. Changes save straight away${w.status === 'active' ? ' and apply to people from their next step' : ''}.</p>`);
+    <p class="muted small">Tap <b>+</b> to add an email, a text, a wait or a yes/no split (for example: clicked? send a text; didn’t? send another email). Changes save straight away${w.status === 'active' ? ' and apply to people from their next step' : ''}.</p>`);
   bindMoreMenus();
   const save = async (graph, msg) => { try { await api('PUT', `/api/workflows/${id}`, { graph }); if (msg) toast(msg); viewFollowupFlow(id); } catch (e) { toast(e.message, true); } };
   $('[data-fftoggle]').onchange = async (e) => {
@@ -245,18 +256,23 @@ async function viewFollowupFlow(id) {
     void pk;
   }; });
   // + : add after this step.
-  $$('[data-ffadd]').forEach((b) => { b.onclick = async () => {
-    const after = b.dataset.ffadd;
-    const r = await modal('Add a step', `<div class="choices">
+  const addStep = async (where) => {
+    const onPath = Boolean(where.cond);
+    const r = await modal(onPath ? `If ${where.side === 'yes' ? 'yes' : 'no'}, then…` : 'Add a step', `<div class="choices">
       <label class="choice"><input type="radio" name="kind" value="email" checked hidden><span class="ci">${icon('mail')}</span><span><b>Send an email</b></span></label>
       <label class="choice"><input type="radio" name="kind" value="sms" hidden><span class="ci">${icon('chat')}</span><span><b>Send a text</b><small>Only to people who said yes to texts</small></span></label>
       <label class="choice"><input type="radio" name="kind" value="wait" hidden><span class="ci">${icon('clock')}</span><span><b>Wait</b></span></label>
-      <label class="choice"><input type="radio" name="kind" value="split" hidden><span class="ci">${icon('branch')}</span><span><b>Yes / no split</b><small>e.g. if they opened the last email, or bought</small></span></label>
-      <label class="choice"><input type="radio" name="kind" value="more" hidden><span class="ci">${icon('more')}</span><span><b>Something else</b><small>Tag, notify me, deal, subscribe: in the advanced editor</small></span></label></div>`, { submit: 'Next' });
+      ${onPath ? '' : `<label class="choice"><input type="radio" name="kind" value="split" hidden><span class="ci">${icon('branch')}</span><span><b>Yes / no split</b><small>e.g. if they clicked: send a text; if not: another email</small></span></label>`}
+      <label class="choice"><input type="radio" name="kind" value="tag" hidden><span class="ci">${icon('tag')}</span><span><b>Add a tag</b></span></label>
+      <label class="choice"><input type="radio" name="kind" value="notify" hidden><span class="ci">${icon('bell')}</span><span><b>Notify me</b><small>A reminder to follow up personally</small></span></label>
+      <label class="choice"><input type="radio" name="kind" value="more" hidden><span class="ci">${icon('more')}</span><span><b>Something else</b><small>Deal, subscribe: in the advanced editor</small></span></label></div>`, { submit: 'Next' });
     if (!r) return;
     if (r.kind === 'more') { location.hash = `#/workflows/${id}`; return; }
     const nk = () => `n${Math.random().toString(36).slice(2, 8)}`;
-    const tail = N[after].next || null;
+    // Where it goes: after a step (what followed comes after it), or at the end of a split's path.
+    let last = null;
+    if (onPath) { for (let p = N[where.cond][where.side], guard = 0; p && N[p] && N[p].type !== 'condition' && guard < 40; guard++) { last = p; p = N[p].next; } }
+    const tail = onPath ? null : N[where.after].next || null;
     let node;
     if (r.kind === 'wait') {
       const v = await modal('Wait', '<label class="f">Days<input name="days" type="number" min="0" max="3650" value="2"></label>', { submit: 'Add wait' });
@@ -266,21 +282,38 @@ async function viewFollowupFlow(id) {
         ? '<label class="f">Subject<input name="subject" required placeholder="e.g. A quick thank-you"></label><label class="f">Message<textarea name="body" rows="7" required>Hi {{first_name|there}},\n\n</textarea></label>'
         : '<label class="f">Text message <span class="hint">only to people who said yes to texts</span><textarea name="body" rows="3" maxlength="480" required>Hi {{first_name|there}}, it’s {{business}}. </textarea></label>', { submit: 'Add' });
       if (!v) return; node = r.kind === 'email' ? { type: 'email', config: { subject: v.subject, body: v.body } } : { type: 'sms', config: { body: v.body } };
+    } else if (r.kind === 'tag') {
+      const v = await modal('Add a tag', '<label class="f">Tag<input name="add" required placeholder="e.g. clicked-offer"></label>', { submit: 'Add' });
+      if (!v) return; node = { type: 'tag', config: { add: v.add, remove: '' } };
+    } else if (r.kind === 'notify') {
+      const v = await modal('Notify me', '<label class="f">Your note to yourself<textarea name="message" rows="3" placeholder="e.g. They clicked but didn’t buy: give them a call"></textarea></label>', { submit: 'Add' });
+      if (!v) return; node = { type: 'notify', config: { message: v.message } };
     } else {
-      const v = await modal('Yes / no split', `<label class="f">Check<select name="check">${['opened', 'clicked', 'purchased_since', 'has_tag'].map((k) => `<option value="${k}">${esc(CONDITION_UI[k])}</option>`).join('')}</select></label>
-        <label class="f">Tag <span class="hint">only for “Has a tag?”</span><input name="value"></label>
-        <label class="f">If no, send this email <span class="hint">optional</span><input name="subject" placeholder="Subject, e.g. Did you see this, {{first_name|there}}?"></label>
-        <textarea name="body" rows="3" placeholder="Message">Hi {{first_name|there}},\n\n</textarea>`, { submit: 'Add split' });
+      const pendSplit = modal('Yes / no split', `<label class="f">Did they…<select name="check">${[['clicked_last', 'click a link in the last email'], ['opened_last', 'open the last email'], ['replied', 'reply (text, email or chat)'], ['purchased_since', 'buy something'], ['booked_since', 'book a call'], ['has_tag', 'get a tag']].map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select></label>
+        <label class="f" data-splittag hidden>Tag<input name="value" placeholder="e.g. vip"></label>
+        <label class="f">Give them<select name="give">${[[0, 'No time: check straight away'], [1, '1 day'], [2, '2 days'], [3, '3 days'], [7, 'A week']].map(([d, l]) => `<option value="${d}" ${d === 2 ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+        <p class="hint">Then you choose what happens on each path, for example: if yes, send a text; if no, send a different email.</p>`, { submit: 'Add split' });
+      setTimeout(() => { const m = $('.modal'); const sel = m && $('[name=check]', m); if (sel) sel.onchange = () => { $('[data-splittag]', m).hidden = sel.value !== 'has_tag'; }; });
+      const v = await pendSplit;
       if (!v) return;
-      let no = null;
-      if (String(v.subject || '').trim()) { no = nk(); N[no] = { type: 'email', config: { subject: v.subject, body: v.body }, next: null }; }
-      node = { type: 'condition', config: { check: v.check, value: String(v.value || '').trim().toLowerCase() }, yes: tail, no };
+      node = { type: 'condition', config: { check: v.check, value: String(v.value || '').trim().toLowerCase() }, yes: tail, no: null };
+      const give = Number(v.give) || 0;
+      if (give) {
+        // The wait comes first, so they have time to open, click or reply.
+        const ck = nk(), wk = nk();
+        N[ck] = node; N[wk] = { type: 'wait', config: { days: give, hours: 0 }, next: ck };
+        N[where.after].next = wk;
+        return save(g, 'Split added. Now add what happens on each path.');
+      }
     }
     const key = nk();
     N[key] = node.type === 'condition' ? node : { ...node, next: tail };
-    N[after].next = key;
-    save(g, `${STEP_WORD[node.type]} added`);
-  }; });
+    if (onPath) { if (last) N[last].next = key; else N[where.cond][where.side] = key; }
+    else N[where.after].next = key;
+    save(g, node.type === 'condition' ? 'Split added. Now add what happens on each path.' : `${STEP_WORD[node.type]} added`);
+  };
+  $$('[data-ffadd]').forEach((b) => { b.onclick = () => addStep({ after: b.dataset.ffadd }); });
+  $$('[data-ffaddpath]').forEach((b) => { b.onclick = () => { const [cond, side] = b.dataset.ffaddpath.split(':'); addStep({ cond, side }); }; });
 }
 
 // Which page-based flows a shared follow-up also runs for (shown on pageflow maps).

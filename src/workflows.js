@@ -26,6 +26,7 @@ const TRIGGERS = {
 const CONDITIONS = {
   has_tag: 'Has the tag', purchased: 'Has bought anything', purchased_since: 'Bought since entering this workflow',
   opened: 'Opened an email from this workflow', clicked: 'Clicked an email from this workflow', stage_is: 'Stage is', has_email: 'Has an email address',
+  clicked_last: 'Clicked a link in the last email', opened_last: 'Opened the last email', replied: 'Replied (text, email or chat)', booked_since: 'Booked a call since entering this workflow',
 };
 // Events this old or older (e.g. last year's orders in an import) never start a workflow.
 const FRESH_MS = 2 * 864e5;
@@ -339,6 +340,13 @@ function createWorkflows({ getDb, HttpError, id, people, messaging, getAccount }
       case 'purchased_since': return Boolean(await db.get("SELECT 1 FROM events WHERE person_id = ? AND type = 'purchase' AND occurred_at >= ? LIMIT 1", person.id, run.created_at));
       case 'opened': return Boolean(await db.get('SELECT 1 FROM email_log WHERE contact_id = ? AND workflow_id = ? AND created_at >= ? AND opened_at IS NOT NULL LIMIT 1', person.id, run.workflow_id, run.created_at));
       case 'clicked': return Boolean(await db.get('SELECT 1 FROM email_log WHERE contact_id = ? AND workflow_id = ? AND created_at >= ? AND clicked_at IS NOT NULL LIMIT 1', person.id, run.workflow_id, run.created_at));
+      case 'clicked_last': case 'opened_last': {
+        // The most recent email this workflow sent them.
+        const last = await db.get('SELECT opened_at, clicked_at FROM email_log WHERE contact_id = ? AND workflow_id = ? AND created_at >= ? ORDER BY id DESC LIMIT 1', person.id, run.workflow_id, run.created_at);
+        return Boolean(last && (check === 'clicked_last' ? last.clicked_at : last.opened_at || last.clicked_at));
+      }
+      case 'replied': return Boolean(await db.get("SELECT 1 FROM messages WHERE contact_id = ? AND direction = 'in' AND created_at >= ? LIMIT 1", person.id, run.created_at));
+      case 'booked_since': return Boolean(await db.get("SELECT 1 FROM events WHERE person_id = ? AND type = 'booking' AND occurred_at >= ? LIMIT 1", person.id, run.created_at));
       default: return false;
     }
   }

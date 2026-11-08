@@ -308,3 +308,29 @@ test('date triggers: birthdays (a week ahead), customer anniversaries and subscr
     'sub@example.com: Renewal for you',
   ]);
 });
+
+test('split on what they did with the last email: clicked → yes path, didn’t → another email', async () => {
+  const c = await signup('wf-split@example.com');
+  const { id } = (await c('POST', '/api/workflows', { template: 'blank', name: 'Offer' })).body;
+  const g = (await c('GET', `/api/workflows/${id}`)).body.graph;
+  g.nodes[g.root].config = { event: 'tag_added', tag: 'offer' };
+  g.nodes.e1 = { type: 'email', config: { subject: 'The offer', body: 'See it: https://example.com/offer' }, next: 'w1' };
+  g.nodes.w1 = { type: 'wait', config: { days: 2, hours: 0 }, next: 's1' };
+  g.nodes.s1 = { type: 'condition', config: { check: 'clicked_last' }, yes: 't1', no: 'e2' };
+  g.nodes.t1 = { type: 'tag', config: { add: 'hot', remove: '' } };
+  g.nodes.e2 = { type: 'email', config: { subject: 'Did you see it?', body: 'One more look' } };
+  g.nodes[g.root].next = 'e1';
+  assert.equal((await c('PUT', `/api/workflows/${id}`, { graph: g })).status, 200);
+  assert.equal((await c('PUT', `/api/workflows/${id}/status`, { status: 'active' })).status, 200);
+  const a = (await c('POST', '/api/contacts', { email: 'clicker@example.com', tags: 'offer' })).body;
+  const b = (await c('POST', '/api/contacts', { email: 'ignorer@example.com', tags: 'offer' })).body;
+  await run(c);
+  const first = (await outbox(c)).find((m) => m.to_email === 'clicker@example.com');
+  await app.getDb().run('UPDATE email_log SET clicked_at = now() WHERE id = ?', first.id);
+  await run(c, inDays(2.1));
+  const people = (await c('GET', '/api/contacts')).body;
+  assert.ok(people.find((p) => p.id === a.id).tags.includes('hot'), 'clicked → yes path');
+  assert.ok(!people.find((p) => p.id === b.id).tags.includes('hot'));
+  const mail = await outbox(c);
+  assert.deepEqual(mail.filter((m) => m.subject === 'Did you see it?').map((m) => m.to_email), ['ignorer@example.com'], 'didn’t click → no path');
+});

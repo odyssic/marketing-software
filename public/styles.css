@@ -1638,3 +1638,16 @@ ul.tasks { list-style: none; padding: 0; margin: 10px 0 4px; }
   .pt-prog { flex-direction: column; }
   .pt-sale { grid-template-columns: 1fr auto; }
 }
+
+/* Split paths on the follow-up flow */
+.ff-step.split { width: 300px; }
+.ffs-side { grid-template-columns: 34px 1fr; }
+.ffp { display: grid; gap: 4px; }
+.ffp-row { display: grid; grid-template-columns: 18px 1fr auto auto; gap: 6px; align-items: center; font-size: .82rem; }
+.ffp-ico svg { width: 14px; height: 14px; color: var(--muted); }
+.ffp-t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ffp-b { background: none; border: 0; padding: 2px; color: var(--muted); cursor: pointer; display: inline-grid; }
+.ffp-b svg { width: 13px; height: 13px; } .ffp-b:hover { color: var(--text); }
+.ffp-add { justify-self: start; background: none; border: 1px dashed var(--line); border-radius: 8px; padding: 3px 8px; font-size: .78rem; color: var(--brand); cursor: pointer; display: inline-flex; gap: 4px; align-items: center; }
+.ffp-add svg { width: 12px; height: 12px; } .ffp-add:hover { border-color: var(--brand); background: var(--brand-soft); }
+.ff-step.split .ffs-top span { white-space: normal; text-transform: none; letter-spacing: 0; font-size: .82rem; }
