@@ -47,7 +47,19 @@ async function viewSetup() {
     frame(`<h1>Tell us about it</h1><p class="muted">A sentence is plenty. ${state.me.aiLive ? 'We’ll write your page from it.' : 'It goes on your page.'}</p>
       <form data-f><label class="f">Business name<input name="name" required value="${esc(s.name)}" autocomplete="organization"></label>
       <label class="f">What do you do, and for whom?<textarea name="offer" rows="2" placeholder="${esc(SETUP_OFFER_HINT[s.type] || SETUP_OFFER_HINT.other)}">${esc(s.offer)}</textarea></label>
+      <div class="f setup-logo"><span>Logo <span class="hint">optional: goes on your page, and we match your colours to it</span></span>
+        <div class="row" style="gap:12px;align-items:center">${s.logo ? `<img src="${esc(s.logo)}" alt="Your logo" class="setup-logo-img">${s.color ? `<span class="swatch" style="background:${esc(s.color)}" title="Your brand colour"></span>` : ''}` : ''}
+          <label class="btn">${icon('camera')} ${s.logo ? 'Change' : 'Add your logo'}<input type="file" accept="image/png,image/jpeg,image/webp" hidden data-logo></label>
+          ${s.logo ? '<button type="button" class="btn ghost sm" data-nologo>Remove</button>' : ''}</div></div>
       <button class="btn primary big">Continue</button></form>`);
+    const keepWords = () => { const f = $('[data-f]'); s.name = f.name.value.trim(); s.offer = f.offer.value.trim(); };
+    $('[data-logo]').onchange = async (e) => {
+      const file = e.target.files[0]; if (!file) return;
+      keepWords();
+      try { toast('Uploading logo…'); s.logo = await uploadImage(file); s.color = await setupColorFrom(s.logo).catch(() => ''); render(); }
+      catch (err) { toast(err.message, true); }
+    };
+    const nl = $('[data-nologo]'); if (nl) nl.onclick = () => { keepWords(); s.logo = ''; s.color = ''; render(); };
     $('[data-f]').onsubmit = (e) => { e.preventDefault(); const v = Object.fromEntries(new FormData(e.target)); s.name = v.name.trim(); s.offer = v.offer.trim(); s.step = 3; render(); };
     $('[name=name]').focus();
   };
@@ -87,7 +99,7 @@ async function viewSetup() {
       if (s.goal === 'booked' && !s.days.length) { $('.err').textContent = 'Pick at least one day'; return; }
       s.step = 4; building();
       try {
-        const r = await api('POST', '/api/setup/build', { business_type: s.type, name: s.name, offer: s.offer, goal: s.goal, incentive: s.incentive, percent: s.percent, guide: s.guide, days: s.days, start: s.start, end: s.end, length: s.length, price: s.price, tz: Intl.DateTimeFormat().resolvedOptions().timeZone });
+        const r = await api('POST', '/api/setup/build', { business_type: s.type, name: s.name, offer: s.offer, goal: s.goal, logo: s.logo || '', color: s.color || '', incentive: s.incentive, percent: s.percent, guide: s.guide, days: s.days, start: s.start, end: s.end, length: s.length, price: s.price, tz: Intl.DateTimeFormat().resolvedOptions().timeZone });
         state.me = await api('GET', '/api/me');
         ready(r);
       } catch (err) { s.step = 3; step3(); $('.err').textContent = err.message; }
@@ -139,4 +151,27 @@ function followupsHtml(r) {
       <span class="muted small">${w.emails} email${w.emails === 1 ? '' : 's'}${w.first ? `, starting “${sample(w.first)}”` : ''}</span></span></label>`).join('')}
     ${!r.booking && !ready.length ? `<div class="su-fu on">${icon('check')}<span><b>You’ll hear about every new lead</b><span class="muted small">They show up in People and in your Monday summary.</span></span></div>` : ''}</div>
     ${later.length ? `<p class="muted small" style="margin-top:10px">${later.length} more follow-up${later.length === 1 ? '' : 's'} (${esc(later.map((w) => w.name).join(', '))}) need a link or a few words from you. <a href="#/flows?show=followups">Finish them in Flows</a> when you’re ready.</p>` : ''}`;
+}
+
+// The main colour in a logo, dark enough for white text on it.
+async function setupColorFrom(src) {
+  const img = await new Promise((ok, no) => { const i = new Image(); i.crossOrigin = 'anonymous'; i.onload = () => ok(i); i.onerror = no; i.src = src; });
+  const c = document.createElement('canvas'); c.width = c.height = 48;
+  const g = c.getContext('2d'); g.drawImage(img, 0, 0, 48, 48);
+  const px = g.getImageData(0, 0, 48, 48).data, tally = {};
+  for (let i = 0; i < px.length; i += 4) {
+    const [r, gr, b, a] = [px[i], px[i + 1], px[i + 2], px[i + 3]];
+    if (a < 200) continue;
+    const max = Math.max(r, gr, b), min = Math.min(r, gr, b);
+    if (max - min < 40 || max < 40) continue; // greys, white, black
+    const k = `${r >> 4},${gr >> 4},${b >> 4}`;
+    (tally[k] ||= [0, 0, 0, 0]).forEach((_, j, t) => { t[j] += [r, gr, b, 1][j]; });
+  }
+  const best = Object.values(tally).sort((x, y) => y[3] - x[3])[0];
+  if (!best) return '';
+  let [r, gr, b] = best.slice(0, 3).map((v) => v / best[3]);
+  // Darken until white text reads on it.
+  const lum = () => (0.2126 * r + 0.7152 * gr + 0.0722 * b) / 255;
+  for (let n = 0; lum() > 0.45 && n < 12; n++) { r *= 0.88; gr *= 0.88; b *= 0.88; }
+  return `#${[r, gr, b].map((v) => Math.round(v).toString(16).padStart(2, '0')).join('')}`;
 }

@@ -109,6 +109,10 @@ function registerSetup(api, { getDb, HttpError, createFunnel, TEMPLATES, getAcco
     const before = await getAccount(req.accountId);
     const lastWf = (await db().get('SELECT COALESCE(MAX(id), 0)::int AS n FROM workflows WHERE account_id = ?', req.accountId)).n;
     await db().run('UPDATE accounts SET name = ?, business_type = ? WHERE id = ?', name, type, req.accountId);
+    // Their logo, and a brand colour from it unless they already chose one.
+    const logo = String(b.logo || '').trim().slice(0, 500);
+    if (/^(https?:\/\/|\/u\/)/.test(logo)) await db().run('UPDATE accounts SET logo_url = ? WHERE id = ?', logo, req.accountId);
+    if (/^#[0-9a-f]{6}$/i.test(b.color || '')) await db().run("UPDATE accounts SET brand_color = ? WHERE id = ? AND brand_color = ''", String(b.color).toLowerCase(), req.accountId);
     if (booking) {
       const prev = settingsOf(before);
       await db().run('UPDATE accounts SET booking = ? WHERE id = ?', JSON.stringify({ ...booking, busy: prev.busy || [] }), req.accountId);

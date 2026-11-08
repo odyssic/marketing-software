@@ -85,3 +85,21 @@ test('growing a list: a real reason to join (discount with a real code, free gui
   assert.equal(gf.steps[0].blocks.find((b) => b.type === 'hero').text, 'The 5-minute morning reset');
   assert.equal(gf.steps[0].blocks.find((b) => b.type === 'form').deliverName, 'The 5-minute morning reset');
 });
+
+test('a logo from setup goes on the page, with a brand colour from it', async () => {
+  const c = client();
+  await c('POST', '/api/auth/signup', { name: 'Lo', email: 'lo-logo@example.com', password: 'password123', workspace: 'l', business_type: 'coach' });
+  const r = await c('POST', '/api/setup/build', { business_type: 'coach', name: 'Budden Coaching', goal: 'list', incentive: 'news', logo: 'https://example.com/logo.png', color: '#1d4ed8' });
+  assert.equal(r.status, 201);
+  const me = (await c('GET', '/api/me')).body.account;
+  assert.equal(me.logo_url, 'https://example.com/logo.png');
+  assert.equal(me.brand_color, '#1d4ed8');
+  const f = (await c('GET', `/api/funnels/${r.body.funnel_id}`)).body;
+  assert.equal(f.steps[0].blocks.find((b) => b.type === 'hero').background, '#1d4ed8');
+  await c('POST', `/api/funnels/${f.id}/publish`);
+  const html = (await client()('GET', `/f/${f.slug}`)).body;
+  assert.match(html, /<div class="logo-bar"><img class="site-logo" src="https:\/\/example.com\/logo.png" alt="Budden Coaching"><\/div>/);
+  assert.equal((await c('PUT', '/api/account/logo', { logo: 'javascript:alert(1)' })).status, 400);
+  await c('PUT', '/api/account/logo', { logo: '' });
+  assert.doesNotMatch((await client()('GET', `/f/${f.slug}`)).body, /<div class="logo-bar">/);
+});

@@ -517,6 +517,15 @@ function createApp({ dbPath } = {}) {
     }
   });
 
+  // The business's logo (and, when it has none yet, a brand colour taken from it).
+  api.put('/account/logo', async (req, res) => {
+    const logo = String(req.body?.logo || '').trim().slice(0, 500);
+    if (logo && !/^https?:\/\//.test(logo) && !logo.startsWith('/u/')) throw new HttpError(400, 'Upload a logo picture');
+    const color = String(req.body?.color || '').trim().toLowerCase();
+    await db.run('UPDATE accounts SET logo_url = ? WHERE id = ?', logo, req.accountId);
+    if (/^#[0-9a-f]{6}$/.test(color)) await db.run("UPDATE accounts SET brand_color = ? WHERE id = ? AND brand_color = ''", color, req.accountId);
+    res.json({ ok: true, logo });
+  });
   // The business's brand colour, for the one-click palette.
   api.put('/account/brand', async (req, res) => {
     const color = String(req.body?.color || '').trim().toLowerCase();
@@ -1650,7 +1659,7 @@ function createApp({ dbPath } = {}) {
         const entry = step.id === funnel.entry_step_id;
         const url = req.publicHost ? `https://${req.publicHost}${req.domainBase || ''}${entry ? '' : `/${step.slug}`}` || `https://${req.publicHost}/`
           : `${publicBase()}/f/${funnel.slug}${entry ? '' : `/${step.slug}`}`;
-        return { business: acct.name, code, ownDomain: !ownHostList().includes(req.hostname.toLowerCase()), url };
+        return { business: acct.name, code, ownDomain: !ownHostList().includes(req.hostname.toLowerCase()), url, logo: acct.logo_url || '' };
       })()),
     })));
   });

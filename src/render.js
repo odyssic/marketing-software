@@ -316,7 +316,10 @@ function renderPage({ title, blocks, settings = {}, nextUrl = '#', noUrl = '#', 
   const ctx = { nextUrl, noUrl, formAction, buyAction, products, preview, accent, background: bg, oneClick, pageHref, testimonials, business, coupons };
   // Websites get a menu across the top and a footer.
   // A course shows its own menu (lessons and progress) instead of the site menu.
-  const nav = site && !course ? `<header class="site"><div class="in"><a class="brand" href="${esc(site.home)}">${esc(site.name)}</a>
+  const logoImg = logo && /^(https?:\/\/|\/u\/)/.test(logo) ? `<img class="site-logo" src="${esc(logo)}" alt="${esc(business || site?.name || '')}">` : '';
+  // Pages without a site menu show the logo small at the top.
+  const logoBar = logoImg && !site && !embed && !course ? `<div class="logo-bar">${logoImg}</div>` : '';
+  const nav = site && !course ? `<header class="site"><div class="in"><a class="brand" href="${esc(site.home)}">${logoImg}<span>${esc(site.name)}</span></a>
     <input type="checkbox" id="mnu" hidden><label for="mnu" class="burger" aria-label="Menu">☰</label>
     <nav>${site.links.map((l) => `<a href="${esc(l.href)}"${l.active ? ' aria-current="page"' : ''}>${esc(l.label)}</a>`).join('')}</nav></div></header>` : '';
   const foot = site ? `<footer class="site"><div class="in"><b>${esc(site.name)}</b><nav>${(course ? [] : site.links).map((l) => `<a href="${esc(l.href)}">${esc(l.label)}</a>`).join('')}</nav>
@@ -363,7 +366,9 @@ body{overflow-x:hidden}
 @media(max-width:560px){.features{grid-template-columns:1fr}.price{font-size:4.2rem}.cta{font-size:1.25rem}}
 header.site{position:sticky;top:0;z-index:5;background:color-mix(in srgb,${bg} 92%,transparent);backdrop-filter:blur(8px);border-bottom:1px solid color-mix(in srgb,${fg} 10%,transparent)}
 header.site .in,footer.site .in{max-width:${width}px;margin:0 auto;padding:14px 20px;display:flex;align-items:center;gap:20px;flex-wrap:wrap}
-header.site .brand{font-weight:800;font-size:1.15rem;color:${fg};text-decoration:none;margin-right:auto}
+header.site .brand{font-weight:800;font-size:1.15rem;color:${fg};text-decoration:none;margin-right:auto;display:inline-flex;align-items:center;gap:10px}
+header.site .site-logo{height:36px;width:auto;max-width:160px;object-fit:contain}
+.logo-bar{text-align:center;padding:14px 16px;background:${bg}}.logo-bar .site-logo{height:44px;width:auto;max-width:200px;object-fit:contain}
 header.site nav{display:flex;gap:18px;flex-wrap:wrap}header.site nav a,footer.site nav a{color:${fg};text-decoration:none;opacity:.8;font-weight:500}
 header.site nav a[aria-current]{opacity:1;color:${accent};border-bottom:2px solid ${accent}}
 .burger{display:none;cursor:pointer;font-size:1.4rem}
@@ -401,7 +406,7 @@ ${TYPE_CSS[settings.font] || ''}${embed ? EMBED_STYLE : ''}
 @media(max-width:760px){.hero-split{grid-template-columns:1fr;gap:24px}.hs-img{order:-1}.hs-img img,.hero-ph{aspect-ratio:16/10}}
 </style>${code.css ? `<style data-site-css>${cleanCss(code.css)}</style>` : ''}${settings.customCss ? `<style data-page-css>${cleanCss(settings.customCss)}</style>` : ''}
 ${course ? `<style>:root{--crs-accent:${accent};--crs-bg:${bg};--crs-w:${width}px}${course.css}</style>` : ''}
-${preview ? '' : trackingTags(code, ownDomain)}</head><body${course ? ' class="has-crs"' : ''}>${course ? course.nav : ''}${nav}<main>
+${preview ? '' : trackingTags(code, ownDomain)}</head><body${course ? ' class="has-crs"' : ''}>${course ? course.nav : ''}${nav}${logoBar}<main>
 ${course ? course.top : ''}${body || '<p style="text-align:center;opacity:.5">This page is empty. Add blocks in the editor.</p>'}
 ${course ? course.bottom : ''}</main>${foot}${(blocks || []).some((b) => b.type === 'booking') ? BOOKING_SCRIPT : ''}${(blocks || []).some((b) => b.type === 'video' && !b.controls && youtubeId(b.url)) ? VIDEO_SCRIPT : ''}${(blocks || []).some((b) => b.type === 'html') ? HTML_RESIZE : ''}${embed ? EMBED_SCRIPT : ''}${preview ? PREVIEW_EDIT_SCRIPT + PREVIEW_DROP_SCRIPT + PREVIEW_TOOLS_SCRIPT : ''}</body></html>`;
 }

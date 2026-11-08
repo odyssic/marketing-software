@@ -1651,3 +1651,8 @@ ul.tasks { list-style: none; padding: 0; margin: 10px 0 4px; }
 .ffp-add { justify-self: start; background: none; border: 1px dashed var(--line); border-radius: 8px; padding: 3px 8px; font-size: .78rem; color: var(--brand); cursor: pointer; display: inline-flex; gap: 4px; align-items: center; }
 .ffp-add svg { width: 12px; height: 12px; } .ffp-add:hover { border-color: var(--brand); background: var(--brand-soft); }
 .ff-step.split .ffs-top span { white-space: normal; text-transform: none; letter-spacing: 0; font-size: .82rem; }
+
+.setup-logo-img { height: 48px; width: auto; max-width: 160px; object-fit: contain; border: 1px solid var(--line); border-radius: 8px; padding: 4px; background: #fff; }
+.setup-logo .swatch { width: 24px; height: 24px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 1px var(--line); }
+.logo-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.logo-row img { height: 48px; width: auto; max-width: 160px; object-fit: contain; border: 1px solid var(--line); border-radius: 8px; padding: 4px; background: #fff; }

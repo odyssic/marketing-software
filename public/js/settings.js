@@ -16,6 +16,11 @@ function viewSettings() {
       <label class="check" style="margin:10px 0"><input type="checkbox" data-gravatar ${a.gravatar === 0 ? '' : 'checked'}> Show people’s public profile photos <span class="muted small">(from Gravatar, where they have one; looked up by a scrambled form of their email)</span></label>
       <div class="err"></div><button class="btn primary">Save settings</button>
     </form>
+    <div class="card" style="max-width:560px;margin-top:16px" data-logocard><h2>Logo</h2>
+      <p class="muted small">Shown at the top of your pages and in your website’s menu.</p>
+      <div class="logo-row">${a.logo_url ? `<img src="${esc(a.logo_url)}" alt="Your logo">` : ''}
+        <label class="btn">${icon('camera')} ${a.logo_url ? 'Change logo' : 'Add your logo'}<input type="file" accept="image/png,image/jpeg,image/webp" hidden data-logofile></label>
+        ${a.logo_url ? '<button type="button" class="btn ghost sm" data-logooff>Remove</button>' : ''}</div></div>
     <form class="card" style="max-width:560px;margin-top:16px" data-business>
       <h2>Kind of business</h2>
       <p class="muted small">Sets the starting follow-ups and which sections you see. Nothing is deleted when you change it.</p>
@@ -122,6 +127,22 @@ function viewSettings() {
   $('[data-gravatar]').onchange = async (e) => { await api('PUT', '/api/account/gravatar', { on: e.target.checked }); state.me = await api('GET', '/api/me'); toast(e.target.checked ? 'Profile photos on' : 'Profile photos off'); };
   couponsRecoveryPicker($('[data-recover-coupon]'));
   $('[data-recover]').onchange = async (e) => { await api('PUT', '/api/account/recovery', { on: e.target.checked }); state.me = await api('GET', '/api/me'); toast(e.target.checked ? 'Checkout reminders on' : 'Checkout reminders off'); };
+  $('[data-logofile]').onchange = async (e) => {
+    const file = e.target.files[0]; if (!file) return;
+    try {
+      toast('Uploading logo…');
+      const logo = await uploadImage(file);
+      const color = await setupColorFrom(logo).catch(() => '');
+      await api('PUT', '/api/account/logo', { logo, color });
+      state.me = await api('GET', '/api/me'); toast('Logo saved'); viewSettings();
+    } catch (err) { toast(err.message, true); }
+  };
+  const lo = $('[data-logooff]');
+  if (lo) lo.onclick = async () => {
+    const before = state.me.account.logo_url;
+    await api('PUT', '/api/account/logo', { logo: '' }); state.me = await api('GET', '/api/me'); viewSettings();
+    undoToast('Logo removed', async () => { await api('PUT', '/api/account/logo', { logo: before }); state.me = await api('GET', '/api/me'); viewSettings(); });
+  };
   const bizForm = $('[data-business]');
   // Picking a type suggests its usual sections; the boxes can still be changed.
   bizForm.business_type.onchange = () => {
@@ -289,7 +310,7 @@ async function loadChatSettings() {
 // Settings in a few short sections with an index, instead of one long scroll.
 const SETTINGS_SECTIONS = [
   ['plan', 'Your plan', ['[data-plan]']],
-  ['business', 'Business', ['[data-form]', '[data-business]', '[data-voice]']],
+  ['business', 'Business', ['[data-form]', '[data-logocard]', '[data-business]', '[data-voice]']],
   ['email', 'Email', ['[data-senddomain]', '[data-sigcard]', '[data-digestcard]', '[data-reviews]']],
   ['texting', 'Texting, calls and chat', ['[data-texting]', '[data-chat]']],
   ['payments', 'Payments', ['[data-stripe]']],
