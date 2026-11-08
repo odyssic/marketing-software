@@ -39,7 +39,7 @@ async function viewProducts(tab) {
     const r = await pendingNew;
     if (r) {
       toast('Product created');
-      if (await modal('Sell it on a page?', '<p class="muted">Create a pricing page pageflow for this product now? You can edit everything after.</p>', { submit: 'Create pricing page' })) {
+      if (await modal('Sell it on a page?', '<p class="muted">Create a pricing page for this product now? You can edit everything after.</p>', { submit: 'Create pricing page' })) {
         const f = await api('POST', '/api/funnels', { name: `${(await api('GET', '/api/products')).find((x) => x.id === r.id).name} pricing`, template: 'pricing' });
         location.hash = `#/funnels/${f.id}`;
       } else viewProducts();
@@ -76,6 +76,7 @@ const ordersHtml = (items) => (items.length ? `<div class="card table-wrap"><tab
   </table></div>` : '<div class="card empty"><div class="big">' + icon('receipt') + '</div><h2>No orders yet</h2><p>Orders appear here when someone buys from a page or pays an invoice or payment link.</p></div>');
 
 const productTabs = (on) => `<div class="tabs">${[['products', 'Products', '#/products'], ['invoices', 'Invoices & links', '#/products/invoices'], ['orders', 'Orders', '#/products/orders'], ['coupons', 'Coupons', '#/products/coupons'], ['partners', 'Partners', '#/products/partners'], ['files', 'Files', '#/products/files']]
+  .filter(([k]) => k === on || !(state.me.account.hidden_sections || []).includes(k))
   .map(([k, l, h]) => `<a href="${h}" class="${on === k ? 'active' : ''}">${l}</a>`).join('')}</div>`;
 
 // ---------------- Invoices & payment links ----------------

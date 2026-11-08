@@ -27,8 +27,8 @@ function viewSettings() {
       <h2>Kind of business</h2>
       <p class="muted small">Sets the starting follow-ups and which sections you see. Nothing is deleted when you change it.</p>
       <label class="f">This business is a<select name="business_type"><option value="">— Choose —</option>${BUSINESS_TYPES_UI.map(([k, l]) => `<option value="${k}" ${a.business_type === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
-      <div class="f">Show in the menu
-        ${[['calendar', 'Calendar', 'people book calls or appointments from your pages'], ['pipelines', 'Deals', 'a board for quotes, jobs or clients you win one at a time'], ['products', 'Products', 'things you sell with checkout'], ['email', 'Email', 'newsletters and broadcasts']].map(([k, l, h]) => `<label class="check"><input type="checkbox" name="show" value="${k}" ${(a.hidden_sections || []).includes(k) ? '' : 'checked'}> <b>${l}</b> <span class="muted small">${h}</span></label>`).join('')}</div>
+      <div class="f">What you use <span class="hint">switched-off features leave the menus; anything you’ve already started stays</span>
+        ${state.me.sections.map((x) => [x.key, x.label, x.hint]).map(([k, l, h]) => `<label class="check"><input type="checkbox" name="show" value="${k}" ${(a.hidden_sections || []).includes(k) ? '' : 'checked'}> <b>${l}</b> <span class="muted small">${h}</span></label>`).join('')}</div>
       <button class="btn primary">Save</button>
     </form>
     <form class="card" style="max-width:560px;margin-top:16px" data-reviews>
@@ -73,7 +73,7 @@ function viewSettings() {
     <form class="card" style="max-width:560px;margin-top:16px" data-pagecode><h2>Tracking and custom CSS</h2><p class="muted small">Loading…</p></form>
     <form class="card" style="max-width:560px;margin-top:16px" data-domain>
       <h2>Your domain</h2>
-      <p class="muted small">Connect it once for the whole business. The home website opens at the domain; every other website or pageflow lives at /its-name.</p>
+      <p class="muted small">Connect it once for the whole business. The home website opens at the domain; every other website or page lives at /its-name.</p>
       <label class="f">Domain<input name="domain" value="${esc(a.domain || '')}" placeholder="www.yourbusiness.com"></label>
       <label class="f">Home website<select name="home_funnel_id" data-homes><option value="">— Pick one —</option></select></label>
       <details class="hint"><summary>How to connect it</summary><ol style="padding-left:18px;margin:6px 0">
@@ -87,12 +87,12 @@ function viewSettings() {
     <div class="card" style="max-width:560px;margin-top:16px" data-team><h2>People with access</h2><p class="muted small">Loading…</p></div>
     <div class="card" style="max-width:560px;margin-top:16px" data-subs>
       <div class="row" style="justify-content:space-between"><h2 style="margin:0">Sub-accounts</h2><button class="btn sm primary" data-newsub>${icon('plus')} New sub-account</button></div>
-      <p class="muted small">One workspace per business. Each has its own people, pageflows, emails and dashboard.</p>
+      <p class="muted small">One workspace per business. Each has its own people, pages, emails and dashboard.</p>
       <div data-sublist class="muted small">Loading…</div>
     </div>
     <div class="card" style="max-width:560px;margin-top:16px" data-datacard>
       <h2>Your data</h2>
-      <p class="muted small">Download everything (people, events, orders, subscriptions, campaigns, pageflows, deals) at any time.</p>
+      <p class="muted small">Download everything (people, events, orders, subscriptions, campaigns, pages, deals) at any time.</p>
       <div class="row"><a class="btn" href="/api/export.zip">${icon('download')} Every table as CSV (.zip)</a><a class="btn" href="/api/export.json">${icon('download')} Everything as JSON</a></div>
     </div>
     <form class="card" style="max-width:560px;margin-top:16px" data-stripe>
@@ -167,7 +167,7 @@ function viewSettings() {
   bizForm.onsubmit = async (e) => {
     e.preventDefault();
     const shown = $$('[name="show"]:checked', bizForm).map((c) => c.value);
-    await api('PUT', '/api/account/business', { business_type: bizForm.business_type.value, hidden_sections: ['calendar', 'pipelines', 'products', 'email'].filter((k) => !shown.includes(k)) });
+    await api('PUT', '/api/account/business', { business_type: bizForm.business_type.value, hidden_sections: state.me.sections.map((x) => x.key).filter((k) => !shown.includes(k)) });
     state.me = await api('GET', '/api/me'); toast('Saved'); viewSettings();
   };
   Promise.all([api('GET', '/api/websites'), api('GET', '/api/funnels')]).finally(() => setTimeout(() => trackDirty($('[data-domain]')))).then(([sites, funnels]) => {

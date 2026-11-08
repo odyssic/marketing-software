@@ -133,7 +133,7 @@ async function viewWebsite(id) {
 async function viewMembersAreas() {
   const areas = await api('GET', '/api/members-areas');
   shell('pages', `${PAGES_TABS('members')}
-    <div class="head"><div><h1>Members areas</h1><div class="muted">Lessons, downloads and resources only members can open. Great for courses, memberships and client portals.</div></div>
+    <div class="head"><div><h1>Courses and members areas</h1><div class="muted">Lessons, downloads and resources only members can open. Great for courses, memberships and client portals.</div></div>
       <button class="btn primary" data-new>+ New members area</button></div>
     ${areas.length ? `<div class="wf-grid">${areas.map((a) => `<article class="wf-card" data-go="#/members/${a.id}" tabindex="0">
       <div class="row" style="justify-content:space-between"><h3>${esc(a.name)}</h3>${a.status === 'live' ? '<span class="pill ok">Open</span>' : '<span class="pill warn">Draft</span>'}</div>
@@ -147,7 +147,7 @@ async function viewMembersAreas() {
   $$('[data-new]').forEach((b) => { b.onclick = async () => {
     const r = await modal('New members area', '<label class="f">Name <span class="hint">members see this</span><input name="name" required placeholder="e.g. Pottery Basics course, Client portal"></label>',
       { submit: 'Create', onSubmit: (v) => api('POST', '/api/members-areas', v) });
-    if (r?.id) { toast('Members area created. Fill in the lessons, then publish'); location.hash = `#/members/${r.id}`; }
+    if (r?.id) { toast('Course created. Fill in the lessons, then publish'); location.hash = `#/members/${r.id}`; }
   }; });
 }
 

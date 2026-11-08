@@ -2,17 +2,18 @@
 
 // ---------------- Flows ----------------
 // One place for everything that brings people in and follows up with them:
-// websites, pageflows and members areas (pages, with their follow-up emails on
+// websites, pages and members areas (pages, with their follow-up emails on
 // the same map), and follow-ups that start on their own (someone buys, goes
 // quiet, gets a tag). Set things up once, where you see them.
-const FLOW_TABS = [['', 'All'], ['websites', 'Websites'], ['pageflows', 'Pageflows'], ['members', 'Members areas'], ['followups', 'Follow-ups'], ['blog', 'Blog'], ['community', 'Community']];
+const FLOW_TABS = [['', 'All'], ['websites', 'Websites'], ['pageflows', 'Pages'], ['members', 'Courses'], ['followups', 'Follow-ups'], ['blog', 'Blog'], ['community', 'Community']];
 const FLOW_OPEN = { website: 'websites', members: 'members', funnel: 'funnels' };
 const STEP_WORD = { email: 'Email', sms: 'Text', wait: 'Wait', condition: 'Split', tag: 'Tag', notify: 'Notify me', subscribe: 'Subscribe', deal: 'Deal' };
 const STEP_ICON = { email: 'mail', sms: 'chat', wait: 'clock', condition: 'branch', tag: 'tag', notify: 'bell', subscribe: 'inbox', deal: 'briefcase' };
 const flowText = (t) => String(t || '').replace(/\{\{\s*([a-z_]+)[^}]*\}\}/g, (_, k) => `[${k.replace(/_/g, ' ')}]`);
 
 function flowTabs(on) {
-  return `<div class="tabs" style="margin-top:-6px">${FLOW_TABS.map(([k, l]) => `<a href="#/flows${k ? `?show=${k}` : ''}" class="${on === k ? 'active' : ''}">${l}</a>`).join('')}</div>`;
+  const off = state.me.account.hidden_sections || [];
+  return `<div class="tabs" style="margin-top:-6px">${FLOW_TABS.filter(([k]) => !off.includes(k)).map(([k, l]) => `<a href="#/flows${k ? `?show=${k}` : ''}" class="${on === k ? 'active' : ''}">${l}</a>`).join('')}</div>`;
 }
 
 async function viewFlows() {
@@ -48,7 +49,7 @@ async function viewFlows() {
       <ol>${steps.slice(0, 3).map((x) => `<li>${icon(STEP_ICON[x.type] || 'bolt')}<span>${stepSay(x)}</span></li>`).join('')}</ol>
       <span class="pg-fu-foot">${steps.length > 3 ? `${steps.length - 3} more step${steps.length - 3 === 1 ? '' : 's'} · ` : ''}<u>Open</u></span></a>`;
   };
-  const kindWord = (g) => ({ website: 'Website', members: 'Members area' })[g.kind] || 'Pageflow';
+  const kindWord = (g) => ({ website: 'Website', members: 'Course' })[g.kind] || 'Page';
 
   shell('flows', `
     <div class="head"><div><h1>Flows</h1><div class="muted">Everything that brings people in and follows up with them: your pages, the emails between them, and follow-ups that start on their own.</div></div>
@@ -123,10 +124,10 @@ async function viewFlows() {
 async function newFlow() {
   const r = await modal('What do you want to make?', `<div class="choices">
     <label class="choice"><input type="radio" name="kind" value="wizard" checked hidden><span class="ci">${icon('sparkle')}</span><span><b>Build it for me</b><small>Three quick questions and Rilly makes a page with its follow-ups</small></span></label>
-    <label class="choice"><input type="radio" name="kind" value="pageflow" hidden><span class="ci">${icon('arrowRight')}</span><span><b>Pageflow</b><small>A page or a few in a row, for one goal: collect leads, take bookings, sell something</small></span></label>
+    <label class="choice"><input type="radio" name="kind" value="pageflow" hidden><span class="ci">${icon('arrowRight')}</span><span><b>Page</b><small>A page or a few in a row, for one goal: collect leads, take bookings, sell something</small></span></label>
     <label class="choice"><input type="radio" name="kind" value="website" hidden><span class="ci">${icon('globe')}</span><span><b>Website</b><small>Your business site: pages with a menu</small></span></label>
     <label class="choice"><input type="radio" name="kind" value="followup" hidden><span class="ci">${icon('bolt')}</span><span><b>Follow-up</b><small>Emails or texts that start on their own: when someone buys, goes quiet, gets a tag</small></span></label>
-    <label class="choice"><input type="radio" name="kind" value="members" hidden><span class="ci">${icon('door')}</span><span><b>Members area</b><small>Lessons and downloads only members can open</small></span></label></div>`, { submit: 'Next' });
+    <label class="choice"><input type="radio" name="kind" value="members" hidden><span class="ci">${icon('door')}</span><span><b>Course or members area</b><small>Lessons and downloads only members can open</small></span></label></div>`, { submit: 'Next' });
   if (!r) return;
   if (r.kind === 'wizard') { location.hash = '#/setup'; return; }
   if (r.kind === 'pageflow') return newFunnel();
@@ -134,11 +135,11 @@ async function newFlow() {
   if (r.kind === 'followup') return newWorkflow();
   const m = await modal('New members area', '<label class="f">Name <span class="hint">members see this</span><input name="name" required placeholder="e.g. Pottery Basics course, Client portal"></label>',
     { submit: 'Create', onSubmit: (v) => api('POST', '/api/members-areas', v) });
-  if (m?.id) { toast('Members area created. Fill in the lessons, then publish'); location.hash = `#/members/${m.id}`; }
+  if (m?.id) { toast('Course created. Fill in the lessons, then publish'); location.hash = `#/members/${m.id}`; }
 }
 
 // ---------------- A follow-up that starts on its own, as a flow ----------------
-// The same picture as a pageflow: what starts it, then each step left to right,
+// The same picture as a page: what starts it, then each step left to right,
 // with + between steps. Splits show both paths; deeper branching opens the
 // advanced editor.
 async function viewFollowupFlow(id) {
@@ -316,7 +317,7 @@ async function viewFollowupFlow(id) {
   $$('[data-ffaddpath]').forEach((b) => { b.onclick = () => { const [cond, side] = b.dataset.ffaddpath.split(':'); addStep({ cond, side }); }; });
 }
 
-// Which page-based flows a shared follow-up also runs for (shown on pageflow maps).
+// Which page-based flows a shared follow-up also runs for (shown on page maps).
 async function sharedFollowupsFor(funnelId) {
   const list = await api('GET', '/api/workflows').catch(() => []);
   return list.filter((w) => w.status === 'active' && !w.funnel_id && ['signup', 'inquiry', 'purchase', 'booking', 'subscribe'].includes(w.trigger) && (!w.triggerFunnel || w.triggerFunnel === funnelId));

@@ -357,7 +357,7 @@ const NAV = [
   ['settings', icon('gear'), 'Settings'],
 ];
 
-// Pages, pageflows, websites, members areas and workflows all live under Flows.
+// Pages, pages, websites, members areas and workflows all live under Flows.
 const FLOW_SECTIONS = ['flows', 'pages', 'workflows', 'funnels', 'websites', 'members'];
 // Sections shown under another menu item (Deals is a board inside People).
 const NAV_HOME = { pipelines: 'people' };
@@ -423,7 +423,7 @@ async function switchAccount(accountId) {
 async function newSubAccount() {
   const b = state.me.billing || {};
   const cost = b.enabled && b.extraCents && b.status !== 'comped' ? `<p class="small plan-note">${icon('info')} Each extra business adds ${planMoney(b.extraCents, b.currency)}/month to your plan${b.status === 'trialing' ? ' once your free trial ends' : ''}.</p>` : '';
-  const r = await modal('New sub-account', `<p class="muted small">A separate workspace for another business: its own people, pageflows, emails and dashboard.</p>${cost}
+  const r = await modal('New sub-account', `<p class="muted small">A separate workspace for another business: its own people, pages, emails and dashboard.</p>${cost}
     <label class="f">Business name<input name="name" required placeholder="e.g. Corner Bakery"></label>
     <label class="f">What kind of business?<select name="business_type">${BUSINESS_OPTIONS}</select></label>`,
   { submit: 'Create and switch', onSubmit: (v) => api('POST', '/api/accounts', { ...v, switch: true }) });

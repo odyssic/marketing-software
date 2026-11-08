@@ -30,7 +30,7 @@ function planCardHtml() {
   return `<div class="card" style="max-width:560px" data-plan>
     <p class="small" style="margin-top:0">${line}</p>
     ${b.status === 'comped' ? '' : howMuch}
-    ${subscribe ? `<ul class="plan-list"><li>Websites, pageflows and members areas</li><li>Email, texting and follow-ups that run on their own</li><li>Bookings, products, invoices and payments</li><li>Unlimited contacts and pages</li></ul>` : ''}
+    ${subscribe ? `<ul class="plan-list"><li>Websites, pages and members areas</li><li>Email, texting and follow-ups that run on their own</li><li>Bookings, products, invoices and payments</li><li>Unlimited contacts and pages</li></ul>` : ''}
     <div class="err"></div>
     <div class="row">${subscribe ? `<button class="btn primary" data-subscribe>${b.status === 'trialing' && !b.locked ? `Subscribe: ${total}` : `Subscribe for ${total}`}</button>` : ''}
       ${['active', 'past_due'].includes(b.status) ? '<button class="btn" data-portal>Change card, invoices or cancel</button>' : ''}</div>

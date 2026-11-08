@@ -13,14 +13,14 @@ async function viewPages() {
   const groups = q ? all.filter((g) => `${g.name} ${g.pages.map((p) => `${p.name} ${p.slug}`).join(' ')}`.toLowerCase().includes(q)) : all;
   const link = (g, p, i) => publicUrl(`/f/${g.slug}${i === 0 && g.kind !== 'website' ? '' : `/${p.slug}`}`);
   shell('pages', `
-    <div class="head"><div><h1>Pages</h1><div class="muted">Your pageflows and websites, each shown as the pages visitors move through.</div></div>
-      <div class="row"><button class="btn" data-newsite>+ Website</button><button class="btn primary" data-newfunnel>+ Pageflow</button></div></div>
+    <div class="head"><div><h1>Pages</h1><div class="muted">Your pages and websites, each shown as the pages visitors move through.</div></div>
+      <div class="row"><button class="btn" data-newsite>+ Website</button><button class="btn primary" data-newfunnel>+ Page</button></div></div>
     ${PAGES_TABS('pages')}
-    <input data-q placeholder="Search pageflows and pages…" value="${esc(q)}" style="max-width:340px;margin-bottom:14px">
+    <input data-q placeholder="Search pages and pages…" value="${esc(q)}" style="max-width:340px;margin-bottom:14px">
     ${groups.length ? groups.map((g) => `<section class="pgroup card">
       <header class="pg-head">
         <div><a class="pg-name" href="#/${({ website: 'websites', members: 'members' })[g.kind] || 'funnels'}/${g.id}">${esc(g.name)}</a>
-          <span class="muted small">${({ website: 'Website', members: 'Members area' })[g.kind] || 'Pageflow'} · ${g.pages.length} page${g.pages.length === 1 ? '' : 's'}${g.followups ? ` · ${g.followups} follow-up${g.followups === 1 ? '' : 's'}` : ''}</span></div>
+          <span class="muted small">${({ website: 'Website', members: 'Course' })[g.kind] || 'Page'} · ${g.pages.length} page${g.pages.length === 1 ? '' : 's'}${g.followups ? ` · ${g.followups} follow-up${g.followups === 1 ? '' : 's'}` : ''}</span></div>
         ${purposeTag(g)}
         ${g.status === 'live' ? '<span class="pill ok">Live</span>' : '<span class="pill warn">Draft</span>'}
         <div class="pg-stats"><span><b>${g.views}</b> visitors</span><span><b>${g.leads}</b> leads &amp; sales</span><span><b>${g.rate === null ? '—' : `${g.rate}%`}</b> convert</span><span class="muted small">last 30 days</span></div>

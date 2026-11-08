@@ -131,7 +131,7 @@ async function viewDevelopers() {
     ['POST', '/people/{id}/notes', 'Add a note to their timeline: { "note": "Called back" }. Or log another kind of event with "type" (e.g. inquiry).'],
     ['GET', '/products', 'Your products.'],
     ['GET', '/orders', 'Paid orders, newest first. ?since=2026-01-31 for orders since a date, ?status=all for unpaid too.'],
-    ['GET', '/forms', 'Your pageflows and websites, with the forms on their pages.'],
+    ['GET', '/forms', 'Your pages and websites, with the forms on their pages.'],
     ['GET', '/follow-ups', 'Your follow-ups (automations).'],
     ['POST', '/follow-ups/{id}/enroll', 'Start a follow-up for someone: { "email": "…" } or { "person_id": 12 }. It runs when the follow-up is live.'],
     ['GET', '/me', 'Which business this key belongs to (good for testing a key).'],

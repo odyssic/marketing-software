@@ -4,14 +4,14 @@
 async function viewFunnels() {
   const funnels = await api('GET', '/api/funnels');
   shell('pages', `${PAGES_TABS('funnels')}
-    <div class="head"><div><h1>Pageflows</h1><div class="muted">Landing pages that turn visitors into contacts.</div></div>
-      <button class="btn primary" data-new>+ New pageflow</button></div>
+    <div class="head"><div><h1>Pages</h1><div class="muted">Landing pages that turn visitors into contacts.</div></div>
+      <button class="btn primary" data-new>+ New page</button></div>
     ${funnels.length ? `<div class="card table-wrap"><table>
-      <tr><th>Name</th><th>Pages</th><th>Views</th><th>Opt-ins</th><th>Conversion</th><th>Created</th></tr>
+      <tr><th>Name</th><th>Pages</th><th>Views</th><th>Sign-ups</th><th>Conversion</th><th>Created</th></tr>
       ${funnels.map((f) => `<tr class="click" data-go="#/funnels/${f.id}"><td><strong>${esc(f.name)}</strong><div class="muted small">/f/${esc(f.slug)}</div></td>
         <td>${f.steps}</td><td>${f.views}</td><td>${f.optins}</td><td>${f.views ? Math.round((f.optins / f.views) * 1000) / 10 : 0}%</td><td>${fmtDate(f.created_at)}</td></tr>`).join('')}
-    </table></div>` : `<div class="card empty"><div class="big">${icon('magnet')}</div><h2>No pageflows yet</h2>
-      <p>Pick a template and you’ll have a live page in under a minute.</p><button class="btn primary" data-new>Create your first pageflow</button></div>`}`);
+    </table></div>` : `<div class="card empty"><div class="big">${icon('magnet')}</div><h2>No pages yet</h2>
+      <p>Pick a template and you’ll have a live page in under a minute.</p><button class="btn primary" data-new>Create your first page</button></div>`}`);
   bindRowLinks();
   $$('[data-new]').forEach((b) => { b.onclick = newFunnel; });
 }
@@ -20,18 +20,18 @@ async function newFunnel() {
   const templates = await api('GET', '/api/templates');
   const bg = document.createElement('div');
   bg.className = 'modal-bg';
-  bg.innerHTML = `<form class="modal wide"><h2>New pageflow</h2>
+  bg.innerHTML = `<form class="modal wide"><h2>New page</h2>
     <div class="describe"><label class="f" style="margin:0">Describe it in one sentence <span class="hint">we’ll pick the pages and write the words${state.me.aiLive ? ' in your voice' : ''}</span>
       <textarea data-sentence rows="2" placeholder="e.g. A free glaze guide for beginner potters that leads to my $49 starter kit"></textarea></label>
       <div class="row" style="margin-top:8px"><button type="button" class="btn primary" data-describe>${icon('sparkle')} Build it for me</button><span class="err" data-derr style="margin:0"></span></div></div>
     <div class="or"><span>or pick a template</span></div>
-    <label class="f">Pageflow name<input name="name" placeholder="e.g. Free glaze guide"></label>
+    <label class="f">Page name<input name="name" placeholder="e.g. Free glaze guide"></label>
     <div class="f" style="margin-bottom:6px;font-size:.85rem;font-weight:500">Start from</div>
     <div class="tpl-grid" role="radiogroup">${templates.map((t, i) => `<label class="tpl ${i === 0 ? 'on' : ''}"><input type="radio" name="template" value="${t.key}" ${i === 0 ? 'checked' : ''} class="sr">
       <b>${esc(t.label)}</b><span class="muted small">${esc(t.description)}</span>
       <span class="small">${t.pages} page${t.pages === 1 ? '' : 's'}${t.workflows.length ? ` · ${icon('bolt')} ${t.workflows.map(esc).join(', ')}` : ''}</span></label>`).join('')}</div>
     <p class="hint">Follow-up workflows are created switched off, so you can review the emails first.</p>
-    <div class="err"></div><div class="actions"><button type="button" class="btn" data-x>Cancel</button><button class="btn primary">Create pageflow</button></div></form>`;
+    <div class="err"></div><div class="actions"><button type="button" class="btn" data-x>Cancel</button><button class="btn primary">Create page</button></div></form>`;
   document.body.append(bg);
   const close = () => { bg.remove(); if (location.hash === '#/funnels/new') location.hash = '#/funnels'; };
   bg.addEventListener('mousedown', (e) => { if (e.target === bg) close(); });
@@ -50,11 +50,11 @@ async function newFunnel() {
   };
   $('form', bg).onsubmit = async (e) => {
     e.preventDefault();
-    if (!$('[name=name]', bg).value.trim()) { $('.err:not([data-derr])', bg).textContent = 'Name the pageflow, or describe it above'; $('[name=name]', bg).focus(); return; }
+    if (!$('[name=name]', bg).value.trim()) { $('.err:not([data-derr])', bg).textContent = 'Name the page, or describe it above'; $('[name=name]', bg).focus(); return; }
     try {
       const r = await api('POST', '/api/funnels', Object.fromEntries(new FormData(e.target)));
       bg.remove();
-      toast(r.workflows?.length ? `Pageflow created with ${r.workflows.length} follow-up workflow${r.workflows.length === 1 ? '' : 's'}` : 'Pageflow created');
+      toast(r.workflows?.length ? `Page created with ${r.workflows.length} follow-up${r.workflows.length === 1 ? '' : 's'}` : 'Page created');
       location.hash = `#/funnels/${r.id}`;
     } catch (err) { $('.err', bg).textContent = err.message; }
   };
@@ -146,7 +146,7 @@ async function viewFunnel(id) {
     <div data-shared></div>
     <div data-sources></div>
     <details class="fu card" data-fu hidden>
-      <summary><span>${icon('bolt')} <b>Follow-ups</b> <span class="muted small">emails and steps that run after someone goes through this pageflow</span></span>
+      <summary><span>${icon('bolt')} <b>Follow-ups</b> <span class="muted small">emails and steps that run after someone goes through this page</span></span>
         <span class="muted small" data-fucount>${f.workflows?.length || 0} workflow${f.workflows?.length === 1 ? '' : 's'}</span></summary>
       <div data-fulist><p class="muted small" style="margin:8px 0">Loading…</p></div>
     </details>
@@ -182,7 +182,7 @@ async function viewFunnel(id) {
     renderNodes();
     if (flow.leak) {
       const st = byId()[flow.leak.step_id];
-      $('[data-leak]').innerHTML = `<div class="banner leak"><b>${icon('flag')} Leakiest step: “${esc(st?.name || '')}”</b> (${esc(flow.leak.plain)}).
+      $('[data-leak]').innerHTML = `<div class="banner leak"><b>${icon('flag')} Biggest drop-off: “${esc(st?.name || '')}”</b> (${esc(flow.leak.plain)}).
         <br>Try this: ${esc(flow.leak.suggestion)} <a class="btn sm" href="#/editor/${flow.leak.step_id}" style="margin-left:6px">Edit page</a>
         ${st?.variant_blocks ? '<span class="pill">A/B test running</span>' : '<button class="btn sm primary" data-testfix>' + icon('flask') + ' Test the fix</button>'}</div>`;
       const tf = $('[data-testfix]');
@@ -197,8 +197,8 @@ async function viewFunnel(id) {
       modal('Fix these before publishing', `<p class="muted small">Checked before going live so customers never hit a broken page.</p>${list(pre.problems)}`, { submit: 'OK' });
       return;
     }
-    if (!await modal('Publish this pageflow?', `<p>Everything checks out${pre.problems.length ? ', with a note or two:' : '.'}</p>${list(pre.problems)}<p class="muted small">Your pages go live at the pageflow link. You can unpublish any time.</p>`, { submit: 'Publish' })) return;
-    try { await api('POST', `/api/funnels/${id}/publish`); toast('Published! Your pageflow is live'); viewFunnel(id); } catch (err) { toast(err.message, true); }
+    if (!await modal('Publish this page?', `<p>Everything checks out${pre.problems.length ? ', with a note or two:' : '.'}</p>${list(pre.problems)}<p class="muted small">Your pages go live at the page link. You can unpublish any time.</p>`, { submit: 'Publish' })) return;
+    try { await api('POST', `/api/funnels/${id}/publish`); toast('Published! Your page is live'); viewFunnel(id); } catch (err) { toast(err.message, true); }
   };
   const unpub = $('[data-unpublish]');
   if (unpub) unpub.onclick = async () => {
@@ -208,7 +208,7 @@ async function viewFunnel(id) {
   const save = (body) => api('PUT', `/api/funnels/${id}/map`, body).catch((err) => toast(err.message, true));
   const reload = () => viewFunnel(id);
   // Websites read left to right in menu order (pages are reached from the menu, not by links);
-  // pageflows are laid out as a tree that follows their links.
+  // pages are laid out as a tree that follows their links.
   const isSite = f.kind === 'website';
   const siteLayout = () => {
     const { home, menu, off } = sitePages([...m.steps].sort((a, b) => a.position - b.position || a.id - b.id), m.entry);
@@ -468,7 +468,7 @@ async function viewFunnel(id) {
         ${canAppend ? `<button class="fu-add end" data-fuadd="${w.id}:${last[0]}" title="Add a step at the end">${icon('plus')} Add</button>` : ''}</div>
       </div>`;
     }).join('')}
-      <button class="btn sm" data-funew>${icon('plus')} New follow-up for this pageflow</button>`;
+      <button class="btn sm" data-funew>${icon('plus')} New follow-up for this page</button>`;
     $$('[data-fuon]').forEach((c) => { c.onchange = async () => {
       try { await api('PUT', `/api/workflows/${c.dataset.fuon}/status`, { status: c.checked ? 'active' : 'paused' }); toast(c.checked ? 'Follow-up is live' : 'Follow-up turned off'); f.workflows = (await api('GET', `/api/funnels/${id}`)).workflows; renderFollowups(); }
       catch (err) { c.checked = !c.checked; toast(err.message, true); }
@@ -537,7 +537,7 @@ async function viewFunnel(id) {
   renderFollowups().catch(() => { $('[data-fulist]').innerHTML = '<p class="muted small">Couldn’t load follow-ups.</p>'; });
 
   const pageIcon = (s) => (s.blocks.some((b) => b.type === 'pricing') ? icon('card') : s.blocks.some((b) => b.type === 'form') ? icon('mail') : icon('page'));
-  const pageKind = (s) => (s.blocks.some((b) => b.type === 'pricing') ? 'Sales page' : s.blocks.some((b) => b.type === 'form') ? 'Opt-in page' : 'Page');
+  const pageKind = (s) => (s.blocks.some((b) => b.type === 'pricing') ? 'Sales page' : s.blocks.some((b) => b.type === 'form') ? 'Sign-up page' : 'Page');
 
   // Page pictures: each page rendered once, then reused on every redraw.
   m.thumbs = {};
@@ -571,7 +571,7 @@ async function viewFunnel(id) {
   function renderNodes() {
     nodesEl.innerHTML = m.steps.map((s) => `
       <div class="node ${s.id === m.entry ? 'start' : ''} ${m.flow?.leak?.step_id === s.id ? 'leaky' : ''}" data-node="${s.id}" style="left:${s.x}px;top:${s.y}px;width:${NODE_W}px;${m.flow ? `border-top:4px solid ${LEVER_UI[m.flow.levers[s.id]]?.color || 'var(--line)'}` : ''}">
-        ${m.flow?.leak?.step_id === s.id ? '<span class="leakpill" title="Fewest people go on from here">' + icon('flag') + ' Leakiest step</span>' : ''}
+        ${m.flow?.leak?.step_id === s.id ? '<span class="leakpill" title="Fewest people go on from here">' + icon('flag') + ' Biggest drop-off</span>' : ''}
         ${s.variant_blocks ? '<span class="abpill" title="Split test running on this page">A/B</span>' : ''}
         <div class="node-in" title="Visitors arrive here"></div>
         ${isSite ? (s === siteHome() ? '<span class="startpill">⌂ HOME</span>' : s.settings?.hideInMenu ? '<span class="startpill off">Not in menu</span>' : '') : s.id === m.entry ? '<span class="startpill">▶ START</span>' : ''}
@@ -579,12 +579,12 @@ async function viewFunnel(id) {
           <div class="nkind">${pageKind(s)} · /${esc(s.slug)}</div></div>
           <button class="nmenu" data-menu="${s.id}" title="More">${icon('more')}</button></div>
         <a class="nthumb" href="#/editor/${s.id}" title="Edit this page" draggable="false"><iframe tabindex="-1" aria-hidden="true" sandbox="" loading="lazy" data-thumb="${s.id}"${m.thumbs?.[s.id] ? ` srcdoc="${esc(m.thumbs[s.id])}"` : ''}></iframe></a>
-        <div class="nstats"><span><b>${s.views}</b> views</span><span><b>${s.optins}</b> opt-ins</span><span><b>${s.sales}</b> sales</span></div>
+        <div class="nstats"><span><b>${s.views}</b> views</span><span><b>${s.optins}</b> sign-ups</span><span><b>${s.sales}</b> sales</span></div>
         <div class="nact"><a class="btn sm primary" href="#/editor/${s.id}">Edit page</a>
           <a class="btn sm" href="${esc(publicUrl(`/f/${f.slug}/${s.slug}`))}" target="_blank" rel="noopener">View ${icon('external')}</a></div>
         <div class="ports">${Object.entries(PORTS).map(([p, d]) => `<div class="port ${p} ${s[d.key] ? 'linked' : ''}" data-port="${p}" data-from="${s.id}"
           title="${s[d.key] ? 'Drag to change where this leads' : 'Drag to a page, or click to add the next page'}">${d.label}</div>`).join('')}</div>
-      </div>`).join('') || `<div class="map-empty"><div class="big">${icon('sprout')}</div><p>Every pageflow starts with one page.</p>
+      </div>`).join('') || `<div class="map-empty"><div class="big">${icon('sprout')}</div><p>Every page starts with one page.</p>
         <button class="btn primary" data-addpage>+ Add your first page</button></div>`;
     renderEdges();
   }
@@ -852,9 +852,9 @@ async function viewFunnel(id) {
   });
 
   $('[data-rename]').onclick = async () => {
-    const r = await modal('Pageflow settings', `<label class="f">Name<input name="name" required value="${esc(f.name)}"></label>
+    const r = await modal('Page settings', `<label class="f">Name<input name="name" required value="${esc(f.name)}"></label>
       <label class="f">URL <span class="hint">${esc(state.me.baseUrl)}/f/<b>this-part</b></span><input name="slug" required value="${esc(f.slug)}"></label>
-      <p class="hint">Your domain is connected once for the whole business in <a href="#/settings">Settings</a>; this pageflow then lives at /<b>${esc(f.slug)}</b> on it.</p>`,
+      <p class="hint">Your domain is connected once for the whole business in <a href="#/settings">Settings</a>; this page then lives at /<b>${esc(f.slug)}</b> on it.</p>`,
     { onSubmit: (v) => api('PUT', `/api/funnels/${id}`, v) });
     if (r) { toast('Saved'); reload(); }
   };

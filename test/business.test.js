@@ -26,7 +26,8 @@ test('the kind of business sets starting follow-ups, the deals board and visible
   let me = (await c('GET', '/api/me')).body;
   assert.equal(me.account.business_type, 'services');
   assert.equal(me.account.people_word, 'clients');
-  assert.deepEqual(me.account.hidden_sections, []);
+  assert.deepEqual(me.account.hidden_sections, ['members', 'community', 'coupons', 'partners', 'files'], 'a plumber starts without courses, community, coupons, partners or files');
+  assert.ok(me.sections.some((x) => x.key === 'blog' && x.hint));
   assert.ok((await c('GET', '/api/workflows')).body.some((w) => w.name === 'Inquiry follow-up'));
   const pipes = (await c('GET', '/api/pipelines')).body;
   assert.equal(pipes.length, 1);
@@ -37,7 +38,7 @@ test('the kind of business sets starting follow-ups, the deals board and visible
   const r = (await c('POST', '/api/accounts', { name: 'Corner Cafe', business_type: 'local', switch: true })).body;
   me = (await c('GET', '/api/me')).body;
   assert.equal(me.account.id, r.id);
-  assert.deepEqual(me.account.hidden_sections, ['pipelines', 'products']);
+  assert.deepEqual(me.account.hidden_sections, ['pipelines', 'products', 'members', 'community', 'partners', 'files', 'invoices']);
   assert.equal((await c('GET', '/api/pipelines')).body.length, 0);
   assert.equal((await c('GET', '/api/workflows')).body.length, 4);
 
@@ -45,6 +46,10 @@ test('the kind of business sets starting follow-ups, the deals board and visible
   await c('PUT', '/api/account/business', { hidden_sections: ['products', 'nonsense'] });
   me = (await c('GET', '/api/me')).body;
   assert.deepEqual(me.account.hidden_sections, ['products']);
+  // Something already in use never hides.
+  await c('PUT', '/api/account/business', { hidden_sections: ['products', 'coupons'] });
+  await c('POST', '/api/coupons', { code: 'HELLO', kind: 'percent', value: 10 });
+  assert.deepEqual((await c('GET', '/api/me')).body.account.hidden_sections, ['products']);
   assert.equal((await c('PUT', '/api/account/business', { business_type: 'spaceship' })).status, 200);
   assert.equal((await c('GET', '/api/me')).body.account.business_type, '');
 });

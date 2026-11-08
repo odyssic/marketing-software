@@ -94,7 +94,7 @@ const TEMPLATES = {
     workflows: ['welcome'],
     steps: () => [
       {
-        name: 'Opt-in page',
+        name: 'Sign-up page',
         slug: 'optin',
         settings: { accent: '#4f46e5' },
         blocks: [

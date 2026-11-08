@@ -11,6 +11,8 @@ const LEVER_UI = {
   upsell: { label: 'Bigger orders', color: '#b45309' },
   continuity: { label: 'Repeat business', color: '#047857' },
 };
+// The focus as something to do, in plain words.
+const LEVER_FOCUS = { lead: 'bring in new people', conversion: 'turn interest into first sales', upsell: 'grow the size of each order', continuity: 'win repeat business' };
 const dash = { lever: localStorage.getItem('dashLever') || 'all', customize: false, layouts: {}, catalog: [], data: {}, levers: null };
 
 async function viewDashboard() {
@@ -34,7 +36,7 @@ function renderDashboard() {
   const meta = (id) => dash.catalog.find((t) => t.id === id);
   shell('', `
     <div class="head"><div><h1>Hi ${esc(state.me.user.name.split(' ')[0])}</h1>
-      <div class="muted">${esc(state.me.account.name)} · focus this week: <b style="color:${LEVER_UI[focus].color}">${esc(LEVER_UI[focus].label)}</b>${dash.levers.pinned ? ' (pinned)' : ''}</div></div>
+      <div class="muted">${esc(state.me.account.name)} · this week’s focus: <b style="color:${LEVER_UI[focus].color}">${esc(LEVER_FOCUS[focus] || LEVER_UI[focus].label)}</b>${dash.levers.pinned ? ' (pinned)' : ''}</div></div>
       <span class="row" style="gap:8px"><a class="btn" href="#/report">${icon('trend')} Report</a>${createMenu()}</span></div>
     ${dash.noPages && !dash.customize ? `<div class="card setup-nudge"><div><b>Get your first page live in about two minutes</b>
       <div class="muted small">Tell us what kind of business this is. We’ll build the page, booking hours and follow-ups.</div></div>
@@ -253,11 +255,11 @@ async function fillGrowCard() {
 const dashNew = { next: '' };
 const createMenu = () => `<span class="more-wrap"><button type="button" class="btn primary" data-more>${icon('plus')} New</button>
   <span class="more-menu nodemenu create-menu" role="menu" hidden>
-    <button role="menuitem" data-create="flow">${icon('branch')}<span><b>Flow</b><small>Website, pageflow, follow-up or members area</small></span></button>
+    <button role="menuitem" data-create="flow">${icon('branch')}<span><b>Flow</b><small>Website, page, follow-up or members area</small></span></button>
     <button role="menuitem" data-create="email">${icon('mail')}<span><b>Email</b><small>A newsletter or announcement</small></span></button>
     <button role="menuitem" data-create="test">${icon('flask')}<span><b>Split test</b><small>Try two versions of a page</small></span></button>
-    <button role="menuitem" data-create="product">${icon('bag')}<span><b>Product</b><small>Something to sell</small></span></button>
-    <button role="menuitem" data-create="invoice">${icon('note')}<span><b>Invoice</b><small>Bill a client</small></span></button>
+    ${(state.me.account.hidden_sections || []).includes('products') ? '' : `<button role="menuitem" data-create="product">${icon('bag')}<span><b>Product</b><small>Something to sell</small></span></button>`}
+    ${(state.me.account.hidden_sections || []).includes('invoices') ? '' : `<button role="menuitem" data-create="invoice">${icon('note')}<span><b>Invoice</b><small>Bill a client</small></span></button>`}
     <button role="menuitem" data-create="leads">${icon('people')}<span><b>People</b><small>Add leads or import a list</small></span></button>
   </span></span>`;
 function bindCreateMenu() {

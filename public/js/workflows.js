@@ -16,7 +16,7 @@ const STEP_UI = {
 };
 const PALETTE = ['email', 'sms', 'wait', 'condition', 'tag', 'subscribe', 'notify', 'deal'];
 const TRIGGER_UI = {
-  signup: 'Signs up (any form or pageflow)', purchase: 'Buys something', tag_added: 'Gets a tag', subscribe: 'Subscribes to a newsletter',
+  signup: 'Signs up (any form or page)', purchase: 'Buys something', tag_added: 'Gets a tag', subscribe: 'Subscribes to a newsletter',
   inquiry: 'Sends an inquiry', booking: 'Books a call', silent: 'Goes quiet (no activity for a while)',
   birthday: 'Has a birthday', anniversary: 'Reaches a customer anniversary', renewal: 'Has a subscription renewing soon', community_join: 'Joins the community', manual: 'Added by hand',
 };
@@ -324,7 +324,7 @@ function renderInspector() {
   switch (n.type) {
     case 'trigger':
       body = field('Start when someone…', `<select data-c="event">${Object.entries(TRIGGER_UI).map(([k, l]) => `<option value="${k}" ${c.event === k ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>`)
-        + (['signup', 'subscribe', 'inquiry', 'purchase'].includes(c.event) ? field('From', `<select data-c="funnel_id" data-num><option value="">Anywhere (any form, pageflow or import)</option>${wf.funnels.map((f) => `<option value="${f.id}" ${c.funnel_id === f.id ? 'selected' : ''}>${esc(f.name)}</option>`).join('')}</select>`) : '')
+        + (['signup', 'subscribe', 'inquiry', 'purchase'].includes(c.event) ? field('From', `<select data-c="funnel_id" data-num><option value="">Anywhere (any form, page or import)</option>${wf.funnels.map((f) => `<option value="${f.id}" ${c.funnel_id === f.id ? 'selected' : ''}>${esc(f.name)}</option>`).join('')}</select>`) : '')
         + (c.event === 'purchase' ? field('Product name contains', `<input data-c="product" value="${esc(c.product)}" placeholder="Any product">`, 'optional') : '')
         + (c.event === 'tag_added' ? field('Tag', `<input data-c="tag" value="${esc(c.tag)}" placeholder="e.g. vip">`) : '')
         + (c.event === 'silent' ? field('Quiet for (days)', `<input type="number" min="1" data-c="days" data-num value="${c.days}">`, 'only past customers') : '')

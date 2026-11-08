@@ -449,7 +449,8 @@ function createApp({ dbPath } = {}) {
     res.json({
       brand: await reports.brandFor(req.accountId), user: { id: req.user.id, email: req.user.email, name: req.user.name }, role: await team.roleIn(req.user.id, req.accountId) || 'member',
       billing: planOf(await db.get(`SELECT u.plan_status, u.trial_ends_at, u.created_at FROM memberships m JOIN users u ON u.id = m.user_id
-        WHERE m.account_id = ? AND m.role = 'owner' ORDER BY (u.id = ?) DESC, u.id LIMIT 1`, req.accountId, req.user.id).catch(() => null) || req.user), account: { ...account, hidden_sections: business.hiddenSections(account), people_word: business.typeOf(account.business_type).people },
+        WHERE m.account_id = ? AND m.role = 'owner' ORDER BY (u.id = ?) DESC, u.id LIMIT 1`, req.accountId, req.user.id).catch(() => null) || req.user), account: { ...account, hidden_sections: business.hiddenSections(account, await business.usedSections(db, req.accountId)), people_word: business.typeOf(account.business_type).people },
+      sections: Object.entries(business.OPTIONAL_SECTIONS).map(([key, label]) => ({ key, label, hint: business.SECTION_HINTS[key] })),
       businessTypes: business.publicTypes(), emailLive: mailer.isLive(), aiLive: require('./ai').isLive(), baseUrl: baseUrl(req),
       accounts: await db.all(`SELECT a.id, a.name, m.role FROM memberships m JOIN accounts a ON a.id = m.account_id
         WHERE m.user_id = ? ORDER BY a.name, a.id`, req.user.id),

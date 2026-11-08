@@ -28,7 +28,7 @@ async function viewCommunityAdmin() {
   const c = d.community;
   const open = publicUrl(`/my/${state.me.account.handle}/community`);
   const color = c.brand_color || d.brand_default;
-  const joinWord = { open: 'Anyone with an email can join', buyers: 'Buyers only', members: 'Members areas only' }[c.join_rule];
+  const joinWord = { open: 'Anyone with an email can join', buyers: 'Buyers only', members: 'Course members only' }[c.join_rule];
   shell('flows', `${head(`<button class="btn primary" data-cspace>${icon('plus')} New space</button>`)}
     <section class="card cma-hero" style="--cc:${esc(color)}">
       <div class="cma-cover">${c.cover_url ? `<img src="${esc(c.cover_url)}" alt="">` : ''}<span class="cma-logo">${esc(commInitials(c.name))}</span></div>
