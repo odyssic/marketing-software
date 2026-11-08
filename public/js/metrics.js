@@ -139,7 +139,7 @@ function revenueChart(el, m) {
     return `<path d="M${x0},${f.y(0)} V${y0 + r} Q${x0},${y0} ${x0 + r},${y0} H${x0 + bw - r} Q${x0 + bw},${y0} ${x0 + bw},${y0 + r} V${f.y(0)} Z" fill="${VIZ.revenue}" class="bar" data-i="${i}"/>`;
   }).join('');
   const prev = showPrev ? `<polyline points="${s.map((d, i) => `${f.x(i)},${f.y(d.prevRevenue)}`).join(' ')}" fill="none" stroke="${VIZ.prev}" stroke-width="2" stroke-dasharray="5 4" stroke-linejoin="round"/>` : '';
-  const hits = s.map((d, i) => `<rect x="${f.x(i) - f.step / 2}" y="${f.T}" width="${f.step}" height="${f.y(0) - f.T}" fill="transparent" data-hit="${i}" tabindex="-1"/>`).join('');
+  const hits = s.map((d, i) => `<rect x="${f.x(i) - f.step / 2}" y="${f.T}" width="${f.step}" height="${f.y(0) - f.T}" fill="transparent" data-hit="${i}"/>`).join('');
   const empty = !s.some((d) => d.revenue) ? `<text x="${(f.L + f.W - f.R) / 2}" y="${f.H / 2}" text-anchor="middle" class="ax empty">No sales in this period yet</text>` : '';
   el.innerHTML = `<svg viewBox="0 0 ${f.W} ${f.H}" width="100%" height="${f.H}" role="img" aria-label="Revenue per ${m.unit}">${f.grid}${bars}${prev}${xLabels(f, m)}${empty}<line class="xh" y1="${f.T}" y2="${f.y(0)}" hidden/>${hits}</svg>`;
   hover(el, f, (i) => [periodLabel(s[i].label, m.unit, true), [[VIZ.revenue, money(s[i].revenue, cur), 'This period'], ...(showPrev ? [[VIZ.prev, money(s[i].prevRevenue, cur), 'Previous period', true]] : [])]]);
