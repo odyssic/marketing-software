@@ -123,7 +123,7 @@ const rowBars = (bars) => {
   return `<div class="rbars">${bars.map((b) => `<${b.href ? `a href="${esc(b.href)}"` : 'div'} class="rb"><span class="l">${esc(b.label)}</span>
     <span class="track"><span style="width:${(b.n / max) * 100}%"></span></span><span class="v">${esc(b.value ?? String(b.n))}</span></${b.href ? 'a' : 'div'}>`).join('')}</div>`;
 };
-const FLOW = [['audience', 'Audience'], ['lead', 'Leads'], ['customer', 'Customers'], ['regular', 'Regulars']];
+const FLOW = [['audience', 'Contacts'], ['lead', 'Leads'], ['customer', 'Customers'], ['regular', 'Regulars']];
 const FLOW_ARROWS = [['lead', 'audience', 'lead'], ['conversion', 'lead', 'customer'], ['continuity', 'customer', 'regular']];
 function flowStrip(counts, lever) {
   const on = (stage) => lever === 'all' || (lever === 'upsell' ? stage === 'customer' : FLOW_ARROWS.some(([l, a, b]) => l === lever && (stage === a || stage === b)));

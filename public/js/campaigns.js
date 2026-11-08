@@ -8,7 +8,7 @@ async function viewCampaign(campaignId) {
   const sent = c.status === 'sent';
   const editable = !sent && c.status !== 'sending';
   shell('email', `
-    <div class="head"><div><a href="#/email/campaigns" class="small">← Weekly moves</a>
+    <div class="head"><div><a href="#/email/campaigns" class="small">← Ideas for this week</a>
       <h1 style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">${esc(c.move.title || c.title || 'Campaign')}</h1>
       <div class="row" style="gap:6px;margin-top:4px">${leverPill(c.lever)}<span class="pill ${sent ? 'ok' : c.status === 'skipped' ? 'warn' : ''}">${esc(c.status)}</span>
         ${c.week ? `<span class="muted small">week of ${fmtDate(c.week)}</span>` : ''}</div></div></div>

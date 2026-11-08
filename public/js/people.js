@@ -1,8 +1,9 @@
 'use strict';
 
 // ---------------- People ----------------
-const STAGES = [['audience', 'Audience'], ['lead', 'Leads'], ['customer', 'Customers'], ['regular', 'Regulars']];
-const STAGE_LABEL = { audience: 'Audience', lead: 'Lead', customer: 'Customer', regular: 'Regular' };
+// Audience: known to you, but no sign-up, inquiry or purchase yet.
+const STAGES = [['audience', 'Contacts'], ['lead', 'Leads'], ['customer', 'Customers'], ['regular', 'Regulars']];
+const STAGE_LABEL = { audience: 'Contact', lead: 'Lead', customer: 'Customer', regular: 'Regular' };
 const stagePill = (s) => `<span class="stage ${esc(s)}">${esc(STAGE_LABEL[s] || s)}</span>`;
 // Someone known only by a phone number goes by that number, nicely formatted.
 const prettyPhone = (p) => { const m = String(p || '').match(/^\+1(\d{3})(\d{3})(\d{4})$/); return m ? `(${m[1]}) ${m[2]}-${m[3]}` : String(p || ''); };
@@ -22,7 +23,7 @@ async function viewPeople() {
   shell('people', `
     <div class="head"><div><h1>People</h1><div class="muted">One record per person: all your ${esc(state.me.account.people_word || 'people')}, leads and subscribers in one place.</div></div>
       <div class="row">${moreMenu(`${(state.me.account.hidden_sections || []).includes('pipelines') ? '' : `<a role="menuitem" href="#/pipelines">${icon('trend')} Deals board</a>`}
-        <a role="menuitem" href="#/people/testimonials">${icon('quote')} Testimonials</a><a role="menuitem" href="/api/export.zip">${icon('download')} Export everyone (CSV)</a>`)}
+        <a role="menuitem" href="#/people/testimonials">${icon('quote')} Testimonials</a><a role="menuitem" href="/api/export.zip">${icon('download')} Export everyone (CSV)</a>`, (state.me.account.hidden_sections || []).includes('pipelines') ? 'Testimonials & export' : 'Deals, testimonials & export')}
       ${!all.length && !q && !tag && !stage && !segment ? '' : `<button class="btn primary" data-leads>${icon('plus')} Add leads</button>`}</div></div>
     <div class="stage-chips" role="tablist" aria-label="Stage">
       <a role="tab" aria-selected="${!stage}" href="${link({ stage: '' })}" class="${stage ? '' : 'on'}">Everyone <b>${all.length}</b></a>

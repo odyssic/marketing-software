@@ -11,12 +11,12 @@ async function viewEmail(tab) {
   const [items, tags, segs] = await Promise.all([api('GET', outbox ? '/api/outbox' : camps ? '/api/campaigns' : '/api/broadcasts'), api('GET', '/api/tags'), api('GET', '/api/segments').catch(() => [])]);
   SEG_LABELS = Object.fromEntries(segs.map((s) => [s.key, s.label]));
   shell('email', `
-    <div class="head"><div>${outbox || camps ? '<a href="#/email" class="small">← Email</a>' : ''}<h1>${outbox ? 'Outbox' : camps ? 'Weekly moves' : 'Email'}</h1>
+    <div class="head"><div>${outbox || camps ? '<a href="#/email" class="small">← Email</a>' : ''}<h1>${outbox ? 'Every email sent' : camps ? 'Ideas for this week' : 'Email'}</h1>
       <div class="muted">${outbox ? 'Every email Rilly has sent for you, newest first.' : camps ? 'The small weekly moves suggested on your dashboard, and how they did.' : 'Newsletters and announcements to your people.'}</div></div>
       ${outbox || camps || !items.length ? '' : newEmailMenu()}</div>
     ${state.me.emailLive ? '' : '<div class="banner"><b>Test mode:</b> no email service is connected, so emails are saved to the Outbox instead of being delivered.</div>'}
     ${outbox ? outboxHtml(items) : camps ? campaignsHtml(items) : broadcastsHtml(items)}
-    ${outbox || camps ? '' : `<p class="muted small email-more">Also: <a href="#/email/campaigns">Weekly moves</a> · <a href="#/email/outbox">Outbox (every email sent)</a></p>`}`);
+    ${outbox || camps ? '' : `<p class="muted small email-more">Also: <a href="#/email/campaigns">Ideas for this week</a> · <a href="#/email/outbox">Every email sent</a></p>`}`);
   bindMoreMenus();
   bindRowLinks();
 

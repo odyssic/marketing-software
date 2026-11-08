@@ -1723,3 +1723,26 @@ ul.tasks { list-style: none; padding: 0; margin: 10px 0 4px; }
   .tabs a { white-space: nowrap; flex: none; padding: 8px 12px; }
 }
 @media (max-width: 900px) { .shell { grid-template-rows: auto 1fr; align-content: start; } }
+
+/* Find anything */
+.find-btn { display: flex; align-items: center; gap: 10px; margin: 6px 0 10px; padding: 9px 12px; border-radius: 8px; border: 1px solid #2a3f43; background: #1a2c30; color: #9ca3af; font: inherit; font-size: .9rem; cursor: pointer; text-align: left; }
+.find-btn:hover { color: #fff; border-color: #3b5559; }
+.find-btn svg { width: 17px; height: 17px; flex: none; } .find-btn span { flex: 1; }
+.find-btn kbd { font: 600 .7rem system-ui, sans-serif; border: 1px solid #3b5559; border-radius: 5px; padding: 1px 5px; color: #9ca3af; }
+.finder-bg { position: fixed; inset: 0; background: rgba(15, 25, 28, .45); z-index: 100; display: flex; justify-content: center; align-items: flex-start; padding: 12vh 16px 16px; }
+.finder { width: 100%; max-width: 560px; background: #fff; border-radius: 16px; box-shadow: 0 30px 80px rgba(0, 0, 0, .3); overflow: hidden; }
+.finder-in { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border-bottom: 1px solid var(--line); }
+.finder-in svg { width: 20px; height: 20px; color: var(--muted); flex: none; }
+.finder-in input { border: 0; outline: none; font-size: 1.05rem; width: 100%; padding: 4px 0; background: none; }
+.finder-list { max-height: 55vh; overflow: auto; padding: 6px; }
+.finder-list a { display: flex; gap: 12px; align-items: center; padding: 10px 12px; border-radius: 10px; color: var(--text); text-decoration: none; }
+.finder-list a.on, .finder-list a:hover { background: var(--brand-soft); }
+.finder-list small { display: block; color: var(--muted); font-size: .8rem; }
+.finder-list .fi svg { width: 17px; height: 17px; color: var(--brand); }
+.finder-foot { padding: 8px 16px; border-top: 1px solid var(--line); }
+@media (max-width: 900px) {
+  .find-btn { margin: 0 0 0 auto; padding: 8px; border: 0; background: none; flex: none; }
+  .find-btn span, .find-btn kbd { display: none; }
+  .find-btn svg { width: 22px; height: 22px; color: #d1d5db; }
+  .finder-bg { padding-top: 8vh; } .finder-foot { display: none; }
+}

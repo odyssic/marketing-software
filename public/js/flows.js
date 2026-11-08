@@ -59,10 +59,11 @@ async function viewFlows() {
     ${groups.map((g) => `<section class="pgroup card" data-group="${g.id}">
       <header class="pg-head">${q ? '' : `<button type="button" class="pg-grip" data-grip title="Drag to reorder (or use the arrow keys)" aria-label="Move “${esc(g.name)}”: drag, or press the up and down arrow keys">${icon('grip')}</button>`}
         <div><a class="pg-name" href="#/${FLOW_OPEN[g.kind] || 'funnels'}/${g.id}">${esc(g.name)}</a>
-          <span class="muted small">${kindWord(g)} · ${g.pages.length} page${g.pages.length === 1 ? '' : 's'}${g.followups ? ` · ${g.followups} follow-up${g.followups === 1 ? '' : 's'}` : ''}</span></div>
+          <span class="muted small">${g.kind === 'website' || g.kind === 'members' ? `${kindWord(g)} · ` : ''}${g.pages.length} page${g.pages.length === 1 ? '' : 's'}${g.followups ? ` · ${g.followups} follow-up${g.followups === 1 ? '' : 's'}` : ''}</span></div>
         ${purposeTag(g)}
         ${g.status === 'live' ? '<span class="pill ok">Live</span>' : '<span class="pill warn">Draft</span>'}
-        <div class="pg-stats"><span><b>${g.views}</b> visitors</span><span><b>${g.leads}</b> leads &amp; sales</span><span><b>${g.rate === null ? '—' : `${g.rate}%`}</b> convert</span><span class="muted small">last 30 days</span></div>
+        ${g.status !== 'live' && !g.views ? '<div class="pg-stats"><span class="muted small">Not live yet: open it and press Publish when it looks right.</span></div>'
+    : `<div class="pg-stats"><span><b>${g.views}</b> visitors</span><span><b>${g.leads}</b> sign-ups &amp; sales</span>${g.rate === null ? '' : `<span><b>${g.rate}%</b> of visitors</span>`}<span class="muted small">last 30 days</span></div>`}
         <span class="row" style="gap:6px"><a class="btn sm" href="#/${FLOW_OPEN[g.kind] || 'funnels'}/${g.id}">Open</a>
           ${moreMenu(`<button role="menuitem" data-gdup="${g.id}">${icon('copy')} Duplicate</button><button role="menuitem" class="danger" data-gdel="${g.id}">${icon('trash')} Delete</button>`)}</span>
       </header>

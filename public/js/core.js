@@ -198,7 +198,7 @@ function bindMoreMenus(root = document) {
     btn.nextElementSibling.addEventListener('keydown', (e) => { if (e.key === 'Escape') { btn.nextElementSibling.hidden = true; btn.focus(); } });
   });
 }
-const moreMenu = (items) => `<span class="more-wrap"><button type="button" class="btn icon" data-more aria-label="More actions" title="More">${icon('more')}</button>
+const moreMenu = (items, label = '') => `<span class="more-wrap"><button type="button" class="btn ${label ? '' : 'icon'}" data-more aria-label="More actions" title="More">${label ? `${esc(label)} ${icon('chevronDown')}` : icon('more')}</button>
   <span class="more-menu nodemenu" role="menu" hidden>${items}</span></span>`;
 
 const fmtDate = (s) => (s ? new Date(s).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '');
@@ -367,12 +367,14 @@ function shell(section, html) {
       <div class="logo">${agencyLogo() || LOGO}</div>
       <div class="acct-wrap"><button class="acct" data-acct aria-haspopup="menu" aria-expanded="false" title="Switch sub-account">
         <span class="av">${esc(initials(state.me.account.name))}</span><span class="nm">${esc(state.me.account.name)}</span><span class="car">${icon('chevronDown')}</span></button></div>
+      <button type="button" class="find-btn" data-find title="Find anything (Ctrl K)" aria-label="Find anything">${icon('search')}<span>Find anything</span><kbd>${/Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl'} K</kbd></button>
       <nav class="nav">${NAV.filter(([k]) => !(state.me.account.hidden_sections || []).includes(k)).map(([k, i, l]) => `<a href="#/${k}" class="${(FLOW_SECTIONS.includes(section) ? 'flows' : NAV_HOME[section] || section) === k ? 'active' : ''}"><span class="ico">${i}</span>${l}${k === 'inbox' ? '<span class="nav-badge" data-unread hidden></span>' : ''}</a>`).join('')}</nav>
       <div class="foot"><div class="muted">${esc(state.me.user.email)}</div><button data-logout>Sign out</button></div>
     </aside>
     <main class="main">${planBanner()}${html}</main>${phoneTabs(section)}</div>`;
   $('[data-logout]').onclick = logout;
   bindPhoneTabs();
+  $('[data-find]').onclick = () => openFinder();
   applyAgencyBrand();
   refreshUnread();
   $('[data-acct]').onclick = (e) => { e.stopPropagation(); accountMenu(e.currentTarget); };
