@@ -27,6 +27,10 @@ function fallbackCopy(goal, name, offer) {
   }[goal];
 }
 
+// A calm starting colour and type style for each kind of business (until they add a logo or brand colour).
+const TYPE_COLOR = { coach: '#9a4a2e', services: '#1f5f4a', shop: '#7a4e24', local: '#1b4f72', nonprofit: '#5b3f8c', other: '#1b736d' };
+const TYPE_FONT = { coach: 'elegant', shop: 'elegant', services: 'modern', local: 'modern', nonprofit: 'modern', other: 'modern' };
+
 // What people get for joining the list, and the words for each. Never placeholders:
 // this page can go live as it is.
 const INCENTIVES = ['discount', 'guide', 'news'];
@@ -135,35 +139,40 @@ function registerSetup(api, { getDb, HttpError, createFunnel, TEMPLATES, getAcco
     const pageName = `${name.slice(0, 40)} ${goal === 'booked' ? 'booking' : goal === 'inquiries' ? 'quotes' : goal === 'sell' ? 'shop' : 'list'}`;
     const f = await createFunnel(req.accountId, pageName, tpl, copy, { templates: goal === 'sell' ? plainPricing(TEMPLATES, offer) : TEMPLATES });
     await db().run('UPDATE funnels SET purpose = ? WHERE id = ?', GOALS[goal].purpose, f.id);
+    // Every page setup makes: in the business's colours (or a calm default for its kind),
+    // with a matching type style, an "about" line, and no empty boxes.
+    {
+      const acctNow = await getAccount(req.accountId);
+      const brand = palette.HEX.test(acctNow.brand_color || '') ? acctNow.brand_color : TYPE_COLOR[type] || TYPE_COLOR.other;
+      const pal = palette.paletteFrom(brand, palette.HEX.test(acctNow.brand_color || '') ? acctNow.brand_color2 : '');
+      const steps = await db().all('SELECT id, blocks, settings FROM funnel_steps WHERE funnel_id = ? ORDER BY position, id', f.id);
+      const about = offer && goal !== 'sell' && goal !== 'list' ? `About ${name}: ${offer.replace(/\s+/g, ' ').trim().replace(/([^.!?])$/, '$1.')}` : '';
+      for (const [i, s] of steps.entries()) {
+        const st = JSON.parse(s.settings || '{}');
+        let bl = JSON.parse(s.blocks).flatMap((x) => (x.type === 'text' && !x.text ? (i === 0 && about ? [{ ...x, text: about }] : list ? [x] : []) : [x]));
+        if (i > 0 && copy.thank_you) { const h = bl.find((x) => x.type === 'hero'); if (h && !list) h.text = copy.thank_you; }
+        palette.applyPalette(pal, st, bl);
+        if (!st.font && TYPE_FONT[type]) st.font = TYPE_FONT[type];
+        await db().run('UPDATE funnel_steps SET blocks = ?, settings = ? WHERE id = ?', JSON.stringify(bl), JSON.stringify(st), s.id);
+      }
+    }
     if (list) {
       // The parts the general copy step doesn't touch: eyebrow, what they get, who's behind it, the thank-you.
       const steps = await db().all('SELECT id, blocks, settings FROM funnel_steps WHERE funnel_id = ? ORDER BY position, id', f.id);
-      const brand = /^#[0-9a-f]{6}$/i.test(account.brand_color || '') ? account.brand_color : '';
       for (const [i, s] of steps.entries()) {
         const blocks = JSON.parse(s.blocks).flatMap((x) => {
-          if (i === 0 && x.type === 'hero') return [{ ...x, eyebrow: list.eyebrow, ...(brand ? { background: brand } : {}) }];
+          if (i === 0 && x.type === 'hero') return [{ ...x, eyebrow: list.eyebrow }];
           if (i === 0 && x.type === 'bullets') return [{ ...x, items: list.bullets.join('\n') }];
           if (i === 0 && x.type === 'form' && incentive === 'guide') return [{ ...x, deliverName: guide }];
           if (i === 0 && x.type === 'text' && !x.text) return list.about ? [{ ...x, text: `About ${name}: ${list.about}` }] : [];
           if (i > 0 && x.type === 'text') return [{ ...x, text: list.thank_text }];
           return [x];
         });
-        const st = { ...JSON.parse(s.settings || '{}'), ...(brand ? { accent: brand } : {}) };
-        await db().run('UPDATE funnel_steps SET blocks = ?, settings = ? WHERE id = ?', JSON.stringify(blocks), JSON.stringify(st), s.id);
+        await db().run('UPDATE funnel_steps SET blocks = ? WHERE id = ?', JSON.stringify(blocks), s.id);
       }
       // A real code for the welcome offer.
       if (incentive === 'discount') {
         await db().run("INSERT INTO coupons (account_id, code, percent_off) VALUES (?, ?, ?) ON CONFLICT (account_id, code) DO NOTHING", req.accountId, `WELCOME${pct}`, pct);
-      }
-    }
-    // The whole page in the business's colours (from its logo or brand colour).
-    const acctNow = await getAccount(req.accountId);
-    if (/^#[0-9a-f]{6}$/i.test(acctNow.brand_color || '')) {
-      const pal = palette.paletteFrom(acctNow.brand_color, acctNow.brand_color2);
-      for (const s of await db().all('SELECT id, blocks, settings FROM funnel_steps WHERE funnel_id = ?', f.id)) {
-        const st = JSON.parse(s.settings || '{}'), bl = JSON.parse(s.blocks);
-        palette.applyPalette(pal, st, bl);
-        await db().run('UPDATE funnel_steps SET blocks = ?, settings = ? WHERE id = ?', JSON.stringify(bl), JSON.stringify(st), s.id);
       }
     }
     if (productId) {

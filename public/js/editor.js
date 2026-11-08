@@ -45,7 +45,7 @@ const BLOCKS = {
       ['showTotal', 'check', 'Show the total value'], ['priceLabel', 'text', 'Price label', null, 'e.g. Today, Your price'], ['price', 'text', 'Your price', null, 'e.g. $49'],
       ['buttonLabel', 'text', 'Button text'], ['url', 'text', 'Button link', null, '#next = this page’s ✓ Yes exit · page:slug · or a full https:// link'], ['note', 'text', 'Small print under the button']] },
   cards: { label: 'Cards', icon: icon('cards'), defaults: { items: 'Service one | A short description\nService two | A short description\nService three | A short description' },
-    fields: [['items', 'textarea', 'Cards (one per line: Title | description)']] },
+    fields: [['items', 'textarea', 'Cards (one per line: Title | description)'], ['numbered', 'check', 'Number them (for steps like 1, 2, 3)']] },
   info: { label: 'Business info', icon: icon('info'), defaults: { hours: 'Mon–Fri 9am–5pm', address: '', phone: '', email: '' },
     fields: [['hours', 'text', 'Hours'], ['address', 'text', 'Address'], ['phone', 'text', 'Phone'], ['email', 'text', 'Email']] },
   booking: { label: 'Booking', icon: icon('calendar'), defaults: { heading: 'Pick a time that suits you', buttonLabel: 'Confirm booking', collectPhone: false, askNote: true, tag: 'booked', payment: 'Free', price: '', deposit: '', currency: 'usd' },

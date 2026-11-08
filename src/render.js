@@ -231,7 +231,7 @@ function renderBlock(b, ctx, index) {
     }
     case 'cards': {
       const items = String(b.items || '').split('\n').map((l) => l.split('|').map((x) => x.trim())).filter(([t]) => t);
-      return `<div class="cards">${items.map(([t, d]) => `<div class="card"><h3>${esc(t)}</h3>${d ? `<p>${esc(d)}</p>` : ''}</div>`).join('')}</div>`;
+      return `<div class="cards${b.numbered ? ' numbered' : ''}">${items.map(([t, d]) => `<div class="card"><h3>${esc(t)}</h3>${d ? `<p>${esc(d)}</p>` : ''}</div>`).join('')}</div>`;
     }
     case 'info': {
       const rows = [['🕘', 'Hours', b.hours], ['📍', 'Address', b.address], ['📞', 'Phone', b.phone && `<a href="tel:${esc(String(b.phone).replace(/[^+\d]/g, ''))}">${esc(b.phone)}</a>`], ['✉️', 'Email', b.email && `<a href="mailto:${esc(b.email)}">${esc(b.email)}</a>`]]
@@ -392,6 +392,15 @@ footer.site{border-top:1px solid color-mix(in srgb,${fg} 10%,transparent);margin
 .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin:28px 0}
 .cards .card{border:1px solid color-mix(in srgb,${fg} 12%,transparent);border-radius:12px;padding:18px 20px;background:color-mix(in srgb,${accent} 4%,${bg})}
 .cards h3{margin:0 0 6px;font-size:1.1rem}.cards p{margin:0;opacity:.8}
+.cards.numbered{counter-reset:step}.cards.numbered .card::before{counter-increment:step;content:counter(step);display:grid;place-items:center;width:30px;height:30px;border-radius:50%;background:${accent};color:#fff;font:700 .9rem system-ui,sans-serif;margin-bottom:10px}
+/* Forms, booking and offers sit on a clean card. */
+.optin,.booking{background:color-mix(in srgb,#fff 92%,${bg});border:1px solid color-mix(in srgb,${fg} 9%,transparent);border-radius:18px;padding:26px 24px;box-shadow:0 18px 40px -22px color-mix(in srgb,${fg} 35%,transparent)}
+.optin{max-width:480px}
+.optin input,.optin textarea,.bk-form input,.bk-form textarea{width:100%;padding:14px 16px;border:1px solid color-mix(in srgb,${fg} 18%,transparent);border-radius:10px;font:inherit;font-size:1rem;background:#fff;color:#1f2328}
+.optin input:focus,.optin textarea:focus,.bk-form input:focus,.bk-form textarea:focus{outline:2px solid color-mix(in srgb,${accent} 45%,transparent);border-color:${accent}}
+.optin textarea{resize:vertical;min-height:110px}
+.booking{max-width:760px;margin-left:auto;margin-right:auto}
+.pricing{border-radius:18px;border:1px solid color-mix(in srgb,${fg} 10%,transparent);box-shadow:0 22px 50px -26px color-mix(in srgb,${fg} 40%,transparent);border-top:5px solid ${accent}}
 .info{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin:24px 0;padding:18px;border-radius:12px;background:color-mix(in srgb,${accent} 6%,${bg})}
 .info>div{display:grid;grid-template-columns:auto 1fr;gap:2px 8px;align-items:start}.info>div>div{grid-column:2}.info a{color:${accent}}
 @media(max-width:640px){.burger{display:block}header.site nav{display:none;width:100%;flex-direction:column;gap:10px;padding-top:6px}#mnu:checked~nav{display:flex}}

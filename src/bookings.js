@@ -19,7 +19,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 // ---------- Time zones without a library ----------
-function validTz(tz) { try { new Intl.DateTimeFormat('en-US', { timeZone: tz }); return true; } catch { return false; } }
+function validTz(tz) { if (typeof tz !== 'string' || !tz.trim() || tz === 'undefined') return false; try { new Intl.DateTimeFormat('en-US', { timeZone: tz }); return true; } catch { return false; } }
 // Minutes the zone is ahead of UTC at this instant (e.g. -300 for New York in winter).
 function offsetMinutes(date, tz) {
   const p = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: tz, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' })
@@ -45,6 +45,7 @@ function settingsOf(account) {
   let s = {};
   try { s = JSON.parse(account.booking || '{}') || {}; } catch { /* defaults */ }
   // Hours count as set once they've been saved (busy times alone don't switch booking on).
+  if (!validTz(s.tz)) delete s.tz; // older saves could hold "undefined"
   return { ...DEFAULTS, ...s, configured: Boolean(s.start) };
 }
 const stored = (account) => { try { return JSON.parse(account.booking || '{}') || {}; } catch { return {}; } };

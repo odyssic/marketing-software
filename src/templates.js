@@ -150,6 +150,7 @@ const TEMPLATES = {
         settings: { accent: '#14b8a6', background: '#ffffff', width: 960 },
         blocks: [
           { id: id(), type: 'hero', eyebrow: 'Pricing', text: 'Simple pricing.\nEverything included.', background: '#0d9488', textColor: '#ffffff' },
+          { id: id(), type: 'text', text: '', align: 'center' },
           {
             id: id(), type: 'pricing', productId: null,
             badge: 'LIMITED TIME OFFER', compareText: '$190 per year', billingText: '',
@@ -158,15 +159,15 @@ const TEMPLATES = {
             features: 'Drag-and-drop page editor\nReady-made templates\nUnlimited funnels\nLead capture forms\nEmail broadcasts\nContact management\nSales & checkout pages\nPriority support',
             buttonLabel: 'Get Instant Access Now', buttonSubtext: '14-day money-back guarantee', buttonColor: '#ff7849',
           },
+          { id: id(), type: 'cards', numbered: false, items: 'Secure checkout | Pay by card, Apple Pay or Google Pay.\nReceipt straight away | Your order details arrive by email.\nReal people | Questions? Just reply to your receipt.' },
         ],
       },
       {
         name: 'Thank you',
         slug: 'thank-you',
-        settings: { accent: '#14b8a6' },
+        settings: { accent: '#14b8a6', width: 880 },
         blocks: [
-          { id: id(), type: 'heading', text: 'Payment received. Welcome aboard! 🎉', align: 'center' },
-          { id: id(), type: 'text', text: 'A receipt is on its way to your inbox.', align: 'center' },
+          { id: id(), type: 'hero', style: 'wave', eyebrow: 'Thank you', text: 'Payment received. Welcome aboard!', subtext: 'A receipt is on its way to your inbox.' },
         ],
       },
     ],
@@ -240,16 +241,17 @@ const TEMPLATES = {
     workflows: ['inquiry'],
     steps: () => [
       {
-        name: 'Request', slug: 'request', settings: { accent: '#0f766e' },
+        name: 'Request', slug: 'request', settings: { accent: '#0f766e', width: 880 },
         blocks: [
-          { id: id(), type: 'heading', text: 'Book a free 20-minute consultation', align: 'center' },
-          { id: id(), type: 'text', text: 'Tell us a little about what you need and we’ll get back to you within one business day.', align: 'center' },
+          { id: id(), type: 'hero', style: 'wave', eyebrow: 'Free, no obligation', text: 'Book a free 20-minute consultation', subtext: 'Tell us a little about what you need and we’ll get back to you within one business day.' },
+          { id: id(), type: 'cards', numbered: true, items: 'Tell us what you need | A few lines is plenty.\nWe reply within a day | With questions or a first idea.\nYou decide | A clear price, and no pressure.' },
           { id: id(), type: 'form', buttonLabel: 'Request my consultation', collectName: true, collectPhone: false, collectMessage: true, purpose: 'Inquiry', tag: 'consult-request' },
+          { id: id(), type: 'text', text: '', align: 'center' },
         ],
       },
       {
-        name: 'Thanks', slug: 'thanks', settings: { accent: '#0f766e' },
-        blocks: [{ id: id(), type: 'heading', text: 'Thanks! We’ll be in touch soon.', align: 'center' }, { id: id(), type: 'text', text: 'Check your inbox for a confirmation.', align: 'center' }],
+        name: 'Thanks', slug: 'thanks', settings: { accent: '#0f766e', width: 880 },
+        blocks: [{ id: id(), type: 'hero', style: 'wave', eyebrow: 'Request sent', text: 'Thanks! We’ll be in touch soon.', subtext: 'Check your inbox for a confirmation.' }],
       },
     ],
   },
@@ -260,16 +262,17 @@ const TEMPLATES = {
     workflows: [],
     steps: () => [
       {
-        name: 'Book', slug: 'book', settings: { accent: '#1f7f78' },
+        name: 'Book', slug: 'book', settings: { accent: '#1f7f78', width: 880 },
         blocks: [
-          { id: id(), type: 'heading', text: 'Book a free call', align: 'center' },
-          { id: id(), type: 'text', text: 'Pick a time that suits you. You’ll get a confirmation straight away and a reminder the day before.', align: 'center' },
-          { id: id(), type: 'booking', heading: '', buttonLabel: 'Confirm my call', collectPhone: true, askNote: true, tag: 'booked' },
+          { id: id(), type: 'hero', style: 'wave', eyebrow: 'Book online', text: 'Book a free call', subtext: 'Pick a time that suits you. You’ll get a confirmation straight away and a reminder the day before.' },
+          { id: id(), type: 'cards', numbered: true, items: 'Pick a time | Open times are shown in your own time zone.\nGet a confirmation | Straight to your inbox, with a link to change it.\nWe talk | A reminder arrives the day before.' },
+          { id: id(), type: 'booking', heading: 'Choose a time', buttonLabel: 'Confirm my call', collectPhone: true, askNote: true, tag: 'booked' },
+          { id: id(), type: 'text', text: '', align: 'center' },
         ],
       },
       {
-        name: 'Booked', slug: 'booked', settings: { accent: '#1f7f78' },
-        blocks: [{ id: id(), type: 'heading', text: 'You’re booked. Talk soon!', align: 'center' }, { id: id(), type: 'text', text: 'Your confirmation is in your inbox, with a link to change the time if you need to.', align: 'center' }],
+        name: 'Booked', slug: 'booked', settings: { accent: '#1f7f78', width: 880 },
+        blocks: [{ id: id(), type: 'hero', style: 'wave', eyebrow: 'Booked', text: 'You’re booked. Talk soon!', subtext: 'Your confirmation is in your inbox, with a link to change the time if you need to.' }],
       },
     ],
   },
