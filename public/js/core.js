@@ -269,8 +269,7 @@ async function renderAuth(mode) {
     <p class="muted">${setup ? 'Your website, emails, follow-ups and customers in one simple place. Free to start.'
       : mode === 'link' ? 'We’ll email you a link to sign in. No password needed.' : 'Sign in with your password.'}</p>
     ${setup ? `<label class="f">Your name<input name="name" required autocomplete="name"></label>
-      <label class="f">Business name <span class="hint">(optional)</span><input name="workspace"></label>
-      <label class="f">What kind of business?<select name="business_type">${BUSINESS_OPTIONS}</select></label>` : ''}
+      <label class="f">Business name <span class="hint">(optional)</span><input name="workspace"></label>` : ''}
     <label class="f">Email<input name="email" type="email" required autocomplete="email"></label>
     ${mode === 'password' ? '<label class="f">Password<input name="password" type="password" required autocomplete="current-password"></label><p class="small forgot"><a href="#" data-forgot>Forgot password?</a></p>' : ''}
     ${setup ? '<label class="f">Password <span class="hint">(optional, a backup to email links)</span><input name="password" type="password" minlength="8" autocomplete="new-password"></label>' : ''}

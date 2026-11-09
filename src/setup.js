@@ -95,7 +95,7 @@ function plainPricing(TEMPLATES, offer) {
   };
 }
 
-function registerSetup(api, { getDb, HttpError, createFunnel, TEMPLATES, getAccount, saveLogoColors }) {
+function registerSetup(api, { getDb, HttpError, createFunnel, TEMPLATES, getAccount, saveLogoColors, seedDefaults = async () => {} }) {
   const db = () => getDb();
 
   api.get('/setup/goals', (req, res) => res.json({ goals: Object.entries(GOALS).map(([key, g]) => ({ key, label: g.label })), defaults: DEFAULT_GOAL }));
@@ -138,6 +138,7 @@ function registerSetup(api, { getDb, HttpError, createFunnel, TEMPLATES, getAcco
     const before = await getAccount(req.accountId);
     const lastWf = (await db().get('SELECT COALESCE(MAX(id), 0)::int AS n FROM workflows WHERE account_id = ?', req.accountId)).n;
     await db().run('UPDATE accounts SET name = ?, business_type = ? WHERE id = ?', name, type, req.accountId);
+    await seedDefaults(req.accountId); // its starting follow-ups, if sign-up didn't add them
     // Their logo, and a brand colour from it unless they already chose one.
     const logo = String(b.logo || '').trim().slice(0, 500);
     if (/^(https?:\/\/|\/u\/)/.test(logo)) await db().run('UPDATE accounts SET logo_url = ? WHERE id = ?', logo, req.accountId);

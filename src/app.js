@@ -328,7 +328,9 @@ function createApp({ dbPath } = {}) {
       throw e;
     }
     await auth.createSession(db, req, res, ids.userId, ids.accountId);
-    await workflows.seedDefaults(ids.accountId); // starting follow-ups (and deals board) for this kind of business
+    // Starting follow-ups (and deals board) for this kind of business. The sign-up form doesn't
+    // ask the kind any more (setup does, straight after), so they're added once it's chosen.
+    if (business.cleanType(req.body?.business_type)) await workflows.seedDefaults(ids.accountId);
     res.status(201).json({ ok: true });
   });
 
@@ -1550,8 +1552,10 @@ function createApp({ dbPath } = {}) {
       sets.push('hidden_sections = ?');
       vals.push(JSON.stringify([...new Set(req.body.hidden_sections.filter((x) => business.OPTIONAL_SECTIONS[x]))]));
     }
-    if (!sets.length) throw new HttpError(400, 'Nothing to change');
-    await db.run(`UPDATE accounts SET ${sets.join(', ')} WHERE id = ?`, ...vals, req.accountId);
+    if (!sets.length && !req.body?.seed) throw new HttpError(400, 'Nothing to change');
+    if (sets.length) await db.run(`UPDATE accounts SET ${sets.join(', ')} WHERE id = ?`, ...vals, req.accountId);
+    // The first time the kind of business is known (or setup is skipped): its starting follow-ups.
+    if (req.body?.business_type !== undefined || req.body?.seed) await workflows.seedDefaults(req.accountId);
     res.json({ ok: true });
   });
   registerDashboard(api, { getDb: () => db, HttpError, leversFor, formatMoney, getAccount, weeklyMove: (accountId) => moves.current(accountId) });
@@ -1562,7 +1566,7 @@ function createApp({ dbPath } = {}) {
   const courses = registerCourses(app, api, { getDb: () => db, HttpError, id, messaging, members, getFunnel: (...x) => getFunnel(...x), portalExtra: (...x) => community.portalCard(...x) });
   const community = registerCommunity(app, api, { getDb: () => db, HttpError, id, upsertContact, logEvent, messaging, members, courses, ownerViewing: (...a) => ownerViewing(...a) });
   const texting = registerTexting(app, api, { getDb: () => db, HttpError, id, upsertContact, logEvent, messaging, publicBase, getSecret: () => secret });
-  registerSetup(api, { getDb: () => db, HttpError, createFunnel, TEMPLATES, getAccount, saveLogoColors: (...a) => saveLogoColors(...a) });
+  registerSetup(api, { getDb: () => db, HttpError, createFunnel, TEMPLATES, getAccount, saveLogoColors: (...a) => saveLogoColors(...a), seedDefaults: (id) => workflows.seedDefaults(id) });
   registerTasks(api, { getDb: () => db, HttpError, id });
   const reviews = registerReviews(app, { getDb: () => db, id, getSecret: () => secret, logEvent });
   const chat = registerChat(app, api, { getDb: () => db, HttpError, id, upsertContact, logEvent, messaging, publicBase, getSecret: () => secret });

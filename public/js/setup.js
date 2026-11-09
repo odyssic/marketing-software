@@ -31,6 +31,8 @@ async function viewSetup() {
         <div class="dots" role="img" aria-label="Step ${s.step} of 4">${[1, 2, 3, 4].map((i) => `<i class="${i <= s.step ? 'on' : ''}"></i>`).join('')}</div>
         ${s.step < 4 ? '<a href="#/" class="muted small" data-skip>Skip for now</a>' : '<span></span>'}</div>${inner}</div></div>`;
     const bk = $('[data-back]'); if (bk) bk.onclick = () => { s.step--; render(); };
+    // Skipping still gives a new account its starting follow-ups (for its kind, or a general set).
+    const sk = $('[data-skip]'); if (sk) sk.onclick = () => { api('PUT', '/api/account/business', { seed: true }).catch(() => {}); };
   };
   const render = () => [null, step1, step2, step3][s.step]?.();
 
@@ -39,7 +41,11 @@ async function viewSetup() {
     frame(`<h1>What kind of business is this?</h1><p class="muted">We’ll set up the right page and follow-ups. You can change anything later.</p>
       <div class="choice-grid">${state.me.businessTypes.map((t) => `<button class="choice ${s.type === t.key ? 'on' : ''}" data-type="${t.key}">
         <b>${esc(t.label)}</b><span>${esc(t.hint)}</span></button>`).join('')}</div>`);
-    $$('[data-type]').forEach((b) => { b.onclick = () => { s.type = b.dataset.type; s.goal = ''; s.step = 2; render(); }; });
+    $$('[data-type]').forEach((b) => { b.onclick = () => {
+      s.type = b.dataset.type; s.goal = ''; s.step = 2; render();
+      // Saved straight away, so its starting follow-ups exist even if setup is skipped later.
+      api('PUT', '/api/account/business', { business_type: s.type }).then(() => { state.me.account.business_type = s.type; }).catch(() => {});
+    }; });
   };
 
   // 2. About it.
