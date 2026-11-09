@@ -194,7 +194,7 @@ main>.feat+.feat,.band-in>.feat+.feat{margin-top:88px}
 @media(max-width:820px){.cover .mk{width:min(210px,60%)}.cover .mk-video{width:min(320px,86%)}.cover .mk-coupon{width:min(260px,72%)}.feat .mk{width:min(260px,72%)}.cover .cv-eye{margin-bottom:12px}}
 /* Feature: picture beside words */
 .feat{display:grid;grid-template-columns:1fr 1fr;gap:56px;align-items:center;text-align:left}
-.feat.flip .ft-media{order:2}.feat.solo{grid-template-columns:1fr;max-width:720px;margin-left:auto;margin-right:auto;text-align:center}.feat.solo .ticks{display:inline-grid}
+.feat.flip .ft-media{order:2}.feat.solo{grid-template-columns:1fr;max-width:720px;margin-left:auto;margin-right:auto;text-align:center}.feat.solo .ticks{display:grid;width:max-content;max-width:100%;margin-left:auto;margin-right:auto}
 .feat h2{font-size:clamp(1.6rem,3.4vw,2.3rem);line-height:1.15;letter-spacing:-.02em;margin:0 0 14px}.feat p{font-size:1.08rem;opacity:.85;margin:0}
 .feat .btn.big{margin-top:26px}
 @media(max-width:820px){.feat{grid-template-columns:1fr;gap:28px}.feat.flip .ft-media{order:0}}
@@ -220,8 +220,8 @@ details[open] .pm::after{transform:rotate(0)}.faq details p{margin:0 0 18px;opac
 /* Guarantee */
 .guar{display:flex;gap:28px;align-items:center;max-width:760px;margin-left:auto;margin-right:auto;padding:28px 30px;border-radius:20px;background:#fff;border:1px solid color-mix(in srgb,var(--fg) 10%,transparent);text-align:left}
 .seal{flex:none;width:118px;height:118px;position:relative;display:grid;place-items:center;color:#fff}
-.seal svg{position:absolute;inset:0}.seal .s1{fill:var(--accent)}.seal .s2{fill:none;stroke:rgba(255,255,255,.55);stroke-width:2;stroke-dasharray:4 5}
-.seal span{position:relative;text-align:center;font:700 .72rem/1 system-ui,sans-serif;letter-spacing:.2em}.seal b{display:block;font-size:2.4rem;letter-spacing:-.02em;margin-bottom:2px}
+.seal>svg{position:absolute;inset:0}.seal .s1{fill:var(--accent)}.seal .s2{fill:none;stroke:rgba(255,255,255,.55);stroke-width:2;stroke-dasharray:4 5}
+.seal span{position:relative;text-align:center;font:700 .72rem/1 system-ui,sans-serif;letter-spacing:.2em}.seal b{display:block;font-size:2.4rem;letter-spacing:-.02em;margin-bottom:2px}.seal b svg{width:46px;height:46px;display:block;margin:0 auto;position:static}
 .guar h3{margin:0 0 6px;font-size:1.3rem}.guar p{margin:0;opacity:.82}
 @media(max-width:600px){.guar{flex-direction:column;text-align:center}}
 
