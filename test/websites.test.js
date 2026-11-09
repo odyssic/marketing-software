@@ -46,7 +46,7 @@ test('website templates: menu, footer, page links, contact inquiries, menu order
   const home = (await fetch(`${base}/f/${f.slug}`)).text ? await (await fetch(`${base}/f/${f.slug}`)).text() : '';
   assert.match(home, /<header class="site">[\s\S]*Green Lawn Co[\s\S]*href="\/f\/green-lawn-co\/services">Services<\/a>/);
   assert.match(home, /<a href="\/f\/green-lawn-co" aria-current="page">Home<\/a>/);
-  assert.match(home, /href="\/f\/green-lawn-co\/quote">Get a free quote/); // page: link resolved
+  assert.match(home, /href="\/f\/green-lawn-co\/quote">(<span>)?Get a free quote/); // page: link resolved
   assert.match(home, /<footer class="site">/);
   assert.match(home, /class="cards"/);
 
