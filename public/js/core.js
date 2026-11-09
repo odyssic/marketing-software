@@ -276,6 +276,7 @@ async function renderAuth(mode) {
     ${setup ? '<label class="f">Password <span class="hint">(optional, a backup to email links)</span><input name="password" type="password" minlength="8" autocomplete="new-password"></label>' : ''}
     <div class="err"></div><div data-sent></div>
     <button class="btn primary" style="width:100%;justify-content:center;padding:11px">${setup ? (status.hasOwner ? 'Create my account' : 'Create my workspace') : mode === 'link' ? 'Email me a sign-in link' : 'Sign in'}</button>
+    ${setup ? '<p class="muted small" style="text-align:center;margin:8px 0 0">By creating an account you agree to the <a href="/terms.html" target="_blank" rel="noopener">Terms</a> and <a href="/privacy.html" target="_blank" rel="noopener">Privacy Policy</a>.</p>' : ''}
     ${setup ? (status.hasOwner ? '<p class="muted small" style="text-align:center;margin-bottom:0">Already have an account? <a href="#" data-signin>Sign in</a></p>' : '') : `<p class="muted small" style="text-align:center;margin-bottom:0"><a href="#" data-switch>${mode === 'link' ? 'Use a password instead' : 'Email me a link instead'}</a></p>`}
     ${status.signupOpen && !setup ? '<p class="muted small" style="text-align:center;margin:6px 0 0">New to Rilly? <a href="#" data-setup>Create your account</a></p>' : ''}
   </form></div>`;

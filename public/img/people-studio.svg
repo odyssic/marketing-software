@@ -1,0 +1,12 @@
+<svg viewBox="0 0 240 200" role="img" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+  <rect width="240" height="200" rx="22" fill="#f6e8f0"/>
+  <circle cx="190" cy="44" r="26" fill="#ffffff" opacity=".45"/>
+  <path d="M60 200 Q60 132 120 128 Q180 132 180 200Z" fill="#9a4a6e"/>
+  <rect x="108" y="104" width="24" height="26" rx="10" fill="#e8b48f"/>
+  <circle cx="120" cy="86" r="30" fill="#e8b48f"/>
+  <path d="M86 96 Q84 50 120 50 Q158 50 154 98 Q150 116 146 128 L146 80 Q140 64 120 64 Q100 64 94 80 L94 128 Q88 114 86 96Z" fill="#6b3a5b"/>
+  <circle cx="110" cy="88" r="2.6" fill="#2a1d12"/><circle cx="130" cy="88" r="2.6" fill="#2a1d12"/>
+  <path d="M110 99 Q120 107 130 99" stroke="#2a1d12" stroke-width="2.6" fill="none" stroke-linecap="round"/>
+  
+  <g transform="translate(168 150) rotate(-30)"><circle cx="-10" cy="22" r="9" fill="none" stroke="#14282b" stroke-width="4"/><circle cx="10" cy="22" r="9" fill="none" stroke="#14282b" stroke-width="4"/><path d="M-6 14 L6 -26 M6 14 L-6 -26" stroke="#14282b" stroke-width="4" stroke-linecap="round"/></g><circle cx="58" cy="168" r="18" fill="#f3c7d9"/><circle cx="58" cy="168" r="8" fill="#e58fb3"/>
+</svg>
