@@ -107,7 +107,7 @@ test('large files (over 4 MB) go to file storage through a one-time slot, and ar
   process.env.STORAGE_URL = `http://localhost:${store.address().port}/`;
   try {
     assert.equal((await c('POST', '/api/uploads/large', { type: 'application/x-msdownload', size: 9e6 })).status, 415);
-    assert.equal((await c('POST', '/api/uploads/large', { type: 'application/pdf', size: 60e6 })).status, 413);
+    assert.equal((await c('POST', '/api/uploads/large', { type: 'application/pdf', size: 600e6 })).status, 413);
     const slot = (await c('POST', '/api/uploads/large', { type: 'application/pdf', size: 9e6 })).body;
     assert.match(slot.slot, /\/functions\/v1\/upload-slot$/);
     assert.equal((await c('POST', `/api/uploads/large/${slot.token}/done`)).status, 422, 'nothing arrived yet');
@@ -128,4 +128,18 @@ test('large files (over 4 MB) go to file storage through a one-time slot, and ar
     const s2 = (await c('POST', '/api/uploads/large', { type: 'application/pdf', size: 5e6 })).body;
     assert.equal((await other('POST', `/api/uploads/large/${s2.token}/done`)).status, 404);
   } finally { delete process.env.STORAGE_URL; store.close(); }
+});
+
+test('ZIP, MP3 and MP4 files are accepted (checked by their contents), other files are not', async () => {
+  const c = client();
+  await c('POST', '/api/auth/signup', { name: 'Zp', email: 'zip-file@example.com', password: 'password123', business_type: 'coach' });
+  const zip = await c('POST', '/api/uploads', Buffer.concat([Buffer.from([0x50, 0x4b, 0x03, 0x04]), Buffer.alloc(40)]), 'application/zip');
+  assert.equal(zip.status, 201);
+  assert.match(zip.body.id, /\.zip$/);
+  const got = await client()('GET', new URL(zip.body.url).pathname);
+  assert.equal(got.headers.get('content-disposition'), 'attachment');
+  assert.equal((await c('POST', '/api/uploads', Buffer.concat([Buffer.from('ID3'), Buffer.alloc(40)]), 'audio/mpeg')).body.id.split('.')[1], 'mp3');
+  assert.equal((await c('POST', '/api/uploads', Buffer.concat([Buffer.alloc(4), Buffer.from('ftypisom'), Buffer.alloc(40)]), 'video/mp4')).body.id.split('.')[1], 'mp4');
+  assert.equal((await c('POST', '/api/uploads', Buffer.from('<html><script>alert(1)</script>'), 'video/mp4')).status, 415, 'contents decide, not the label');
+  assert.ok((await c('GET', '/api/files')).body.some((f) => f.id === zip.body.id), 'non-picture files show in Files');
 });

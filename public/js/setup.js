@@ -77,12 +77,13 @@ async function viewSetup() {
         <div class="day-chips">${[['discount', 'A discount'], ['guide', 'A free guide'], ['news', 'First look at news']].map(([k, l]) => `<button type="button" class="chip ${s.incentive === k ? 'on' : ''}" data-inc="${k}" aria-pressed="${s.incentive === k}">${l}</button>`).join('')}</div></div>
         ${s.incentive === 'discount' ? `<label class="f">How much off their first order?<select name="percent">${[5, 10, 15, 20, 25].map((p) => `<option value="${p}" ${Number(s.percent) === p ? 'selected' : ''}>${p}%</option>`).join('')}</select></label>` : ''}
         ${s.incentive === 'guide' ? `<label class="f">What’s the guide called?<input name="guide" required value="${esc(s.guide)}" placeholder="e.g. The Magnificent 7: classic typewriters worth owning"></label>
-          <div class="f"><span>The guide itself <span class="hint">it’s emailed to everyone who signs up</span></span>
-            <div class="row" style="gap:10px;align-items:center">${s.guideUrl && s.guideFile ? `<span class="pill ok">${icon('check')} ${esc(s.guideFile)}</span>` : ''}
-              <label class="btn">${icon('upload')} ${s.guideFile ? 'Change file' : 'Upload the PDF'}<input type="file" accept="application/pdf" hidden data-guidefile></label><span class="muted small" data-guideprog>up to 50 MB</span></div></div>
-          <label class="f">Or paste a link to it <span class="hint">Google Drive, Dropbox, your website…</span>
-            <input name="guidelink" type="url" inputmode="url" placeholder="https://" value="${esc(s.guideFile ? '' : s.guideUrl || '')}"></label>
-          <p class="hint">No file yet? Skip both: you can add it to the form later.</p>` : ''}
+          <div class="f"><span>How do people get it? <span class="hint">it’s emailed to everyone who signs up</span></span>
+            <div class="day-chips" role="radiogroup">${[['upload', 'Upload the file'], ['link', 'Paste a link']].map(([k, l]) => `<button type="button" class="chip ${(s.guideMode || 'upload') === k ? 'on' : ''}" data-gmode="${k}" role="radio" aria-checked="${(s.guideMode || 'upload') === k}">${l}</button>`).join('')}</div>
+            ${(s.guideMode || 'upload') === 'upload' ? `<div class="row" style="gap:10px;align-items:center;margin-top:10px">${s.guideFile ? `<span class="pill ok">${icon('check')} ${esc(s.guideFile)}</span>` : ''}
+              <label class="btn">${icon('upload')} ${s.guideFile ? 'Change file' : 'Choose the file'}<input type="file" accept="${FILE_ACCEPT}" hidden data-guidefile></label><span class="muted small" data-guideprog>PDF, ZIP, MP3, MP4 · up to 500 MB</span></div>`
+            : `<input name="guidelink" type="url" inputmode="url" placeholder="https://drive.google.com/…" value="${esc(s.guideFile ? '' : s.guideUrl || '')}" style="margin-top:10px">
+              <p class="hint">Google Drive, Dropbox, YouTube, your website: anywhere it already lives. Make sure anyone with the link can open it.</p>`}</div>
+          <p class="hint">No file yet? Skip it: you can add it to the form later.</p>` : ''}
         <p class="hint">A clear reason to join is what turns visitors into subscribers.</p></div>`
       : s.goal === 'sell' ? `<div class="setup-extra"><div class="colors"><label class="f">What are you selling?<input name="offer2" value="${esc(s.offer)}" required></label>
         <label class="f">Price<input name="price" type="number" min="0.5" step="0.01" inputmode="decimal" required value="${esc(s.price)}" placeholder="24.00"></label></div></div>` : '';
@@ -109,16 +110,16 @@ async function viewSetup() {
     if (gf) gf.onchange = async () => {
       const file = gf.files[0]; if (!file) return;
       keep();
-      if (file.type !== 'application/pdf') { toast('Use a PDF', true); return; }
       try {
         toast('Uploading…');
         const data = await uploadFile(file, (pct) => { const p = $('[data-guideprog]'); if (p) p.textContent = `Uploading… ${pct}%`; });
         s.guideUrl = data.url; s.guideFile = file.name;
-        if (!s.guide) s.guide = file.name.replace(/\.pdf$/i, '').replace(/[-_]+/g, ' ');
+        if (!s.guide) s.guide = file.name.replace(/\.[a-z0-9]+$/i, '').replace(/[-_]+/g, ' ');
         await api('PUT', `/api/files/${encodeURIComponent(data.id)}`, { name: s.guide }).catch(() => {});
         toast('Guide ready'); step3();
       } catch (err) { toast(err.message, true); }
     };
+    $$('[data-gmode]').forEach((b) => { b.onclick = () => { keep(); s.guideMode = b.dataset.gmode; step3(); }; });
     $$('[data-inc]').forEach((b) => { b.onclick = () => { keep(); s.incentive = b.dataset.inc; step3(); }; });
     $('[data-style]').oninput = (e) => { s.style = Number(e.target.value); $('[data-stylename]').textContent = STYLE_WORDS[s.style][0]; $('[data-stylehint]').textContent = `${STYLE_WORDS[s.style][1]} No fake deadlines or scarcity at any level.`; };
     $$('[data-goal]').forEach((b) => { b.onclick = () => { keep(); s.goal = b.dataset.goal; step3(); }; });

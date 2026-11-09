@@ -265,11 +265,12 @@ async function viewEditor(stepId) {
     }
     // "Ask for email" is on unless switched off, including on older pricing cards.
     if (kind === 'file') {
-      // A lead magnet: upload a PDF, or paste a link to a video, a Google Drive file, anything.
-      return `<div class="f">${label}<div class="dropzone ${v ? 'has' : ''}" data-filezone="${i}" tabindex="0" role="button" aria-label="Upload a PDF">
+      // A lead magnet: upload a file (PDF, ZIP, MP3, MP4, picture), or paste a link to anything.
+      const own = /\/u\/[\w-]+\.\w+$/.test(v);
+      return `<div class="f">${label}<div class="dropzone ${v ? 'has' : ''}" data-filezone="${i}" tabindex="0" role="button" aria-label="Upload a file">
         <span class="dz-ico">${icon(v ? 'check' : 'download')}</span>
-        <span class="dz-text"><b>${v ? (v.endsWith('.pdf') ? 'PDF ready. Replace it' : 'Link set. Replace with a PDF') : 'Drop a PDF here'}</b><span>emailed the moment they sign up</span></span>
-        <input type="file" accept="application/pdf" hidden data-filepick="${i}"></div>
+        <span class="dz-text"><b>${v ? (own ? 'File ready. Replace it' : 'Link set. Or upload a file instead') : 'Drop a file here'}</b><span>PDF, ZIP, MP3, MP4 or picture, up to 500 MB. Emailed the moment they sign up</span></span>
+        <input type="file" accept="${FILE_ACCEPT}" hidden data-filepick="${i}"></div>
         <input type="url" ${attrs} value="${esc(v)}" placeholder="…or paste a link (video, Google Drive, Dropbox)" style="margin-top:6px"></div>`;
     }
     if (kind === 'check') return `<label class="check"><input type="checkbox" ${attrs} ${(key === 'askEmail' ? b[key] !== false : v) ? 'checked' : ''}>${label}</label>`;
@@ -521,13 +522,13 @@ async function viewEditor(stepId) {
   });
   // Lead magnet files (PDF) on forms.
   const putFile = async (i, file) => {
-    if (file.type !== 'application/pdf') { toast('Use a PDF, or paste a link instead', true); return; }
+
     saved.textContent = 'Uploading…';
     try {
       const data = await uploadFile(file, (pct) => { saved.textContent = `Uploading ${pct}%`; });
       ed.blocks[i].deliverUrl = data.url;
-      if (!ed.blocks[i].deliverName) ed.blocks[i].deliverName = `the ${file.name.replace(/\.pdf$/i, '').replace(/[-_]+/g, ' ')}`;
-      structural(); toast('PDF ready. It’ll be emailed to everyone who signs up');
+      if (!ed.blocks[i].deliverName) ed.blocks[i].deliverName = `the ${file.name.replace(/\.[a-z0-9]+$/i, '').replace(/[-_]+/g, ' ')}`;
+      structural(); toast('File ready. It’ll be emailed to everyone who signs up');
     } catch (err) { saved.textContent = 'Not saved'; toast(err.message, true); }
   };
   side.addEventListener('click', (e) => { const z = e.target.closest('[data-filezone]'); if (z && !e.target.closest('input')) side.querySelector(`[data-filepick="${z.dataset.filezone}"]`).click(); });

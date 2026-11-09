@@ -10,12 +10,12 @@ function registerFiles(app, api, { getDb, HttpError, getSecret, publicBase, logE
   // Personal link for one person and one file.
   const linkFor = (contactId, fileId) => `${publicBase()}/dl/${tokenFor(contactId, fileId)}`;
   // A form's "send them something" that points at one of this business's own uploads.
-  const ownFileId = (url) => (String(url || '').match(/\/u\/([A-Za-z0-9_-]{8,30}\.(?:pdf|jpg|png|webp|gif))$/) || [])[1] || null;
+  const ownFileId = (url) => (String(url || '').match(/\/u\/([A-Za-z0-9_-]{8,30}\.(?:pdf|jpg|png|webp|gif|zip|mp3|mp4))$/) || [])[1] || null;
 
   api.get('/files', async (req, res) => {
     const rows = await db().all(`SELECT u.id, u.name, u.content_type, u.size, u.created_at,
         (SELECT COUNT(*)::int FROM events e WHERE e.account_id = u.account_id AND e.type = 'download' AND e.meta LIKE '%"file":"' || u.id || '"%') AS downloads
-      FROM uploads u WHERE u.account_id = ? AND (u.in_library = 1 OR u.content_type = 'application/pdf') ORDER BY u.created_at DESC`, req.accountId);
+      FROM uploads u WHERE u.account_id = ? AND (u.in_library = 1 OR u.content_type NOT LIKE 'image/%') ORDER BY u.created_at DESC`, req.accountId);
     res.json(rows.map((r) => ({ ...r, url: `${publicBase()}/u/${r.id}` })));
   });
   api.put('/files/:id', async (req, res) => {

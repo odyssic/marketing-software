@@ -284,7 +284,7 @@ function createApp({ dbPath } = {}) {
     // Check the header, not req.is(): DELETEs have no body, and req.is() is null without one.
     // Photo uploads send the image itself; image/* also can't come from a cross-site form.
     const type = String(req.get('content-type') || '');
-    if (req.method === 'POST' && req.path === '/uploads' && (type.startsWith('image/') || type === 'application/pdf')) return next();
+    if (req.method === 'POST' && req.path === '/uploads' && (type.startsWith('image/') || ['application/pdf', 'application/zip', 'audio/mpeg', 'video/mp4'].includes(type))) return next();
     if (req.method !== 'GET' && !type.startsWith('application/json')) {
       return res.status(415).json({ error: 'Expected application/json' });
     }

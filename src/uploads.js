@@ -4,12 +4,13 @@
 const crypto = require('node:crypto');
 const express = require('express');
 
-const TYPES = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif', 'application/pdf': 'pdf' }; // no SVG: it can carry scripts
+const TYPES = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif', 'application/pdf': 'pdf',
+  'application/zip': 'zip', 'audio/mpeg': 'mp3', 'video/mp4': 'mp4' }; // no SVG or HTML: they can carry scripts
 const MAX = 4 * 1024 * 1024;
-// Bigger files (up to 50 MB) skip the app: the browser sends them straight to file
+// Bigger files (up to 500 MB) skip the app: the browser sends them straight to file
 // storage (Supabase Storage, bucket "files") through a one-time upload slot, so the
 // size limit on requests to the app doesn't apply. STORAGE_URL is the project's address.
-const LARGE_MAX = 50 * 1024 * 1024;
+const LARGE_MAX = 500 * 1024 * 1024;
 const BUCKET = 'files';
 const storageBase = () => String(process.env.STORAGE_URL || '').replace(/\/+$/, '');
 
@@ -17,7 +18,10 @@ const storageBase = () => String(process.env.STORAGE_URL || '').replace(/\/+$/, 
 const sniff = (b) => (b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff ? 'image/jpeg'
   : b.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) ? 'image/png'
     : b.subarray(0, 4).toString('latin1') === 'RIFF' && b.subarray(8, 12).toString('latin1') === 'WEBP' ? 'image/webp'
-      : b.subarray(0, 4).toString('latin1') === 'GIF8' ? 'image/gif' : b.subarray(0, 5).toString('latin1') === '%PDF-' ? 'application/pdf' : null);
+      : b.subarray(0, 4).toString('latin1') === 'GIF8' ? 'image/gif' : b.subarray(0, 5).toString('latin1') === '%PDF-' ? 'application/pdf'
+        : b.subarray(0, 4).equals(Buffer.from([0x50, 0x4b, 0x03, 0x04])) ? 'application/zip'
+          : b.subarray(0, 3).toString('latin1') === 'ID3' || (b[0] === 0xff && (b[1] & 0xe0) === 0xe0) ? 'audio/mpeg'
+            : b.subarray(4, 8).toString('latin1') === 'ftyp' ? 'video/mp4' : null);
 
 function registerUploads(app, api, { getDb, HttpError, baseUrl }) {
   const db = () => getDb();
@@ -26,7 +30,7 @@ function registerUploads(app, api, { getDb, HttpError, baseUrl }) {
     const body = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
     if (!body.length) throw new HttpError(400, 'Choose a picture to upload');
     const type = sniff(body);
-    if (!type) throw new HttpError(415, 'That file isn’t one we can use. Try a PDF, JPG, PNG, WebP or GIF.');
+    if (!type) throw new HttpError(415, 'That file isn’t one we can use. Try a PDF, picture (JPG, PNG, WebP, GIF), ZIP, MP3 or MP4.');
     const id = `${crypto.randomBytes(12).toString('base64url')}.${TYPES[type]}`;
     await db().run('INSERT INTO uploads (id, account_id, content_type, size, data) VALUES (?, ?, ?, ?, ?)', id, req.accountId, type, body.length, body);
     res.status(201).json({ id, url: `${baseUrl(req)}/u/${id}`, size: body.length });
@@ -38,8 +42,8 @@ function registerUploads(app, api, { getDb, HttpError, baseUrl }) {
     if (!base) throw new HttpError(503, 'Large files aren’t set up yet. Use a file under 4 MB, or paste a link to it instead.');
     const type = String(req.body?.type || '');
     const size = Number(req.body?.size) || 0;
-    if (!TYPES[type]) throw new HttpError(415, 'That file isn’t one we can use. Try a PDF, JPG, PNG, WebP or GIF.');
-    if (size > LARGE_MAX) throw new HttpError(413, 'That file is over 50 MB. Make it smaller, or paste a link to it instead.');
+    if (!TYPES[type]) throw new HttpError(415, 'That file isn’t one we can use. Try a PDF, picture (JPG, PNG, WebP, GIF), ZIP, MP3 or MP4.');
+    if (size > LARGE_MAX) throw new HttpError(413, 'That file is over 500 MB. Paste a link to it instead (Google Drive, Dropbox, YouTube…).');
     const id = `${crypto.randomBytes(12).toString('base64url')}.${TYPES[type]}`;
     const token = crypto.randomBytes(24).toString('base64url');
     await db().run('INSERT INTO upload_slots (token, account_id, upload_id, path, content_type, size) VALUES (?, ?, ?, ?, ?, ?)', token, req.accountId, id, `${req.accountId}/${id}`, type, size);
@@ -52,7 +56,7 @@ function registerUploads(app, api, { getDb, HttpError, baseUrl }) {
     const publicUrl = `${storageBase()}/storage/v1/object/public/${BUCKET}/${slot.path}`;
     const head = await fetch(publicUrl, { headers: { Range: 'bytes=0-15' } }).catch(() => null);
     const first = head && head.ok ? Buffer.from(await head.arrayBuffer()) : null;
-    if (!first || sniff(first) !== slot.content_type) throw new HttpError(422, 'The file didn’t arrive, or isn’t a PDF or picture. Try again.');
+    if (!first || sniff(first) !== slot.content_type) throw new HttpError(422, 'The file didn’t arrive, or isn’t the kind of file it said it was. Try again.');
     const size = Number(String(head.headers.get('content-range') || '').split('/')[1]) || slot.size;
     await db().run('INSERT INTO uploads (id, account_id, content_type, size, data, storage_url) VALUES (?, ?, ?, ?, NULL, ?)', slot.upload_id, req.accountId, slot.content_type, size, publicUrl);
     await db().run('DELETE FROM upload_slots WHERE token = ?', slot.token);
@@ -64,7 +68,8 @@ function registerUploads(app, api, { getDb, HttpError, baseUrl }) {
     if (!row) return res.status(404).type('text/plain').send('Not found');
     if (row.storage_url) return res.set('Cache-Control', 'public, max-age=86400').redirect(302, row.storage_url);
     res.set({ 'Content-Type': row.content_type, 'Cache-Control': 'public, max-age=31536000, immutable', 'X-Content-Type-Options': 'nosniff',
-      ...(row.content_type === 'application/pdf' ? { 'Content-Disposition': 'inline', 'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'" } : {}) });
+      ...(row.content_type === 'application/pdf' ? { 'Content-Disposition': 'inline', 'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'" } : {}),
+      ...(row.content_type === 'application/zip' ? { 'Content-Disposition': 'attachment' } : {}) });
     res.send(Buffer.from(row.data));
   });
 }

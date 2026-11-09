@@ -6,7 +6,7 @@ async function viewFiles() {
   const kb = (n) => (n > 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
   shell('products', `
     <div class="head"><div><h1>Products</h1><div class="muted">What you sell, and the orders that come in.</div></div>
-      ${list.length ? `<label class="btn primary">${icon('upload')} Upload a file<input type="file" accept="application/pdf,image/png,image/jpeg,image/webp" hidden data-fileup></label>` : ''}</div>
+      ${list.length ? `<label class="btn primary">${icon('upload')} Upload a file<input type="file" accept="${FILE_ACCEPT}" hidden data-fileup></label>` : ''}</div>
     ${productTabs('files')}
     <p class="muted small files-why">Guides, checklists and price lists people get when they sign up. Each person gets their own download link, so you can see who downloaded what on their record.</p>
     ${list.length ? `<div class="card files-list">${list.map((f) => `<div class="file-row" data-file="${esc(f.id)}">
@@ -18,13 +18,13 @@ async function viewFiles() {
     </div>`).join('')}</div>
     <p class="hint">To send a file when someone signs up: in the page editor, open the form and choose <b>Send them something</b>. Files up to 4 MB; for bigger ones, paste a Google Drive or Dropbox link there instead.</p>`
     : `<div class="card empty"><div class="big">${icon('download')}</div><h2>No files yet</h2><p>Upload a PDF guide, checklist or price list. Hand it out on a sign-up page and see who downloads it.</p>
-      <label class="btn primary">${icon('upload')} Upload a file<input type="file" accept="application/pdf,image/png,image/jpeg,image/webp" hidden data-fileup></label></div>`}`);
+      <label class="btn primary">${icon('upload')} Upload a file<input type="file" accept="${FILE_ACCEPT}" hidden data-fileup></label></div>`}`);
   bindMoreMenus();
   $$('[data-fileup]').forEach((inp) => { inp.onchange = async () => {
     const file = inp.files[0]; if (!file) return;
     try {
       let id;
-      if (file.type === 'application/pdf') {
+      if (!file.type.startsWith('image/')) {
         toast('Uploading…');
         id = (await uploadFile(file)).id;
       } else id = (await uploadImage(file)).split('/u/')[1];

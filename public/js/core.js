@@ -477,17 +477,20 @@ async function uploadImage(file) {
   return (await uploadFile(blob)).url;
 }
 
-// Any file (PDF or picture). Up to 4 MB goes through the app; bigger files, up to
-// 50 MB, go straight to file storage through a one-time upload slot.
+// Any file (PDF, picture, ZIP, MP3, MP4). Up to 4 MB goes through the app; bigger
+// files, up to 500 MB, go straight to file storage through a one-time upload slot.
+const FILE_ACCEPT = 'application/pdf,image/png,image/jpeg,image/webp,image/gif,.zip,application/zip,audio/mpeg,.mp3,video/mp4,.mp4';
 async function uploadFile(file, onProgress = () => {}) {
-  const type = file.type;
+  // Browsers name some types differently (Windows calls a ZIP x-zip-compressed).
+  const type = ({ 'application/x-zip-compressed': 'application/zip', 'application/x-zip': 'application/zip', 'audio/mp3': 'audio/mpeg' })[file.type]
+    || file.type || ({ zip: 'application/zip', mp3: 'audio/mpeg', mp4: 'video/mp4', pdf: 'application/pdf' })[file.name.split('.').pop().toLowerCase()] || '';
   if (file.size <= 4 * 1024 * 1024) {
     const res = await fetch('/api/uploads', { method: 'POST', headers: { 'Content-Type': type }, body: file });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || 'Upload failed');
     return data;
   }
-  if (file.size > 50 * 1024 * 1024) throw new Error('That file is over 50 MB. Make it smaller, or paste a link to it instead.');
+  if (file.size > 500 * 1024 * 1024) throw new Error('That file is over 500 MB. Paste a link to it instead (Google Drive, Dropbox, YouTube…).');
   const slot = await api('POST', '/api/uploads/large', { type, size: file.size });
   const signed = await fetch(slot.slot, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: slot.token }) }).then((r) => r.json().then((d) => (r.ok ? d : Promise.reject(new Error(d.error || 'Upload failed')))));
   // XMLHttpRequest, so a big file can show how far along it is.
