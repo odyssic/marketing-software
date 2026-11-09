@@ -162,16 +162,16 @@ async function viewSetup() {
       try {
         await api('POST', `/api/funnels/${f.id}/publish`);
         for (const c of $$('[data-wf]:checked')) await api('PUT', `/api/workflows/${c.dataset.wf}/status`, { status: 'active' }).catch(() => {});
-        live(url, $$('[data-wf]:checked').length);
+        live(url, $$('[data-wf]:checked').length, f.id);
       } catch (err) { $('.err').textContent = err.problems ? err.problems.map((p) => p.message).join(' ') : err.message; e.target.disabled = false; }
     };
   };
 
-  const live = (url, n) => {
+  const live = (url, n, funnelId) => {
     frame(`<div class="setup-done"><div class="big-ok">${icon('check')}</div><h1>You’re live</h1>
       <p class="muted">${n ? `${n} follow-up${n === 1 ? ' is' : 's are'} on. ` : ''}Share your link anywhere: your bio, email signature, a text.</p>
-      <div class="copy-row"><input readonly value="${esc(url)}" aria-label="Your page link"><button class="btn primary" data-copy>${icon('copy')} Copy</button></div>
-      <a class="btn big" href="#/">Go to my dashboard</a></div>`, { back: false });
+      <div class="copy-row"><input readonly value="${esc(url)}" aria-label="Your page link"><a class="btn" href="${esc(url)}" target="_blank" rel="noopener" title="Open your page" aria-label="Open your page">${icon('eye')} View</a><button class="btn primary" data-copy>${icon('copy')} Copy</button></div>
+      <div class="done-actions"><a class="btn primary big" href="#/funnels/${funnelId}">${icon('pencil')} Work on my page</a><a class="btn big" href="#/">Go to my dashboard</a></div></div>`, { back: false });
     $('[data-copy]').onclick = async () => { await navigator.clipboard.writeText(url).catch(() => {}); toast('Link copied'); };
   };
 

@@ -273,6 +273,23 @@ function createApp({ dbPath } = {}) {
     if (fresh) await checkout.onOrderPaid(order).catch((e) => console.error('coupon use:', e.message));
     if (fresh) await bookings.onOrderPaid(order).catch((e) => console.error('paid booking:', e.message));
     if (fresh) await affiliates.onOrderPaid(order).catch((e) => console.error('partner commission:', e.message));
+    if (fresh) await deliverProduct(order).catch((e) => console.error('product delivery:', e.message));
+  }
+  // What they bought, straight to their inbox: an uploaded file as a personal download
+  // link (each download is counted on their record), or the product's link.
+  async function deliverProduct(order) {
+    const product = order.product_id && await db.get('SELECT * FROM products WHERE id = ?', order.product_id);
+    if (!product?.deliver_url) return;
+    const o = await db.get('SELECT contact_id FROM orders WHERE id = ?', order.id);
+    const contact = o?.contact_id && await db.get('SELECT * FROM contacts WHERE id = ?', o.contact_id);
+    if (!contact?.email) return;
+    const account = await getAccount(order.account_id);
+    const own = files.ownFileId(product.deliver_url);
+    const ownOk = own && await db.get('SELECT 1 FROM uploads WHERE id = ? AND account_id = ?', own, order.account_id);
+    const link = ownOk ? files.linkFor(contact.id, own) : product.deliver_url;
+    await messaging.sendTransactional({ account, to: contact.email, contactId: contact.id,
+      subject: `Here’s your ${product.name}`,
+      text: `Hi ${contact.first_name || 'there'},\n\nThank you for your order! Here’s your ${product.name}:\n${link}\n\nSave this email so you can find it again. Any trouble opening it? Just reply and we’ll help.\n\n${account.from_name || account.name}` });
   }
 
   // ---------- API ----------
@@ -779,7 +796,10 @@ function createApp({ dbPath } = {}) {
     const currency = CURRENCIES.includes(b.currency) ? b.currency : 'usd';
     const billing = BILLING.includes(b.billing) ? b.billing : 'one_time';
     const image = String(b.image_url || '').trim();
-    if (image && !/^https?:\/\/\S+$/i.test(image)) throw new HttpError(400, 'The photo must be a link starting with https://');
+    if (image && !/^(https?:\/\/|\/u\/)\S+$/i.test(image)) throw new HttpError(400, 'The photo must be a link starting with https://');
+    // What the buyer gets: an uploaded file (sent as a personal, counted download link) or any link.
+    const deliver = String(b.deliver_url || '').trim().slice(0, 1000);
+    if (deliver && !/^(https?:\/\/|\/u\/)\S+$/i.test(deliver)) throw new HttpError(400, 'What buyers get must be an uploaded file or a link starting with https://');
     // Pay in parts (one-time products) or a free trial (monthly/yearly).
     const parts = billing === 'one_time' ? Math.round(Number(b.plan_parts) || 0) : 0;
     if (parts && (parts < 2 || parts > 24)) throw new HttpError(400, 'Payments in parts must be between 2 and 24');
@@ -787,7 +807,7 @@ function createApp({ dbPath } = {}) {
     if (parts && part && part < 50) throw new HttpError(400, 'Each payment must be at least 0.50');
     const trial = billing === 'one_time' ? 0 : Math.round(Number(b.trial_days) || 0);
     if (trial < 0 || trial > 365) throw new HttpError(400, 'A free trial can be up to 365 days');
-    return [name, String(b.description || '').trim(), price, currency, billing, parseTags(b.tag).join(','), image, parts, part, trial];
+    return [name, String(b.description || '').trim(), price, currency, billing, parseTags(b.tag).join(','), image, parts, part, trial, deliver];
   };
   const productOut = (p) => ({ ...p, price: p.price_cents / 100, priceLabel: formatMoney(p.price_cents, p.currency) });
 
@@ -798,14 +818,14 @@ function createApp({ dbPath } = {}) {
   });
 
   api.post('/products', async (req, res) => {
-    const r = await db.get(`INSERT INTO products (account_id, name, description, price_cents, currency, billing, tag, image_url, plan_parts, plan_part_cents, trial_days)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`, req.accountId, ...productInput(req.body || {}));
+    const r = await db.get(`INSERT INTO products (account_id, name, description, price_cents, currency, billing, tag, image_url, plan_parts, plan_part_cents, trial_days, deliver_url)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`, req.accountId, ...productInput(req.body || {}));
     res.status(201).json({ id: r.id });
   });
 
   api.put('/products/:id', async (req, res) => {
     const r = await db.run(`UPDATE products SET name = ?, description = ?, price_cents = ?, currency = ?, billing = ?, tag = ?, image_url = ?,
-      plan_parts = ?, plan_part_cents = ?, trial_days = ? WHERE id = ? AND account_id = ?`, ...productInput(req.body || {}), id(req.params.id), req.accountId);
+      plan_parts = ?, plan_part_cents = ?, trial_days = ?, deliver_url = ? WHERE id = ? AND account_id = ?`, ...productInput(req.body || {}), id(req.params.id), req.accountId);
     if (!r.changes) throw new HttpError(404, 'Product not found');
     if (req.body?.next_product_id !== undefined) {
       const next = req.body.next_product_id ? await db.get('SELECT id FROM products WHERE id = ? AND account_id = ? AND id <> ?', id(req.body.next_product_id), req.accountId, id(req.params.id)) : null;
@@ -877,7 +897,7 @@ function createApp({ dbPath } = {}) {
       // New funnels start as drafts; publishing runs the pre-flight check.
       const f = await t.get("INSERT INTO funnels (account_id, name, slug, status, kind) VALUES (?, ?, ?, 'draft', ?) RETURNING id",
         accountId, name, await uniqueFunnelSlug(t, name), kind);
-      const newest = await t.get('SELECT id FROM products WHERE account_id = ? ORDER BY id DESC LIMIT 1', accountId);
+      const newest = await t.get('SELECT id, image_url FROM products WHERE account_id = ? ORDER BY id DESC LIMIT 1', accountId);
       const steps = template.steps();
       if (copy) applyCopy(steps, copy);
       // In the business's colours: always when it has a brand colour or logo colours;
@@ -891,6 +911,12 @@ function createApp({ dbPath } = {}) {
         for (const st of steps) { st.settings = { ...(st.settings || {}) }; palette.applyPalette(pal, st.settings, st.blocks); }
       }
       const ids = [];
+      // Selling pages show the product's photo in the top banner (a bold cover beside the words).
+      const sells = steps.some((st) => st.blocks.some((b) => b.type === 'pricing' || b.type === 'offer'));
+      if (sells && newest?.image_url) {
+        const banner = steps[0].blocks.find((b) => b.type === 'hero');
+        if (banner && !banner.image) Object.assign(banner, { image: newest.image_url, imageAlt: banner.imageAlt || '', style: 'cover', textColor: banner.textColor || '#ffffff' });
+      }
       for (const [i, st] of steps.entries()) {
         for (const blk of st.blocks) if (blk.type === 'pricing' && newest) blk.productId = newest.id;
         ids.push(await insertStep(t, f.id, st, i));

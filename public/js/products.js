@@ -28,14 +28,25 @@ async function viewProducts(tab) {
     <div class="colors" data-only="one_time"><label class="f">Let buyers pay in parts <span class="hint">number of monthly payments; empty for pay in full only</span><input name="plan_parts" type="number" min="2" max="24" step="1" inputmode="numeric" placeholder="e.g. 3" value="${pr.plan_parts || ''}"></label>
       <label class="f">Each payment <span class="hint">empty = price split evenly</span><input name="plan_part" type="number" min="0.5" step="0.01" value="${pr.plan_part_cents ? pr.plan_part_cents / 100 : ''}"></label></div>
     <label class="f" data-only="monthly yearly">Free trial <span class="hint">days free before the first payment; empty for none</span><input name="trial_days" type="number" min="0" max="365" step="1" inputmode="numeric" placeholder="e.g. 14" value="${pr.trial_days || ''}"></label>
-    <label class="f">Photo <span class="hint">link to an image (https://…), shown on buy buttons</span><input name="image_url" value="${esc(pr.image_url || '')}" placeholder="https://"></label>
+    <div class="f prod-photo"><span>Photo <span class="hint">shown on your sales page and buy buttons</span></span>
+      <div class="row" style="gap:12px;align-items:center"><span class="prod-thumb" data-pthumb>${pr.image_url ? `<img src="${esc(pr.image_url)}" alt="">` : icon('image')}</span>
+        <label class="btn sm">${icon('upload')} ${pr.image_url ? 'Change photo' : 'Upload a photo'}<input type="file" accept="image/jpeg,image/png,image/webp,image/gif" hidden data-pphoto></label>
+        <span class="muted small" data-pphotomsg></span></div>
+      <input type="hidden" name="image_url" value="${esc(pr.image_url || '')}"></div>
+    <div class="f"><span>What buyers get <span class="hint">emailed to them the moment they pay</span></span>
+      <div class="day-chips" role="radiogroup">${[['none', 'Nothing to send'], ['file', 'Upload the file'], ['link', 'Paste a link']].map(([k, l]) => `<button type="button" class="chip ${productDeliverMode(pr) === k ? 'on' : ''}" data-dmode="${k}" role="radio" aria-checked="${productDeliverMode(pr) === k}">${l}</button>`).join('')}</div>
+      <div data-dpane="file" ${productDeliverMode(pr) === 'file' ? '' : 'hidden'} class="row" style="gap:10px;align-items:center;margin-top:10px">
+        <label class="btn sm">${icon('upload')} <span data-dfilelabel>${productDeliverMode(pr) === 'file' ? 'Replace the file' : 'Choose the file'}</span><input type="file" accept="${FILE_ACCEPT}" hidden data-dfile></label>
+        <span class="muted small" data-dfilemsg>${productDeliverMode(pr) === 'file' ? `${icon('check')} File ready` : 'PDF, ZIP, MP3, MP4 or picture · up to 500 MB'}</span></div>
+      <input data-dpane="link" ${productDeliverMode(pr) === 'link' ? '' : 'hidden'} type="url" data-dlink placeholder="https://drive.google.com/…" value="${productDeliverMode(pr) === 'link' ? esc(pr.deliver_url) : ''}" style="margin-top:10px">
+      <input type="hidden" name="deliver_url" value="${esc(pr.deliver_url || '')}"></div>
     <label class="f">Tag buyers with <span class="hint">buyers are always tagged “customer” too</span><input name="tag" value="${esc(pr.tag)}" placeholder="e.g. bought-course"></label>
     ${pr.id && items.length > 1 ? `<label class="f">Next offer for buyers <span class="hint">who shows up as “ready” on your dashboard</span><select name="next_product_id"><option value="">The next pricier product</option>${items.filter((x) => x.id !== pr.id).map((x) => `<option value="${x.id}" ${pr.next_product_id === x.id ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select></label>` : ''}`;
   if (orders) return;
   // One "New product" button: in the header once there are products, in the middle until then.
   $('[data-new]').onclick = async () => {
     const pendingNew = modal('New product', form(), { submit: 'Create product', onSubmit: (v) => api('POST', '/api/products', v) });
-    productOptionsToggle();
+    productOptionsToggle(); bindProductUploads();
     const r = await pendingNew;
     if (r) {
       toast('Product created');
@@ -50,13 +61,47 @@ async function viewProducts(tab) {
     const pr = items.find((x) => x.id === Number(row.dataset.edit));
     const pending = modal('Edit product', `${form(pr)}<button type="button" class="btn danger sm" data-delp>Delete product</button>`,
       { onSubmit: (v) => api('PUT', `/api/products/${pr.id}`, v) });
-    productOptionsToggle();
+    productOptionsToggle(); bindProductUploads();
     $('[data-delp]').onclick = async () => {
       $('.modal-bg [data-x]').click();
       deleteWithUndo(`“${pr.name}” deleted`, { url: `/api/products/${pr.id}`, hide: hideEl(row) });
     };
     if (await pending) { toast('Saved'); viewProducts(); }
   }; });
+}
+
+// Is what buyers get an uploaded file, a link, or nothing?
+const productDeliverMode = (pr) => (!pr.deliver_url ? 'none' : /\/u\/[\w-]+\.\w+$/.test(pr.deliver_url) ? 'file' : 'link');
+// The photo and "what buyers get" controls inside the product form.
+function bindProductUploads() {
+  const bg = $('.modal-bg:last-of-type') || document;
+  const photo = $('[data-pphoto]', bg), msg = $('[data-pphotomsg]', bg), hiddenImg = $('input[name=image_url]', bg);
+  if (photo) photo.onchange = async () => {
+    const file = photo.files[0]; if (!file) return;
+    msg.textContent = 'Uploading…';
+    try {
+      const url = await uploadImage(file);
+      hiddenImg.value = url; $('[data-pthumb]', bg).innerHTML = `<img src="${esc(url)}" alt="">`; msg.textContent = 'Photo ready';
+    } catch (e) { msg.textContent = e.message; }
+  };
+  const hiddenDel = $('input[name=deliver_url]', bg);
+  $$('[data-dmode]', bg).forEach((b) => { b.onclick = () => {
+    $$('[data-dmode]', bg).forEach((x) => { x.classList.toggle('on', x === b); x.setAttribute('aria-checked', x === b); });
+    $$('[data-dpane]', bg).forEach((p) => { p.hidden = p.dataset.dpane !== b.dataset.dmode; });
+    if (b.dataset.dmode === 'none') hiddenDel.value = '';
+    if (b.dataset.dmode === 'link') hiddenDel.value = $('[data-dlink]', bg).value.trim();
+  }; });
+  const link = $('[data-dlink]', bg); if (link) link.oninput = () => { hiddenDel.value = link.value.trim(); };
+  const dfile = $('[data-dfile]', bg), dmsg = $('[data-dfilemsg]', bg);
+  if (dfile) dfile.onchange = async () => {
+    const file = dfile.files[0]; if (!file) return;
+    const submit = $('.modal .actions .btn.primary', bg); if (submit) submit.disabled = true;
+    try {
+      const up = await uploadFile(file, (pct) => { dmsg.textContent = `Uploading… ${pct}%`; }, { onStep: (t) => { dmsg.textContent = t; } });
+      await api('PUT', `/api/files/${encodeURIComponent(up.id)}`, { name: file.name.replace(/\.[a-z0-9]+$/i, '') }).catch(() => {});
+      hiddenDel.value = up.url; dmsg.innerHTML = `${icon('check')} ${esc(file.name)} ready`; $('[data-dfilelabel]', bg).textContent = 'Replace the file';
+    } catch (e) { dmsg.textContent = e.message; } finally { if (submit) submit.disabled = false; }
+  };
 }
 
 const productsHtml = (items) => (items.length ? `<div class="card table-wrap"><table>

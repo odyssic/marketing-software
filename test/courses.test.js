@@ -15,8 +15,8 @@ before(async () => {
 after(async () => { server.close(); await app.close(); });
 function client() {
   let cookie = '';
-  return async (method, path, body) => {
-    const res = await fetch(base + path, { method, headers: { cookie, 'content-type': 'application/json' }, body: body && JSON.stringify(body) });
+  return async (method, path, body, type = 'application/json') => {
+    const res = await fetch(base + path, { method, headers: { cookie, 'content-type': type }, body: body && (type === 'application/json' ? JSON.stringify(body) : body) });
     const set = res.headers.get('set-cookie'); if (set?.startsWith('sid=')) cookie = set.split(';')[0]; // the owner's session
     return { status: res.status, body: (res.headers.get('content-type') || '').includes('json') ? await res.json() : await res.text() };
   };
@@ -254,4 +254,27 @@ test('customer pages use a short name, not a guessable number', async () => {
   assert.equal((await c2('PUT', '/api/account/handle', { handle: '12345' })).status, 400);
   assert.equal((await c2('PUT', '/api/account/handle', { handle: 'Sweet Loaves!' })).body.handle, 'sweet-loaves');
   assert.equal((await client()('GET', '/my/sweet-loaves')).status, 200);
+});
+
+test('a product’s file is emailed to the buyer as a personal download link; its photo goes on its sales page', async () => {
+  const c = await owner('Pia');
+  const up = (await c('POST', '/api/uploads', Buffer.from('%PDF-1.4\n% Glaze recipes\n'), 'application/pdf')).body;
+  assert.ok(up.url, 'file uploaded');
+  const photo = 'https://img.example.com/kit.jpg';
+  assert.equal((await c('POST', '/api/products', { name: 'Glaze Recipe Book', price: 19, deliver_url: 'javascript:alert(1)' })).status, 400);
+  const prod = (await c('POST', '/api/products', { name: 'Glaze Recipe Book', price: 19, deliver_url: up.url, image_url: photo })).body;
+  const f = (await c('POST', '/api/funnels', { name: 'Recipe sale', template: 'pricing' })).body;
+  const funnel = (await c('GET', `/api/funnels/${f.id}`)).body;
+  const banner = funnel.steps[0].blocks.find((b) => b.type === 'hero');
+  assert.equal(banner.image, photo, 'the product photo is in the banner');
+  assert.equal(banner.style, 'cover');
+  await c('POST', `/api/funnels/${f.id}/publish`);
+  const buy = await raw('POST', `/f/${funnel.slug}/${funnel.steps[0].slug}/buy`, { form: { product: String(prod.id), email: 'lu@example.com' } });
+  await raw('POST', buy.location, { form: { email: 'lu@example.com', name: 'Lu' } });
+  const mail = (await mails(c, 'lu@example.com')).find((m) => /Here’s your Glaze Recipe Book/.test(m.subject));
+  assert.ok(mail, 'delivery email sent');
+  const dl = linkIn(mail, /https?:\/\/\S+\/dl\/\S+/);
+  const got = await raw('GET', dl);
+  assert.equal(got.status, 200);
+  assert.match(got.text, /Glaze recipes/);
 });
