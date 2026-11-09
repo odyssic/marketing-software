@@ -25,9 +25,8 @@ async function viewFiles() {
     try {
       let id;
       if (file.type === 'application/pdf') {
-        if (file.size > 4 * 1024 * 1024) throw new Error('That PDF is over 4 MB. Make it smaller, or paste a Google Drive or Dropbox link on your form instead.');
-        const res = await fetch('/api/uploads', { method: 'POST', headers: { 'Content-Type': 'application/pdf' }, body: file });
-        const data = await res.json(); if (!res.ok) throw new Error(data.error || 'Upload failed'); id = data.id;
+        toast('Uploading…');
+        id = (await uploadFile(file)).id;
       } else id = (await uploadImage(file)).split('/u/')[1];
       await api('PUT', `/api/files/${encodeURIComponent(id)}`, { name: file.name.replace(/\.[a-z0-9]+$/i, '') });
       toast('File added'); viewFiles();

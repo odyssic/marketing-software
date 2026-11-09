@@ -39,9 +39,11 @@ function registerFiles(app, api, { getDb, HttpError, getSecret, publicBase, logE
     if (!expected || !s || s.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(s), Buffer.from(expected))) {
       return res.status(404).type('text/plain').send('This download link isn’t valid.');
     }
-    const file = await db().get('SELECT u.id, u.account_id, u.name, u.content_type, u.data FROM uploads u JOIN contacts c ON c.id = ? AND c.account_id = u.account_id WHERE u.id = ?', contactId, fileId);
+    const file = await db().get('SELECT u.id, u.account_id, u.name, u.content_type, u.data, u.storage_url FROM uploads u JOIN contacts c ON c.id = ? AND c.account_id = u.account_id WHERE u.id = ?', contactId, fileId);
     if (!file) return res.status(404).type('text/plain').send('This file is no longer available.');
     await logEvent(db(), file.account_id, { person_id: contactId, type: 'download', source: 'email', meta: { file: file.id, name: file.name || 'a file' } }).catch(() => {});
+    // Large files live in file storage; the person is sent there, already counted.
+    if (file.storage_url) return res.set({ 'Cache-Control': 'private, no-store', 'X-Robots-Tag': 'noindex' }).redirect(302, file.storage_url);
     const ext = file.id.split('.').pop();
     const filename = `${(file.name || 'download').replace(/[^\w .()-]+/g, '').trim().slice(0, 80) || 'download'}.${ext}`;
     res.set({ 'Content-Type': file.content_type, 'Content-Disposition': `inline; filename="${filename}"`, 'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff',

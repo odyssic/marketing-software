@@ -87,3 +87,45 @@ test('setup with a guide: one welcome email with the guide’s name as its link;
   assert.match(reminders[0].subject, /Did you get the Magnificent 7\?/);
   assert.match(reminders[0].body, /the Magnificent 7 \(https?:\/\/\S+\/dl\//);
 });
+
+test('large files (over 4 MB) go to file storage through a one-time slot, and are served from there', async () => {
+  const http = require('node:http');
+  const c = client();
+  await c('POST', '/api/auth/signup', { name: 'Lf', email: 'large-file@example.com', password: 'password123', business_type: 'coach' });
+  delete process.env.STORAGE_URL;
+  assert.equal((await c('POST', '/api/uploads/large', { type: 'application/pdf', size: 9e6 })).status, 503, 'not set up: a plain message');
+  // A stand-in for file storage that holds whatever the "browser" put there.
+  const stored = {};
+  const store = http.createServer((req, res) => {
+    const key = req.url.replace('/storage/v1/object/public/files/', '');
+    const body = stored[key];
+    if (!body) { res.writeHead(400); return res.end('{}'); }
+    res.writeHead(206, { 'content-type': 'application/pdf', 'content-range': `bytes 0-15/${body.length}` });
+    res.end(body.subarray(0, 16));
+  }).listen(0);
+  await new Promise((r) => store.once('listening', r));
+  process.env.STORAGE_URL = `http://localhost:${store.address().port}/`;
+  try {
+    assert.equal((await c('POST', '/api/uploads/large', { type: 'application/x-msdownload', size: 9e6 })).status, 415);
+    assert.equal((await c('POST', '/api/uploads/large', { type: 'application/pdf', size: 60e6 })).status, 413);
+    const slot = (await c('POST', '/api/uploads/large', { type: 'application/pdf', size: 9e6 })).body;
+    assert.match(slot.slot, /\/functions\/v1\/upload-slot$/);
+    assert.equal((await c('POST', `/api/uploads/large/${slot.token}/done`)).status, 422, 'nothing arrived yet');
+    const acct = (await c('GET', '/api/me')).body.account.id;
+    stored[`${acct}/${slot.id}`] = Buffer.concat([Buffer.from('%PDF-1.7\n'), Buffer.alloc(9e6, 32)]);
+    const done = await c('POST', `/api/uploads/large/${slot.token}/done`);
+    assert.equal(done.status, 201);
+    assert.equal(done.body.size, 9e6 + 9);
+    // The usual /u/ address sends people to storage; a second "done" finds no slot.
+    const u = await client()('GET', new URL(done.body.url).pathname);
+    assert.equal(u.status, 302);
+    assert.equal(u.headers.get('location'), `${process.env.STORAGE_URL.replace(/\/$/, '')}/storage/v1/object/public/files/${acct}/${slot.id}`);
+    assert.equal((await c('POST', `/api/uploads/large/${slot.token}/done`)).status, 404);
+    assert.ok((await c('GET', '/api/files')).body.some((f) => f.id === slot.id));
+    // Another business can't finish someone else's upload.
+    const other = client();
+    await other('POST', '/api/auth/signup', { name: 'Ot', email: 'large-other@example.com', password: 'password123', business_type: 'coach' });
+    const s2 = (await c('POST', '/api/uploads/large', { type: 'application/pdf', size: 5e6 })).body;
+    assert.equal((await other('POST', `/api/uploads/large/${s2.token}/done`)).status, 404);
+  } finally { delete process.env.STORAGE_URL; store.close(); }
+});

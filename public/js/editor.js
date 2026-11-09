@@ -522,11 +522,9 @@ async function viewEditor(stepId) {
   // Lead magnet files (PDF) on forms.
   const putFile = async (i, file) => {
     if (file.type !== 'application/pdf') { toast('Use a PDF, or paste a link instead', true); return; }
-    if (file.size > 4 * 1024 * 1024) { toast('That PDF is over 4 MB. Put it on Google Drive or Dropbox and paste the link instead', true); return; }
     saved.textContent = 'Uploading…';
     try {
-      const res = await fetch('/api/uploads', { method: 'POST', headers: { 'Content-Type': 'application/pdf' }, body: file });
-      const data = await res.json(); if (!res.ok) throw new Error(data.error || 'Upload failed');
+      const data = await uploadFile(file, (pct) => { saved.textContent = `Uploading ${pct}%`; });
       ed.blocks[i].deliverUrl = data.url;
       if (!ed.blocks[i].deliverName) ed.blocks[i].deliverName = `the ${file.name.replace(/\.pdf$/i, '').replace(/[-_]+/g, ' ')}`;
       structural(); toast('PDF ready. It’ll be emailed to everyone who signs up');

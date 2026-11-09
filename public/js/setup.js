@@ -77,10 +77,12 @@ async function viewSetup() {
         <div class="day-chips">${[['discount', 'A discount'], ['guide', 'A free guide'], ['news', 'First look at news']].map(([k, l]) => `<button type="button" class="chip ${s.incentive === k ? 'on' : ''}" data-inc="${k}" aria-pressed="${s.incentive === k}">${l}</button>`).join('')}</div></div>
         ${s.incentive === 'discount' ? `<label class="f">How much off their first order?<select name="percent">${[5, 10, 15, 20, 25].map((p) => `<option value="${p}" ${Number(s.percent) === p ? 'selected' : ''}>${p}%</option>`).join('')}</select></label>` : ''}
         ${s.incentive === 'guide' ? `<label class="f">What’s the guide called?<input name="guide" required value="${esc(s.guide)}" placeholder="e.g. The Magnificent 7: classic typewriters worth owning"></label>
-          <div class="f"><span>The guide itself <span class="hint">a PDF up to 4 MB; it’s emailed to everyone who signs up</span></span>
-            <div class="row" style="gap:10px;align-items:center">${s.guideUrl ? `<span class="pill ok">${icon('check')} ${esc(s.guideFile || 'PDF ready')}</span>` : ''}
-              <label class="btn">${icon('upload')} ${s.guideUrl ? 'Change file' : 'Upload the PDF'}<input type="file" accept="application/pdf" hidden data-guidefile></label></div>
-            <p class="hint">No file yet? Skip it: you can add it to the form later.</p></div>` : ''}
+          <div class="f"><span>The guide itself <span class="hint">it’s emailed to everyone who signs up</span></span>
+            <div class="row" style="gap:10px;align-items:center">${s.guideUrl && s.guideFile ? `<span class="pill ok">${icon('check')} ${esc(s.guideFile)}</span>` : ''}
+              <label class="btn">${icon('upload')} ${s.guideFile ? 'Change file' : 'Upload the PDF'}<input type="file" accept="application/pdf" hidden data-guidefile></label><span class="muted small" data-guideprog>up to 50 MB</span></div></div>
+          <label class="f">Or paste a link to it <span class="hint">Google Drive, Dropbox, your website…</span>
+            <input name="guidelink" type="url" inputmode="url" placeholder="https://" value="${esc(s.guideFile ? '' : s.guideUrl || '')}"></label>
+          <p class="hint">No file yet? Skip both: you can add it to the form later.</p>` : ''}
         <p class="hint">A clear reason to join is what turns visitors into subscribers.</p></div>`
       : s.goal === 'sell' ? `<div class="setup-extra"><div class="colors"><label class="f">What are you selling?<input name="offer2" value="${esc(s.offer)}" required></label>
         <label class="f">Price<input name="price" type="number" min="0.5" step="0.01" inputmode="decimal" required value="${esc(s.price)}" placeholder="24.00"></label></div></div>` : '';
@@ -100,17 +102,17 @@ async function viewSetup() {
       if (f.price) { s.price = f.price.value; s.offer = f.offer2.value.trim(); }
       if (f.percent) s.percent = Number(f.percent.value);
       if (f.guide) s.guide = f.guide.value.trim();
+      // A pasted link replaces an uploaded file.
+      if (f.guidelink && f.guidelink.value.trim()) { s.guideUrl = f.guidelink.value.trim(); s.guideFile = ''; }
     };
     const gf = $('[data-guidefile]');
     if (gf) gf.onchange = async () => {
       const file = gf.files[0]; if (!file) return;
       keep();
       if (file.type !== 'application/pdf') { toast('Use a PDF', true); return; }
-      if (file.size > 4 * 1024 * 1024) { toast('That PDF is over 4 MB. Make it smaller, or add a Google Drive or Dropbox link to the form later.', true); return; }
       try {
         toast('Uploading…');
-        const res = await fetch('/api/uploads', { method: 'POST', headers: { 'Content-Type': 'application/pdf' }, body: file });
-        const data = await res.json(); if (!res.ok) throw new Error(data.error || 'Upload failed');
+        const data = await uploadFile(file, (pct) => { const p = $('[data-guideprog]'); if (p) p.textContent = `Uploading… ${pct}%`; });
         s.guideUrl = data.url; s.guideFile = file.name;
         if (!s.guide) s.guide = file.name.replace(/\.pdf$/i, '').replace(/[-_]+/g, ' ');
         await api('PUT', `/api/files/${encodeURIComponent(data.id)}`, { name: s.guide }).catch(() => {});

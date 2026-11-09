@@ -474,9 +474,31 @@ async function uploadImage(file) {
     const out = await new Promise((r) => canvas.toBlob(r, type, 0.86));
     if (out && out.size < file.size) blob = out; // keep the original if it was already smaller
   }
-  if (blob.size > 4 * 1024 * 1024) throw new Error('That picture is too big (over 4 MB), even after shrinking');
-  const res = await fetch('/api/uploads', { method: 'POST', headers: { 'Content-Type': blob.type }, body: blob });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || 'Upload failed');
-  return data.url;
+  return (await uploadFile(blob)).url;
+}
+
+// Any file (PDF or picture). Up to 4 MB goes through the app; bigger files, up to
+// 50 MB, go straight to file storage through a one-time upload slot.
+async function uploadFile(file, onProgress = () => {}) {
+  const type = file.type;
+  if (file.size <= 4 * 1024 * 1024) {
+    const res = await fetch('/api/uploads', { method: 'POST', headers: { 'Content-Type': type }, body: file });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Upload failed');
+    return data;
+  }
+  if (file.size > 50 * 1024 * 1024) throw new Error('That file is over 50 MB. Make it smaller, or paste a link to it instead.');
+  const slot = await api('POST', '/api/uploads/large', { type, size: file.size });
+  const signed = await fetch(slot.slot, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: slot.token }) }).then((r) => r.json().then((d) => (r.ok ? d : Promise.reject(new Error(d.error || 'Upload failed')))));
+  // XMLHttpRequest, so a big file can show how far along it is.
+  await new Promise((resolve, reject) => {
+    const x = new XMLHttpRequest();
+    x.open('PUT', signed.url);
+    x.setRequestHeader('Content-Type', type);
+    x.upload.onprogress = (e) => { if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100)); };
+    x.onload = () => (x.status < 300 ? resolve() : reject(new Error('Upload failed. Check your connection and try again.')));
+    x.onerror = () => reject(new Error('Upload failed. Check your connection and try again.'));
+    x.send(file);
+  });
+  return api('POST', `/api/uploads/large/${encodeURIComponent(slot.token)}/done`);
 }

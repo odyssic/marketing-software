@@ -615,6 +615,20 @@ CREATE TABLE IF NOT EXISTS uploads (
 CREATE INDEX IF NOT EXISTS uploads_account ON uploads (account_id);
 ALTER TABLE uploads ADD COLUMN IF NOT EXISTS name TEXT NOT NULL DEFAULT '';
 ALTER TABLE uploads ADD COLUMN IF NOT EXISTS in_library INT NOT NULL DEFAULT 0;
+-- Large files are kept in file storage instead of here (data is empty, storage_url says where).
+ALTER TABLE uploads ADD COLUMN IF NOT EXISTS storage_url TEXT;
+ALTER TABLE uploads ALTER COLUMN data DROP NOT NULL;
+-- One-time slots for sending a large file straight to file storage (see uploads.js).
+CREATE TABLE IF NOT EXISTS upload_slots (
+  token TEXT PRIMARY KEY,
+  account_id INT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+  upload_id TEXT NOT NULL,
+  path TEXT NOT NULL,
+  content_type TEXT NOT NULL,
+  size INT NOT NULL,
+  used INT NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 -- Birthdays (month and day, MM-DD) for date-based follow-ups.
 ALTER TABLE contacts ADD COLUMN IF NOT EXISTS birthday TEXT NOT NULL DEFAULT '';
 
