@@ -1,0 +1,4 @@
+Third-party code served from this folder, loaded only when a PDF needs shrinking:
+
+pdf-lib 1.17.1 (pdf-lib.esm.min.js) - MIT License, Copyright (c) 2019 Andrew Dillon. https://github.com/Hopding/pdf-lib
+PDF.js 4.10.38 (pdf.min.mjs, pdf.worker.min.mjs) - Apache License 2.0, Copyright Mozilla Foundation. https://github.com/mozilla/pdf.js

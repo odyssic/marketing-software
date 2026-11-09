@@ -525,7 +525,7 @@ async function viewEditor(stepId) {
 
     saved.textContent = 'Uploading…';
     try {
-      const data = await uploadFile(file, (pct) => { saved.textContent = `Uploading ${pct}%`; });
+      const data = await uploadFile(file, (pct) => { saved.textContent = `Uploading ${pct}%`; }, { onStep: (t) => { saved.textContent = t; } });
       ed.blocks[i].deliverUrl = data.url;
       if (!ed.blocks[i].deliverName) ed.blocks[i].deliverName = `the ${file.name.replace(/\.[a-z0-9]+$/i, '').replace(/[-_]+/g, ' ')}`;
       structural(); toast('File ready. It’ll be emailed to everyone who signs up');

@@ -479,8 +479,84 @@ async function uploadImage(file) {
 
 // Any file (PDF, picture, ZIP, MP3, MP4). Up to 4 MB goes through the app; bigger
 // files, up to 500 MB, go straight to file storage through a one-time upload slot.
+// Big PDFs (often from Canva) are mostly photos. Before uploading, Rilly can make them
+// smaller in the browser, in two steps:
+//  1. shrink the photos inside to screen size: text, links and layout stay exactly as they are;
+//  2. only if it's still too big: turn each page into a picture (much smaller, but text
+//     can no longer be selected and links stop working).
+// The PDF tools load from /vendor only when needed.
+const PDF_SHRINK_FROM = 15 * 1024 * 1024; // files above this get step 1
+const UPLOAD_MAX = 500 * 1024 * 1024;
+async function shrinkPdf(file, { limit = UPLOAD_MAX, onStep = () => {} } = {}) {
+  const lib = await import('/vendor/pdf-lib.esm.min.js');
+  const { PDFDocument, PDFName, PDFNumber, PDFRawStream } = lib;
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const doc = await PDFDocument.load(bytes, { ignoreEncryption: true, updateMetadata: false });
+  const MAX_SIDE = 1600;
+  const images = doc.context.enumerateIndirectObjects().filter(([, o]) => o instanceof PDFRawStream
+    && o.dict.get(PDFName.of('Subtype')) === PDFName.of('Image')
+    && String(o.dict.get(PDFName.of('Filter')) || '') === '/DCTDecode'
+    && String(o.dict.get(PDFName.of('ColorSpace')) || '') !== '/DeviceCMYK');
+  let done = 0;
+  for (const [ref, img] of images) {
+    onStep(`Making photos smaller… ${Math.round((done++ / images.length) * 100)}%`);
+    try {
+      const bmp = await createImageBitmap(new Blob([img.contents], { type: 'image/jpeg' }));
+      const scale = Math.min(1, MAX_SIDE / Math.max(bmp.width, bmp.height));
+      const w = Math.max(1, Math.round(bmp.width * scale)), h = Math.max(1, Math.round(bmp.height * scale));
+      const canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(bmp, 0, 0, w, h);
+      const out = new Uint8Array(await (await new Promise((r) => canvas.toBlob(r, 'image/jpeg', 0.78))).arrayBuffer());
+      if (out.length >= img.contents.length) continue; // already small: leave it alone
+      const dict = img.dict.clone(doc.context);
+      dict.set(PDFName.of('Width'), PDFNumber.of(w)); dict.set(PDFName.of('Height'), PDFNumber.of(h));
+      dict.set(PDFName.of('ColorSpace'), PDFName.of(img.dict.get(PDFName.of('ColorSpace')) === PDFName.of('DeviceGray') ? 'DeviceGray' : 'DeviceRGB'));
+      dict.set(PDFName.of('BitsPerComponent'), PDFNumber.of(8));
+      dict.delete(PDFName.of('DecodeParms')); dict.delete(PDFName.of('Decode'));
+      doc.context.assign(ref, PDFRawStream.of(dict, out));
+    } catch { /* a photo the browser can't read stays as it was */ }
+  }
+  onStep('Saving…');
+  let result = new File([await doc.save({ useObjectStreams: true })], file.name, { type: 'application/pdf' });
+  let pagesAsPictures = false;
+  if (result.size > limit) {
+    // Step 2: pages as pictures.
+    const pdfjs = await import('/vendor/pdf.min.mjs');
+    pdfjs.GlobalWorkerOptions.workerSrc = '/vendor/pdf.worker.min.mjs';
+    const src = await pdfjs.getDocument({ data: bytes.slice() }).promise;
+    const outDoc = await PDFDocument.create();
+    for (let n = 1; n <= src.numPages; n++) {
+      onStep(`Turning pages into pictures… ${n} of ${src.numPages}`);
+      const page = await src.getPage(n);
+      const base = page.getViewport({ scale: 1 });
+      const vp = page.getViewport({ scale: Math.min(2, 1400 / base.width) });
+      const canvas = document.createElement('canvas'); canvas.width = Math.round(vp.width); canvas.height = Math.round(vp.height);
+      const ctx = canvas.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+      await page.render({ canvasContext: ctx, viewport: vp }).promise;
+      const jpg = await outDoc.embedJpg(new Uint8Array(await (await new Promise((r) => canvas.toBlob(r, 'image/jpeg', 0.72))).arrayBuffer()));
+      outDoc.addPage([base.width, base.height]).drawImage(jpg, { x: 0, y: 0, width: base.width, height: base.height });
+    }
+    result = new File([await outDoc.save()], file.name, { type: 'application/pdf' });
+    pagesAsPictures = true;
+  }
+  return { file: result.size < file.size ? result : file, before: file.size, after: Math.min(result.size, file.size), pagesAsPictures: pagesAsPictures && result.size < file.size };
+}
+const mb = (n) => `${(n / 1048576).toFixed(n < 10485760 ? 1 : 0)} MB`;
+
 const FILE_ACCEPT = 'application/pdf,image/png,image/jpeg,image/webp,image/gif,.zip,application/zip,audio/mpeg,.mp3,video/mp4,.mp4';
-async function uploadFile(file, onProgress = () => {}) {
+async function uploadFile(file, onProgress = () => {}, { onStep = () => {} } = {}) {
+  // Big PDFs are made smaller first (see shrinkPdf). If shrinking fails, the original goes up.
+  if ((file.type === 'application/pdf' || /\.pdf$/i.test(file.name)) && file.size > PDF_SHRINK_FROM) {
+    try {
+      const s = await shrinkPdf(file, { onStep });
+      if (s.after < s.before * 0.9) {
+        toast(s.pagesAsPictures
+          ? `Made your PDF fit: ${mb(s.before)} → ${mb(s.after)}. Pages are now pictures, so its text can’t be selected and its links won’t work.`
+          : `Made your PDF smaller for faster downloads: ${mb(s.before)} → ${mb(s.after)}. Text and links are unchanged.`);
+        file = s.file;
+      }
+    } catch (e) { console.warn('PDF shrink skipped:', e); }
+  }
   // Browsers name some types differently (Windows calls a ZIP x-zip-compressed).
   const type = ({ 'application/x-zip-compressed': 'application/zip', 'application/x-zip': 'application/zip', 'audio/mp3': 'audio/mpeg' })[file.type]
     || file.type || ({ zip: 'application/zip', mp3: 'audio/mpeg', mp4: 'video/mp4', pdf: 'application/pdf' })[file.name.split('.').pop().toLowerCase()] || '';
@@ -490,7 +566,7 @@ async function uploadFile(file, onProgress = () => {}) {
     if (!res.ok) throw new Error(data.error || 'Upload failed');
     return data;
   }
-  if (file.size > 500 * 1024 * 1024) throw new Error('That file is over 500 MB. Paste a link to it instead (Google Drive, Dropbox, YouTube…).');
+  if (file.size > UPLOAD_MAX) throw new Error('That file is over 500 MB. Paste a link to it instead (Google Drive, Dropbox, YouTube…).');
   const slot = await api('POST', '/api/uploads/large', { type, size: file.size });
   const signed = await fetch(slot.slot, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: slot.token }) }).then((r) => r.json().then((d) => (r.ok ? d : Promise.reject(new Error(d.error || 'Upload failed')))));
   // XMLHttpRequest, so a big file can show how far along it is.

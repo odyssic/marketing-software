@@ -112,7 +112,8 @@ async function viewSetup() {
       keep();
       try {
         toast('Uploading…');
-        const data = await uploadFile(file, (pct) => { const p = $('[data-guideprog]'); if (p) p.textContent = `Uploading… ${pct}%`; });
+        const prog = (t) => { const p = $('[data-guideprog]'); if (p) p.textContent = t; };
+        const data = await uploadFile(file, (pct) => prog(`Uploading… ${pct}%`), { onStep: prog });
         s.guideUrl = data.url; s.guideFile = file.name;
         if (!s.guide) s.guide = file.name.replace(/\.[a-z0-9]+$/i, '').replace(/[-_]+/g, ' ');
         await api('PUT', `/api/files/${encodeURIComponent(data.id)}`, { name: s.guide }).catch(() => {});

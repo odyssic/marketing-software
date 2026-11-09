@@ -26,7 +26,7 @@ async function viewFiles() {
       let id;
       if (!file.type.startsWith('image/')) {
         toast('Uploading…');
-        id = (await uploadFile(file)).id;
+        id = (await uploadFile(file, (pct) => { if (pct % 25 === 0) toast(`Uploading… ${pct}%`); })).id;
       } else id = (await uploadImage(file)).split('/u/')[1];
       await api('PUT', `/api/files/${encodeURIComponent(id)}`, { name: file.name.replace(/\.[a-z0-9]+$/i, '') });
       toast('File added'); viewFiles();
