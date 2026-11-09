@@ -76,7 +76,11 @@ async function viewSetup() {
       : s.goal === 'list' ? `<div class="setup-extra"><div class="f"><span>What do people get for joining?</span>
         <div class="day-chips">${[['discount', 'A discount'], ['guide', 'A free guide'], ['news', 'First look at news']].map(([k, l]) => `<button type="button" class="chip ${s.incentive === k ? 'on' : ''}" data-inc="${k}" aria-pressed="${s.incentive === k}">${l}</button>`).join('')}</div></div>
         ${s.incentive === 'discount' ? `<label class="f">How much off their first order?<select name="percent">${[5, 10, 15, 20, 25].map((p) => `<option value="${p}" ${Number(s.percent) === p ? 'selected' : ''}>${p}%</option>`).join('')}</select></label>` : ''}
-        ${s.incentive === 'guide' ? `<label class="f">What’s the guide called?<input name="guide" required value="${esc(s.guide)}" placeholder="e.g. The Magnificent 7: classic typewriters worth owning"></label>` : ''}
+        ${s.incentive === 'guide' ? `<label class="f">What’s the guide called?<input name="guide" required value="${esc(s.guide)}" placeholder="e.g. The Magnificent 7: classic typewriters worth owning"></label>
+          <div class="f"><span>The guide itself <span class="hint">a PDF up to 4 MB; it’s emailed to everyone who signs up</span></span>
+            <div class="row" style="gap:10px;align-items:center">${s.guideUrl ? `<span class="pill ok">${icon('check')} ${esc(s.guideFile || 'PDF ready')}</span>` : ''}
+              <label class="btn">${icon('upload')} ${s.guideUrl ? 'Change file' : 'Upload the PDF'}<input type="file" accept="application/pdf" hidden data-guidefile></label></div>
+            <p class="hint">No file yet? Skip it: you can add it to the form later.</p></div>` : ''}
         <p class="hint">A clear reason to join is what turns visitors into subscribers.</p></div>`
       : s.goal === 'sell' ? `<div class="setup-extra"><div class="colors"><label class="f">What are you selling?<input name="offer2" value="${esc(s.offer)}" required></label>
         <label class="f">Price<input name="price" type="number" min="0.5" step="0.01" inputmode="decimal" required value="${esc(s.price)}" placeholder="24.00"></label></div></div>` : '';
@@ -97,6 +101,22 @@ async function viewSetup() {
       if (f.percent) s.percent = Number(f.percent.value);
       if (f.guide) s.guide = f.guide.value.trim();
     };
+    const gf = $('[data-guidefile]');
+    if (gf) gf.onchange = async () => {
+      const file = gf.files[0]; if (!file) return;
+      keep();
+      if (file.type !== 'application/pdf') { toast('Use a PDF', true); return; }
+      if (file.size > 4 * 1024 * 1024) { toast('That PDF is over 4 MB. Make it smaller, or add a Google Drive or Dropbox link to the form later.', true); return; }
+      try {
+        toast('Uploading…');
+        const res = await fetch('/api/uploads', { method: 'POST', headers: { 'Content-Type': 'application/pdf' }, body: file });
+        const data = await res.json(); if (!res.ok) throw new Error(data.error || 'Upload failed');
+        s.guideUrl = data.url; s.guideFile = file.name;
+        if (!s.guide) s.guide = file.name.replace(/\.pdf$/i, '').replace(/[-_]+/g, ' ');
+        await api('PUT', `/api/files/${encodeURIComponent(data.id)}`, { name: s.guide }).catch(() => {});
+        toast('Guide ready'); step3();
+      } catch (err) { toast(err.message, true); }
+    };
     $$('[data-inc]').forEach((b) => { b.onclick = () => { keep(); s.incentive = b.dataset.inc; step3(); }; });
     $('[data-style]').oninput = (e) => { s.style = Number(e.target.value); $('[data-stylename]').textContent = STYLE_WORDS[s.style][0]; $('[data-stylehint]').textContent = `${STYLE_WORDS[s.style][1]} No fake deadlines or scarcity at any level.`; };
     $$('[data-goal]').forEach((b) => { b.onclick = () => { keep(); s.goal = b.dataset.goal; step3(); }; });
@@ -106,7 +126,7 @@ async function viewSetup() {
       if (s.goal === 'booked' && !s.days.length) { $('.err').textContent = 'Pick at least one day'; return; }
       s.step = 4; building();
       try {
-        const r = await api('POST', '/api/setup/build', { business_type: s.type, name: s.name, offer: s.offer, goal: s.goal, sales_style: s.style || 3, logo: s.logo || '', color: s.color || '', color2: s.color2 || '', incentive: s.incentive, percent: s.percent, guide: s.guide, days: s.days, start: s.start, end: s.end, length: s.length, price: s.price, tz: Intl.DateTimeFormat().resolvedOptions().timeZone });
+        const r = await api('POST', '/api/setup/build', { business_type: s.type, name: s.name, offer: s.offer, goal: s.goal, sales_style: s.style || 3, logo: s.logo || '', color: s.color || '', color2: s.color2 || '', incentive: s.incentive, percent: s.percent, guide: s.guide, guide_url: s.guideUrl || '', days: s.days, start: s.start, end: s.end, length: s.length, price: s.price, tz: Intl.DateTimeFormat().resolvedOptions().timeZone });
         state.me = await api('GET', '/api/me');
         ready(r);
       } catch (err) { s.step = 3; step3(); $('.err').textContent = err.message; }

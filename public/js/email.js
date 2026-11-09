@@ -37,7 +37,7 @@ async function viewEmail(tab) {
 }
 
 let SEG_LABELS = {};
-const readableMerge = (t) => String(t || '').replace(/\{\{\s*([a-z_]+)[^}]*\}\}/g, (_, k) => `[${k.replace(/_/g, ' ')}]`);
+const readableMerge = (t) => previewMerge(t);
 const rate = (n, d) => (d ? `${Math.round((n / d) * 100)}%` : '—');
 const broadcastsHtml = (items) => (items.length ? `<div class="bc-list">${items.map((b) => `
   <article class="bc card">

@@ -21,9 +21,9 @@ const TRIGGER_UI = {
   birthday: 'Has a birthday', anniversary: 'Reaches a customer anniversary', renewal: 'Has a subscription renewing soon', community_join: 'Joins the community', manual: 'Added by hand',
 };
 const CONDITION_UI = {
-  purchased_since: 'Bought since entering this workflow?', purchased: 'Has ever bought?', opened: 'Opened an email from this workflow?',
-  clicked: 'Clicked an email from this workflow?', has_tag: 'Has a tag?', stage_is: 'Is at a stage?', has_email: 'Can be emailed?',
-  clicked_last: 'Clicked a link in the last email?', opened_last: 'Opened the last email?', replied: 'Replied (text, email or chat)?', booked_since: 'Booked a call?',
+  purchased_since: 'Did they buy something since this started?', purchased: 'Has ever bought?', opened: 'Opened any email in this follow-up?',
+  clicked: 'Clicked any email in this follow-up?', has_tag: 'Has a tag?', stage_is: 'Is at a stage?', has_email: 'Can be emailed?',
+  guide_unopened: 'Haven’t opened the guide yet?', clicked_last: 'Clicked a link in the last email?', opened_last: 'Opened the last email?', replied: 'Replied (text, email or chat)?', booked_since: 'Booked a call?',
 };
 const leverPill = (k) => `<span class="lever-tag" style="--c:${LEVER_UI[k]?.color || '#64748b'}">${esc(LEVER_UI[k]?.label || k)}</span>`;
 
@@ -122,20 +122,20 @@ function subtree(key, acc = new Set()) {
 }
 
 // "Hi {{first_name|there}}" → "Hi ‹first name›" for display on the map.
-const prettyMerge = (t) => String(t || '').replace(/\{\{\s*(\w+)\s*(?:\|[^}]*)?\}\}/g, (m, k) => `‹${k.replace(/_/g, ' ')}›`);
+const prettyMerge = (t) => previewMerge(t);
 function stepSummary(key) {
   const n = nodes()[key], c = n.config || {};
   switch (n.type) {
     case 'trigger': {
       let s = `When someone ${(TRIGGER_UI[c.event] || '').toLowerCase()}`;
-      if (c.funnel_id) s += ` via “${wf.funnels.find((f) => f.id === c.funnel_id)?.name || 'a funnel'}”`;
+      if (c.funnel_id) s = s.replace(/ \(any form or page\)/, '') + ` on “${wf.funnels.find((f) => f.id === c.funnel_id)?.name || 'a page'}”`;
       if (c.event === 'purchase' && c.product) s += ` matching “${c.product}”`;
       if (c.event === 'tag_added') s += c.tag ? ` “${c.tag}”` : ' (pick a tag)';
       if (c.event === 'silent') s += ` for ${c.days} days`;
       return s;
     }
     case 'wait': return `Wait ${c.days ? `${c.days} day${c.days === 1 ? '' : 's'}` : ''}${c.days && c.hours ? ' ' : ''}${c.hours ? `${c.hours} hour${c.hours === 1 ? '' : 's'}` : ''}${!c.days && !c.hours ? '0 days' : ''}`;
-    case 'email': return prettyMerge(c.subject) || 'No subject yet';
+    case 'email': return `${prettyMerge(c.subject) || 'No subject yet'}${c.sendIf ? ` (${SEND_IF_WORDS[c.sendIf] || 'only sometimes'})` : ''}`;
     case 'sms': return prettyMerge(c.body) || 'No message yet';
     case 'condition': return `${CONDITION_UI[c.check] || ''}${c.value ? ` “${c.value}”` : ''}`;
     case 'tag': return [c.add && `Add ${c.add}`, c.remove && `Remove ${c.remove}`].filter(Boolean).join(' · ') || 'Pick tags';
@@ -339,7 +339,8 @@ function renderInspector() {
     case 'email':
       body = field('Subject', `<input data-c="subject" value="${esc(c.subject)}" placeholder="e.g. Welcome, {{first_name|friend}}!">`)
         + field('Message', `<textarea data-c="body" rows="12">${esc(c.body)}</textarea>`)
-        + `<div class="row" style="gap:4px;margin:-4px 0 10px">${['{{first_name|there}}', '{{last_name}}', '{{business}}'].map((t) => `<button class="chip" data-insert="${esc(t)}">${esc(t)}</button>`).join('')}</div>
+        + field('Who gets it', `<select data-c="sendIf"><option value="">Everyone who reaches this step</option>${Object.entries(SEND_IF_WORDS).map(([k, l]) => `<option value="${k}" ${c.sendIf === k ? 'selected' : ''}>Send ${esc(l)}</option>`).join('')}</select>`, 'skipped people carry on to the next step')
+        + `<div class="row" style="gap:4px;margin:-4px 0 10px">${['{{first_name|there}}', '{{last_name}}', '{{business}}', '{{guide_link}}'].map((t) => `<button class="chip" data-insert="${esc(t)}">${esc(t)}</button>`).join('')}</div>
         <p class="hint">An unsubscribe link is added automatically. Links are tracked so the map can branch on clicks.</p>
         <button class="btn sm" data-test>Send me a test</button>`;
       break;

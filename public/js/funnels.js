@@ -72,7 +72,7 @@ const NODE_W = 230;
 const COL_GAP = 280;
 const ROW_GAP = 60;
 const NODE_H = 300; // card height with its page picture
-const PORTS = { yes: { key: 'next_step_id', at: 0.27, label: '✓ Yes / Next' }, no: { key: 'no_step_id', at: 0.75, label: '✕ No thanks' } };
+const PORTS = { yes: { key: 'next_step_id', at: 0.27, label: '✓ Then' }, no: { key: 'no_step_id', at: 0.75, label: '✕ If they say no' } };
 
 // Lays the funnel out top-down as a tree. A page sits one row below the
 // deepest page that leads to it, so shared pages (e.g. one Thank-you page
@@ -235,6 +235,7 @@ async function viewFunnel(id) {
     const visitors = entry?.views || 0;
     const optins = m.steps.reduce((n, s) => n + s.optins, 0), sales = m.steps.reduce((n, s) => n + s.sales, 0);
     const bit = (value, label, title) => `<span title="${esc(title)}"><b>${value}</b> ${label}</span>`;
+    if (f.status !== 'live' && !visitors) { $('[data-fstats]').innerHTML = '<span class="muted small">Not live yet: press <b>Publish</b> when the pages look right. Numbers show here once people visit.</span>'; return; }
     $('[data-fstats]').innerHTML = [
       bit(visitors, `visitor${visitors === 1 ? '' : 's'}`, 'on the start page'),
       bit(pct(optins, visitors), `signed up (${optins})`, 'of visitors'),
@@ -259,7 +260,8 @@ async function viewFunnel(id) {
   sharedFollowupsFor(Number(id)).then((list) => {
     const box = $('[data-shared]');
     if (!box || !list.length) return;
-    box.innerHTML = `<div class="banner shared">${icon('bolt')} <span>Also runs for people here: ${list.map((w) => `<a href="#/flows/followup/${w.id}">${esc(w.name)}</a> <span class="muted small">(${esc((w.triggerLabel || '').toLowerCase())}${w.triggerFunnel ? '' : ', on any page'})</span>`).join(', ')}. Change it once and it changes everywhere.</span></div>`;
+    box.innerHTML = `<details class="banner shared"><summary>${icon('bolt')} ${list.length} other follow-up${list.length === 1 ? '' : 's'} also run${list.length === 1 ? 's' : ''} for people here</summary>
+      <p class="small" style="margin:8px 0 0">${list.map((w) => `<a href="#/flows/followup/${w.id}">${esc(w.name)}</a> <span class="muted">(when someone ${esc((w.triggerLabel || '').toLowerCase())}${w.triggerFunnel ? '' : ', on any page'})</span>`).join('<br>')}<br><span class="muted">They’re shared, so a change there applies everywhere.</span></p></details>`;
   });
 
   // ---------- Follow-ups, laid out as steps you can add to ----------
@@ -279,7 +281,7 @@ async function viewFunnel(id) {
     }
   };
   // Merge codes read as plain words: {{first_name|there}} → [first name].
-  const readable = (t) => String(t || '').replace(/\{\{\s*([a-z_]+)[^}]*\}\}/g, (_, k) => `[${k.replace(/_/g, ' ')}]`);
+  const readable = (t) => previewMerge(t);
   const chain = (w) => {
     const out = [];
     for (let k = w.graph.root, guard = 0; k && guard < 60; guard++) {
@@ -411,7 +413,7 @@ async function viewFunnel(id) {
         if (n.type === 'email' || n.type === 'sms') {
           // The first real line of the message, skipping the greeting.
           const lines = readable(n.config.body).split('\n').map((x) => x.trim()).filter((x) => x && !/^(hi|hello|hey|dear)\b.{0,30},?$/i.test(x));
-          rows.push({ key: k, when: days < 0.5 ? 'Right away' : `Day ${Math.round(days)}`, sms: n.type === 'sms', title: n.type === 'sms' ? 'Text message' : readable(n.config.subject) || 'Untitled email', preview: (n.type === 'sms' ? readable(n.config.body) : lines[0] || '').slice(0, 140) });
+          rows.push({ key: k, when: `${days < 0.5 ? 'Right away' : `Day ${Math.round(days)}`}${n.config.sendIf ? ` · ${SEND_IF_WORDS[n.config.sendIf] || 'only sometimes'}` : ''}`, sms: n.type === 'sms', title: n.type === 'sms' ? 'Text message' : readable(n.config.subject) || 'Untitled email', preview: (n.type === 'sms' ? readable(n.config.body) : lines[0] || '').slice(0, 140) });
         }
       }
       const end = chain(w).at(-1)?.[1];
@@ -434,7 +436,7 @@ async function viewFunnel(id) {
       return `<div class="fu-card ${w.status === 'active' ? 'on' : 'off'}">
         <div class="fc-top"><span class="fc-t">${icon(split ? 'branch' : 'mail')} ${count} ${word}${count === 1 ? '' : 's'}</span>
           <label class="switch sm" title="${w.status === 'active' ? 'Live: turn off' : 'Off: turn on'}"><input type="checkbox" data-fuonmap="${w.id}" ${w.status === 'active' ? 'checked' : ''} aria-label="${w.status === 'active' ? 'Live' : 'Off'}"><span></span></label>
-          <span class="fc-state">${w.status === 'active' ? 'Live' : 'Off'}</span></div>
+          <span class="fc-state">${w.status === 'active' ? 'Live' : 'Off: won’t send'}</span></div>
         ${rows.slice(0, 3).map((r) => `<div class="fc-r"><div class="fc-when">${esc(r.when)}${r.sms ? ' · text' : ''}</div>
           <div class="fc-subj">${esc(r.title)}</div>${r.preview ? `<div class="fc-pre">${esc(r.preview)}</div>` : ''}
           <button type="button" class="fc-edit" data-fuedit="${w.id}:${r.key}">${icon('pencil')} Edit</button></div>`).join('')}${split}
@@ -582,7 +584,7 @@ async function viewFunnel(id) {
         <div class="nstats"><span><b>${s.views}</b> views</span><span><b>${s.optins}</b> sign-ups</span><span><b>${s.sales}</b> sales</span></div>
         <div class="nact"><a class="btn sm primary" href="#/editor/${s.id}">Edit page</a>
           <a class="btn sm" href="${esc(publicUrl(`/f/${f.slug}/${s.slug}`))}" target="_blank" rel="noopener">View ${icon('external')}</a></div>
-        <div class="ports">${Object.entries(PORTS).map(([p, d]) => `<div class="port ${p} ${s[d.key] ? 'linked' : ''}" data-port="${p}" data-from="${s.id}"
+        <div class="ports">${Object.entries(PORTS).filter(([p, d]) => p === 'yes' || s[d.key] || s.blocks.some((b) => ['pricing', 'offer'].includes(b.type) || b.url === '#no')).map(([p, d]) => `<div class="port ${p} ${s[d.key] ? 'linked' : ''}" data-port="${p}" data-from="${s.id}"
           title="${s[d.key] ? 'Drag to change where this leads' : 'Drag to a page, or click to add the next page'}">${d.label}</div>`).join('')}</div>
       </div>`).join('') || `<div class="map-empty"><div class="big">${icon('sprout')}</div><p>Every page starts with one page.</p>
         <button class="btn primary" data-addpage>+ Add your first page</button></div>`;

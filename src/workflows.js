@@ -9,7 +9,7 @@ const { LEVER_KEYS } = require('./levers');
 
 const STEP_TYPES = ['wait', 'email', 'sms', 'condition', 'tag', 'subscribe', 'notify', 'deal'];
 const TRIGGERS = {
-  signup: 'Signs up (any form or pageflow)',
+  signup: 'Signs up (any form or page)',
   purchase: 'Buys something',
   tag_added: 'Gets a tag',
   subscribe: 'Subscribes to a newsletter',
@@ -26,7 +26,7 @@ const TRIGGERS = {
 const CONDITIONS = {
   has_tag: 'Has the tag', purchased: 'Has bought anything', purchased_since: 'Bought since entering this workflow',
   opened: 'Opened an email from this workflow', clicked: 'Clicked an email from this workflow', stage_is: 'Stage is', has_email: 'Has an email address',
-  clicked_last: 'Clicked a link in the last email', opened_last: 'Opened the last email', replied: 'Replied (text, email or chat)', booked_since: 'Booked a call since entering this workflow',
+  guide_unopened: 'Hasn’t opened the guide they were sent', clicked_last: 'Clicked a link in the last email', opened_last: 'Opened the last email', replied: 'Replied (text, email or chat)', booked_since: 'Booked a call since entering this workflow',
 };
 // Events this old or older (e.g. last year's orders in an import) never start a workflow.
 const FRESH_MS = 2 * 864e5;
@@ -73,7 +73,7 @@ function cleanConfig(type, c) {
       before: int(c.before, 0, 60, 0),
     };
     case 'wait': return { days: int(c.days, 0, 3650, 1), hours: int(c.hours, 0, 23, 0) };
-    case 'email': return { subject: str(c.subject, 300), body: str(c.body, 20000) };
+    case 'email': return { subject: str(c.subject, 300), body: str(c.body, 20000), ...(CONDITIONS[c.sendIf] ? { sendIf: c.sendIf } : {}) };
     case 'sms': return { body: str(c.body, 640) };
     case 'condition': return { check: CONDITIONS[c.check] ? c.check : 'purchased', value: str(c.value, 60).trim().toLowerCase() };
     case 'tag': return { add: str(c.add, 300), remove: str(c.remove, 300) };
@@ -133,8 +133,11 @@ const TEMPLATES = {
   welcome: {
     name: 'New lead welcome series', lever: 'conversion', description: 'Three emails over a week for new signups, ending with an offer if they haven’t bought.',
     graph: (o = {}) => chain({ event: 'signup', funnel_id: o.funnel_id || null }, [
-      email('Welcome, {{first_name|friend}}! Here’s what you asked for', 'Hi {{first_name|there}},\n\nThanks for signing up. Here’s the link to what you asked for:\n[Link to your download]\n\nOver the next week I’ll send two short notes on how to get the most out of it.\n\nTalk soon,\n{{business}}'),
+      email('Welcome, {{first_name|friend}}! Here’s what you asked for', 'Hi {{first_name|there}},\n\nThanks for signing up.{{guide_line}}\n\nOver the next week I’ll send two short notes on how to get the most out of it.\n\nTalk soon,\n{{business}}'),
       wait(2),
+      // Only to people who haven't opened the guide their sign-up form sent them.
+      { type: 'email', config: { subject: 'Did you get {{guide_name|your guide}}?', body: 'Hi {{first_name|there}},\n\nJust checking it reached you. Here’s your link again: [{{guide_name|your guide}}]({{guide_link}})\n\nIt only takes a few minutes, and I think you’ll find it useful.\n\n{{business}}', sendIf: 'guide_unopened' } },
+      wait(1),
       email('The story behind {{business}}', 'Hi {{first_name|there}},\n\nA quick story about why I started {{business}}, and what I care about getting right for you.\n\n[Tell your story here in a few honest sentences.]\n\nReply any time. I read every email.'),
       wait(3),
       { type: 'condition', config: { check: 'purchased_since' }, yes: [{ type: 'tag', config: { add: 'welcomed-buyer', remove: '' } }],
@@ -345,6 +348,14 @@ function createWorkflows({ getDb, HttpError, id, people, messaging, getAccount }
         const last = await db.get('SELECT opened_at, clicked_at FROM email_log WHERE contact_id = ? AND workflow_id = ? AND created_at >= ? ORDER BY id DESC LIMIT 1', person.id, run.workflow_id, run.created_at);
         return Boolean(last && (check === 'clicked_last' ? last.clicked_at : last.opened_at || last.clicked_at));
       }
+      case 'guide_unopened': {
+        // Only guides sent as a Rilly file can be tracked; a plain link counts as opened (no nagging).
+        const g = await db.get("SELECT occurred_at, meta FROM events WHERE person_id = ? AND type = 'note' AND meta LIKE '%\"delivered\"%' ORDER BY id DESC LIMIT 1", person.id);
+        if (!g) return false;
+        let m = {}; try { m = JSON.parse(g.meta); } catch { /* none */ }
+        if (!m.tracked) return false;
+        return !await db.get("SELECT 1 FROM events WHERE person_id = ? AND type = 'download' AND occurred_at >= ? LIMIT 1", person.id, g.occurred_at);
+      }
       case 'replied': return Boolean(await db.get("SELECT 1 FROM messages WHERE contact_id = ? AND direction = 'in' AND created_at >= ? LIMIT 1", person.id, run.created_at));
       case 'booked_since': return Boolean(await db.get("SELECT 1 FROM events WHERE person_id = ? AND type = 'booking' AND occurred_at >= ? LIMIT 1", person.id, run.created_at));
       default: return false;
@@ -373,6 +384,8 @@ function createWorkflows({ getDb, HttpError, id, people, messaging, getAccount }
         return { next: node.next, outcome: 'waited' };
       }
       case 'email': {
+        // "Send only if…": skipped (not failed) when it doesn't apply, and the sequence carries on.
+        if (c.sendIf && !await evaluate(c.sendIf, '', run, person)) return { next: node.next, outcome: 'skipped', detail: 'not needed' };
         const r = await messaging.sendToPerson({ account, person, subject: c.subject, body: c.body, workflowId: w.id });
         return { next: node.next, outcome: r.status === 'skipped' ? 'skipped' : String(r.status).startsWith('failed') ? 'failed' : 'sent', detail: r.reason || '' };
       }

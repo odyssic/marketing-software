@@ -201,6 +201,11 @@ function bindMoreMenus(root = document) {
 const moreMenu = (items, label = '') => `<span class="more-wrap"><button type="button" class="btn ${label ? '' : 'icon'}" data-more aria-label="More actions" title="More">${label ? `${esc(label)} ${icon('chevronDown')}` : icon('more')}</button>
   <span class="more-menu nodemenu" role="menu" hidden>${items}</span></span>`;
 
+// Email text as people will read it: the business name filled in, other fill-ins
+// shown the same way everywhere, ‹first name›.
+const previewMerge = (t) => String(t || '').replace(/\{\{\s*([a-z_]+)\s*(?:\|[^}]*)?\}\}/g, (_, k) => (k === 'business' && state.me?.account?.name ? state.me.account.name : `‹${k.replace(/_/g, ' ')}›`));
+// "Send only if…" on an email step, in words.
+const SEND_IF_WORDS = { guide_unopened: 'only if they haven’t opened the guide' };
 const fmtDate = (s) => (s ? new Date(s).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '');
 const fullName = (c) => [c.first_name, c.last_name].filter(Boolean).join(' ');
 const tagsHtml = (tags) => tags.map((t) => `<span class="tag">${esc(t)}</span>`).join('');

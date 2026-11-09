@@ -113,6 +113,7 @@ function registerSetup(api, { getDb, HttpError, createFunnel, TEMPLATES, getAcco
     await db().run('UPDATE accounts SET sales_style = ? WHERE id = ?', style, req.accountId);
     // Growing a list: what people get for joining.
     const guide = String(b.guide || '').trim().slice(0, 120);
+    const guideUrl = /^(https?:\/\/|\/u\/)/.test(String(b.guide_url || '')) ? String(b.guide_url).slice(0, 500) : '';
     let incentive = INCENTIVES.includes(b.incentive) ? b.incentive : DEFAULT_INCENTIVE[type] || 'news';
     if (incentive === 'guide' && !guide) throw new HttpError(400, 'What’s the free guide called?');
     const pct = Math.min(50, Math.max(5, Math.round(Number(b.percent) || 10)));
@@ -187,7 +188,7 @@ function registerSetup(api, { getDb, HttpError, createFunnel, TEMPLATES, getAcco
         const blocks = JSON.parse(s.blocks).flatMap((x) => {
           if (i === 0 && x.type === 'hero') return [{ ...x, eyebrow: list.eyebrow }];
           if (i === 0 && x.type === 'bullets') return [{ ...x, items: list.bullets.join('\n') }];
-          if (i === 0 && x.type === 'form' && incentive === 'guide') return [{ ...x, deliverName: guide }];
+          if (i === 0 && x.type === 'form' && incentive === 'guide') return [{ ...x, deliverName: guide, ...(guideUrl ? { deliverUrl: guideUrl } : {}) }];
           if (i === 0 && x.type === 'text' && !x.text) return list.about ? [{ ...x, text: `About ${name}: ${list.about}` }] : [];
           if (i > 0 && x.type === 'text') return [{ ...x, text: list.thank_text }];
           return [x];
@@ -226,7 +227,7 @@ function registerSetup(api, { getDb, HttpError, createFunnel, TEMPLATES, getAcco
         first: emails[0]?.config.subject || '', ready: !problems(g).length && !missing.length, needs: [...new Set(missing)].map((m) => m.slice(1, -1)),
       };
     });
-    res.status(201).json({ funnel_id: f.id, goal, drafted, booking: Boolean(booking), followups, incentive: list ? incentive : null, coupon: list && incentive === 'discount' ? `WELCOME${pct}` : null, guide_needs_file: list && incentive === 'guide' });
+    res.status(201).json({ funnel_id: f.id, goal, drafted, booking: Boolean(booking), followups, incentive: list ? incentive : null, coupon: list && incentive === 'discount' ? `WELCOME${pct}` : null, guide_needs_file: Boolean(list && incentive === 'guide' && !guideUrl) });
   });
 }
 

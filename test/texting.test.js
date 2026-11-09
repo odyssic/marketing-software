@@ -1,4 +1,5 @@
 process.env.ALLOW_SIGNUPS = '1';
+process.env.ALLOW_TIME_TRAVEL = '1'; // jobs run at a chosen time (texts wait out quiet hours)
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const { createApp } = require('../src/app');
@@ -104,7 +105,8 @@ test('workflow texts need permission; email replies thread into the inbox', asyn
   assert.equal((await c('PUT', `/api/workflows/${wf.id}`, { graph: g })).status, 200);
   await c('PUT', `/api/workflows/${wf.id}/status`, { status: 'active' });
   for (const p of [yes, no]) await c('POST', `/api/workflows/${wf.id}/enroll`, { person_ids: [p.id] });
-  await c('POST', '/api/jobs/run', { now: '2026-06-01T16:00:00Z' }); // noon in New York
+  const noonNY = new Date(Date.now() + 864e5); noonNY.setUTCHours(17, 0, 0, 0); // tomorrow, about noon in New York
+  await c('POST', '/api/jobs/run', { now: noonNY.toISOString() });
   const sent = await app.getDb().all("SELECT contact_id, body FROM messages WHERE channel = 'sms' AND direction = 'out' AND account_id = (SELECT account_id FROM contacts WHERE id = ?)", yes.id);
   assert.equal(sent.length, 1);
   assert.equal(sent[0].contact_id, yes.id);

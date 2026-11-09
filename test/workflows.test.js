@@ -76,12 +76,14 @@ test('welcome series: emails, waits and a yes/no branch run on one map', async (
   // Nothing more until the 2-day wait is over.
   await run(c, inDays(1));
   assert.equal((await outbox(c)).length, 2);
-  await run(c, inDays(2.01));
+  await run(c, inDays(2.01)); // the guide reminder: nobody here was sent a guide, so it's skipped
+  assert.equal((await outbox(c)).length, 2);
+  await run(c, inDays(3.01));
   assert.equal((await outbox(c)).length, 4);
 
   // Bo buys before the condition; Ann doesn't.
   await c('POST', '/api/import/orders', { orders: [{ order_id: 'w1', email: 'bo@example.com', total: 20, date: new Date().toISOString() }] });
-  await run(c, inDays(5.1));
+  await run(c, inDays(6.1));
   mail = await outbox(c);
   assert.equal(mail.length, 5);
   assert.equal(mail[0].to_email, 'ann@example.com');
@@ -95,7 +97,7 @@ test('welcome series: emails, waits and a yes/no branch run on one map', async (
   const byType = (type) => Object.entries(w.graph.nodes).filter(([, n]) => n.type === type).map(([k]) => w.stats[k] || { at: 0, outcomes: {} });
   assert.deepEqual(byType('condition')[0].outcomes, { yes: 1, no: 1 });
   // 2 welcomes + 2 stories + 1 offer.
-  assert.deepEqual(byType('email').map((s) => s.outcomes.sent || 0).sort(), [1, 2, 2]);
+  assert.deepEqual(byType('email').map((s) => s.outcomes.sent || 0).sort(), [0, 1, 2, 2]);
   const runs = (await c('GET', `/api/workflows/${id}/runs`)).body;
   assert.deepEqual(runs.map((r) => r.status), ['done', 'done']);
   const list = (await c('GET', '/api/workflows')).body.find((x) => x.id === id);

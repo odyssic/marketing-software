@@ -36,7 +36,7 @@ function merge(text, person, account, extra = {}) {
 function createMessaging({ getDb, getSecret, publicBase, logEvent }) {
   // hooks.extraFields(account, person): more fill-ins, e.g. {{referral_link}} (affiliates.js).
   const hooks = {};
-  const extras = async (text, account, person) => (hooks.extraFields && /\{\{\s*referral_/.test(text) ? hooks.extraFields(account, person).catch(() => ({})) : {});
+  const extras = async (text, account, person) => (hooks.extraFields && /\{\{\s*(referral_|guide_)/.test(text) ? hooks.extraFields(account, person).catch(() => ({})) : {});
   const sign = (emailId) => `${emailId}.${crypto.createHmac('sha256', getSecret()).update(`email:${emailId}`).digest('hex').slice(0, 16)}`;
   const verify = (token) => {
     const [idPart] = String(token).split('.');

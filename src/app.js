@@ -1562,7 +1562,22 @@ function createApp({ dbPath } = {}) {
     findPublicStep: (...a) => findPublicStep(...a), findBlock: (...a) => findBlock(...a) });
   // Partners and referrals: links, commissions, payouts, the partner dashboard (/my/<business>/partner).
   const affiliates = registerAffiliates(app, api, { getDb: () => db, HttpError, id, upsertContact, logEvent, messaging, members, publicBase, checkout, toCsv: people.toCsv });
-  messaging.hooks.extraFields = affiliates.emailFields;
+  // Fill-ins beyond the basics: {{referral_link}} and friends, and {{guide_link}} / {{guide_name}}
+  // (the guide this person was sent, with their own tracked link).
+  messaging.hooks.extraFields = async (account, person) => {
+    const out = await affiliates.emailFields(account, person).catch(() => ({}));
+    const g = await db.get("SELECT meta FROM events WHERE person_id = ? AND type = 'note' AND meta LIKE '%\"delivered\"%' ORDER BY id DESC LIMIT 1", person.id).catch(() => null);
+    out.guide_line = '';
+    if (g) {
+      try {
+        const m = JSON.parse(g.meta);
+        const nice = String(m.what || 'your download').replace(/^(the|your)\s+/i, (x) => x.toLowerCase());
+        out.guide_link = m.delivered; out.guide_name = nice;
+        out.guide_line = ` Here it is: [${nice.replace(/^./, (c) => c.toUpperCase())}](${m.delivered})`;
+      } catch { /* none */ }
+    }
+    return out;
+  };
   // Booking calendar routes (registered before the API's not-found handler and the public page route).
   const blog = registerBlog(app, api, { getDb: () => db, HttpError, id, publicBase });
   // Calendar sync: the private bookings feed and busy times read from the owner's own calendar.
@@ -1764,10 +1779,11 @@ function createApp({ dbPath } = {}) {
       const fileId = files.ownFileId(block.deliverUrl);
       const own = fileId && await db.get('SELECT id FROM uploads WHERE id = ? AND account_id = ?', fileId, funnel.account_id);
       const link = own ? files.linkFor(contact.id, fileId) : block.deliverUrl;
-      await messaging.sendTransactional({ account, to: String(req.body.email || '').trim().toLowerCase(), contactId: contact.id, subject: `Here’s ${what}`,
+      const series = await db.get("SELECT 1 FROM workflows WHERE account_id = ? AND funnel_id = ? AND status = 'active' AND graph LIKE '%{{guide\\_line}}%' LIMIT 1", funnel.account_id, funnel.id).catch(() => null);
+      if (!series) await messaging.sendTransactional({ account, to: String(req.body.email || '').trim().toLowerCase(), contactId: contact.id, subject: `Here’s ${what}`,
         text: `Hi ${first},\n\nThanks for signing up. Here’s ${what}:\n${link}\n\nEnjoy, and just reply if you have any questions.\n\n${account.from_name || account.name}` })
         .catch((e) => console.error('lead magnet email:', e.message));
-      await logEvent(db, funnel.account_id, { person_id: contact.id, type: 'note', source: 'funnel', meta: { ...meta, note: `Sent ${what}` } }, { recompute: false });
+      await logEvent(db, funnel.account_id, { person_id: contact.id, type: 'note', source: 'funnel', meta: { ...meta, note: `Sent ${what}`, delivered: link, what, tracked: Boolean(own) } }, { recompute: false });
     }
     const optSrc = await attachSource(db, contact.id, req);
     await db.run("INSERT INTO page_events (account_id, funnel_id, step_id, type, contact_id, variant, source) VALUES (?, ?, ?, 'optin', ?, ?, ?)",

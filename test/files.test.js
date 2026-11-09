@@ -55,3 +55,35 @@ test('a guide from Files goes out as a personal link, and each download is logge
   const other = new URL(link).pathname.replace(/^\/dl\/\d+/, '/dl/99999');
   assert.equal((await visitor('GET', other)).status, 404, 'someone else’s number doesn’t work');
 });
+
+test('setup with a guide: one welcome email with the guide’s name as its link; a reminder only if they haven’t opened it', async () => {
+  process.env.ALLOW_TIME_TRAVEL = '1';
+  const c = client();
+  await c('POST', '/api/auth/signup', { name: 'Gi', email: 'gi-guide@example.com', password: 'password123', business_type: 'shop' });
+  const up = (await c('POST', '/api/uploads', Buffer.from('%PDF-1.4\n% guide\n'), 'application/pdf')).body;
+  const r = (await c('POST', '/api/setup/build', { business_type: 'shop', name: 'Classic Typewriter', goal: 'list', incentive: 'guide', guide: 'The Magnificent 7', guide_url: up.url })).body;
+  assert.equal(r.guide_needs_file, false);
+  const f = (await c('GET', `/api/funnels/${r.funnel_id}`)).body;
+  assert.equal(f.steps[0].blocks.find((b) => b.type === 'form').deliverUrl, up.url);
+  await c('POST', `/api/funnels/${f.id}/publish`);
+  for (const w of r.followups) await c('PUT', `/api/workflows/${w.id}/status`, { status: 'active' });
+
+  const signup = (email) => client()('POST', `/f/${f.slug}/${f.steps[0].slug}/optin`, new URLSearchParams({ email, first_name: email.split('@')[0] }).toString(), 'application/x-www-form-urlencoded');
+  await signup('reader@example.com'); await signup('opener@example.com');
+  await c('POST', '/api/jobs/run', {});
+  const mine = async (to) => (await c('GET', '/api/outbox')).body.filter((m) => m.to_email === to);
+  const first = await mine('reader@example.com');
+  assert.equal(first.length, 1, 'one email, not a delivery email plus a welcome');
+  assert.match(first[0].body, /Thanks for signing up\. Here it is: The Magnificent 7 \(https?:\/\/\S+\/dl\/\S+\)/);
+  assert.doesNotMatch(first[0].body, /\[Link to your download\]/);
+
+  // One of them opens it.
+  const link = (await mine('opener@example.com'))[0].body.match(/\/dl\/[^)\s]+/)[0];
+  assert.equal((await client()('GET', link)).status, 200);
+
+  await c('POST', '/api/jobs/run', { now: new Date(Date.now() + 2.2 * 864e5).toISOString() });
+  const reminders = (await c('GET', '/api/outbox')).body.filter((m) => /^Did you get/.test(m.subject));
+  assert.deepEqual(reminders.map((m) => m.to_email), ['reader@example.com']);
+  assert.match(reminders[0].subject, /Did you get the Magnificent 7\?/);
+  assert.match(reminders[0].body, /the Magnificent 7 \(https?:\/\/\S+\/dl\//);
+});

@@ -9,7 +9,7 @@ const FLOW_TABS = [['', 'All'], ['websites', 'Websites'], ['pageflows', 'Pages']
 const FLOW_OPEN = { website: 'websites', members: 'members', funnel: 'funnels' };
 const STEP_WORD = { email: 'Email', sms: 'Text', wait: 'Wait', condition: 'Split', tag: 'Tag', notify: 'Notify me', subscribe: 'Subscribe', deal: 'Deal' };
 const STEP_ICON = { email: 'mail', sms: 'chat', wait: 'clock', condition: 'branch', tag: 'tag', notify: 'bell', subscribe: 'inbox', deal: 'briefcase' };
-const flowText = (t) => String(t || '').replace(/\{\{\s*([a-z_]+)[^}]*\}\}/g, (_, k) => `[${k.replace(/_/g, ' ')}]`);
+const flowText = (t) => previewMerge(t);
 
 function flowTabs(on) {
   const off = state.me.account.hidden_sections || [];
@@ -182,7 +182,7 @@ async function viewFollowupFlow(id) {
       : n.type === 'sms' ? `<div class="fc-pre">${esc(flowText(c.body))}</div>`
         : n.type === 'wait' ? `<div class="fc-subj">${c.days || 0} day${c.days === 1 ? '' : 's'}${c.hours ? ` ${c.hours}h` : ''}</div>`
           : `<div class="fc-pre">${esc(flowText(c.message || c.add || c.product || c.title || ''))}</div>`;
-    return `<div class="ff-step ${n.type}"><div class="ffs-top">${icon(STEP_ICON[n.type] || 'bolt')}<span>${n.type === 'wait' ? 'Wait' : `${when} · ${STEP_WORD[n.type] || n.type}`}</span><button type="button" class="ffs-x" data-ffdel="${k}" aria-label="Remove this step">${icon('x')}</button></div>
+    return `<div class="ff-step ${n.type}"><div class="ffs-top">${icon(STEP_ICON[n.type] || 'bolt')}<span>${n.type === 'wait' ? 'Wait' : `${when} · ${STEP_WORD[n.type] || n.type}${c.sendIf ? ` · ${SEND_IF_WORDS[c.sendIf] || ''}` : ''}`}</span><button type="button" class="ffs-x" data-ffdel="${k}" aria-label="Remove this step">${icon('x')}</button></div>
       ${body}${s && (n.type === 'email' || n.type === 'sms') ? `<div class="muted small">${s.sent || 0} sent${n.type === 'email' && s.sent ? ` · ${Math.round(((s.opened || 0) / s.sent) * 100)}% opened` : ''}</div>` : ''}
       ${['email', 'sms', 'wait', 'tag', 'notify'].includes(n.type) ? `<button type="button" class="fc-edit" data-ffedit="${k}">${icon('pencil')} Edit</button>` : `<a class="fc-edit" href="#/workflows/${id}">${icon('pencil')} Edit</a>`}</div>`;
   };
@@ -265,6 +265,7 @@ async function viewFollowupFlow(id) {
       <label class="choice"><input type="radio" name="kind" value="sms" hidden><span class="ci">${icon('chat')}</span><span><b>Send a text</b><small>Only to people who said yes to texts</small></span></label>
       <label class="choice"><input type="radio" name="kind" value="wait" hidden><span class="ci">${icon('clock')}</span><span><b>Wait</b></span></label>
       ${onPath ? '' : `<label class="choice"><input type="radio" name="kind" value="split" hidden><span class="ci">${icon('branch')}</span><span><b>Yes / no split</b><small>e.g. if they clicked: send a text; if not: another email</small></span></label>`}
+      <label class="choice"><input type="radio" name="kind" value="guide" hidden><span class="ci">${icon('download')}</span><span><b>Reminder if they haven’t opened the guide</b><small>Goes only to people who haven’t opened what their sign-up form sent</small></span></label>
       <label class="choice"><input type="radio" name="kind" value="tag" hidden><span class="ci">${icon('tag')}</span><span><b>Add a tag</b></span></label>
       <label class="choice"><input type="radio" name="kind" value="notify" hidden><span class="ci">${icon('bell')}</span><span><b>Notify me</b><small>A reminder to follow up personally</small></span></label>
       <label class="choice"><input type="radio" name="kind" value="more" hidden><span class="ci">${icon('more')}</span><span><b>Something else</b><small>Deal, subscribe: in the advanced editor</small></span></label></div>`, { submit: 'Next' });
@@ -284,6 +285,8 @@ async function viewFollowupFlow(id) {
         ? '<label class="f">Subject<input name="subject" required placeholder="e.g. A quick thank-you"></label><label class="f">Message<textarea name="body" rows="7" required>Hi {{first_name|there}},\n\n</textarea></label>'
         : '<label class="f">Text message <span class="hint">only to people who said yes to texts</span><textarea name="body" rows="3" maxlength="480" required>Hi {{first_name|there}}, it’s {{business}}. </textarea></label>', { submit: 'Add' });
       if (!v) return; node = r.kind === 'email' ? { type: 'email', config: { subject: v.subject, body: v.body } } : { type: 'sms', config: { body: v.body } };
+    } else if (r.kind === 'guide') {
+      node = { type: 'email', config: { subject: 'Did you get {{guide_name|your guide}}?', body: 'Hi {{first_name|there}},\n\nJust checking it reached you. Here’s your link again: [{{guide_name|your guide}}]({{guide_link}})\n\nIt only takes a few minutes, and I think you’ll find it useful.\n\n{{business}}', sendIf: 'guide_unopened' } };
     } else if (r.kind === 'tag') {
       const v = await modal('Add a tag', '<label class="f">Tag<input name="add" required placeholder="e.g. clicked-offer"></label>', { submit: 'Add' });
       if (!v) return; node = { type: 'tag', config: { add: v.add, remove: '' } };
