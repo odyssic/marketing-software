@@ -68,9 +68,11 @@ test('growing a list: a real reason to join (discount with a real code, free gui
   const hero = join.blocks.find((b) => b.type === 'hero');
   assert.equal(hero.text, '15% off your first order');
   assert.equal(join.blocks.find((b) => b.type === 'form').buttonLabel, 'Get my 15% off');
-  assert.match(join.blocks.find((b) => b.type === 'bullets').items, /15% off your first order/);
-  assert.match(join.blocks.at(-1).text, /About Classic Typewriter: Restored vintage typewriters/);
-  assert.match(thanks.blocks.find((b) => b.type === 'text').text, /WELCOME15/);
+  assert.match(hero.items, /15% off your first order/);
+  assert.equal(hero.mockup, 'coupon');
+  assert.equal(hero.mockupLabel, '15% OFF');
+  assert.match(join.blocks.find((b) => b.type === 'text').text, /About Classic Typewriter: Restored vintage typewriters/);
+  assert.match(thanks.blocks.find((b) => b.type === 'hero').subtext, /WELCOME15/);
   const words = f.steps.flatMap((st) => st.blocks.flatMap((x) => [x.text, x.subtext, x.items, x.buttonLabel, x.title])).filter(Boolean).join(' ');
   assert.doesNotMatch(words, /\[[^\]]{2,}\]/, 'no [placeholders]');
   const coupons = (await c('GET', '/api/coupons')).body;

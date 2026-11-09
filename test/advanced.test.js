@@ -78,7 +78,7 @@ test('split test: visitors keep their version, conversions per version, winner m
   const step = (await c('GET', `/api/steps/${page.id}`)).body;
   assert.equal(step.variant_blocks.find((b) => b.type === 'form').collectName, false); // the suggested fix: email only
   // B is editable on its own.
-  await c('PUT', `/api/steps/${page.id}`, { variant: 'b', blocks: step.variant_blocks.map((b) => (b.type === 'heading' ? { ...b, text: 'Version B headline' } : b)) });
+  await c('PUT', `/api/steps/${page.id}`, { variant: 'b', blocks: step.variant_blocks.map((b) => (b.type === 'hero' ? { ...b, text: 'Version B headline' } : b)) });
 
   const form = page.blocks.find((b) => b.type === 'form');
   const seen = { a: 0, b: 0 };
@@ -105,7 +105,7 @@ test('split test: visitors keep their version, conversions per version, winner m
   assert.equal((await c('POST', `/api/steps/${page.id}/variant/promote`)).status, 200);
   const after = (await c('GET', `/api/steps/${page.id}`)).body;
   assert.equal(after.variant_blocks, null);
-  assert.equal(after.blocks.find((b) => b.type === 'heading').text, 'Version B headline');
+  assert.equal(after.blocks.find((b) => b.type === 'hero').text, 'Version B headline');
   assert.equal((await c('GET', `/api/steps/${page.id}/versions`)).body[0].reason, 'before keeping version B');
   const other = await owner('ab-other@example.com');
   assert.equal((await other('POST', `/api/steps/${page.id}/variant`)).status, 404);

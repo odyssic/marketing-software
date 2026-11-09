@@ -21,6 +21,9 @@ function pageWords(blocks = []) {
     else if (b.type === 'cards') body.push(String(b.items || '').replace(/\|/g, ':'));
     else if (b.type === 'offer') body.push(b.title, String(b.items || '').replace(/\|[^\n]*/g, ''));
     else if (b.type === 'pricing') body.push(b.featuresTitle, b.features);
+    else if (b.type === 'feature' || b.type === 'cta') { head.push(b.title); body.push(b.text, b.items); }
+    else if (b.type === 'faq') body.push(String(b.items || '').replace(/\|/g, ':'));
+    else if (b.type === 'bio') body.push(b.text);
   }
   // Sentences joined without doubled full stops.
   const join = (parts) => parts.map(clean).filter(Boolean).map((t) => (/[.!?…:]$/.test(t) ? t : `${t}.`)).join(' ');

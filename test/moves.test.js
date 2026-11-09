@@ -161,10 +161,10 @@ test('describe-to-build: one sentence picks a template, writes the copy, and add
   assert.equal(f.name, 'Glaze guide');
   assert.equal(f.status, 'draft');
   const [first, last] = f.steps;
-  assert.equal(first.blocks.find((b) => b.type === 'heading').text, 'Glaze like a pro in one weekend');
-  assert.equal(first.blocks.find((b) => b.type === 'text').text, 'A free 12-page guide for beginners.');
+  assert.equal(first.blocks.find((b) => b.type === 'hero').text, 'Glaze like a pro in one weekend');
+  assert.equal(first.blocks.find((b) => b.type === 'hero').subtext, 'A free 12-page guide for beginners.');
   assert.equal(first.blocks.find((b) => b.type === 'form').buttonLabel, 'Send my guide');
-  assert.equal(last.blocks.find((b) => b.type === 'heading').text, 'Check your inbox!');
+  assert.equal(last.blocks.find((b) => b.type === 'hero').text, 'Check your inbox!');
   assert.match(seen.at(-1).body.output_config.format.schema.properties.template.description, /optin, sales, pricing, upsell, newsletter, consult/);
   // An unknown template name from the model falls back to a keyword guess.
   fakeReply = { json: { template: 'webinar', name: 'News', headline: 'h', subheadline: 's', button: 'b', thank_you: 't' } };

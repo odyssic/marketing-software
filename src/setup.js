@@ -174,6 +174,8 @@ function registerSetup(api, { getDb, HttpError, createFunnel, TEMPLATES, getAcco
       for (const [i, s] of steps.entries()) {
         const st = JSON.parse(s.settings || '{}');
         let bl = JSON.parse(s.blocks).flatMap((x) => (x.type === 'text' && !x.text ? (i === 0 && about ? [{ ...x, text: about }] : list ? [x] : []) : [x]));
+        // "Who's behind it" introduces the real business.
+        bl = bl.map((x) => (x.type === 'bio' ? { ...x, name: x.name || name, text: offer ? offer.replace(/\s+/g, ' ').trim().replace(/([^.!?])$/, '$1.') : x.text } : x));
         if (i > 0 && copy.thank_you) { const h = bl.find((x) => x.type === 'hero'); if (h && !list) h.text = copy.thank_you; }
         if (i === 0 && copy.eyebrow && !list) { const h = bl.find((x) => x.type === 'hero'); if (h) h.eyebrow = copy.eyebrow; }
         palette.applyPalette(pal, st, bl);
@@ -186,7 +188,13 @@ function registerSetup(api, { getDb, HttpError, createFunnel, TEMPLATES, getAcco
       const steps = await db().all('SELECT id, blocks, settings FROM funnel_steps WHERE funnel_id = ? ORDER BY position, id', f.id);
       for (const [i, s] of steps.entries()) {
         const blocks = JSON.parse(s.blocks).flatMap((x) => {
-          if (i === 0 && x.type === 'hero') return [{ ...x, eyebrow: list.eyebrow }];
+          // The cover shows what they get as ticks, and the incentive drawn beside the form.
+          if (i === 0 && x.type === 'hero') return [{ ...x, eyebrow: list.eyebrow, ...(x.style === 'cover' ? {
+            items: list.bullets.join('\n'), mockup: incentive === 'discount' ? 'coupon' : incentive === 'guide' ? 'book' : 'phone',
+            mockupLabel: incentive === 'discount' ? `${pct}% OFF` : incentive === 'guide' ? 'Free guide' : 'Members list',
+            mockupTitle: incentive === 'discount' ? 'your first order' : incentive === 'guide' ? guide : `News from ${name}`,
+            note: 'One click to unsubscribe, any time.' } : {}) }];
+          if (i > 0 && x.type === 'hero') return [{ ...x, subtext: list.thank_text }];
           if (i === 0 && x.type === 'bullets') return [{ ...x, items: list.bullets.join('\n') }];
           if (i === 0 && x.type === 'form' && incentive === 'guide') return [{ ...x, deliverName: guide, ...(guideUrl ? { deliverUrl: guideUrl } : {}) }];
           if (i === 0 && x.type === 'text' && !x.text) return list.about ? [{ ...x, text: `About ${name}: ${list.about}` }] : [];

@@ -980,7 +980,7 @@ function createApp({ dbPath } = {}) {
     const cta = first.find((x) => ['form', 'pricing'].includes(x.type)) || first.find((x) => x.type === 'button');
     if (cta && copy.button) cta[cta.type === 'button' ? 'label' : 'buttonLabel'] = copy.button;
     if (steps.length > 1 && copy.thank_you) {
-      const th = last.find((x) => x.type === 'heading');
+      const th = last.find((x) => x.type === 'heading' || x.type === 'hero');
       if (th) th.text = copy.thank_you;
     }
   }

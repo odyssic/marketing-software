@@ -86,7 +86,7 @@ test('version history: publish snapshots, autosave checkpoints, one-click restor
   const published = versions[0];
   assert.equal((await c('POST', `/api/steps/${page.id}/versions/${published.id}/restore`)).status, 200);
   let now = (await c('GET', `/api/steps/${page.id}`)).body;
-  assert.equal(now.blocks[0].type, 'heading');
+  assert.equal(now.blocks[0].type, 'hero');
   assert.match(now.blocks[0].text, /free guide/i);
   versions = (await c('GET', `/api/steps/${page.id}/versions`)).body;
   assert.equal(versions[0].reason, 'before restore');

@@ -48,6 +48,9 @@ function preflight({ funnel, steps, products, account, testimonials = {} }) {
       if (b.type === 'video' && b.url && !YT.test(b.url)) add('block', s, `The video link on “${s.name}” isn’t a YouTube link.`, edit(s));
       if (b.type === 'testimonial' && !testimonials[b.testimonialId]) add('block', s, `A testimonial on “${s.name}” isn’t linked to a real, approved testimonial.`, { label: 'Pick one', href: `#/editor/${s.id}` });
       if (b.type === 'reviews' && !Object.keys(testimonials).length) add('warn', s, `The reviews section on “${s.name}” stays hidden until you approve a real testimonial.`, { label: 'Testimonials', href: '#/people/testimonials' });
+      // Template sample words in [brackets] that were never replaced.
+      const sample = ['text', 'subtext', 'title', 'items', 'left', 'right', 'name', 'eyebrow', 'button', 'buttonLabel', 'label', 'price', 'mockupTitle', 'features'].map((k) => b[k]).join(' ').match(/\[[^\]\n]{2,60}\]/);
+      if (sample) add('warn', s, `“${s.name}” still has sample words to replace, like “${sample[0]}”.`, edit(s));
       if ((b.type === 'heading' || b.type === 'hero') && String(b.text || '').length > 140) add('warn', s, `A headline on “${s.name}” is very long for a phone screen.`, edit(s));
     }
   }

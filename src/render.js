@@ -5,6 +5,9 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => (
   { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
 ));
 const { payOf, payLabel, money: payMoney } = require('./paidbookings'); // paid Booking blocks
+const sections = require('./sections'); // cover banner, features, FAQ, guarantee and other rich sections
+// *Words between stars* in a headline are highlighted.
+const starHl = (html) => html.replace(/\*([^*<\n]+)\*/g, '<em class="hl">$1</em>');
 
 const color = (c, fallback) => (/^#[0-9a-f]{3,8}$/i.test(c || '') ? c : fallback);
 const align = (a) => (['left', 'center', 'right'].includes(a) ? a : 'center');
@@ -112,8 +115,11 @@ function renderBlock(b, ctx, index) {
   const a = align(b.align);
   // In the editor preview, text marked with data-f can be clicked and typed into.
   const f = (field) => (ctx.preview ? ` data-f="${field}"` : '');
+  const linkOf = (u) => (u === '#form' ? '#form' : String(u || '').startsWith('page:') ? ctx.pageHref(String(u).slice(5))
+    : u === '#next' || !u ? ctx.nextUrl : u === '#no' ? ctx.noUrl : safeUrl(u));
   switch (b.type) {
     case 'hero': {
+      if (b.style === 'cover') return sections.renderCover(b, ctx, index, { href: linkOf, formHtml: ctx.coverForm || '' });
       const bg = color(b.background, '#0f766e');
       const fg = color(b.textColor, '#ffffff');
       const style = ['flat', 'minimal', 'split'].includes(b.style) ? b.style : 'wave';
@@ -122,7 +128,7 @@ function renderBlock(b, ctx, index) {
         : b.url === '#next' || !b.url ? ctx.nextUrl : b.url === '#no' ? ctx.noUrl : safeUrl(b.url);
       const cta = b.button ? `<div class="hero-cta"><a class="btn hero-btn" href="${esc(href)}"${f('button')}>${esc(b.button)}</a></div>` : '';
       const words = `${b.eyebrow ? `<div class="eyebrow"${f('eyebrow')}>${esc(b.eyebrow)}</div>` : ''}
-        <h1${f('text')}>${multiline(b.text)}</h1>${b.subtext ? `<p${f('subtext')}>${multiline(b.subtext)}</p>` : ''}${cta}`;
+        <h1${f('text')}>${starHl(multiline(b.text))}</h1>${b.subtext ? `<p${f('subtext')}>${multiline(b.subtext)}</p>` : ''}${cta}`;
       if (style === 'minimal') return `<section class="hero-min${index === 0 ? ' first' : ''}">${words}</section>`;
       if (style === 'split') {
         const img = b.image ? `<img src="${esc(safeUrl(b.image))}" alt="${esc(b.imageAlt || '')}">` : '<div class="hero-ph" aria-hidden="true"></div>';
@@ -132,7 +138,7 @@ function renderBlock(b, ctx, index) {
       // The wave is filled with the page background so the band blends into the page below it.
       return `<section class="hero${index === 0 ? ' first' : ''}" style="background:linear-gradient(180deg,color-mix(in srgb,${bg} 75%,#000) 0%,${bg} 100%);color:${fg};--hero-fg:${fg};--hero-bg:${bg}">
         ${b.eyebrow ? `<div class="eyebrow"${f('eyebrow')}>${esc(b.eyebrow)}</div>` : ''}
-        <h1${f('text')}>${multiline(b.text)}</h1>${b.subtext ? `<p${f('subtext')}>${multiline(b.subtext)}</p>` : ''}${cta}
+        <h1${f('text')}>${starHl(multiline(b.text))}</h1>${b.subtext ? `<p${f('subtext')}>${multiline(b.subtext)}</p>` : ''}${cta}
         <svg class="wave" viewBox="0 0 1440 90" preserveAspectRatio="none" aria-hidden="true">
           <path d="M0 40 C 300 0 500 70 800 45 S 1200 10 1440 40 V90 H0Z" fill="${ctx.background}" opacity=".45"/>
           <path d="M0 60 C 350 25 600 85 900 60 S 1250 40 1440 55 V90 H0Z" fill="${ctx.background}"/></svg></section>`;
@@ -141,7 +147,7 @@ function renderBlock(b, ctx, index) {
       return renderPricing(b, ctx);
     case 'heading': {
       const tag = b.size === 'small' ? 'h3' : b.size === 'medium' ? 'h2' : 'h1';
-      return `<${tag} style="text-align:${a}"${f('text')}>${multiline(b.text)}</${tag}>`;
+      return `<${tag} style="text-align:${a}"${f('text')}>${starHl(multiline(b.text))}</${tag}>`;
     }
     case 'text':
       return `<p class="txt" style="text-align:${a}"${f('text')}>${multiline(b.text)}</p>`;
@@ -175,6 +181,7 @@ function renderBlock(b, ctx, index) {
       // "page:<slug>" links to another page of the same website or funnel.
       const href = String(b.url || '').startsWith('page:') ? ctx.pageHref(String(b.url).slice(5))
         : b.url === '#next' || !b.url ? ctx.nextUrl : b.url === '#no' ? ctx.noUrl : safeUrl(b.url);
+      if (b.sub || b.big) return `<div style="text-align:${a}"><a class="btn big" href="${esc(linkOf(b.url))}"><span${f('label')}>${esc(b.label || 'Continue')}</span><svg class="arr" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>${b.sub ? `<small${f('sub')}>${esc(b.sub)}</small>` : ''}</a></div>`;
       return `<div style="text-align:${a}"><a class="btn" href="${esc(href)}"${f('label')}>${esc(b.label || 'Continue')}</a></div>`;
     }
     case 'video': {
@@ -195,7 +202,7 @@ function renderBlock(b, ctx, index) {
       // Paid: the price shows up front; the button goes to payment (paidbookings.js).
       const pay = payOf(b), due = pay.kind ? payMoney(pay.due, pay.currency) : '';
       const btnLabel = pay.kind ? (/pay|\$|€|£/i.test(b.buttonLabel || '') ? b.buttonLabel : `Continue to pay ${due}`) : b.buttonLabel || 'Confirm booking';
-      return `<div class="booking" data-book="${esc(book)}" data-slots="${esc(slots)}" data-next="${esc(ctx.nextUrl || '#')}" data-phone="${b.collectPhone ? 1 : ''}" data-note="${b.askNote === false ? '' : 1}" data-btn="${esc(btnLabel)}" data-pay="${esc(payLabel(pay))}">
+      return `<div class="booking" id="book" data-book="${esc(book)}" data-slots="${esc(slots)}" data-next="${esc(ctx.nextUrl || '#')}" data-phone="${b.collectPhone ? 1 : ''}" data-note="${b.askNote === false ? '' : 1}" data-btn="${esc(btnLabel)}" data-pay="${esc(payLabel(pay))}">
         ${b.heading ? `<h2${f('heading')}>${esc(b.heading)}</h2>` : ''}
         <p class="bk-meta"></p>
         <div class="bk-days" role="tablist" aria-label="Choose a day"></div>
@@ -224,7 +231,8 @@ function renderBlock(b, ctx, index) {
           <label class="consent"><input type="checkbox" name="sms_consent" value="1"> Yes, text me updates from ${esc(ctx.business || 'us')}. Msg &amp; data rates may apply. Msg frequency varies. Reply STOP to opt out, HELP for help. Consent is not a condition of purchase.</label>` : '',
       ].join('');
       const disabled = ctx.preview ? ' onsubmit="event.preventDefault();alert(\'Forms are disabled in preview\')"' : '';
-      return `<form class="optin" method="post" action="${esc(ctx.formAction)}"${disabled}>
+      const anchor = ctx.formAnchored ? '' : ' id="form"'; ctx.formAnchored = true;
+      return `<form class="optin"${anchor} method="post" action="${esc(ctx.formAction)}"${disabled}>
         <input type="hidden" name="block" value="${esc(b.id)}">
         <input name="website" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true">
         ${fields}<button class="btn" type="submit"${ctx.preview ? ' data-f="buttonLabel"' : ''}>${esc(b.buttonLabel || 'Get access')}</button></form>`;
@@ -262,7 +270,7 @@ function renderBlock(b, ctx, index) {
       return `<div class="custom-html"><iframe title="${esc(b.title || 'Embedded content')}" data-html="${index}" style="width:100%;border:0;height:${Math.max(20, Number(b.height) || 150)}px" sandbox="allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-top-navigation-by-user-activation" srcdoc="${esc(doc)}"></iframe></div>`;
     }
     default:
-      return '';
+      return sections.renderSection(b, ctx, index, { href: linkOf }) ?? '';
   }
 }
 
@@ -324,14 +332,36 @@ function renderPage({ title, blocks, settings = {}, nextUrl = '#', noUrl = '#', 
     <nav>${site.links.map((l) => `<a href="${esc(l.href)}"${l.active ? ' aria-current="page"' : ''}>${esc(l.label)}</a>`).join('')}</nav></div></header>` : '';
   const foot = site ? `<footer class="site"><div class="in"><b>${esc(site.name)}</b><nav>${(course ? [] : site.links).map((l) => `<a href="${esc(l.href)}">${esc(l.label)}</a>`).join('')}</nav>
     <small>© ${new Date().getFullYear()} ${esc(site.name)}</small></div></footer>` : '';
-  const body = (blocks || []).map((b, i) => (preview ? `<div data-bi="${i}">${renderBlock(b, ctx, i)}</div>` : renderBlock(b, ctx, i))).join('\n');
+  const list = blocks || [];
+  // The page's deep colour (dark bands, notice bar): the banner's colour when there is one.
+  const heroBg = list.find((b) => b.type === 'hero' && /^#[0-9a-f]{6}$/i.test(b.background || ''))?.background;
+  const deep = heroBg || `color-mix(in srgb,${accent} 62%,#0a0d12)`;
+  const wrap = (i, html) => (preview ? `<div data-bi="${i}">${html}</div>` : html);
+  const parts = [];
+  for (let i = 0; i < list.length; i++) {
+    const b = list[i];
+    // A cover banner can hold the sign-up form that follows it.
+    if (b.type === 'hero' && b.style === 'cover' && b.formHere && list[i + 1]?.type === 'form') {
+      ctx.coverForm = renderBlock(list[i + 1], ctx, i + 1);
+      parts.push({ band: '', html: wrap(i, renderBlock(b, ctx, i)) + (preview ? `<div data-bi="${i + 1}" hidden></div>` : '') });
+      ctx.coverForm = ''; i++; continue;
+    }
+    const band = ['soft', 'dark', 'brand'].includes(b.band) && !['hero', 'notice'].includes(b.type) ? b.band : '';
+    const html = renderBlock(b, ctx, i);
+    if (!html && !preview) continue; // nothing to show (e.g. reviews before any are approved): no empty band
+    parts.push({ band, html: wrap(i, html) });
+  }
+  // Neighbouring blocks on the same background share one full-width band.
+  const groups = [];
+  for (const p of parts) { const g = groups.at(-1); if (p.band && g?.band === p.band) g.html.push(p.html); else groups.push({ band: p.band, html: [p.html] }); }
+  const body = groups.map((g, k) => (g.band ? `<section class="band band-${g.band}${k === 0 ? ' first' : ''}${k === groups.length - 1 ? ' last' : ''}"><div class="band-in">${g.html.join('\n')}</div></section>` : g.html.join('\n'))).join('\n');
   return `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${esc(settings.seoTitle || title)}</title>
 ${settings.seoDescription ? `<meta name="description" content="${esc(settings.seoDescription)}">` : ''}
 ${preview ? '' : seoHead({ title: settings.seoTitle || title, description: settings.seoDescription || settings.seoSummary || '', url, business, blocks: blocks || [], logo, embed })}
 <style>
-*{box-sizing:border-box}body{margin:0;background:${bg};color:${fg};font:17px/1.6 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+*{box-sizing:border-box}:root{--bg:${bg};--fg:${fg};--accent:${accent};--deep:${deep};--w:${width}px}body{margin:0;background:${bg};color:${fg};font:17px/1.6 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
 main{max-width:${width}px;margin:0 auto;padding:48px 20px}
 h1{font-size:clamp(1.8rem,4.5vw,2.4rem);line-height:1.15;margin:.4em 0}h1,h2,h3,p{overflow-wrap:break-word;text-wrap:balance}
 /* Breathing room: every block sits at least 28px from the next. */
@@ -404,7 +434,7 @@ footer.site{border-top:1px solid color-mix(in srgb,${fg} 10%,transparent);margin
 .info{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin:24px 0;padding:18px;border-radius:12px;background:color-mix(in srgb,${accent} 6%,${bg})}
 .info>div{display:grid;grid-template-columns:auto 1fr;gap:2px 8px;align-items:start}.info>div>div{grid-column:2}.info a{color:${accent}}
 @media(max-width:640px){.burger{display:block}header.site nav{display:none;width:100%;flex-direction:column;gap:10px;padding-top:6px}#mnu:checked~nav{display:flex}}
-${TYPE_CSS[settings.font] || ''}${embed ? EMBED_STYLE : ''}
+${sections.SECTION_CSS}${TYPE_CSS[settings.font] || ''}${embed ? EMBED_STYLE : ''}
 .hero-cta{margin-top:26px}.hero .btn.hero-btn{background:var(--hero-fg);color:var(--hero-bg)}
 .hero.flat{padding:88px 24px 92px}
 .hero-min{text-align:center;padding:40px 0 8px;max-width:820px;margin:0 auto}.hero-min h1{font-size:clamp(2.2rem,5.6vw,3.8rem);line-height:1.06;letter-spacing:-.02em;margin:.15em 0}
