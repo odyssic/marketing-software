@@ -878,6 +878,16 @@ function createApp({ dbPath } = {}) {
       const newest = await t.get('SELECT id FROM products WHERE account_id = ? ORDER BY id DESC LIMIT 1', accountId);
       const steps = template.steps();
       if (copy) applyCopy(steps, copy);
+      // In the business's colours: always when it has a brand colour or logo colours;
+      // otherwise templates with a designed look of their own keep it.
+      const acct = await t.get('SELECT brand_color, brand_color2, business_type FROM accounts WHERE id = ?', accountId);
+      const designed = steps.some((st) => st.settings?.font);
+      if (palette.HEX.test(acct?.brand_color || '') || !designed) {
+        const TYPE_COLOR = { coach: '#9a4a2e', services: '#1f5f4a', shop: '#7a4e24', local: '#1b4f72', nonprofit: '#5b3f8c', other: '#1b736d' };
+        const own = palette.HEX.test(acct?.brand_color || '');
+        const pal = palette.paletteFrom(own ? acct.brand_color : TYPE_COLOR[acct?.business_type] || TYPE_COLOR.other, own ? acct.brand_color2 : '');
+        for (const st of steps) { st.settings = { ...(st.settings || {}) }; palette.applyPalette(pal, st.settings, st.blocks); }
+      }
       const ids = [];
       for (const [i, st] of steps.entries()) {
         for (const blk of st.blocks) if (blk.type === 'pricing' && newest) blk.productId = newest.id;
