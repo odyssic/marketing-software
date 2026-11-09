@@ -27,7 +27,8 @@ async function newFunnel() {
     <div class="or"><span>or pick a template</span></div>
     <label class="f">Page name<input name="name" placeholder="e.g. Free glaze guide"></label>
     <div class="f" style="margin-bottom:6px;font-size:.85rem;font-weight:500">Start from</div>
-    <div class="tpl-grid" role="radiogroup">${templates.map((t, i) => `<label class="tpl ${i === 0 ? 'on' : ''}"><input type="radio" name="template" value="${t.key}" ${i === 0 ? 'checked' : ''} class="sr">
+    <div class="tpl-grid pics" role="radiogroup">${templates.map((t, i) => `<label class="tpl ${i === 0 ? 'on' : ''}"><input type="radio" name="template" value="${t.key}" ${i === 0 ? 'checked' : ''} class="sr">
+      <span class="tpl-pic">${t.key === 'blank' ? '<span class="tpl-blank">+</span>' : `<img src="/img/tpl/${esc(t.key)}.jpg" alt="" loading="lazy" width="640" height="440">`}</span>
       <b>${esc(t.label)}</b><span class="muted small">${esc(t.description)}</span>
       <span class="small">${t.pages} page${t.pages === 1 ? '' : 's'}${t.workflows.length ? ` · ${icon('bolt')} ${t.workflows.map(esc).join(', ')}` : ''}</span></label>`).join('')}</div>
     <p class="hint">Follow-up workflows are created switched off, so you can review the emails first.</p>
@@ -37,7 +38,8 @@ async function newFunnel() {
   bg.addEventListener('mousedown', (e) => { if (e.target === bg) close(); });
   $('[data-x]', bg).onclick = close;
   $$('input[name=template]', bg).forEach((r) => { r.onchange = () => $$('.tpl', bg).forEach((l) => l.classList.toggle('on', l.contains(r) && r.checked)); });
-  $('[data-sentence]', bg).focus();
+  // On phones the keyboard would cover the templates, so nothing is focused there.
+  if (matchMedia('(pointer: fine)').matches) $('[data-sentence]', bg).focus();
   $('[data-describe]', bg).onclick = async (e) => {
     const b = e.currentTarget;
     b.disabled = true; b.textContent = 'Building…'; $('[data-derr]', bg).textContent = '';

@@ -26,8 +26,8 @@ async function newWebsite() {
   bg.innerHTML = `<form class="modal wide"><h2>New website</h2>
     <label class="f">Business name <span class="hint">shown at the top of every page</span><input name="name" required value="${esc(state.me.account.name)}"></label>
     <div class="f" style="margin-bottom:6px;font-size:.85rem;font-weight:500">Template</div>
-    <div class="tpl-grid">${templates.map((t, i) => `<label class="tpl ${i === 0 ? 'on' : ''}"><input type="radio" name="template" value="${t.key}" ${i === 0 ? 'checked' : ''} class="sr">
-      <span class="swatch" style="background:${esc(t.accent)}"></span><b>${esc(t.label)}</b><span class="muted small">${esc(t.description)}</span>
+    <div class="tpl-grid pics">${templates.map((t, i) => `<label class="tpl ${i === 0 ? 'on' : ''}"><input type="radio" name="template" value="${t.key}" ${i === 0 ? 'checked' : ''} class="sr">
+      <span class="tpl-pic"><img src="/img/tpl/site-${esc(t.key)}.jpg" alt="" loading="lazy" width="640" height="440"></span><b>${esc(t.label)}</b><span class="muted small">${esc(t.description)}</span>
       <span class="small">${t.pages.map(esc).join(' · ')}</span>${t.workflows.length ? `<span class="small">${icon('bolt')} ${t.workflows.map(esc).join(', ')}</span>` : ''}</label>`).join('')}</div>
     <p class="hint">Words in [brackets] are yours to fill in. Click any text in the page editor to change it.</p>
     <div class="err"></div><div class="actions"><button type="button" class="btn" data-x>Cancel</button><button class="btn primary">Create website</button></div></form>`;
