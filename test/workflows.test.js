@@ -336,3 +336,23 @@ test('split on what they did with the last email: clicked → yes path, didn’t
   const mail = await outbox(c);
   assert.deepEqual(mail.filter((m) => m.subject === 'Did you see it?').map((m) => m.to_email), ['ignorer@example.com'], 'didn’t click → no path');
 });
+
+test('after a yes/no split, everyone carries on to "then, for everyone", whichever path they took', async () => {
+  const c = await signup('then-all@example.com');
+  const { id } = (await c('POST', '/api/workflows', { template: 'blank', name: 'Then for all' })).body;
+  const g = (await c('GET', `/api/workflows/${id}`)).body.graph;
+  g.nodes.s1 = { type: 'condition', config: { check: 'has_tag', value: 'vip' }, yes: 'y1', no: null, next: 't1' };
+  g.nodes.y1 = { type: 'tag', config: { add: 'vip-path', remove: '' }, next: null };
+  g.nodes.t1 = { type: 'tag', config: { add: 'everyone', remove: '' }, next: null };
+  g.nodes[g.root].next = 's1';
+  const saved = (await c('PUT', `/api/workflows/${id}`, { graph: g })).body;
+  assert.equal(saved.graph.nodes.s1.next, 't1', 'the split keeps its "then"');
+  assert.equal((await c('PUT', `/api/workflows/${id}/status`, { status: 'active' })).status, 200);
+  const vip = (await c('POST', '/api/contacts', { email: 'vip@example.com', tags: 'vip' })).body;
+  const plain = (await c('POST', '/api/contacts', { email: 'plain@example.com' })).body;
+  await c('POST', `/api/workflows/${id}/enroll`, { person_ids: [vip.id, plain.id] });
+  await run(c);
+  const tagsOf = async (pid) => (await c('GET', `/api/people/${pid}`)).body.tags;
+  assert.deepEqual([...(await tagsOf(vip.id))].sort(), ['everyone', 'vip', 'vip-path'], 'yes path, then everyone');
+  assert.deepEqual([...(await tagsOf(plain.id))].sort(), ['everyone'], 'empty no path, then everyone');
+});

@@ -55,7 +55,8 @@ async function viewFlows() {
     <div class="head"><div><h1>Flows</h1><div class="muted">Everything that brings people in and follows up with them: your pages, the emails between them, and follow-ups that start on their own.</div></div>
       ${!groupsAll.length && !wfs.filter((w) => !w.funnel_id).length ? '' : `<button class="btn primary" data-newflow>${icon('plus')} New</button>`}</div>
     ${flowTabs(show)}
-    <input data-q placeholder="Search flows, pages and emails…" value="${esc(q)}" style="max-width:340px;margin-bottom:14px" aria-label="Search">
+    <div class="flows-tools"><input data-q placeholder="Search flows, pages and emails…" value="${esc(q)}" style="max-width:340px" aria-label="Search">
+      ${(() => { const off = standalone.filter((w) => w.status !== 'active'); return off.length > 1 ? `<button type="button" class="btn sm" data-allon>${icon('bolt')} Turn all on (${off.length})</button>` : ''; })()}</div>
     ${groups.map((g) => `<section class="pgroup card" data-group="${g.id}">
       <header class="pg-head">${q ? '' : `<button type="button" class="pg-grip" data-grip title="Drag to reorder (or use the arrow keys)" aria-label="Move “${esc(g.name)}”: drag, or press the up and down arrow keys">${icon('grip')}</button>`}
         <div><a class="pg-name" href="#/${FLOW_OPEN[g.kind] || 'funnels'}/${g.id}">${esc(g.name)}</a>
@@ -99,6 +100,19 @@ async function viewFlows() {
     deleteWithUndo(`“${g.name}” deleted`, { url: `/api/funnels/${g.id}`, hide: hideEl(b.closest('.pgroup')) });
   }; });
   bindFlowOrder(groupsAll);
+  // Turn every follow-up shown on, except ones that still need something (said by name).
+  const allOn = $('[data-allon]');
+  if (allOn) allOn.onclick = async () => {
+    allOn.disabled = true;
+    const sample = (w) => w.sample;
+    const on = [], skipped = [];
+    for (const w of standalone.filter((x) => x.status !== 'active')) {
+      if (sample(w)) { skipped.push(`“${w.name}” still has [sample words] to replace`); continue; }
+      try { await api('PUT', `/api/workflows/${w.id}/status`, { status: 'active' }); on.push(w); } catch (err) { skipped.push(`“${w.name}”: ${err.message}`); }
+    }
+    toast(`${on.length ? `Turned on ${on.length} follow-up${on.length === 1 ? '' : 's'}. They run from now on.` : 'Nothing turned on.'}${skipped.length ? ` Left off: ${skipped.join('; ')}.` : ''}`, !on.length);
+    viewFlows();
+  };
   $$('[data-ffoff]').forEach((b) => { b.onclick = () => { const c = $(`[data-fftoggle="${b.dataset.ffoff}"]`); c.checked = false; c.onchange(); }; });
   $$('[data-ffdelete]').forEach((b) => { b.onclick = () => {
     const w = standalone.find((x) => String(x.id) === b.dataset.ffdelete);
@@ -148,7 +162,8 @@ async function viewFollowupFlow(id) {
   const g = w.graph, N = g.nodes;
   const t = N[g.root].config || {};
   const chainKeys = [];
-  for (let k = N[g.root].next, guard = 0; k && N[k] && guard < 80; guard++) { chainKeys.push(k); if (N[k].type === 'condition') break; k = N[k].next; }
+  // Steps in order; after a split, "then, for everyone" carries on along its next.
+  for (let k = N[g.root].next, guard = 0; k && N[k] && guard < 80; guard++) { chainKeys.push(k); k = N[k].next; }
   const stat = (k) => w.stats?.[k];
   const where = t.funnel_id ? funnels.find((f) => f.id === t.funnel_id)?.name : '';
   const triggerText = `${(TRIGGER_UI[t.event] || w.triggerLabel || 'Something happens').replace(/^./, (x) => x.toLowerCase())}${t.event === 'tag_added' && t.tag ? ` “${t.tag}”` : ''}${t.event === 'silent' ? ` for ${t.days} days` : ''}${['birthday', 'anniversary', 'renewal'].includes(t.event) && t.before ? ` (${t.before} day${t.before > 1 ? 's' : ''} ahead)` : ''}${where ? ` on “${where}”` : ''}`;
@@ -187,7 +202,9 @@ async function viewFollowupFlow(id) {
       ${['email', 'sms', 'wait', 'tag', 'notify'].includes(n.type) ? `<button type="button" class="fc-edit" data-ffedit="${k}">${icon('pencil')} Edit</button>` : `<a class="fc-edit" href="#/workflows/${id}">${icon('pencil')} Edit</a>`}</div>`;
   };
   const plus = (after) => `<button type="button" class="edge-add ff-plus" data-ffadd="${after}" aria-label="Add a step here" title="Add an email, a text, a wait or a split">${icon('plus')}</button>`;
-  const steps = chainKeys.map((k) => `${card(k)}${N[k].type === 'condition' ? '' : plus(k)}`).join('');
+  // After a split: one + for what everyone does next, whichever path they took.
+  const thenPlus = (k) => `<div class="ff-then"><button type="button" class="edge-add ff-plus" data-ffadd="${k}" aria-label="Then, for everyone: add a step" title="Then, for everyone (after either path)">${icon('plus')}</button><span>Then, for everyone</span></div>`;
+  const steps = chainKeys.map((k) => `${card(k)}${N[k].type === 'condition' ? thenPlus(k) : plus(k)}`).join('');
   shell('flows', `
     <div class="head"><div><a href="#/flows?show=followups" class="small">← Flows</a>
       <h1 style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span data-ffname>${esc(w.name)}</span>
@@ -250,7 +267,7 @@ async function viewFollowupFlow(id) {
     if (!parent) return;
     const [pk, pn] = parent, port = pn.next === key ? 'next' : pn.yes === key ? 'yes' : 'no';
     const n = N[key];
-    pn[port] = n.type === 'condition' ? n.yes || null : n.next || null;
+    pn[port] = n.type === 'condition' ? n.next || n.yes || null : n.next || null;
     delete N[key];
     try { await api('PUT', `/api/workflows/${id}`, { graph: g }); } catch (e) { toast(e.message, true); return viewFollowupFlow(id); }
     viewFollowupFlow(id);
@@ -301,7 +318,7 @@ async function viewFollowupFlow(id) {
       setTimeout(() => { const m = $('.modal'); const sel = m && $('[name=check]', m); if (sel) sel.onchange = () => { $('[data-splittag]', m).hidden = sel.value !== 'has_tag'; }; });
       const v = await pendSplit;
       if (!v) return;
-      node = { type: 'condition', config: { check: v.check, value: String(v.value || '').trim().toLowerCase() }, yes: tail, no: null };
+      node = { type: 'condition', config: { check: v.check, value: String(v.value || '').trim().toLowerCase() }, yes: null, no: null, next: tail };
       const give = Number(v.give) || 0;
       if (give) {
         // The wait comes first, so they have time to open, click or reply.

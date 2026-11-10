@@ -54,7 +54,8 @@ function normalizeGraph(graph, HttpError) {
     if (type !== 'trigger' && !STEP_TYPES.includes(type)) throw new HttpError(400, `Unknown step type: ${type}`);
     const node = { type, config: cleanConfig(type, n.config || {}) };
     out[key] = node;
-    if (type === 'condition') { node.yes = walk(n.yes); node.no = walk(n.no); } else node.next = walk(n.next);
+    // A split's paths, then (optionally) what everyone does after either path.
+    if (type === 'condition') { node.yes = walk(n.yes); node.no = walk(n.no); node.next = walk(n.next); } else node.next = walk(n.next);
     return key;
   };
   walk(root);
@@ -82,6 +83,20 @@ function cleanConfig(type, c) {
     case 'deal': return { pipeline_id: c.pipeline_id ? int(c.pipeline_id, 1, 1e9, null) : null, title: str(c.title, 200), value: Number(c.value) > 0 ? Math.min(Number(c.value), 2e7) : 0 };
     default: return {};
   }
+}
+
+// Where someone goes when a path runs out: the "then, for everyone" step after the
+// split that path belongs to (or the split around that one, and so on). Null means done.
+function continueAfter(graph, key) {
+  const N = graph.nodes || {};
+  if (N[key]?.type === 'condition' && N[key].next) return N[key].next; // the path they took was empty
+  const parentOf = {};
+  for (const [ck, c] of Object.entries(N)) {
+    if (c.type !== 'condition') continue;
+    for (const start of [c.yes, c.no]) for (let p = start, guard = 0; p && N[p] && guard < 500; guard++, p = N[p].next) parentOf[p] = ck;
+  }
+  for (let p = parentOf[key], guard = 0; p && guard < 50; guard++, p = parentOf[p]) if (N[p].next) return N[p].next;
+  return null;
 }
 
 // Problems that stop a workflow from being switched on, in plain words.
@@ -456,7 +471,7 @@ function createWorkflows({ getDb, HttpError, id, people, messaging, getAccount }
       await db.run('INSERT INTO workflow_log (run_id, workflow_id, node_id, outcome, detail, at) VALUES (?, ?, ?, ?, ?, ?)',
         cur.id, w.id, cur.node_id, r.outcome, r.detail || '', now.toISOString());
       if (r.stay) { cur.wake_at = r.wake.toISOString(); cur.waiting_on = r.waiting_on ?? cur.waiting_on; break; }
-      cur.node_id = r.next || null;
+      cur.node_id = r.next || continueAfter(w.graph, cur.node_id) || null;
       cur.waiting_on = null;
       if (!cur.node_id) { cur.status = 'done'; break; }
     }
@@ -506,7 +521,9 @@ function createWorkflows({ getDb, HttpError, id, people, messaging, getAccount }
           (SELECT COUNT(*)::int FROM workflow_runs r WHERE r.workflow_id = w.id) AS total_runs,
           (SELECT COUNT(*)::int FROM email_log e WHERE e.workflow_id = w.id) AS emails_sent
         FROM workflows w WHERE w.account_id = ? ORDER BY w.status = 'active' DESC, w.id`, req.accountId)).map(parse);
-      res.json(rows.map((w) => ({ ...w, graph: undefined, ...summary(w) })));
+      // sample: an email or text still has template words in [brackets] to replace.
+      const sample = (g) => Object.values(g?.nodes || {}).some((n) => ['email', 'sms'].includes(n.type) && /\[[^\]\n]{2,60}\]/.test(`${n.config?.subject || ''} ${n.config?.body || ''}`));
+      res.json(rows.map((w) => ({ ...w, graph: undefined, sample: sample(w.graph), ...summary(w) })));
     });
 
     api.get('/workflow-templates', (req, res) => {
@@ -624,4 +641,4 @@ function createWorkflows({ getDb, HttpError, id, people, messaging, getAccount }
   return { register, processDue, onEvent, onTagsAdded, enroll, create, seedDefaults, TEMPLATES, getWorkflow };
 }
 
-module.exports = { createWorkflows, normalizeGraph, problems, TEMPLATES, TRIGGERS, CONDITIONS, STEP_TYPES, chain };
+module.exports = { createWorkflows, normalizeGraph, problems, TEMPLATES, TRIGGERS, CONDITIONS, STEP_TYPES, chain, continueAfter };
