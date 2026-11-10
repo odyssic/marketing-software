@@ -1781,3 +1781,9 @@ ul.tasks { list-style: none; padding: 0; margin: 10px 0 4px; }
 
 .done-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 @media (max-width: 520px) { .done-actions { grid-template-columns: 1fr; } }
+
+/* Big PDF: screen or print */
+.quality-pick { display: grid; gap: 10px; margin-top: 12px; }
+.quality-pick .tpl { padding: 14px 16px; }
+.quality-pick .tpl.off { opacity: .55; cursor: not-allowed; }
+.quality-pick .pill { margin-left: 6px; font-weight: 600; }

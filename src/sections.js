@@ -26,7 +26,10 @@ function mockup(kind, { title = '', label = '', by = '' } = {}) {
     case 'workbook': return `<div class="mk mk-wb" aria-hidden="true"><div class="mk-sheet back"></div><div class="mk-sheet mid"></div><div class="mk-sheet"><span class="mk-k">${l || 'Checklist'}</span><b>${t}</b>${[1, 2, 3, 4, 5].map((i) => `<span class="mk-line"><i class="${i < 3 ? 'on' : ''}"></i><s style="width:${[78, 64, 84, 58, 70][i - 1]}%"></s></span>`).join('')}<span class="mk-by">${b}</span></div></div>`;
     case 'video': return `<div class="mk mk-video" aria-hidden="true"><div class="mk-screen"><span class="mk-k">${l || 'Free class'}</span><b>${t}</b><span class="mk-play"><svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor"><path d="M8 5.5v13l11-6.5z"/></svg></span><span class="mk-bar"><i></i></span></div><div class="mk-base"></div></div>`;
     case 'coupon': return `<div class="mk mk-coupon" aria-hidden="true"><div class="mk-tk"><span class="mk-k">${b || 'Welcome offer'}</span><b>${l || '10% OFF'}</b><span class="mk-t">${t}</span><span class="mk-code">WELCOME</span></div></div>`;
-    case 'phone': return `<div class="mk mk-phone" aria-hidden="true"><div class="mk-ph"><span class="mk-notch"></span><span class="mk-k">${l || 'Members area'}</span><b>${t}</b>${[1, 2, 3].map((i) => `<span class="mk-row"><i>${i}</i><s></s></span>`).join('')}<span class="mk-by">${b}</span></div></div>`;
+    case 'phone': return `<div class="mk mk-phone" aria-hidden="true"><div class="mk-ph"><span class="mk-notch"></span><span class="mk-k">${l || 'Members area'}</span><b>${t}</b>
+      <span class="mk-feat"><i></i><s></s><s class="short"></s></span>
+      ${[0, 1, 2, 3].map((i) => `<span class="mk-mail"><i>${esc((b || 'R').trim()[0] || 'R')}</i><span><s style="width:${[62, 74, 55, 68][i]}%"></s><s class="dim" style="width:${[86, 70, 80, 64][i]}%"></s></span>${i === 0 ? '<em>New</em>' : ''}</span>`).join('')}
+      <span class="mk-by">${b}</span></div></div>`;
     default: return '';
   }
 }
@@ -159,7 +162,17 @@ main>.feat+.feat,.band-in>.feat+.feat{margin-top:88px}
 .cover .btn.big{margin-top:28px}.btn.light{background:#fff;color:var(--cv-bg);box-shadow:0 18px 36px -16px rgba(0,0,0,.5)}
 .cv-note{font-size:.88rem;opacity:.75;margin:12px 0 0}
 .cover .optin{margin:24px 0 0;max-width:460px;box-shadow:0 30px 60px -24px rgba(0,0,0,.5);border:0}.cover .optin .btn{padding:16px;font-size:1.08rem}
-.cv-media{display:grid;place-items:center}
+.cv-media{display:grid;place-items:center;position:relative}
+.cover::before{content:"";position:absolute;inset:0;background-image:radial-gradient(rgba(255,255,255,.09) 1.2px,transparent 1.2px);background-size:22px 22px;-webkit-mask-image:linear-gradient(90deg,#000 0%,transparent 55%);mask-image:linear-gradient(90deg,#000 0%,transparent 55%);pointer-events:none}
+.cover.with-form::before{-webkit-mask-image:linear-gradient(90deg,#000 0%,transparent 50%);mask-image:linear-gradient(90deg,#000 0%,transparent 50%)}
+.cv-media::before{content:"";position:absolute;width:min(560px,120%);aspect-ratio:1;border-radius:50%;background:radial-gradient(circle,color-mix(in srgb,var(--accent) 60%,#fff) 0%,color-mix(in srgb,var(--accent) 40%,transparent) 35%,transparent 68%);opacity:.5;filter:blur(8px);z-index:0}
+.cv-media>*{position:relative;z-index:1}
+.cover .mk{animation:mkfloat 7s ease-in-out infinite}
+@keyframes mkfloat{50%{transform:translateY(-10px)}}
+@media(prefers-reduced-motion:reduce){.cover .mk{animation:none}}
+.cover .cv-eye{background:color-mix(in srgb,var(--accent) 45%,rgba(255,255,255,.18));box-shadow:inset 0 0 0 1px rgba(255,255,255,.18)}
+.cover .optin .btn{background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 85%,#fff),var(--accent) 45%,color-mix(in srgb,var(--accent) 75%,#000));box-shadow:0 14px 28px -12px color-mix(in srgb,var(--accent) 90%,#000);font-weight:700;letter-spacing:.01em;transition:transform .15s,box-shadow .15s}
+.cover .optin .btn:hover{transform:translateY(-1px);box-shadow:0 18px 32px -12px color-mix(in srgb,var(--accent) 90%,#000)}
 @media(max-width:820px){.cv-in,.cover.with-form .cv-in{grid-template-columns:1fr;gap:36px;text-align:center}.cv-words{order:0}.cv-media{order:1}.cover.with-form .cv-media{order:-1}.cover .ticks{display:grid;width:max-content;max-width:100%;margin-left:auto;margin-right:auto}.cv-sub{margin:0 auto}.cover .optin{margin:24px auto 0}.cover{padding:52px 20px 60px}}
 
 /* Mockups */
@@ -190,6 +203,13 @@ main>.feat+.feat,.band-in>.feat+.feat{margin-top:88px}
 .mk-ph .mk-k{color:var(--accent);opacity:1}.mk-ph b{font-size:1.1rem}.mk-row{display:flex;gap:10px;align-items:center;padding:10px;border-radius:12px;background:color-mix(in srgb,var(--accent) 8%,#fff)}
 .mk-row i{width:26px;height:26px;border-radius:50%;background:var(--accent);color:#fff;font:700 .75rem/26px system-ui;text-align:center;font-style:normal;flex:none}.mk-row s{flex:1;height:8px;border-radius:4px;background:#e2e5ea;text-decoration:none}
 .mk-ph .mk-by{margin-top:auto;text-align:center;color:#6b7280}
+.mk-feat{display:grid;gap:7px;padding:10px;border-radius:14px;background:color-mix(in srgb,var(--accent) 8%,#fff)}
+.mk-feat i{display:block;height:74px;border-radius:10px;background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 80%,#fff),color-mix(in srgb,var(--accent) 70%,#000))}
+.mk-feat s,.mk-mail s{display:block;height:7px;border-radius:4px;background:#d9dde3;text-decoration:none}.mk-feat s.short{width:60%}
+.mk-mail{display:flex;gap:9px;align-items:center;padding:6px 2px;border-bottom:1px solid #eef0f3;position:relative}
+.mk-mail>i{width:24px;height:24px;border-radius:50%;background:var(--accent);color:#fff;font:700 .68rem/24px system-ui;text-align:center;font-style:normal;flex:none}
+.mk-mail>span{flex:1;display:grid;gap:5px}.mk-mail s.dim{background:#eceef2}
+.mk-mail em{position:absolute;right:0;top:6px;font:700 .55rem/1 system-ui;font-style:normal;color:#fff;background:#e0533d;border-radius:99px;padding:3px 6px}
 
 @media(max-width:820px){.cover .mk{width:min(210px,60%)}.cover .mk-video{width:min(320px,86%)}.cover .mk-coupon{width:min(260px,72%)}.feat .mk{width:min(260px,72%)}.cover .cv-eye{margin-bottom:12px}}
 /* Feature: picture beside words */

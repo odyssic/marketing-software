@@ -21,14 +21,19 @@ const SETUP_DEFAULT_GOAL = { services: 'inquiries', coach: 'booked', local: 'lis
 
 async function viewSetup() {
   const a = state.me.account;
+  // The business (its kind, name and logo) belongs to the account and is asked once.
+  // Once it's known, "Build it for me" goes straight to the page itself.
+  const known = Boolean(a.business_type) && !/workspace$/i.test(a.name);
+  const first = known ? 2 : 1;
   const s = {
-    step: 1, type: a.business_type || '', name: /workspace$/i.test(a.name) ? '' : a.name, offer: '', goal: '',
+    step: first, type: a.business_type || '', name: /workspace$/i.test(a.name) ? '' : a.name, offer: '', goal: '',
+    logo: known ? a.logo_url || '' : '',
     days: [1, 2, 3, 4, 5], start: '09:00', end: '17:00', length: 30, price: '',
   };
   const frame = (inner, { back = true } = {}) => {
     app.innerHTML = `<div class="setup"><div class="setup-card card">
-      <div class="setup-top">${back && s.step > 1 && s.step < 4 ? `<button class="btn ghost sm" data-back>${icon('arrowRight')} Back</button>` : '<span></span>'}
-        <div class="dots" role="img" aria-label="Step ${s.step} of 4">${[1, 2, 3, 4].map((i) => `<i class="${i <= s.step ? 'on' : ''}"></i>`).join('')}</div>
+      <div class="setup-top">${back && s.step > first && s.step < 4 ? `<button class="btn ghost sm" data-back>${icon('arrowRight')} Back</button>` : '<span></span>'}
+        <div class="dots" role="img" aria-label="Step ${s.step - first + 1} of ${5 - first}">${[1, 2, 3, 4].filter((i) => i >= first).map((i) => `<i class="${i <= s.step ? 'on' : ''}"></i>`).join('')}</div>
         ${s.step < 4 ? '<a href="#/" class="muted small" data-skip>Skip for now</a>' : '<span></span>'}</div>${inner}</div></div>`;
     const bk = $('[data-back]'); if (bk) bk.onclick = () => { s.step--; render(); };
     // Skipping still gives a new account its starting follow-ups (for its kind, or a general set).
@@ -50,10 +55,11 @@ async function viewSetup() {
 
   // 2. About it.
   const step2 = () => {
-    frame(`<h1>Tell us about it</h1><p class="muted">A sentence is plenty. ${state.me.aiLive ? 'We’ll write your page from it.' : 'It goes on your page.'}</p>
-      <form data-f><label class="f">Business name<input name="name" required value="${esc(s.name)}" autocomplete="organization"></label>
-      <label class="f">What do you do, and for whom?<textarea name="offer" rows="2" placeholder="${esc(SETUP_OFFER_HINT[s.type] || SETUP_OFFER_HINT.other)}">${esc(s.offer)}</textarea></label>
-      <div class="f setup-logo"><span>Logo <span class="hint">optional: goes on your page, and we match your colours to it</span></span>
+    frame(`<h1>${known ? 'What’s this page about?' : 'Tell us about it'}</h1><p class="muted">A sentence is plenty. ${state.me.aiLive ? 'We’ll write your page from it.' : 'It goes on your page.'}</p>
+      ${known ? `<p class="small muted setup-biz">${icon('check')} For <b>${esc(s.name)}</b>. Business details live in <a href="#/settings">Settings</a>.</p>` : ''}
+      <form data-f><label class="f" ${known ? 'hidden' : ''}>Business name<input name="name" required value="${esc(s.name)}" autocomplete="organization"></label>
+      <label class="f">${known ? 'What are you offering, and to whom?' : 'What do you do, and for whom?'}<textarea name="offer" rows="2" placeholder="${esc(SETUP_OFFER_HINT[s.type] || SETUP_OFFER_HINT.other)}">${esc(s.offer)}</textarea></label>
+      <div class="f setup-logo" ${known && a.logo_url ? 'hidden' : ''}><span>Logo <span class="hint">optional: goes on your page, and we match your colours to it</span></span>
         <div class="row" style="gap:12px;align-items:center">${s.logo ? `<img src="${esc(s.logo)}" alt="Your logo" class="setup-logo-img">${s.color ? `<span class="swatch" style="background:${esc(s.color)}" title="Your brand colours"></span>` : ''}${s.color2 ? `<span class="swatch" style="background:${esc(s.color2)}"></span>` : ''}` : ''}
           <label class="btn">${icon('camera')} ${s.logo ? 'Change' : 'Add your logo'}<input type="file" accept="image/png,image/jpeg,image/webp" hidden data-logo></label>
           ${s.logo ? '<button type="button" class="btn ghost sm" data-nologo>Remove</button>' : ''}</div></div>
@@ -67,7 +73,7 @@ async function viewSetup() {
     };
     const nl = $('[data-nologo]'); if (nl) nl.onclick = () => { keepWords(); s.logo = ''; s.color = ''; s.color2 = ''; render(); };
     $('[data-f]').onsubmit = (e) => { e.preventDefault(); const v = Object.fromEntries(new FormData(e.target)); s.name = v.name.trim(); s.offer = v.offer.trim(); s.step = 3; render(); };
-    $('[name=name]').focus();
+    (known ? $('[name=offer]') : $('[name=name]')).focus();
   };
 
   // 3. What should the page do? (Hours or a price only when needed.)

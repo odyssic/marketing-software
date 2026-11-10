@@ -543,18 +543,36 @@ async function shrinkPdf(file, { limit = UPLOAD_MAX, onStep = () => {} } = {}) {
 const mb = (n) => `${(n / 1048576).toFixed(n < 10485760 ? 1 : 0)} MB`;
 
 const FILE_ACCEPT = 'application/pdf,image/png,image/jpeg,image/webp,image/gif,.zip,application/zip,audio/mpeg,.mp3,video/mp4,.mp4';
+// For a big PDF, the owner chooses: smaller for fast downloads (the default), or
+// exactly as it is for printing. Returns 'screen', 'print', or null if they cancel.
+async function askPdfQuality(file) {
+  const tooBig = file.size > UPLOAD_MAX;
+  const r = await modal('How will people use this PDF?', `<p class="muted">“${esc(file.name)}” is ${mb(file.size)}. Big files download slowly, especially on phones.</p>
+    <div class="quality-pick" role="radiogroup">
+      <label class="tpl on"><input type="radio" name="quality" value="screen" checked class="sr"><b>Reading on a screen <span class="pill ok">Recommended</span></b>
+        <span class="muted small">We make it smaller before it uploads, so it opens fast on any phone. Text, links and layout stay exactly the same; photos are sized for screens.</span></label>
+      <label class="tpl ${tooBig ? 'off' : ''}"><input type="radio" name="quality" value="print" class="sr" ${tooBig ? 'disabled' : ''}><b>Printing at full quality</b>
+        <span class="muted small">${tooBig ? `Over ${mb(UPLOAD_MAX)}, so it can’t be uploaded as it is. Put it on Google Drive or Dropbox and paste the link instead.` : `Uploaded exactly as it is (${mb(file.size)}). Takes longer to download. Tip: a Google Drive or Dropbox link works well for print files too.`}</span></label>
+    </div>`, { submit: 'Upload' });
+  return r ? r.quality || 'screen' : null;
+}
+
 async function uploadFile(file, onProgress = () => {}, { onStep = () => {} } = {}) {
-  // Big PDFs are made smaller first (see shrinkPdf). If shrinking fails, the original goes up.
+  // Big PDFs: the owner picks screen (made smaller first, see shrinkPdf) or print (as it is).
   if ((file.type === 'application/pdf' || /\.pdf$/i.test(file.name)) && file.size > PDF_SHRINK_FROM) {
-    try {
-      const s = await shrinkPdf(file, { onStep });
-      if (s.after < s.before * 0.9) {
-        toast(s.pagesAsPictures
-          ? `Made your PDF fit: ${mb(s.before)} → ${mb(s.after)}. Pages are now pictures, so its text can’t be selected and its links won’t work.`
-          : `Made your PDF smaller for faster downloads: ${mb(s.before)} → ${mb(s.after)}. Text and links are unchanged.`);
-        file = s.file;
-      }
-    } catch (e) { console.warn('PDF shrink skipped:', e); }
+    const quality = await askPdfQuality(file);
+    if (!quality) throw new Error('Upload cancelled');
+    if (quality === 'screen') {
+      try {
+        const s = await shrinkPdf(file, { onStep });
+        if (s.after < s.before * 0.9) {
+          toast(s.pagesAsPictures
+            ? `Made your PDF fit: ${mb(s.before)} → ${mb(s.after)}. To fit, its pages became pictures, so text can’t be selected and links won’t work. For the original, paste a link to it instead.`
+            : `Made your PDF smaller for fast downloads: ${mb(s.before)} → ${mb(s.after)}. Text and links are unchanged; photos are sized for screens.`);
+          file = s.file;
+        }
+      } catch (e) { console.warn('PDF shrink skipped:', e); }
+    }
   }
   // Browsers name some types differently (Windows calls a ZIP x-zip-compressed).
   const type = ({ 'application/x-zip-compressed': 'application/zip', 'application/x-zip': 'application/zip', 'audio/mp3': 'audio/mpeg' })[file.type]

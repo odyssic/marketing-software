@@ -254,7 +254,7 @@ function renderBlock(b, ctx, index) {
     }
     case 'reviews': {
       const list = Object.values(ctx.testimonials || {}).sort((x, y) => y.id - x.id).slice(0, Math.max(1, Number(b.limit) || 3));
-      if (!list.length) return ctx.preview ? '<p class="warn" style="text-align:center">Your approved testimonials appear here. This section stays hidden until you have one.</p>' : '';
+      if (!list.length) return ctx.preview ? '<div class="ph"><b>Reviews show here</b><small>Only real ones you approve (People → Testimonials). Visitors don’t see this box until then.</small></div>' : '';
       return list.map((t) => testimonialHtml(t, ctx)).join('');
     }
     case 'spacer':
@@ -398,7 +398,7 @@ header.site{position:sticky;top:0;z-index:5;background:color-mix(in srgb,${bg} 9
 header.site .in,footer.site .in{max-width:${width}px;margin:0 auto;padding:14px 20px;display:flex;align-items:center;gap:20px;flex-wrap:wrap}
 header.site .brand{font-weight:800;font-size:1.15rem;color:${fg};text-decoration:none;margin-right:auto;display:inline-flex;align-items:center;gap:10px}
 header.site .site-logo{height:36px;width:auto;max-width:160px;object-fit:contain}
-.logo-bar{text-align:center;padding:14px 16px;background:${bg}}.logo-bar .site-logo{height:44px;width:auto;max-width:200px;object-fit:contain}
+.logo-bar{text-align:center;padding:18px 16px;background:${bg}}.logo-bar .site-logo{height:72px;width:auto;max-width:300px;object-fit:contain}@media(max-width:600px){.logo-bar .site-logo{height:56px}}
 header.site nav{display:flex;gap:18px;flex-wrap:wrap}header.site nav a,footer.site nav a{color:${fg};text-decoration:none;opacity:.8;font-weight:500}
 header.site nav a[aria-current]{opacity:1;color:${accent};border-bottom:2px solid ${accent}}
 .burger{display:none;cursor:pointer;font-size:1.4rem}

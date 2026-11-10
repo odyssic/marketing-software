@@ -66,12 +66,15 @@ test('growing a list: a real reason to join (discount with a real code, free gui
   const f = (await c('GET', `/api/funnels/${r.body.funnel_id}`)).body;
   const [join, thanks] = f.steps;
   const hero = join.blocks.find((b) => b.type === 'hero');
-  assert.equal(hero.text, '15% off your first order');
+  assert.equal(hero.text, '*15% off* your first order');
   assert.equal(join.blocks.find((b) => b.type === 'form').buttonLabel, 'Get my 15% off');
   assert.match(hero.items, /15% off your first order/);
   assert.equal(hero.mockup, 'coupon');
   assert.equal(hero.mockupLabel, '15% OFF');
-  assert.match(join.blocks.find((b) => b.type === 'text').text, /About Classic Typewriter: Restored vintage typewriters/);
+  const about = join.blocks.find((b) => b.type === 'bio');
+  assert.equal(about.name, 'Classic Typewriter');
+  assert.match(about.text, /Restored vintage typewriters/);
+  assert.equal(join.blocks.find((b) => b.type === 'cta').button, 'Get my 15% off');
   assert.match(thanks.blocks.find((b) => b.type === 'hero').subtext, /WELCOME15/);
   const words = f.steps.flatMap((st) => st.blocks.flatMap((x) => [x.text, x.subtext, x.items, x.buttonLabel, x.title])).filter(Boolean).join(' ');
   assert.doesNotMatch(words, /\[[^\]]{2,}\]/, 'no [placeholders]');

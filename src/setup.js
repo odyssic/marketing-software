@@ -58,7 +58,7 @@ function listPage({ incentive, name, offer, guide, pct, shop = false, t = 'mid' 
   const about = offer ? `${offer.replace(/\s+/g, ' ').trim().replace(/([^.!?])$/, '$1.')}` : '';
   if (incentive === 'discount') {
     return {
-      eyebrow: 'Welcome offer', headline: `${pct}% off your first order`,
+      eyebrow: 'Welcome offer', headline: `*${pct}% off* your first order`,
       subheadline: `Join the ${name} list and your code arrives straight away.`,
       button: btn('Send me the code', `Get my ${pct}% off`, `Claim my ${pct}% off`), bullets: [`${pct}% off your first order, sent right now`, 'First look at new arrivals and restocks', 'Stories and tips worth reading. Never spam.'],
       thank_you: 'You’re in! Here’s your code', thank_text: `Use code WELCOME${pct} at checkout for ${pct}% off your first order.`, about,
@@ -72,7 +72,7 @@ function listPage({ incentive, name, offer, guide, pct, shop = false, t = 'mid' 
     };
   }
   return {
-    eyebrow: 'Members list', headline: `Hear from ${name} first`,
+    eyebrow: 'Members list', headline: `Hear from *${name}* first`,
     subheadline: `${about ? `${about} ` : ''}${shop ? 'New arrivals, offers and tips' : 'Ideas, news and offers'}, about twice a month.`.trim(),
     button: btn('Sign me up', 'Keep me posted', 'Yes, keep me posted'), bullets: [shop ? 'New arrivals and news before anyone else' : 'News and new offers before anyone else', 'Members-only offers and early access', 'A short, useful note about twice a month'],
     thank_you: 'You’re on the list', thank_text: 'Welcome! Your first email is on its way.', about,
@@ -196,6 +196,7 @@ function registerSetup(api, { getDb, HttpError, createFunnel, TEMPLATES, getAcco
             mockupTitle: incentive === 'discount' ? 'your first order' : incentive === 'guide' ? guide : `News from ${name}`,
             note: 'One click to unsubscribe, any time.' } : {}) }];
           if (i > 0 && x.type === 'hero') return [{ ...x, subtext: list.thank_text }];
+          if (i === 0 && x.type === 'cta') return [{ ...x, button: list.button }];
           if (i === 0 && x.type === 'bullets') return [{ ...x, items: list.bullets.join('\n') }];
           if (i === 0 && x.type === 'form' && incentive === 'guide') return [{ ...x, deliverName: guide, ...(guideUrl ? { deliverUrl: guideUrl } : {}) }];
           if (i === 0 && x.type === 'text' && !x.text) return list.about ? [{ ...x, text: `About ${name}: ${list.about}` }] : [];
