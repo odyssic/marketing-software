@@ -1794,3 +1794,11 @@ ul.tasks { list-style: none; padding: 0; margin: 10px 0 4px; }
 /* After a split: what everyone does next */
 .ff-then { display: flex; flex-direction: column; align-items: center; gap: 6px; align-self: center; }
 .ff-then span { font-size: .72rem; color: var(--muted); white-space: nowrap; }
+
+/* Two columns in the block list */
+.block.in-col { margin-left: 18px; border-left: 3px solid var(--brand-soft); }
+.block.in-col.right { border-left-color: #c7d2fe; }
+.block.col-start { border-color: #a9dcd6; }
+.block.col-mark { background: #f6f8f8; border-style: dashed; }
+.block.col-mark .bh { cursor: grab; padding: 5px 10px; }
+.block.col-mark .name { font-size: .8rem; color: var(--muted); font-weight: 600; }

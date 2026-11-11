@@ -78,14 +78,34 @@ const BLOCKS = {
     fields: [['title', 'textarea', 'Heading', null, 'Put *stars* around words to highlight them'], ['text', 'textarea', 'Text'], ['button', 'text', 'Button text'], ['buttonSub', 'text', 'Small line in the button'], ['url', 'text', 'Button link', null, '#form · #next · page:slug · or https://'], ['note', 'text', 'Small print']] },
   notice: { label: 'Notice bar', icon: icon('info'), defaults: { text: 'New: the free guide is out now', link: '', url: '#form' },
     fields: [['text', 'text', 'Message'], ['link', 'text', 'Link text (optional)'], ['url', 'text', 'Link', null, '#form · page:slug · or https://']] },
+  // Two columns: a start marker (with its settings), where the right side begins, and the end.
+  cols: { label: 'Two columns', icon: icon('cards'), defaults: { ratio: 'half', valign: 'center' },
+    fields: [['ratio', 'select', 'Widths', ['half', 'wide-left', 'wide-right'], 'half: equal sides · wide-left: the left side bigger · wide-right: the right side bigger'],
+      ['valign', 'select', 'Line the sides up', ['center', 'top']]] },
+  colbreak: { label: 'Right column', icon: icon('arrowRight'), hidden: true, defaults: {}, fields: [] },
+  colend: { label: 'End of columns', icon: icon('divider'), hidden: true, defaults: {}, fields: [] },
   spacer: { label: 'Spacer', icon: icon('spacer'), defaults: { height: 40 }, fields: [['height', 'number', 'Height (px)']] },
   divider: { label: 'Divider', icon: icon('divider'), defaults: {}, fields: [] },
   html: { label: 'Custom HTML', icon: icon('note'), defaults: { code: '', title: '' },
     fields: [['code', 'code', 'Your HTML', null, 'Embeds, widgets, forms from other tools. Scripts run in a sealed box on the page.'], ['title', 'text', 'What it is (for screen readers)', null, 'e.g. Calendly scheduler']] },
 };
 // Any section can sit on a full-width band of colour.
-for (const [k, b] of Object.entries(BLOCKS)) if (!['hero', 'notice', 'spacer'].includes(k)) b.fields.push(['band', 'select', 'Background', ['none', 'soft', 'dark', 'brand'], 'soft: a light tint · dark: a deep band · brand: your button colour. Neighbouring blocks with the same background share one band.']);
+for (const [k, b] of Object.entries(BLOCKS)) if (!['hero', 'notice', 'spacer', 'colbreak', 'colend'].includes(k)) b.fields.push(['band', 'select', 'Background', ['none', 'soft', 'dark', 'brand'], 'soft: a light tint · dark: a deep band · brand: your button colour. Neighbouring blocks with the same background share one band.']);
 const uid = () => Math.random().toString(36).slice(2, 10);
+// New blocks of a kind: Two columns comes as its three markers, ready to drop things into.
+const newBlocks = (type) => (type === 'cols'
+  ? [{ id: uid(), type: 'cols', ...BLOCKS.cols.defaults }, { id: uid(), type: 'colbreak' }, { id: uid(), type: 'colend' }]
+  : [{ id: uid(), type, ...BLOCKS[type].defaults }]);
+const COL_MARKS = ['cols', 'colbreak', 'colend'];
+// The three markers of the columns section that index i belongs to (start, break, end), or null.
+const colGroup = (blocks, i) => {
+  let s = i; while (s >= 0 && blocks[s].type !== 'cols') { if (s !== i && blocks[s].type === 'colend') return null; s--; }
+  if (s < 0) return null;
+  const br = blocks.findIndex((b, j) => j > s && b.type === 'colbreak'), end = blocks.findIndex((b, j) => j > s && b.type === 'colend');
+  return end < 0 ? null : { s, br: br > s && br < end ? br : -1, end };
+};
+// The photo field of a block (so a picture dropped onto it fills it).
+const photoKey = (b) => (b?.type === 'image' ? 'url' : (BLOCKS[b?.type]?.fields || []).find((f) => f[1] === 'photo')?.[0] || null);
 
 // Colour palettes: one tap restyles the page (background, text, buttons, banners).
 // Every button colour keeps white text readable (4.5:1 or better).
@@ -155,7 +175,7 @@ async function viewEditor(stepId) {
       <button class="btn sm" data-device title="Toggle mobile preview">${icon('phone')} Mobile</button>
       <a class="btn sm primary" href="${esc(link)}" target="_blank" rel="noopener" data-live>View live ${icon('external')}</a></div>
     <div class="side">
-      <h3>Add a block</h3><div class="palette">${Object.entries(BLOCKS).map(([k, b]) => `<button data-addblock="${k}" draggable="true" title="Click to add at the end, or drag onto the page"><span class="ico">${b.icon}</span>${b.label}</button>`).join('')}</div>
+      <h3>Add a block</h3><div class="palette">${Object.entries(BLOCKS).filter(([, b]) => !b.hidden).map(([k, b]) => `<button data-addblock="${k}" draggable="true" title="Click to add at the end, or drag onto the page"><span class="ico">${b.icon}</span>${b.label}</button>`).join('')}</div>
       <div data-savedpal></div>
       <h3>Page content</h3><div data-blocks></div>
       <div class="list-bin" data-bin aria-hidden="true">${icon('trash')} Drop here to delete</div>
@@ -290,16 +310,25 @@ async function viewEditor(stepId) {
   };
   renderSavedPal();
   const renderBlocks = () => {
+    let colSide = '';
     $('[data-blocks]').innerHTML = ed.blocks.length ? ed.blocks.map((b, i) => {
+      if (b.type === 'cols') colSide = 'left'; else if (b.type === 'colbreak') colSide = 'right';
+      const inCol = colSide && !COL_MARKS.includes(b.type) ? ` in-col ${colSide}` : '';
+      if (b.type === 'colend') colSide = '';
+      if (b.type === 'colbreak' || b.type === 'colend') {
+        return `<div class="block col-mark" data-drag="${i}"><div class="bh"><span>${BLOCKS[b.type].icon}</span><span class="name">${b.type === 'colbreak' ? 'Right column starts' : 'End of two columns'}</span>
+          <button class="btn" data-up="${i}" ${i === 0 ? 'disabled' : ''} title="Move up">↑</button><button class="btn" data-down="${i}" ${i === ed.blocks.length - 1 ? 'disabled' : ''} title="Move down">↓</button>
+          <button class="btn danger" data-rm="${i}" title="Remove the columns (keeps what’s in them)">${icon('x')}</button></div></div>`;
+      }
       const def = BLOCKS[b.type] || { label: b.type, icon: '?', fields: [] };
       const open = ed.open === b.id;
       const linkNote = b.savedId ? `<div class="saved-note">${icon('link')}<span>Saved section <b>${esc(savedName(b.savedId))}</b>. Changes here update every page that uses it.</span><button type="button" class="btn sm" data-unlink="${i}">Edit just here</button></div>`
         : SAVABLE(b.type) ? `<button type="button" class="btn sm saved-btn" data-saveblock="${i}">${icon('copy')} Save for reuse</button>` : '';
-      return `<div class="block ${open ? 'open' : ''} ${b.savedId ? 'linked' : ''}">
+      return `<div class="block ${open ? 'open' : ''} ${b.savedId ? 'linked' : ''}${inCol}${b.type === 'cols' ? ' col-start' : ''}">
         <div class="bh" data-toggle="${b.id}" draggable="true" data-drag="${i}" title="Drag to move"><span>${def.icon}</span><span class="name">${b.savedId ? `<i class="lk" title="Saved section">${icon('link')}</i>` : ''}${def.label} <span>${summary(b)}</span></span>
           <button class="btn" data-up="${i}" ${i === 0 ? 'disabled' : ''} title="Move up">↑</button>
           <button class="btn" data-down="${i}" ${i === ed.blocks.length - 1 ? 'disabled' : ''} title="Move down">↓</button>
-          <button class="btn" data-dup="${i}" title="Duplicate">${icon('copy')}</button>
+          ${b.type === 'cols' ? '' : `<button class="btn" data-dup="${i}" title="Duplicate">${icon('copy')}</button>`}
           <button class="btn danger" data-rm="${i}" title="Delete">${icon('x')}</button></div>
         ${open ? `<div class="bb">${b.savedId ? linkNote : ''}${def.fields.length ? def.fields.map((fd) => fieldHtml(b, i, fd)).join('') : '<p class="muted small">No settings for this block.</p>'}${b.savedId ? '' : linkNote}</div>` : ''}
       </div>`;
@@ -388,8 +417,8 @@ async function viewEditor(stepId) {
       return;
     }
     if (d.addblock) {
-      const b = { id: uid(), type: d.addblock, ...BLOCKS[d.addblock].defaults };
-      ed.blocks.push(b); ed.open = b.id; structural();
+      const nb = newBlocks(d.addblock);
+      ed.blocks.push(...nb); ed.open = nb[0].id; structural();
       $('[data-blocks]').lastElementChild?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     } else if (d.up || d.down) {
       const i = Number(d.up ?? d.down), j = d.up ? i - 1 : i + 1;
@@ -399,8 +428,15 @@ async function viewEditor(stepId) {
       const copy = { ...ed.blocks[i], id: uid() };
       ed.blocks.splice(i + 1, 0, copy); ed.open = copy.id; structural();
     } else if (d.rm) {
-      const gone = BLOCKS[ed.blocks[Number(d.rm)].type]?.label || 'Block';
-      ed.blocks.splice(Number(d.rm), 1); structural();
+      const i = Number(d.rm);
+      if (COL_MARKS.includes(ed.blocks[i].type)) {
+        const g = colGroup(ed.blocks, i);
+        if (g) [g.end, g.br, g.s].filter((x) => x >= 0).forEach((x) => ed.blocks.splice(x, 1)); else ed.blocks.splice(i, 1);
+        structural(); undoToast('Columns removed. What was in them stays on the page');
+        return;
+      }
+      const gone = BLOCKS[ed.blocks[i].type]?.label || 'Block';
+      ed.blocks.splice(i, 1); structural();
       undoToast(`${gone} deleted`);
     } else if (d.align) {
       const [i, a] = d.align.split(':');
@@ -429,8 +465,8 @@ async function viewEditor(stepId) {
   const dropAt = (data, at) => {
     let d; try { d = JSON.parse(data); } catch { return; }
     if (d.add && BLOCKS[d.add]) {
-      const b = { id: uid(), type: d.add, ...BLOCKS[d.add].defaults };
-      ed.blocks.splice(at, 0, b); ed.open = b.id;
+      const nb = newBlocks(d.add);
+      ed.blocks.splice(at, 0, ...nb); ed.open = nb[0].id;
     } else if (Number.isInteger(d.move) && ed.blocks[d.move]) {
       const [b] = ed.blocks.splice(d.move, 1);
       ed.blocks.splice(d.move < at ? at - 1 : at, 0, b);
@@ -486,8 +522,10 @@ async function viewEditor(stepId) {
     saved.textContent = 'Uploading photo…';
     try {
       const url = await uploadImage(file);
-      b.url = url;
-      if (!b.alt) b.alt = file.name.replace(/\.[a-z0-9]+$/i, '').replace(/[-_]+/g, ' ').trim();
+      const key = photoKey(b) || 'url', alt = file.name.replace(/\.[a-z0-9]+$/i, '').replace(/[-_]+/g, ' ').trim();
+      b[key] = url;
+      if (key === 'url' && !b.alt) b.alt = alt;
+      if (key === 'image' && !b.imageAlt) b.imageAlt = alt;
       ed.open = b.id; structural();
     } catch (err) { saved.textContent = 'Not saved'; toast(err.message, true); }
   };
@@ -577,7 +615,7 @@ async function viewEditor(stepId) {
     if (d?.ff === 'photo' && $('.editor') && d.file) {
       // Onto an image block: fill it. Anywhere else: a new image block there.
       const at = Math.max(0, Math.min(Number(d.at) || 0, ed.blocks.length));
-      return ed.blocks[d.i]?.type === 'image' ? putPhoto(d.i, d.file) : photoAt(at, d.file);
+      return photoKey(ed.blocks[d.i]) ? putPhoto(d.i, d.file) : photoAt(at, d.file);
     }
     if (d?.ff === 'act' && $('.editor') && ed.blocks[d.i]) {
       const i = d.i;

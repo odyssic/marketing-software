@@ -340,6 +340,32 @@ function renderPage({ title, blocks, settings = {}, nextUrl = '#', noUrl = '#', 
   const parts = [];
   for (let i = 0; i < list.length; i++) {
     const b = list[i];
+    // Two columns: blocks between "cols" and its "colbreak" sit on the left, the rest up to
+    // "colend" on the right. Each side holds any blocks; on phones the sides stack.
+    if (b.type === 'colbreak' || b.type === 'colend') continue; // a stray marker
+    if (b.type === 'cols') {
+      let br = -1, end = -1;
+      for (let j = i + 1; j < list.length; j++) {
+        if (list[j].type === 'cols') break;
+        if (list[j].type === 'colbreak' && br < 0) br = j;
+        if (list[j].type === 'colend') { end = j; break; }
+      }
+      if (end < 0) continue;
+      if (br < 0) br = end;
+      const col = (from, to, dropAt) => {
+        const kids = [];
+        for (let j = from; j < to; j++) {
+          if (['cols', 'colbreak', 'colend'].includes(list[j].type)) continue;
+          const h = renderBlock(list[j], ctx, j);
+          if (h || preview) kids.push(wrap(j, h));
+        }
+        return `<div class="col">${kids.join('\n') || (preview ? `<div class="ph col-ph" data-dropat="${dropAt}">Drop a block here<small>or drag one in from the list</small></div>` : '')}</div>`;
+      };
+      const ratio = ['wide-left', 'wide-right'].includes(b.ratio) ? b.ratio : 'half';
+      const html = `<section class="cols r-${ratio}${b.valign === 'top' ? ' v-top' : ''}">${col(i + 1, br, br)}${col(br + 1, end, end)}</section>`;
+      parts.push({ band: ['soft', 'dark', 'brand'].includes(b.band) ? b.band : '', html: preview ? `<div data-bc="${i}">${html}</div>` : html });
+      i = end; continue;
+    }
     // A cover banner can hold the sign-up form that follows it.
     if (b.type === 'hero' && b.style === 'cover' && b.formHere && list[i + 1]?.type === 'form') {
       ctx.coverForm = renderBlock(list[i + 1], ctx, i + 1);
@@ -455,15 +481,21 @@ ${course ? course.bottom : ''}</main>${foot}${(blocks || []).some((b) => b.type 
 // Drag and drop from the builder's block list: while something is dragged
 // over the preview, a line shows where it will land; dropping tells the
 // builder the position. Only drags started in the builder are accepted.
-const PREVIEW_DROP_SCRIPT = `<style>.ph{border:2px dashed #a9dcd6;border-radius:14px;padding:34px 16px;text-align:center;color:#1F7F78;background:#f3faf9;font:500 14px/1.4 -apple-system,system-ui,sans-serif;margin:8px 0;transition:background .15s,border-color .15s}.ph small{display:block;color:#5b9e97;font-weight:400;margin-top:2px}.ph.ph-over{background:#dff1ee;border-color:#1F7F78}#ff-drop{position:absolute;left:0;right:0;height:4px;background:#4f46e5;border-radius:2px;box-shadow:0 0 0 3px rgba(79,70,229,.25);pointer-events:none;z-index:99999;display:none}</style>
+const PREVIEW_DROP_SCRIPT = `<style>.ph{border:2px dashed #a9dcd6;border-radius:14px;padding:34px 16px;text-align:center;color:#1F7F78;background:#f3faf9;font:500 14px/1.4 -apple-system,system-ui,sans-serif;margin:8px 0;transition:background .15s,border-color .15s}.ph small{display:block;color:#5b9e97;font-weight:400;margin-top:2px}.ph.ph-over{background:#dff1ee;border-color:#1F7F78}#ff-drop{position:absolute;left:0;width:100%;height:4px;background:#4f46e5;border-radius:2px;box-shadow:0 0 0 3px rgba(79,70,229,.25);pointer-events:none;z-index:99999;display:none}</style>
 <script>(function(){var line=document.createElement('div');line.id='ff-drop';document.body.appendChild(line);
 function has(e,t){return Array.prototype.indexOf.call(e.dataTransfer.types,t)>=0;}function ours(e){return has(e,'text/x-fourfold')||has(e,'Files');}
-function spot(y){var bs=document.querySelectorAll('[data-bi]');for(var k=0;k<bs.length;k++){var r=bs[k].getBoundingClientRect();if(y<r.top+r.height/2)return{at:k,top:r.top+scrollY-2};}
-var last=bs[bs.length-1],m=document.querySelector('main')||document.body;return{at:bs.length,top:last?last.getBoundingClientRect().bottom+scrollY-2:m.getBoundingClientRect().top+scrollY+24};}
-document.addEventListener('dragover',function(e){if(!ours(e))return;e.preventDefault();e.dataTransfer.dropEffect='copy';var s=spot(e.clientY);line.style.top=s.top+'px';line.style.display='block';});
+function spot(y,x){x=x==null?innerWidth/2:x;var el=document.elementFromPoint(x,y),z=el&&el.closest&&el.closest('[data-dropat]');
+if(z){var zr=z.getBoundingClientRect();return{at:+z.dataset.dropat,top:zr.top+scrollY+zr.height/2,left:zr.left,width:zr.width,box:z};}
+var bs=[].slice.call(document.querySelectorAll('[data-bi]')).filter(function(b){return !b.hidden&&b.getBoundingClientRect().height>0;});
+var best=null,bd=1e12,max=-1;bs.forEach(function(b){max=Math.max(max,+b.dataset.bi);var r=b.getBoundingClientRect();var dx=x<r.left?r.left-x:x>r.right?x-r.right:0,dy=y<r.top?r.top-y:y>r.bottom?y-r.bottom:0,dd=dx*4+dy;if(dd<bd){bd=dd;best=b;}});
+var m=document.querySelector('main')||document.body;if(!best)return{at:0,top:m.getBoundingClientRect().top+scrollY+24};
+var r=best.getBoundingClientRect(),after=y>r.top+r.height/2;return{at:+best.dataset.bi+(after?1:0),top:(after?r.bottom:r.top)+scrollY-2,left:r.left,width:r.width};}
+function place(s){document.querySelectorAll('.ph-over').forEach(function(x){if(x!==s.box)x.classList.remove('ph-over');});if(s.box){s.box.classList.add('ph-over');line.style.display='none';return;}
+line.style.top=s.top+'px';line.style.left=(s.left!=null?s.left:0)+'px';line.style.width=s.width?s.width+'px':'100%';line.style.display='block';}
+document.addEventListener('dragover',function(e){if(!ours(e))return;e.preventDefault();e.dataTransfer.dropEffect='copy';place(spot(e.clientY,e.clientX));});
 document.addEventListener('dragleave',function(e){if(!e.relatedTarget)line.style.display='none';});
 document.addEventListener('dragover',function(e){if(!has(e,'Files'))return;var b=e.target.closest&&e.target.closest('[data-bi]'),ph=b&&b.querySelector('.ph-image');document.querySelectorAll('.ph-over').forEach(function(x){if(x!==ph)x.classList.remove('ph-over');});if(ph){ph.classList.add('ph-over');line.style.display='none';}});
-document.addEventListener('drop',function(e){if(!ours(e))return;e.preventDefault();line.style.display='none';var at=spot(e.clientY).at;
+document.addEventListener('drop',function(e){if(!ours(e))return;e.preventDefault();line.style.display='none';document.querySelectorAll('.ph-over').forEach(function(x){x.classList.remove('ph-over');});var at=spot(e.clientY,e.clientX).at;
 if(has(e,'Files')){var f=e.dataTransfer.files[0],b=e.target.closest&&e.target.closest('[data-bi]');if(f)parent.postMessage({ff:'photo',at:at,i:b?+b.dataset.bi:-1,file:f},'*');return;}
 parent.postMessage({ff:'drop',at:at,data:e.dataTransfer.getData('text/x-fourfold')},'*');});})();<\/script>`;
 

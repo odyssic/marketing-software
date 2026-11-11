@@ -237,12 +237,38 @@ main>.feat+.feat,.band-in>.feat+.feat{margin-top:88px}
 .pm::before,.pm::after{content:"";position:absolute;left:8px;right:8px;top:12px;height:2px;background:var(--accent);border-radius:1px;transition:transform .2s}.pm::after{transform:rotate(90deg)}
 details[open] .pm::after{transform:rotate(0)}.faq details p{margin:0 0 18px;opacity:.82;line-height:1.6}
 
+/* Two columns: any blocks on each side; they stack on phones */
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:center;text-align:left}
+.cols.v-top{align-items:start}.cols.r-wide-left{grid-template-columns:3fr 2fr}.cols.r-wide-right{grid-template-columns:2fr 3fr}
+.col{min-width:0}.col>*+*{margin-top:22px}.col>[data-bi]+[data-bi]{margin-top:22px}
+.col .optin,.col .offer,.col .guar,.col .faq,.col .cmp-grid{margin-left:0;margin-right:0;max-width:none}
+.col .feat{grid-template-columns:1fr;gap:20px}.col .sec-img,.col img{width:100%}
+.col-ph{min-height:160px;display:flex;flex-direction:column;align-items:center;justify-content:center}
+@media(max-width:760px){.cols,.cols.r-wide-left,.cols.r-wide-right{grid-template-columns:1fr;gap:28px}}
+
+/* Cards: quiet, but designed: soft depth, an accent mark, room to breathe */
+.cards{gap:18px}
+.cards .card{position:relative;background:#fff;border:1px solid color-mix(in srgb,var(--fg) 8%,transparent);border-radius:18px;padding:26px 24px 24px;
+  box-shadow:0 1px 2px rgba(16,24,40,.04),0 14px 32px -20px color-mix(in srgb,var(--accent) 45%,transparent);transition:transform .2s,box-shadow .2s;color:var(--fg)}
+.cards .card:hover{transform:translateY(-3px);box-shadow:0 1px 2px rgba(16,24,40,.04),0 22px 40px -22px color-mix(in srgb,var(--accent) 55%,transparent)}
+.cards:not(.numbered) .card::before{content:"";display:block;width:36px;height:36px;border-radius:11px;margin-bottom:16px;
+  background:radial-gradient(circle at 50% 50%,var(--accent) 0 5px,transparent 5.5px),linear-gradient(145deg,color-mix(in srgb,var(--accent) 16%,#fff),color-mix(in srgb,var(--accent) 7%,#fff))}
+.cards .card h3{font-size:1.12rem;letter-spacing:-.01em;margin:0 0 6px}.cards .card p{opacity:.72;line-height:1.55}
+.cards.numbered .card::before{width:38px;height:38px;border-radius:12px;font:700 .95rem/38px system-ui,sans-serif;margin-bottom:16px;
+  background:linear-gradient(145deg,color-mix(in srgb,var(--accent) 85%,#fff),var(--accent));box-shadow:0 8px 16px -8px var(--accent)}
+.band-dark .cards .card,.band-brand .cards .card{color:#fff;box-shadow:none}
+.band-dark .cards:not(.numbered) .card::before,.band-brand .cards:not(.numbered) .card::before{background:radial-gradient(circle,#fff 0 5px,transparent 5.5px),rgba(255,255,255,.12)}
+
 /* Guarantee */
-.guar{display:flex;gap:28px;align-items:center;max-width:760px;margin-left:auto;margin-right:auto;padding:28px 30px;border-radius:20px;background:#fff;border:1px solid color-mix(in srgb,var(--fg) 10%,transparent);text-align:left}
-.seal{flex:none;width:118px;height:118px;position:relative;display:grid;place-items:center;color:#fff}
+.guar{display:flex;gap:30px;align-items:center;max-width:760px;margin-left:auto;margin-right:auto;padding:30px 34px;border-radius:22px;text-align:left;
+  background:linear-gradient(120deg,color-mix(in srgb,var(--accent) 9%,#fff),#fff 55%);border:1px solid color-mix(in srgb,var(--accent) 18%,transparent);
+  box-shadow:0 22px 44px -30px color-mix(in srgb,var(--accent) 70%,transparent)}
+.guar h3::before{content:"Our promise";display:block;font:700 .7rem/1 system-ui,sans-serif;letter-spacing:.18em;text-transform:uppercase;color:var(--accent);margin-bottom:8px}
+.seal{flex:none;width:118px;height:118px;position:relative;display:grid;place-items:center;color:#fff;border-radius:50%;
+  box-shadow:0 0 0 8px color-mix(in srgb,var(--accent) 12%,transparent),0 14px 28px -10px color-mix(in srgb,var(--accent) 80%,transparent)}
 .seal>svg{position:absolute;inset:0}.seal .s1{fill:var(--accent)}.seal .s2{fill:none;stroke:rgba(255,255,255,.55);stroke-width:2;stroke-dasharray:4 5}
 .seal span{position:relative;text-align:center;font:700 .72rem/1 system-ui,sans-serif;letter-spacing:.2em}.seal b{display:block;font-size:2.4rem;letter-spacing:-.02em;margin-bottom:2px}.seal b svg{width:46px;height:46px;display:block;margin:0 auto;position:static}
-.guar h3{margin:0 0 6px;font-size:1.3rem}.guar p{margin:0;opacity:.82}
+.guar h3{margin:0 0 8px;font-size:1.35rem;letter-spacing:-.01em}.guar p{margin:0;opacity:.78;line-height:1.6}
 @media(max-width:600px){.guar{flex-direction:column;text-align:center}}
 
 /* Bio */
