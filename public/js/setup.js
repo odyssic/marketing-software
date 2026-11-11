@@ -91,8 +91,10 @@ async function viewSetup() {
         ${s.incentive === 'guide' ? `<label class="f">What’s the guide called?<input name="guide" required value="${esc(s.guide)}" placeholder="e.g. The Magnificent 7: classic typewriters worth owning"></label>
           <div class="f"><span>How do people get it? <span class="hint">it’s emailed to everyone who signs up</span></span>
             <div class="day-chips" role="radiogroup">${[['upload', 'Upload the file'], ['link', 'Paste a link']].map(([k, l]) => `<button type="button" class="chip ${(s.guideMode || 'upload') === k ? 'on' : ''}" data-gmode="${k}" role="radio" aria-checked="${(s.guideMode || 'upload') === k}">${l}</button>`).join('')}</div>
-            ${(s.guideMode || 'upload') === 'upload' ? `<div class="row" style="gap:10px;align-items:center;margin-top:10px">${s.guideFile ? `<span class="pill ok">${icon('check')} ${esc(s.guideFile)}</span>` : ''}
-              <label class="btn">${icon('upload')} ${s.guideFile ? 'Change file' : 'Choose the file'}<input type="file" accept="${FILE_ACCEPT}" hidden data-guidefile></label><span class="muted small" data-guideprog>PDF, ZIP, MP3, MP4 · up to 500 MB</span></div>`
+            ${(s.guideMode || 'upload') === 'upload' ? `<div class="guide-up">
+              <label class="btn">${icon('upload')} ${s.guideFile ? 'Change file' : 'Choose the file'}<input type="file" accept="${FILE_ACCEPT}" hidden data-guidefile></label>
+              ${s.guideFile ? `<span class="pill ok">${icon('check')} ${esc(s.guideFile)}</span>` : ''}
+              <span class="muted small" data-guideprog>PDF, ZIP, MP3, MP4 · up to 500 MB</span></div>`
             : `<input name="guidelink" type="url" inputmode="url" placeholder="https://drive.google.com/…" value="${esc(s.guideFile ? '' : s.guideUrl || '')}" style="margin-top:10px">
               <p class="hint">Google Drive, Dropbox, YouTube, your website: anywhere it already lives. Make sure anyone with the link can open it.</p>`}</div>
           <p class="hint">No file yet? Skip it: you can add it to the form later.</p>` : ''}

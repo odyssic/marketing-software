@@ -1802,3 +1802,7 @@ ul.tasks { list-style: none; padding: 0; margin: 10px 0 4px; }
 .block.col-mark { background: #f6f8f8; border-style: dashed; }
 .block.col-mark .bh { cursor: grab; padding: 5px 10px; }
 .block.col-mark .name { font-size: .8rem; color: var(--muted); font-weight: 600; }
+
+/* Guide upload: the button under the choice, then the file and the note */
+.guide-up { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; margin-top: 12px; }
+.guide-up .pill { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
