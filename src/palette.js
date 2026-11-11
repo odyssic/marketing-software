@@ -14,22 +14,25 @@ const readable = (c) => { for (let i = 0; i < 20 && onWhite(c) < 4.6; i++) c = m
 
 // With two colours, the darker one becomes the band and the other the buttons
 // (a navy and orange logo: a navy top, orange buttons).
+// A light second colour (a purple and yellow brand) becomes the highlight instead:
+// purple bands and buttons, yellow highlighted words, labels and ticks.
 function paletteFrom(hex, hex2 = '', name = 'My brand') {
   let a = rgb(HEX.test(hex || '') ? hex : '#1b736d');
-  let band;
+  let band, highlight = '';
   if (HEX.test(hex2 || '') && hex2.toLowerCase() !== String(hex).toLowerCase()) {
     let b = rgb(hex2);
     if (lum(b) > lum(a)) [a, b] = [b, a];
-    band = readable(b);
+    if (lum(a) > 0.4) { highlight = hexOf(a); a = b; band = readable(b); } else band = readable(b);
   }
   const accent = readable(a);
   band ||= mix(accent, [0, 0, 0], 0.22);
-  return { name, bg: hexOf(mix(accent, [255, 255, 255], 0.97)), text: hexOf(mix(band, [8, 10, 12], 0.88)), accent: hexOf(accent), band: hexOf(band) };
+  return { name, bg: hexOf(mix(accent, [255, 255, 255], 0.97)), text: hexOf(mix(band, [8, 10, 12], 0.88)), accent: hexOf(accent), band: hexOf(band), highlight };
 }
 
 // The palette on one page's settings and its coloured blocks.
 function applyPalette(pal, settings, blocks) {
   Object.assign(settings, { background: pal.bg, textColor: pal.text, accent: pal.accent, palette: pal.name });
+  if (pal.highlight) settings.highlight = pal.highlight; else delete settings.highlight;
   for (const b of blocks || []) {
     if (b.type === 'hero') Object.assign(b, { background: pal.band, textColor: '#ffffff' });
     if (b.type === 'pricing' && b.buttonColor) b.buttonColor = pal.accent;

@@ -130,15 +130,16 @@ function paletteFrom(hex, name = 'My brand', hex2 = '') {
   const onWhite = (c) => 1.05 / (lum(c) + 0.05);
   const readable = (c) => { for (let i = 0; i < 20 && onWhite(c) < 4.6; i++) c = mix(c, [0, 0, 0], 0.08); return c; };
   // Same rules as src/palette.js: with two colours, the darker is the band, the other the buttons.
-  let a = rgb(/^#[0-9a-f]{6}$/i.test(hex || '') ? hex : '#1b736d'), band;
+  let a = rgb(/^#[0-9a-f]{6}$/i.test(hex || '') ? hex : '#1b736d'), band, highlight = '';
   if (/^#[0-9a-f]{6}$/i.test(hex2 || '') && hex2.toLowerCase() !== String(hex).toLowerCase()) {
     let b = rgb(hex2);
     if (lum(b) > lum(a)) [a, b] = [b, a];
-    band = readable(b);
+    // A light second colour (yellow beside purple) becomes the highlight, not the buttons.
+    if (lum(a) > 0.4) { highlight = hexOf(a); a = b; band = readable(b); } else band = readable(b);
   }
   const accent = readable(a);
   band ||= mix(accent, [0, 0, 0], 0.22);
-  return { name, bg: hexOf(mix(accent, [255, 255, 255], 0.97)), text: hexOf(mix(band, [8, 10, 12], 0.88)), accent: hexOf(accent), band: hexOf(band) };
+  return { name, bg: hexOf(mix(accent, [255, 255, 255], 0.97)), text: hexOf(mix(band, [8, 10, 12], 0.88)), accent: hexOf(accent), band: hexOf(band), highlight };
 }
 const allPalettes = () => [...(state.me.account.brand_color ? [paletteFrom(state.me.account.brand_color, 'My brand', state.me.account.brand_color2)] : []), ...PALETTES];
 const palButton = (p, on) => `<button type="button" class="pal ${on ? 'on' : ''}" data-pal="${p.name}" title="${p.name}" aria-label="${p.name} palette" aria-pressed="${on}">
@@ -146,6 +147,7 @@ const palButton = (p, on) => `<button type="button" class="pal ${on ? 'on' : ''}
 // The palette applied to one page's settings and coloured blocks.
 function applyPalette(pal, settings, blocks) {
   Object.assign(settings, { background: pal.bg, textColor: pal.text, accent: pal.accent, palette: pal.name });
+  if (pal.highlight) settings.highlight = pal.highlight; else delete settings.highlight;
   for (const b of blocks || []) {
     if (b.type === 'hero') Object.assign(b, { background: pal.band, textColor: '#ffffff' });
     if (b.type === 'pricing' && b.buttonColor) b.buttonColor = pal.accent;

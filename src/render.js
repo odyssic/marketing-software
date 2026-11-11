@@ -387,7 +387,7 @@ function renderPage({ title, blocks, settings = {}, nextUrl = '#', noUrl = '#', 
 ${settings.seoDescription ? `<meta name="description" content="${esc(settings.seoDescription)}">` : ''}
 ${preview ? '' : seoHead({ title: settings.seoTitle || title, description: settings.seoDescription || settings.seoSummary || '', url, business, blocks: blocks || [], logo, embed })}
 <style>
-*{box-sizing:border-box}:root{--bg:${bg};--fg:${fg};--accent:${accent};--deep:${deep};--w:${width}px}body{margin:0;background:${bg};color:${fg};font:17px/1.6 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+*{box-sizing:border-box}:root{--bg:${bg};--fg:${fg};--accent:${accent};--deep:${deep};--w:${width}px;--hl:${/^#[0-9a-f]{6}$/i.test(settings.highlight || '') ? settings.highlight : `color-mix(in srgb,${accent} 38%,#fff)`}}body{margin:0;background:${bg};color:${fg};font:17px/1.6 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
 main{max-width:${width}px;margin:0 auto;padding:48px 20px}
 h1{font-size:clamp(1.8rem,4.5vw,2.4rem);line-height:1.15;margin:.4em 0}h1,h2,h3,p{overflow-wrap:break-word;text-wrap:balance}
 /* Breathing room: every block sits at least 28px from the next. */

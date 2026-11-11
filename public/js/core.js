@@ -540,6 +540,20 @@ async function shrinkPdf(file, { limit = UPLOAD_MAX, onStep = () => {} } = {}) {
   }
   return { file: result.size < file.size ? result : file, before: file.size, after: Math.min(result.size, file.size), pagesAsPictures: pagesAsPictures && result.size < file.size };
 }
+// The first page of a PDF as a JPEG (a guide's real cover). PDF.js loads only when needed.
+async function pdfCoverImage(file, width = 900) {
+  const pdfjs = await import('/vendor/pdf.min.mjs');
+  pdfjs.GlobalWorkerOptions.workerSrc = '/vendor/pdf.worker.min.mjs';
+  const doc = await pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
+  const page = await doc.getPage(1);
+  const base = page.getViewport({ scale: 1 });
+  const vp = page.getViewport({ scale: width / base.width });
+  const canvas = document.createElement('canvas'); canvas.width = Math.round(vp.width); canvas.height = Math.round(vp.height);
+  const ctx = canvas.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+  await page.render({ canvasContext: ctx, viewport: vp }).promise;
+  const blob = await new Promise((r) => canvas.toBlob(r, 'image/jpeg', 0.85));
+  return new File([blob], 'cover.jpg', { type: 'image/jpeg' });
+}
 const mb = (n) => `${(n / 1048576).toFixed(n < 10485760 ? 1 : 0)} MB`;
 
 const FILE_ACCEPT = 'application/pdf,image/png,image/jpeg,image/webp,image/gif,.zip,application/zip,audio/mpeg,.mp3,video/mp4,.mp4';

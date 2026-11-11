@@ -1806,3 +1806,5 @@ ul.tasks { list-style: none; padding: 0; margin: 10px 0 4px; }
 /* Guide upload: the button under the choice, then the file and the note */
 .guide-up { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; margin-top: 12px; }
 .guide-up .pill { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.guide-cover-img { width: 56px; height: 72px; object-fit: cover; border-radius: 4px 8px 8px 4px; box-shadow: 0 6px 14px -6px rgba(0,0,0,.4); }

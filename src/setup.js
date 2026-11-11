@@ -114,6 +114,7 @@ function registerSetup(api, { getDb, HttpError, createFunnel, TEMPLATES, getAcco
     // Growing a list: what people get for joining.
     const guide = String(b.guide || '').trim().slice(0, 120);
     const guideUrl = /^(https?:\/\/|\/u\/)/.test(String(b.guide_url || '')) ? String(b.guide_url).slice(0, 500) : '';
+    const guideCover = /^(https?:\/\/|\/u\/)\S+$/.test(String(b.guide_cover || '')) ? String(b.guide_cover).slice(0, 500) : '';
     let incentive = INCENTIVES.includes(b.incentive) ? b.incentive : DEFAULT_INCENTIVE[type] || 'news';
     if (incentive === 'guide' && !guide) throw new HttpError(400, 'What’s the free guide called?');
     const pct = Math.min(50, Math.max(5, Math.round(Number(b.percent) || 10)));
@@ -194,7 +195,8 @@ function registerSetup(api, { getDb, HttpError, createFunnel, TEMPLATES, getAcco
             items: list.bullets.join('\n'), mockup: incentive === 'discount' ? 'coupon' : incentive === 'guide' ? 'book' : 'phone',
             mockupLabel: incentive === 'discount' ? `${pct}% OFF` : incentive === 'guide' ? 'Free guide' : 'Members list',
             mockupTitle: incentive === 'discount' ? 'your first order' : incentive === 'guide' ? guide : `News from ${name}`,
-            note: 'One click to unsubscribe, any time.' } : {}) }];
+            note: 'One click to unsubscribe, any time.',
+            ...(incentive === 'guide' && guideCover ? { image: guideCover, imageAlt: `Cover of ${guide}` } : {}) } : {}) }];
           if (i > 0 && x.type === 'hero') return [{ ...x, subtext: list.thank_text }];
           if (i === 0 && x.type === 'cta') return [{ ...x, button: list.button }];
           if (i === 0 && x.type === 'bullets') return [{ ...x, items: list.bullets.join('\n') }];

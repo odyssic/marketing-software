@@ -97,6 +97,10 @@ async function viewSetup() {
               <span class="muted small" data-guideprog>PDF, ZIP, MP3, MP4 · up to 500 MB</span></div>`
             : `<input name="guidelink" type="url" inputmode="url" placeholder="https://drive.google.com/…" value="${esc(s.guideFile ? '' : s.guideUrl || '')}" style="margin-top:10px">
               <p class="hint">Google Drive, Dropbox, YouTube, your website: anywhere it already lives. Make sure anyone with the link can open it.</p>`}</div>
+          <div class="f guide-cover"><span>Cover picture <span class="hint">${s.guideCover ? 'made from your PDF’s first page. Change it if you like' : 'optional: shown on your page. We make one from a PDF automatically'}</span></span>
+            <div class="row" style="gap:12px;align-items:center">${s.guideCover ? `<img src="${esc(s.guideCover)}" alt="Guide cover" class="guide-cover-img">` : ''}
+              <label class="btn sm">${icon('camera')} ${s.guideCover ? 'Change' : 'Add a cover picture'}<input type="file" accept="image/jpeg,image/png,image/webp" hidden data-guidecover></label>
+              ${s.guideCover ? '<button type="button" class="btn ghost sm" data-nocover>Remove</button>' : ''}</div></div>
           <p class="hint">No file yet? Skip it: you can add it to the form later.</p>` : ''}
         <p class="hint">A clear reason to join is what turns visitors into subscribers.</p></div>`
       : s.goal === 'sell' ? `<div class="setup-extra"><div class="colors"><label class="f">What are you selling?<input name="offer2" value="${esc(s.offer)}" required></label>
@@ -130,10 +134,28 @@ async function viewSetup() {
         const data = await uploadFile(file, (pct) => prog(`Uploading… ${pct}%`), { onStep: prog });
         s.guideUrl = data.url; s.guideFile = file.name;
         if (!s.guide) s.guide = file.name.replace(/\.[a-z0-9]+$/i, '').replace(/[-_]+/g, ' ');
+        // Its first page becomes the cover on the page; with no brand colours yet, the page takes the cover's colours.
+        if (/pdf/i.test(file.type) || /\.pdf$/i.test(file.name)) {
+          try {
+            prog('Making the cover…');
+            s.guideCover = await uploadImage(await pdfCoverImage(file));
+            if (!s.color && !state.me.account.brand_color) Object.assign(s, await setupColorsFrom(s.guideCover).catch(() => ({})));
+          } catch (e) { console.warn('cover skipped', e); }
+        }
         await api('PUT', `/api/files/${encodeURIComponent(data.id)}`, { name: s.guide }).catch(() => {});
         toast('Guide ready'); step3();
       } catch (err) { toast(err.message, true); }
     };
+    const gc = $('[data-guidecover]');
+    if (gc) gc.onchange = async () => {
+      const file = gc.files[0]; if (!file) return; keep();
+      try {
+        toast('Uploading cover…'); s.guideCover = await uploadImage(file);
+        if (!state.me.account.brand_color && !s.logo) Object.assign(s, await setupColorsFrom(s.guideCover).catch(() => ({})));
+        step3();
+      } catch (err) { toast(err.message, true); }
+    };
+    const nc = $('[data-nocover]'); if (nc) nc.onclick = () => { keep(); s.guideCover = ''; step3(); };
     $$('[data-gmode]').forEach((b) => { b.onclick = () => { keep(); s.guideMode = b.dataset.gmode; step3(); }; });
     $$('[data-inc]').forEach((b) => { b.onclick = () => { keep(); s.incentive = b.dataset.inc; step3(); }; });
     $('[data-style]').oninput = (e) => { s.style = Number(e.target.value); $('[data-stylename]').textContent = STYLE_WORDS[s.style][0]; $('[data-stylehint]').textContent = `${STYLE_WORDS[s.style][1]} No fake deadlines or scarcity at any level.`; };
@@ -144,7 +166,7 @@ async function viewSetup() {
       if (s.goal === 'booked' && !s.days.length) { $('.err').textContent = 'Pick at least one day'; return; }
       s.step = 4; building();
       try {
-        const r = await api('POST', '/api/setup/build', { business_type: s.type, name: s.name, offer: s.offer, goal: s.goal, sales_style: s.style || 3, logo: s.logo || '', color: s.color || '', color2: s.color2 || '', incentive: s.incentive, percent: s.percent, guide: s.guide, guide_url: s.guideUrl || '', days: s.days, start: s.start, end: s.end, length: s.length, price: s.price, tz: Intl.DateTimeFormat().resolvedOptions().timeZone });
+        const r = await api('POST', '/api/setup/build', { business_type: s.type, name: s.name, offer: s.offer, goal: s.goal, sales_style: s.style || 3, logo: s.logo || '', color: s.color || '', color2: s.color2 || '', incentive: s.incentive, percent: s.percent, guide: s.guide, guide_url: s.guideUrl || '', guide_cover: s.guideCover || '', days: s.days, start: s.start, end: s.end, length: s.length, price: s.price, tz: Intl.DateTimeFormat().resolvedOptions().timeZone });
         state.me = await api('GET', '/api/me');
         ready(r);
       } catch (err) { s.step = 3; step3(); $('.err').textContent = err.message; }
