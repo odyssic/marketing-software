@@ -123,7 +123,7 @@ const rowBars = (bars) => {
   return `<div class="rbars">${bars.map((b) => `<${b.href ? `a href="${esc(b.href)}"` : 'div'} class="rb"><span class="l">${esc(b.label)}</span>
     <span class="track"><span style="width:${(b.n / max) * 100}%"></span></span><span class="v">${esc(b.value ?? String(b.n))}</span></${b.href ? 'a' : 'div'}>`).join('')}</div>`;
 };
-const FLOW = [['audience', 'Contacts'], ['lead', 'Leads'], ['customer', 'Customers'], ['regular', 'Regulars']];
+const FLOW = [['audience', 'On your list'], ['lead', 'Interested'], ['customer', 'Customers'], ['regular', 'Regulars']];
 const FLOW_ARROWS = [['lead', 'audience', 'lead'], ['conversion', 'lead', 'customer'], ['continuity', 'customer', 'regular']];
 function flowStrip(counts, lever) {
   const on = (stage) => lever === 'all' || (lever === 'upsell' ? stage === 'customer' : FLOW_ARROWS.some(([l, a, b]) => l === lever && (stage === a || stage === b)));
@@ -260,7 +260,7 @@ const createMenu = () => `<span class="more-wrap"><button type="button" class="b
     <button role="menuitem" data-create="test">${icon('flask')}<span><b>Split test</b><small>Try two versions of a page</small></span></button>
     ${(state.me.account.hidden_sections || []).includes('products') ? '' : `<button role="menuitem" data-create="product">${icon('bag')}<span><b>Product</b><small>Something to sell</small></span></button>`}
     ${(state.me.account.hidden_sections || []).includes('invoices') ? '' : `<button role="menuitem" data-create="invoice">${icon('note')}<span><b>Invoice</b><small>Bill a client</small></span></button>`}
-    <button role="menuitem" data-create="leads">${icon('people')}<span><b>People</b><small>Add leads or import a list</small></span></button>
+    <button role="menuitem" data-create="leads">${icon('people')}<span><b>People</b><small>Add people or import a list</small></span></button>
   </span></span>`;
 function bindCreateMenu() {
   bindMoreMenus();

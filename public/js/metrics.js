@@ -65,7 +65,7 @@ async function renderMetrics() {
         <div class="legend"><span><i class="lg-rect" style="background:${VIZ.revenue}"></i>This period</span>${range === 'all' ? '' : `<span><i class="lg-dash"></i>Previous period</span>`}</div></header>
         <div class="viz" data-viz="revenue"></div></section>
       <section class="card chart"><header><h2>New leads and new customers</h2>
-        <div class="legend"><span><i class="lg-line" style="background:${VIZ.leads}"></i>Leads</span><span><i class="lg-line" style="background:${VIZ.customers}"></i>Customers</span></div></header>
+        <div class="legend"><span><i class="lg-line" style="background:${VIZ.leads}"></i>Sign-ups</span><span><i class="lg-line" style="background:${VIZ.customers}"></i>Customers</span></div></header>
         <div class="viz" data-viz="people"></div></section>
       <section class="card chart"><header><h2>Where revenue came from</h2></header>
         <div class="viz" data-viz="sources"></div></section>

@@ -2,8 +2,9 @@
 
 // ---------------- People ----------------
 // Audience: known to you, but no sign-up, inquiry or purchase yet.
-const STAGES = [['audience', 'Contacts'], ['lead', 'Leads'], ['customer', 'Customers'], ['regular', 'Regulars']];
-const STAGE_LABEL = { audience: 'Contact', lead: 'Lead', customer: 'Customer', regular: 'Regular' };
+// Where someone is with you, in everyday words (the stored keys stay the same).
+const STAGES = [['audience', 'On your list'], ['lead', 'Interested'], ['customer', 'Customers'], ['regular', 'Regulars']];
+const STAGE_LABEL = { audience: 'On your list', lead: 'Interested', customer: 'Customer', regular: 'Regular' };
 const stagePill = (s) => `<span class="stage ${esc(s)}">${esc(STAGE_LABEL[s] || s)}</span>`;
 // Someone known only by a phone number goes by that number, nicely formatted.
 const prettyPhone = (p) => { const m = String(p || '').match(/^\+1(\d{3})(\d{3})(\d{4})$/); return m ? `(${m[1]}) ${m[2]}-${m[3]}` : String(p || ''); };
@@ -21,10 +22,10 @@ async function viewPeople() {
   const count = (s) => all.filter((c) => c.stage === s).length;
   const link = (over) => `#/people?${new URLSearchParams({ q, tag, stage, segment, ...over })}`;
   shell('people', `
-    <div class="head"><div><h1>People</h1><div class="muted">One record per person: all your ${esc(state.me.account.people_word || 'people')}, leads and subscribers in one place.</div></div>
+    <div class="head"><div><h1>People</h1><div class="muted">Everyone you know through your business, one card each: who they are, how you met, and everything they’ve done.</div></div>
       <div class="row">${moreMenu(`${(state.me.account.hidden_sections || []).includes('pipelines') ? '' : `<a role="menuitem" href="#/pipelines">${icon('trend')} Deals board</a>`}
         <a role="menuitem" href="#/people/testimonials">${icon('quote')} Testimonials</a><a role="menuitem" href="/api/export.zip">${icon('download')} Export everyone (CSV)</a>`, (state.me.account.hidden_sections || []).includes('pipelines') ? 'Testimonials & export' : 'Deals, testimonials & export')}
-      ${!all.length && !q && !tag && !stage && !segment ? '' : `<button class="btn primary" data-leads>${icon('plus')} Add leads</button>`}</div></div>
+      ${!all.length && !q && !tag && !stage && !segment ? '' : `<button class="btn primary" data-leads>${icon('plus')} Add people</button>`}</div></div>
     <div class="stage-chips" role="tablist" aria-label="Stage">
       <a role="tab" aria-selected="${!stage}" href="${link({ stage: '' })}" class="${stage ? '' : 'on'}">Everyone <b>${all.length}</b></a>
       ${STAGES.map(([k, l]) => `<a role="tab" aria-selected="${stage === k}" href="${link({ stage: k })}" class="${stage === k ? 'on' : ''} ${k}">${l} <b>${count(k)}</b></a>`).join('')}
@@ -53,9 +54,12 @@ async function viewPeople() {
         <td>${esc(c.email) || '<span class="muted">no email</span>'} ${c.unsubscribed ? '<span class="pill warn">unsubscribed</span>' : ''}</td>
         <td>${stagePill(c.stage)}</td><td>${esc(c.city)}</td>
         <td>${tagsHtml(c.tags)}</td><td class="muted small">${esc(cameFrom(c))}</td><td class="muted small">${fmtDate(c.created_at)}</td></tr>`).join('')}
-    </table></div>` : `<div class="card empty"><div class="big">${icon('people')}</div><h2>${q || tag || stage || segment ? 'No matches' : 'No people yet'}</h2>
-      <p>${q || tag || stage || segment ? 'Try a different search.' : 'Upload a spreadsheet, paste a list or a photo of a sign-up sheet, or add someone by hand.'}</p>
-      ${q || tag || stage || segment ? '' : '<button class="btn primary" data-leads>' + icon('plus') + ' Add leads</button>'}</div>`}`);
+    </table></div>` : q || tag || stage || segment ? `<div class="card empty"><div class="big">${icon('people')}</div><h2>No matches</h2><p>Try a different search.</p></div>`
+    : `<div class="card empty people-empty"><div class="faces" aria-hidden="true">${[['S', '#e8a87c'], ['J', '#85b8a8'], ['M', '#9c8ade'], ['A', '#e8c35a'], ['R', '#7aa7d6']].map(([l, c]) => `<span style="background:${c}">${l}</span>`).join('')}</div>
+      <h2>Your people will gather here</h2>
+      <p>Everyone who signs up, books, buys or sends you a message appears here on their own, with their story: how you met and everything since.</p>
+      <p class="muted small">Already know some people? Bring them in from a spreadsheet, a pasted list, a photo of a sign-up sheet, or one at a time.</p>
+      <button class="btn primary" data-leads>${icon('plus')} Add people</button></div>`}`);
   bindRowLinks();
   const go = () => { location.hash = link({ q: $('[data-q]').value, tag: $('[data-tag]').value }); };
   let t; $('[data-q]').oninput = () => { clearTimeout(t); t = setTimeout(go, 350); };
@@ -391,7 +395,7 @@ async function importWizard(done, file) {
 function addLeads(done) {
   const bg = document.createElement('div');
   bg.className = 'modal-bg';
-  bg.innerHTML = `<div class="modal"><h2>Add leads</h2>
+  bg.innerHTML = `<div class="modal"><h2>Add people</h2>
     <div class="choices">
       <button type="button" class="choice" data-c="csv"><span class="ci">${icon('download')}</span><span><b>Upload a spreadsheet</b><small>A CSV from Excel, Google Sheets, your store, Etsy, PayPal or a newsletter tool</small></span></button>
       <button type="button" class="choice" data-c="ai"><span class="ci">${icon('sparkle')}</span><span><b>Paste or drop anything</b><small>An email thread, a list, notes, or a photo of business cards or a sign-up sheet. AI finds the people for you to check.</small></span></button>

@@ -1808,3 +1808,9 @@ ul.tasks { list-style: none; padding: 0; margin: 10px 0 4px; }
 .guide-up .pill { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .guide-cover-img { width: 56px; height: 72px; object-fit: cover; border-radius: 4px 8px 8px 4px; box-shadow: 0 6px 14px -6px rgba(0,0,0,.4); }
+
+/* People: an empty page that feels like people */
+.people-empty .faces { display: flex; justify-content: center; margin: 4px 0 14px; }
+.people-empty .faces span { width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center; color: #fff; font: 700 1.1rem/1 system-ui, sans-serif; border: 3px solid #fff; margin-left: -12px; box-shadow: 0 6px 14px -8px rgba(0,0,0,.35); }
+.people-empty .faces span:first-child { margin-left: 0; }
+.people-empty p { max-width: 520px; margin-left: auto; margin-right: auto; }
