@@ -480,6 +480,116 @@ async function viewFunnel(id) {
   }
 
   // The emails a follow-up sends, as "Right away · Welcome", "Day 2 · The story behind…".
+  // The free guide (or any download) a sign-up page promises: drop it in right on the map,
+  // then show it where the drawn cover is: a photo of it, or the PDF's own cover.
+  const GUIDE_WORDS = /\b(free guide|guide|checklist|e-?book|workbook|download|pdf|cheat ?sheet|free copy|template pack)\b/i;
+  const guideForm = (s) => {
+    const i = s.blocks.findIndex((b) => b.type === 'form' && !['newsletter', 'inquiry', 'review'].includes(String(b.purpose || '').toLowerCase()));
+    if (i < 0) return null;
+    const words = s.blocks.map((b) => ['eyebrow', 'text', 'subtext', 'title', 'buttonLabel', 'button', 'mockupTitle'].map((k) => (typeof b[k] === 'string' ? b[k] : '')).join(' ')).join(' ');
+    return s.blocks[i].deliverUrl || GUIDE_WORDS.test(words) ? i : null;
+  };
+  function guideChip(s) {
+    const i = guideForm(s);
+    if (i === null) return '';
+    const fb = s.blocks[i];
+    const hero = s.blocks.find((b) => b.type === 'hero');
+    const name = String(fb.deliverName || '').replace(/^the /i, '') || 'your free guide';
+    if (!fb.deliverUrl) {
+      return `<div class="gd-card need" data-gdzone="${s.id}">
+        <div class="gd-h">${icon('download')} The free guide <span class="gd-need">Needed to publish</span></div>
+        <p>This page promises something to download. Drop the file here, or paste a link to it.</p>
+        <div class="gd-acts"><button type="button" class="btn sm primary" data-gdpick="${s.id}">${icon('upload')} Choose file</button>
+          <button type="button" class="btn sm" data-gdlink="${s.id}">${icon('link')} Paste a link</button></div>
+        <input type="file" hidden data-gdfile="${s.id}"></div>`;
+    }
+    const isPdf = /\.pdf($|\?)/i.test(fb.deliverUrl) || /^\/u\//.test(fb.deliverUrl);
+    return `<div class="gd-card" data-gdzone="${s.id}">
+      <div class="gd-h">${icon('check')} ${esc(name.charAt(0).toUpperCase() + name.slice(1))} <span class="gd-ok">Emailed on sign-up</span></div>
+      <div class="gd-row">${hero?.image ? `<img class="gd-cover" src="${esc(hero.image)}" alt="">` : `<span class="gd-cover none">${icon('image')}</span>`}
+        <div class="gd-acts gd-col">${hero ? `<button type="button" class="btn sm ${hero.image ? '' : 'primary'}" data-gdphoto="${s.id}">${icon('camera')} ${hero.image ? 'Change picture' : 'Use a photo of it'}</button>
+          ${isPdf ? `<button type="button" class="btn sm" data-gdcover="${s.id}">${icon('page')} Use the PDF’s cover</button>` : ''}` : ''}
+          <span class="gd-links"><button type="button" class="linkish" data-gdpick="${s.id}">Replace file</button> · <a class="linkish" href="${esc(fb.deliverUrl)}" target="_blank" rel="noopener">Open</a></span></div></div>
+      <input type="file" hidden data-gdfile="${s.id}"><input type="file" hidden accept="image/jpeg,image/png,image/webp" data-gdimg="${s.id}"></div>`;
+  }
+  // Save the guide, or its picture on the page's cover, then redraw the map.
+  async function saveGuide(stepId, change) {
+    const s = byId()[stepId];
+    const blocks = JSON.parse(JSON.stringify(s.blocks));
+    change(blocks);
+    await api('PUT', `/api/steps/${s.id}`, { name: s.name, blocks, settings: s.settings });
+    reload();
+  }
+  async function putGuideFile(stepId, file) {
+    toast('Uploading…');
+    try {
+      const data = await uploadFile(file, (p) => toast(`Uploading ${p}%`), { onStep: (t) => toast(t) });
+      const pretty = `the ${file.name.replace(/\.[a-z0-9]+$/i, '').replace(/[-_]+/g, ' ')}`;
+      const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
+      // A PDF's first page becomes the cover drawn on the page, unless a picture is already there.
+      const s = byId()[stepId];
+      const hero = s.blocks.find((b) => b.type === 'hero');
+      let cover = '';
+      if (isPdf && hero && !hero.image) cover = await pdfCoverImage(file).then(uploadImage).catch(() => '');
+      await saveGuide(stepId, (blocks) => {
+        const fb = blocks[guideForm(s)];
+        fb.deliverUrl = data.url; if (!fb.deliverName) fb.deliverName = pretty;
+        const h = blocks.find((b) => b.type === 'hero');
+        if (cover && h) Object.assign(h, { image: cover, imageAlt: `Cover of ${pretty.replace(/^the /, '')}`, mockup: h.mockup && h.mockup !== 'none' ? h.mockup : 'book' });
+      });
+      toast(cover ? 'Guide ready, and its cover is now on your page' : 'Guide ready. It’s emailed to everyone who signs up');
+    } catch (err) { toast(err.message, true); }
+  }
+  function bindGuideChips() {
+    $$('[data-gdpick]', world).forEach((b) => { b.onclick = (e) => { e.stopPropagation(); $(`[data-gdfile="${b.dataset.gdpick}"]`, world).click(); }; });
+    $$('[data-gdfile]', world).forEach((inp) => { inp.onchange = () => { if (inp.files[0]) putGuideFile(Number(inp.dataset.gdfile), inp.files[0]); }; });
+    $$('[data-gdlink]', world).forEach((b) => { b.onclick = async (e) => {
+      e.stopPropagation();
+      const v = await modal('Link to the guide', `<p class="muted small">A Google Drive, Dropbox or any web link. Make sure anyone with the link can open it.</p>
+        <label class="f">Link<input name="url" type="url" required placeholder="https://"></label>
+        <label class="f">What it’s called in the email<input name="name" placeholder="e.g. the 12-step checklist"></label>`, { submit: 'Save' });
+      if (!v?.url) return;
+      if (!/^https?:\/\/\S+\.\S+/i.test(v.url)) { toast('That doesn’t look like a web link', true); return; }
+      const s = byId()[Number(b.dataset.gdlink)];
+      await saveGuide(s.id, (blocks) => { const fb = blocks[guideForm(s)]; fb.deliverUrl = v.url.trim(); if (v.name) fb.deliverName = v.name.trim(); });
+      toast('Linked. It’s emailed to everyone who signs up');
+    }; });
+    $$('[data-gdphoto]', world).forEach((b) => { b.onclick = (e) => { e.stopPropagation(); $(`[data-gdimg="${b.dataset.gdphoto}"]`, world).click(); }; });
+    $$('[data-gdimg]', world).forEach((inp) => { inp.onchange = async () => {
+      const file = inp.files[0]; if (!file) return;
+      try {
+        toast('Uploading picture…');
+        const url = await uploadImage(file);
+        // A photo of the real thing replaces the drawn cover.
+        await saveGuide(Number(inp.dataset.gdimg), (blocks) => { const h = blocks.find((x) => x.type === 'hero'); if (h) Object.assign(h, { image: url, imageAlt: h.imageAlt || 'The free guide', mockup: 'none' }); });
+        toast('Your photo is on the page');
+      } catch (err) { toast(err.message, true); }
+    }; });
+    $$('[data-gdcover]', world).forEach((b) => { b.onclick = async (e) => {
+      e.stopPropagation();
+      const s = byId()[Number(b.dataset.gdcover)];
+      const fb = s.blocks[guideForm(s)];
+      try {
+        toast('Making a cover from the first page…');
+        const blob = await (await fetch(fb.deliverUrl)).blob();
+        const url = await uploadImage(await pdfCoverImage(new File([blob], 'guide.pdf', { type: 'application/pdf' })));
+        await saveGuide(s.id, (blocks) => { const h = blocks.find((x) => x.type === 'hero'); if (h) Object.assign(h, { image: url, imageAlt: `Cover of ${String(fb.deliverName || 'the guide').replace(/^the /, '')}`, mockup: 'book' }); });
+        toast('The PDF’s cover is on your page');
+      } catch { toast('Couldn’t read that PDF’s cover. Use a photo instead', true); }
+    }; });
+    $$('[data-gdzone]', world).forEach((z) => {
+      z.addEventListener('dragover', (e) => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); e.stopPropagation(); z.classList.add('over'); } });
+      z.addEventListener('dragleave', () => z.classList.remove('over'));
+      z.addEventListener('drop', (e) => {
+        e.preventDefault(); e.stopPropagation(); z.classList.remove('over');
+        const f0 = e.dataTransfer.files[0]; if (!f0) return;
+        const sid = Number(z.dataset.gdzone);
+        if (/^image\//.test(f0.type) && byId()[sid].blocks.some((b) => b.type === 'form' && b.deliverUrl)) {
+          const inp = $(`[data-gdimg="${sid}"]`, world); const dt = new DataTransfer(); dt.items.add(f0); inp.files = dt.files; inp.onchange();
+        } else putGuideFile(sid, f0);
+      });
+    });
+  }
   // Abandoned checkout: the two reminders (an hour later, and a day later with an
   // optional code) shown under each page that takes payment, with their switch.
   function recoveryChip(s) {
@@ -732,6 +842,13 @@ async function viewFunnel(id) {
         if (fu) buttons += `<div class="fu-chip" data-chip="${s.id}" style="left:${mid.x}px;top:${mid.y}px">${fu}</div>`;
         if (p === 'yes') buttons += `<button class="edge-add" style="left:${mid.x}px;top:${fu ? mid.y + chipHalf(s.id) + 20 : mid.y + 26}px" data-edgeadd="${s.id}" ${fu ? `data-below="${s.id}"` : ''} title="Add an email, a text or a page here" aria-label="Add an email, a text or a page here">${icon('plus')}</button>`;
       }
+      // The free guide hangs below the page that promises it.
+      const gd = guideChip(s);
+      if (gd) {
+        const h = nodeEl(s.id)?.offsetHeight || NODE_H;
+        html += `<path class="edge gd-line" d="M${s.x + NODE_W / 2},${s.y + h} V${s.y + h + 36}"/>`;
+        buttons += `<div class="fu-chip gd-chip" style="left:${s.x + NODE_W / 2}px;top:${s.y + h + 36}px">${gd}</div>`;
+      }
       // Checkout reminders hang below a page that takes payment.
       const rc = recoveryChip(s);
       if (rc) {
@@ -768,6 +885,7 @@ async function viewFunnel(id) {
       if (chip) b.style.top = `${parseFloat(chip.style.top) + chip.offsetHeight / 2 + 20}px`;
     });
     $$('[data-edgeadd]', world).forEach((b) => { b.onclick = (e) => { e.stopPropagation(); addHere(Number(b.dataset.edgeadd), !b.dataset.end); }; });
+    bindGuideChips();
     $$('.rc-chip [data-rcon]', world).forEach((c) => { c.onclick = (e) => e.stopPropagation(); c.onchange = async () => {
       try { await api('PUT', '/api/account/recovery', { on: c.checked }); state.me = await api('GET', '/api/me'); }
       catch (err) { c.checked = !c.checked; toast(err.message, true); return; }

@@ -1906,3 +1906,22 @@ ul.tasks { list-style: none; padding: 0; margin: 10px 0 4px; }
 .map-help summary svg { width: 15px; height: 15px; }
 .map-help[open] summary { color: var(--text); border-color: var(--brand); }
 .map-help .mh-body { clear: both; margin-top: 44px; width: min(360px, 70vw); background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; font-size: .85rem; line-height: 1.5; color: var(--muted); box-shadow: 0 12px 28px -12px rgba(20,40,43,.25); }
+
+/* Flow map: the free guide a sign-up page promises */
+.fu-chip.gd-chip { transform: translate(-50%, 0); width: 290px; }
+.gd-card { background: #fff; border: 1.5px solid #b9e0db; border-radius: 12px; padding: 10px 12px; box-shadow: 0 4px 12px -6px rgba(20,40,43,.18); font-size: .8rem; }
+.gd-card.need { border: 1.5px dashed #e7a54b; background: #fffaf2; }
+.gd-card.over { outline: 3px solid color-mix(in srgb, var(--brand) 35%, transparent); }
+.gd-card p { margin: 4px 0 8px; color: var(--muted); line-height: 1.4; }
+.gd-h { display: flex; align-items: center; gap: 6px; font-weight: 700; font-size: .82rem; }
+.gd-h svg { width: 15px; height: 15px; flex: none; }
+.gd-need { margin-left: auto; font-size: .68rem; font-weight: 700; color: #9a5b0b; background: #fdecd2; border-radius: 99px; padding: 2px 7px; }
+.gd-ok { margin-left: auto; font-size: .68rem; font-weight: 600; color: #15803d; background: #dcfce7; border-radius: 99px; padding: 2px 7px; white-space: nowrap; }
+.gd-acts { display: flex; gap: 6px; flex-wrap: wrap; }
+.gd-acts.gd-col { flex-direction: column; align-items: flex-start; }
+.gd-row { display: flex; gap: 10px; margin-top: 8px; align-items: center; }
+.gd-cover { width: 64px; height: 84px; object-fit: cover; border-radius: 6px; border: 1px solid var(--line); flex: none; box-shadow: 0 4px 10px -4px rgba(0,0,0,.25); }
+.gd-cover.none { display: grid; place-items: center; background: #f4f6f6; color: var(--muted); box-shadow: none; }
+.gd-links { font-size: .74rem; color: var(--muted); }
+.linkish { background: none; border: 0; padding: 0; color: var(--brand); font: inherit; cursor: pointer; text-decoration: underline; }
+.edge.gd-line { stroke: #9fd2cc; stroke-dasharray: 4 4; fill: none; stroke-width: 2; }
