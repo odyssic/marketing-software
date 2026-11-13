@@ -47,7 +47,7 @@ test('no invented social proof: templates hold no quotes; testimonials are real,
   assert.deepEqual(list.map((t) => [t.name, t.quote, t.approved, t.source]), [['Rae', 'Lovely work, on time.', false, 'review form']]);
   assert.doesNotMatch(await (await fetch(`${base}/f/${f.slug}/reviews`)).text(), /Lovely work/); // waits for approval
   await c('PUT', `/api/testimonials/${list[0].id}`, { approved: true });
-  assert.match(await (await fetch(`${base}/f/${f.slug}/reviews`)).text(), /<blockquote>“Lovely work, on time\.”<\/blockquote>/);
+  assert.match(await (await fetch(`${base}/f/${f.slug}/reviews`)).text(), /<blockquote>Lovely work, on time\.<\/blockquote>/);
   // A testimonial block typed in by hand (not a record) renders nothing.
   assert.doesNotMatch(renderPage({ title: 't', blocks: [{ type: 'testimonial', quote: 'Fake praise', name: 'X' }] }), /Fake praise/);
 });

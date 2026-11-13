@@ -26,7 +26,7 @@ const BLOCKS = {
     ['askEmail', 'check', 'Ask for their email first (fills in checkout, and sends one reminder if they don’t finish)']] },
   // Only real, approved testimonials (People → Testimonials) can be shown.
   testimonial: { label: 'Testimonial', icon: icon('quote'), defaults: { testimonialId: null }, fields: [['testimonialId', 'testimonial', 'Testimonial from your records']] },
-  reviews: { label: 'Reviews', icon: icon('star'), defaults: { limit: 3 }, fields: [['limit', 'number', 'How many to show (newest approved first)']] },
+  reviews: { label: 'Testimonials (several)', icon: icon('star'), defaults: { limit: 3 }, fields: [['limit', 'number', 'How many to show'], ['pick', 'testipick', 'Which ones']] },
   heading: { label: 'Heading', icon: icon('heading'), defaults: { text: 'Your big headline', size: 'large', align: 'center' },
     fields: [['text', 'textarea', 'Text'], ['size', 'select', 'Size', ['large', 'medium', 'small']], ALIGN] },
   text: { label: 'Text', icon: icon('text'), defaults: { text: 'Write something persuasive here.', align: 'center' },
@@ -230,6 +230,7 @@ async function viewEditor(stepId) {
     <div class="side">
       <h3>Add a block</h3><div class="palette">${Object.entries(BLOCKS).filter(([, b]) => !b.hidden).map(([k, b]) => `<button data-addblock="${k}" draggable="true" title="Click to add at the end, or drag onto the page"><span class="ico">${b.icon}</span>${b.label}</button>`).join('')}</div>
       <div data-savedpal></div>
+      <div data-testipal></div>
       <h3>Page content</h3><div data-blocks></div>
       <div class="list-bin" data-bin aria-hidden="true">${icon('trash')} Drop here to delete</div>
       <h3>Page style</h3>
@@ -318,6 +319,12 @@ async function viewEditor(stepId) {
     if (kind === 'code') return `<label class="f">${label}<textarea ${attrs} rows="10" class="code" spellcheck="false" autocapitalize="off">${esc(v)}</textarea></label>`;
     if (kind === 'select') return `<label class="f">${label}<select ${attrs}>${options.map((o) => `<option ${o === v ? 'selected' : ''}>${o}</option>`).join('')}</select></label>`;
     if (kind === 'color') return `<label class="f">${label}<input type="color" ${attrs} value="${esc(v || '#000000')}"></label>`;
+    if (kind === 'testipick') {
+      const picked = Array.isArray(v) ? v : [];
+      return `<div class="f">${label} <span class="hint">${picked.length ? 'shown in the order ticked' : 'none ticked: the newest are shown'}</span>
+        <div class="tpick">${realTestimonials.map((t) => `<label class="tpick-i"><input type="checkbox" data-testipick="${i}" value="${t.id}" ${picked.includes(t.id) ? 'checked' : ''}>
+          ${t.photo ? `<img src="${esc(t.photo)}" alt="">` : `<span class="tp-ini">${esc(tInitials(t.name))}</span>`}<span><b>${esc(t.name)}</b> <small>${esc(t.quote.slice(0, 48))}${t.quote.length > 48 ? '…' : ''}</small></span></label>`).join('') || '<span class="hint">No approved testimonials yet.</span>'}</div></div>`;
+    }
     if (kind === 'testimonial') {
       return `<label class="f">${label}${realTestimonials.length ? `<select ${attrs} data-num><option value="">— Pick one —</option>
         ${realTestimonials.map((t) => `<option value="${t.id}" ${t.id === v ? 'selected' : ''}>${esc(t.name)}: “${esc(t.quote.slice(0, 50))}${t.quote.length > 50 ? '…' : ''}”</option>`).join('')}</select>`
@@ -362,6 +369,16 @@ async function viewEditor(stepId) {
         <button type="button" class="sp-x" data-rmsaved="${x.id}" title="Delete this saved section (pages keep their copy)" aria-label="Delete saved section ${esc(x.name)}">${icon('x')}</button></span>`).join('')}</div>` : '';
   };
   renderSavedPal();
+  const tInitials = (n) => String(n || '?').split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('');
+  const renderTestiPal = () => {
+    $('[data-testipal]').innerHTML = `<h3>Testimonials</h3>${realTestimonials.length ? `<p class="muted small" style="margin:-4px 0 8px">Drag one onto the page, or add a row of three.</p>
+      <div class="testi-pal">${realTestimonials.map((t) => `<button type="button" class="tp-card" draggable="true" data-addtesti="${t.id}" title="Drag onto the page, or click to add at the end">
+        ${t.photo ? `<img src="${esc(t.photo)}" alt="">` : `<span class="tp-ini">${esc(tInitials(t.name))}</span>`}
+        <span class="tp-t"><b>${esc(t.name)}</b>${t.detail ? `<small>${esc(t.detail)}</small>` : ''}<i>“${esc(t.quote.slice(0, 70))}${t.quote.length > 70 ? '…' : ''}”</i></span></button>`).join('')}</div>
+      <button type="button" class="btn sm" data-addtrio style="margin-top:8px">${icon('star')} Add ${Math.min(3, realTestimonials.length)} in a row</button>`
+      : '<p class="muted small" style="margin:-4px 0 8px">None yet. Add real ones in <a href="#/people/testimonials" target="_blank">People → Testimonials</a> (with a photo and their title), then reload.</p>'}`;
+  };
+  renderTestiPal();
   const renderBlocks = () => {
     let colSide = '';
     $('[data-blocks]').innerHTML = ed.blocks.length ? ed.blocks.map((b, i) => {
@@ -477,6 +494,14 @@ async function viewEditor(stepId) {
       }).catch((err) => toast(err.message, true));
       return;
     }
+    if (d.addtesti) {
+      const nb = { id: uid(), type: 'testimonial', testimonialId: Number(d.addtesti) };
+      ed.blocks.push(nb); ed.open = nb.id; structural(); return;
+    }
+    if (d.addtrio !== undefined) {
+      const nb = { id: uid(), type: 'reviews', limit: Math.min(3, realTestimonials.length), pick: realTestimonials.slice(0, 3).map((t) => t.id) };
+      ed.blocks.push(nb); ed.open = nb.id; structural(); return;
+    }
     if (d.addblock) {
       const nb = newBlocks(d.addblock);
       ed.blocks.push(...nb); ed.open = nb[0].id; structural();
@@ -528,6 +553,17 @@ async function viewEditor(stepId) {
     if (d.add && BLOCKS[d.add]) {
       const nb = newBlocks(d.add);
       ed.blocks.splice(at, 0, ...nb); ed.open = nb[0].id;
+    } else if (d.testi) {
+      // A testimonial dropped onto a row of them joins that row; anywhere else it stands on its own.
+      const near = ed.blocks[at] || ed.blocks[at - 1];
+      if (near?.type === 'reviews') {
+        const pick = Array.isArray(near.pick) && near.pick.length ? near.pick : [];
+        if (!pick.includes(d.testi)) pick.push(d.testi);
+        near.pick = pick; near.limit = Math.max(Number(near.limit) || 0, pick.length); ed.open = near.id;
+      } else {
+        const nb = { id: uid(), type: 'testimonial', testimonialId: d.testi };
+        ed.blocks.splice(at, 0, nb); ed.open = nb.id;
+      }
     } else if (Number.isInteger(d.move) && ed.blocks[d.move]) {
       const [b] = ed.blocks.splice(d.move, 1);
       ed.blocks.splice(d.move < at ? at - 1 : at, 0, b);
@@ -535,9 +571,9 @@ async function viewEditor(stepId) {
     structural();
   };
   side.addEventListener('dragstart', (e) => {
-    const t = e.target.closest?.('[data-addblock], [data-drag]');
+    const t = e.target.closest?.('[data-addblock], [data-drag], [data-addtesti]');
     if (!t) return;
-    const data = t.dataset.addblock ? { add: t.dataset.addblock } : { move: Number(t.dataset.drag) };
+    const data = t.dataset.addtesti ? { testi: Number(t.dataset.addtesti) } : t.dataset.addblock ? { add: t.dataset.addblock } : { move: Number(t.dataset.drag) };
     e.dataTransfer.setData('text/x-fourfold', JSON.stringify(data));
     e.dataTransfer.setData('text/plain', t.dataset.addblock || 'block');
     e.dataTransfer.effectAllowed = 'copyMove';
@@ -606,6 +642,16 @@ async function viewEditor(stepId) {
   side.addEventListener('change', (e) => {
     const t = e.target;
     if (t.dataset.photofile && t.files[0]) putPhoto(Number(t.dataset.photofile), t.files[0]);
+    // Ticking testimonials for a row: in the order ticked; the row shows as many as are ticked.
+    if (t.dataset.testipick !== undefined) {
+      const b = ed.blocks[Number(t.dataset.testipick)];
+      const idv = Number(t.value);
+      const pick = (Array.isArray(b.pick) ? b.pick : []).filter((x) => x !== idv);
+      if (t.checked) pick.push(idv);
+      b.pick = pick;
+      if (pick.length) b.limit = pick.length;
+      renderBlocks(); changed();
+    }
     // A new video link: read how long it is and fix wording like "Watch the 2-minute video".
     const vb = t.dataset.k === 'url' && ed.blocks[t.dataset.i];
     if (vb?.type === 'video' && vb.url) {
@@ -715,6 +761,14 @@ async function viewEditor(stepId) {
     if (!d?.ff || !$('.editor') || !ed.blocks[d.i]) return;
     if (d.ff === 'open' && ed.open !== ed.blocks[d.i].id) { ed.open = ed.blocks[d.i].id; renderBlocks(); }
     if (d.ff === 'edit') {
+      if (d.row !== undefined && d.row !== null) {
+        // One part of one line of a list ("Title | words" per line).
+        const rows = String(ed.blocks[d.i][d.f] || '').split('\n').filter((l) => l.trim());
+        const parts = (rows[Number(d.row)] || '').split('|').map((x) => x.trim());
+        parts[Number(d.col)] = d.v;
+        rows[Number(d.row)] = parts.join(' | ');
+        d.v = rows.join('\n');
+      }
       ed.blocks[d.i][d.f] = d.v;
       const input = $(`[data-i="${d.i}"][data-k="${d.f}"]`);
       if (input) input.value = d.v;

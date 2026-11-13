@@ -70,6 +70,8 @@ function registerLibrary(api, { getDb, HttpError, id, ownHost, clearDomainCache 
 
   // ---------- Testimonials: real records only ----------
   const out = (t) => ({ ...t, approved: Boolean(t.approved) });
+  // A picture of the person: an uploaded or web image only.
+  const photoOf = (u) => (/^(https?:\/\/|\/u\/)\S+$/i.test(String(u || '').trim()) ? String(u).trim().slice(0, 500) : '');
   api.get('/testimonials', async (req, res) => {
     res.json((await db().all(`SELECT t.*, TRIM(c.first_name || ' ' || c.last_name) AS person_name FROM testimonials t
       LEFT JOIN contacts c ON c.id = t.person_id WHERE t.account_id = ? ORDER BY t.approved, t.id DESC`, req.accountId)).map(out));
@@ -88,15 +90,23 @@ function registerLibrary(api, { getDb, HttpError, id, ownHost, clearDomainCache 
       name ||= [p.first_name, p.last_name ? `${p.last_name[0]}.` : ''].filter(Boolean).join(' ');
     }
     if (!name) throw new HttpError(400, 'Add the customer’s name as it should appear');
-    const r = await db().get(`INSERT INTO testimonials (account_id, person_id, quote, name, detail, source, approved)
-      VALUES (?, ?, ?, ?, ?, ?, 1) RETURNING *`, req.accountId, personId, quote, name, String(b.detail || '').trim().slice(0, 80), String(b.source || 'manual').slice(0, 40));
+    const r = await db().get(`INSERT INTO testimonials (account_id, person_id, quote, name, detail, source, approved, photo)
+      VALUES (?, ?, ?, ?, ?, ?, 1, ?) RETURNING *`, req.accountId, personId, quote, name, String(b.detail || '').trim().slice(0, 80), String(b.source || 'manual').slice(0, 40), photoOf(b.photo));
     res.status(201).json(out(r));
   });
   api.put('/testimonials/:id', async (req, res) => {
     const t = await db().get('SELECT shareable FROM testimonials WHERE id = ? AND account_id = ?', id(req.params.id), req.accountId);
     if (!t) throw new HttpError(404, 'Testimonial not found');
-    if (req.body?.approved && !t.shareable) throw new HttpError(409, 'They asked to keep this private, so it can’t go on your pages');
-    const r = await db().get('UPDATE testimonials SET approved = ? WHERE id = ? AND account_id = ? RETURNING *', req.body?.approved ? 1 : 0, id(req.params.id), req.accountId);
+    const b = req.body || {};
+    if (b.approved && !t.shareable) throw new HttpError(409, 'They asked to keep this private, so it can’t go on your pages');
+    // Their words stay as they said them; the name, title and photo can be tidied.
+    const sets = [], args = [];
+    if (b.approved !== undefined) { sets.push('approved = ?'); args.push(b.approved ? 1 : 0); }
+    if (b.photo !== undefined) { sets.push('photo = ?'); args.push(photoOf(b.photo)); }
+    if (b.detail !== undefined) { sets.push('detail = ?'); args.push(String(b.detail || '').trim().slice(0, 80)); }
+    if (b.name !== undefined) { const n = String(b.name || '').trim().slice(0, 80); if (!n) throw new HttpError(400, 'Add the name as it should appear'); sets.push('name = ?'); args.push(n); }
+    if (!sets.length) throw new HttpError(400, 'Nothing to change');
+    const r = await db().get(`UPDATE testimonials SET ${sets.join(', ')} WHERE id = ? AND account_id = ? RETURNING *`, ...args, id(req.params.id), req.accountId);
     res.json(out(r));
   });
   api.delete('/testimonials/:id', async (req, res) => {
@@ -107,7 +117,7 @@ function registerLibrary(api, { getDb, HttpError, id, ownHost, clearDomainCache 
 
 // Approved testimonials for rendering, keyed by id.
 async function approvedTestimonials(db, accountId) {
-  return Object.fromEntries((await db.all('SELECT id, quote, name, detail FROM testimonials WHERE account_id = ? AND approved = 1', accountId)).map((t) => [t.id, t]));
+  return Object.fromEntries((await db.all('SELECT id, quote, name, detail, photo FROM testimonials WHERE account_id = ? AND approved = 1', accountId)).map((t) => [t.id, t]));
 }
 
 module.exports = { registerLibrary, approvedTestimonials, HOST_RE };

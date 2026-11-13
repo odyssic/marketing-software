@@ -90,7 +90,8 @@ function renderSection(b, ctx, index, { href, formHtml = '' } = {}) {
     }
     case 'stats': {
       const items = pairs(b.items).filter(([n]) => n);
-      return items.length ? `<div class="stats">${items.map(([n, l]) => `<div><b>${esc(n)}</b><span>${esc(l)}</span></div>`).join('')}</div>` : '';
+      const lf = (r, c) => (ctx.preview ? ` data-f="items" data-row="${r}" data-col="${c}"` : '');
+      return items.length ? `<div class="stats">${items.map(([n, l], r) => `<div><b${lf(r, 0)}>${esc(n)}</b><span${lf(r, 1)}>${esc(l)}</span></div>`).join('')}</div>` : '';
     }
     case 'cta': {
       return `<div class="cta-sec">${b.title ? `<h2${f('title')}>${hl(b.title)}</h2>` : ''}${b.text ? `<p${f('text')}>${esc(b.text)}</p>` : ''}${button(b.button || 'Get started', b.buttonSub, to(b.url), '', f)}${b.note ? `<p class="cta-note">${esc(b.note)}</p>` : ''}</div>`;
@@ -152,6 +153,18 @@ main>.feat+.feat,.band-in>.feat+.feat{margin-top:88px}
 .band-dark hr,.band-brand hr{border-color:rgba(255,255,255,.2)}
 .offer,.optin,.pricing,.booking,.guar,.faq details,.cmp-col,.testimonial{color:var(--fg)}
 .band-dark .testimonial,.band-brand .testimonial{color:#fff}
+.tcards{display:grid;gap:20px;margin:28px 0;align-items:stretch}.tcards.n2{grid-template-columns:repeat(2,1fr)}.tcards.n3{grid-template-columns:repeat(3,1fr)}
+@media(max-width:760px){.tcards.n2,.tcards.n3{grid-template-columns:1fr}}
+.tcard{margin:28px auto;max-width:620px;text-align:left;display:flex;flex-direction:column;gap:18px;background:#fff;border:1px solid color-mix(in srgb,var(--fg) 9%,transparent);border-radius:18px;padding:26px 26px 22px;box-shadow:0 1px 2px rgba(16,24,40,.04),0 18px 36px -24px color-mix(in srgb,var(--accent) 45%,transparent);position:relative}
+.tcards .tcard{margin:0;max-width:none}
+.tcard::before{content:"\\201C";position:absolute;top:6px;right:18px;font:700 64px/1 Georgia,serif;color:color-mix(in srgb,var(--accent) 22%,transparent)}
+.tcard blockquote{margin:0;font-size:1.05rem;line-height:1.6;flex:1}
+.tcard figcaption{display:flex;align-items:center;gap:12px;font-size:.92rem}
+.tcard .tc-ph{width:46px;height:46px;border-radius:50%;object-fit:cover;flex:none;border:2px solid #fff;box-shadow:0 0 0 1px color-mix(in srgb,var(--fg) 10%,transparent)}
+.tcard .tc-ini{display:grid;place-items:center;background:color-mix(in srgb,var(--accent) 14%,#fff);color:var(--accent);font-weight:700;font-size:.95rem}
+.tcard .tc-who{display:grid;line-height:1.3}.tcard .tc-who span{opacity:.65;font-size:.85rem}
+.band-dark .tcard,.band-brand .tcard{background:rgba(255,255,255,.07);border-color:rgba(255,255,255,.14);box-shadow:none}
+.band-dark .tcard::before,.band-brand .tcard::before{color:rgba(255,255,255,.18)}
 
 /* Notice bar */
 .notice{margin:0 calc(50% - 50vw);padding:10px 20px;text-align:center;background:var(--deep);color:#fff;font-size:.92rem;font-weight:500}

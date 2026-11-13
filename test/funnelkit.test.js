@@ -130,7 +130,7 @@ test('order bump adds a second item to the same payment; testimonial block rende
   await c('POST', `/api/funnels/${id}/publish`);
   const html = (await client()('GET', `/f/${f.slug}`)).body;
   assert.match(html, /class="bump"[\s\S]*Add matching coasters[\s\S]*\$12/);
-  assert.match(html, /<blockquote>“Best mug I own\.”<\/blockquote>\s*<figcaption>Ann · <span>Austin<\/span>/);
+  assert.match(html, /<blockquote>Best mug I own\.<\/blockquote>[\s\S]*?<b>Ann<\/b><span>Austin<\/span>/);
 
   const buy = await fetch(`${base}/f/${f.slug}/${page.slug}/buy`, { method: 'POST', redirect: 'manual', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ block: pricing.id, bump: '1' }) });
   assert.equal(buy.status, 303);
@@ -159,4 +159,22 @@ test('a page that promises a free guide needs the file before it can go live', a
     pre = (await c('GET', `/api/funnels/${id}/preflight`)).body;
     assert.ok(!pre.problems.some((x) => /no file to send/.test(x.text)));
   } finally { process.env.PREFLIGHT_PROMISES = prev; }
+});
+
+test('testimonials carry a photo and title; a row shows the chosen ones in order', async () => {
+  const c = await setup('fk-testi@example.com');
+  const a = (await c('POST', '/api/testimonials', { quote: 'First words.', name: 'Ann B.', consent: true })).body;
+  const b = (await c('POST', '/api/testimonials', { quote: 'Second words.', name: 'Bo C.', detail: 'Owner, Bloom', consent: true, photo: 'javascript:alert(1)' })).body;
+  assert.equal(b.photo, '', 'only real image links are kept');
+  const u = (await c('PUT', `/api/testimonials/${a.id}`, { detail: 'Chef', photo: 'https://img.example/ann.jpg' })).body;
+  assert.equal(u.detail, 'Chef'); assert.equal(u.photo, 'https://img.example/ann.jpg'); assert.equal(u.quote, 'First words.');
+  const { id } = (await c('POST', '/api/funnels', { name: 'Proof', template: 'blank' })).body;
+  const f = (await c('GET', `/api/funnels/${id}`)).body;
+  await c('PUT', `/api/steps/${f.steps[0].id}`, { blocks: [{ id: 'r', type: 'reviews', limit: 2, pick: [b.id, a.id] }] });
+  assert.equal((await c('POST', `/api/funnels/${id}/publish`)).status, 200);
+  const html = await (await fetch(`${base}/f/${f.slug}`)).text();
+  assert.match(html, /class="tcards n2"/);
+  assert.ok(html.indexOf('Second words.') < html.indexOf('First words.'), 'in the order chosen');
+  assert.match(html, /<img class="tc-ph" src="https:\/\/img\.example\/ann\.jpg"/);
+  assert.match(html, /<b>Bo C\.<\/b><span>Owner, Bloom<\/span>/);
 });

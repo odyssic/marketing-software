@@ -161,10 +161,11 @@ async function viewPerson(personId) {
     const r = await modal(`Testimonial from ${personName(p)}`, `
       <label class="f">What they said <span class="hint">their words, not a summary</span><textarea name="quote" rows="4" required></textarea></label>
       <div class="colors" style="grid-template-columns:1fr 1fr"><label class="f">Show as<input name="name" value="${esc([p.first_name, p.last_name ? `${p.last_name[0]}.` : ''].filter(Boolean).join(' '))}" required></label>
-        <label class="f">Detail <span class="hint">optional</span><input name="detail" placeholder="e.g. ${esc(p.city || 'Austin')}"></label></div>
+        <label class="f">Title <span class="hint">optional</span><input name="detail" placeholder="e.g. Owner, Bloom Bakery"></label></div>
+      <label class="f">Photo of them <span class="hint">optional</span><input type="file" name="photofile" accept="image/jpeg,image/png,image/webp"></label>
       <label class="f">Where it came from<input name="source" placeholder="e.g. email, Google review, in person"></label>
       <label class="check"><input type="checkbox" name="consent" required> These are ${esc(personName(p))}’s real words, and they agreed to share them.</label>`,
-    { submit: 'Save testimonial', onSubmit: (v) => api('POST', '/api/testimonials', { ...v, person_id: p.id }) });
+    { submit: 'Save testimonial', onSubmit: async (v) => { const photo = v.photofile && v.photofile.size ? await uploadImage(v.photofile) : ''; delete v.photofile; return api('POST', '/api/testimonials', { ...v, photo, person_id: p.id }); } });
     if (r) toast('Saved. It can now be shown on your pages');
   };
   bindMoreMenus();

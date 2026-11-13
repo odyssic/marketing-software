@@ -748,6 +748,7 @@ ALTER TABLE funnels ADD COLUMN IF NOT EXISTS drip_emails INT NOT NULL DEFAULT 1;
 -- Star ratings from review requests, and whether the customer said their words may be shown.
 ALTER TABLE testimonials ADD COLUMN IF NOT EXISTS rating INT NOT NULL DEFAULT 0;
 ALTER TABLE testimonials ADD COLUMN IF NOT EXISTS shareable INT NOT NULL DEFAULT 1;
+ALTER TABLE testimonials ADD COLUMN IF NOT EXISTS photo TEXT NOT NULL DEFAULT '';
 -- The offer ladder: what to offer a product's buyers next (empty: the next pricier product).
 ALTER TABLE products ADD COLUMN IF NOT EXISTS next_product_id INT REFERENCES products(id) ON DELETE SET NULL;
 -- What the buyer gets: an uploaded file (/u/…) or a link, emailed the moment they pay.

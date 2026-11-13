@@ -116,13 +116,17 @@ function youtubeEmbed(url) {
   return id ? `https://www.youtube-nocookie.com/embed/${id}?rel=0&iv_load_policy=3&playsinline=1` : null;
 }
 
-const testimonialHtml = (t) => `<figure class="testimonial"><blockquote>“${esc(t.quote)}”</blockquote>
-  <figcaption>${esc(t.name)}${t.detail ? ` · <span>${esc(t.detail)}</span>` : ''}</figcaption></figure>`;
+const initialsOf = (n) => String(n || '?').split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('');
+const testimonialHtml = (t) => `<figure class="testimonial tcard"><blockquote>${esc(t.quote)}</blockquote>
+  <figcaption>${t.photo ? `<img class="tc-ph" src="${esc(safeUrl(t.photo))}" alt="" loading="lazy">` : `<span class="tc-ph tc-ini" aria-hidden="true">${esc(initialsOf(t.name))}</span>`}
+    <span class="tc-who"><b>${esc(t.name)}</b>${t.detail ? `<span>${esc(t.detail)}</span>` : ''}</span></figcaption></figure>`;
 
 function renderBlock(b, ctx, index) {
   const a = align(b.align);
   // In the editor preview, text marked with data-f can be clicked and typed into.
   const f = (field) => (ctx.preview ? ` data-f="${field}"` : '');
+  // One part of one line of a list field ("Title | words" lines), for typing on the page.
+  const lf = (row, col, field = 'items') => (ctx.preview ? ` data-f="${field}" data-row="${row}" data-col="${col}"` : '');
   const linkOf = (u) => (u === '#form' ? '#form' : String(u || '').startsWith('page:') ? ctx.pageHref(String(u).slice(5))
     : u === '#next' || !u ? ctx.nextUrl : u === '#no' ? ctx.noUrl : safeUrl(u));
   switch (b.type) {
@@ -252,7 +256,7 @@ function renderBlock(b, ctx, index) {
       const items = String(b.items || '').split('\n').map((l) => l.split('|').map((x) => x.trim())).filter(([t]) => t);
       // Icon style: matched line icons, bold (filled tile) icons, plain dots or none.
       const ic = b.numbered ? '' : ({ 'matched icons': 'line', 'bold icons': 'solid', none: 'none' })[b.icons] || '';
-      return `<div class="cards${b.numbered ? ' numbered' : ''}${ic ? ` ic-${ic}` : ''}">${items.map(([t, d, n]) => `<div class="card">${ic === 'line' || ic === 'solid' ? `<span class="ci">${cardIcon(t, d, n)}</span>` : ''}<h3>${esc(t)}</h3>${d ? `<p>${esc(d)}</p>` : ''}</div>`).join('')}</div>`;
+      return `<div class="cards${b.numbered ? ' numbered' : ''}${ic ? ` ic-${ic}` : ''}">${items.map(([t, d, n], r) => `<div class="card">${ic === 'line' || ic === 'solid' ? `<span class="ci">${cardIcon(t, d, n)}</span>` : ''}<h3${lf(r, 0)}>${esc(t)}</h3>${d ? `<p${lf(r, 1)}>${esc(d)}</p>` : ''}</div>`).join('')}</div>`;
     }
     case 'info': {
       const rows = [['🕘', 'Hours', b.hours], ['📍', 'Address', b.address], ['📞', 'Phone', b.phone && `<a href="tel:${esc(String(b.phone).replace(/[^+\d]/g, ''))}">${esc(b.phone)}</a>`], ['✉️', 'Email', b.email && `<a href="mailto:${esc(b.email)}">${esc(b.email)}</a>`]]
@@ -266,9 +270,12 @@ function renderBlock(b, ctx, index) {
       return testimonialHtml(t, ctx);
     }
     case 'reviews': {
-      const list = Object.values(ctx.testimonials || {}).sort((x, y) => y.id - x.id).slice(0, Math.max(1, Number(b.limit) || 3));
+      // The ones chosen (in that order), or the newest approved ones.
+      const all = ctx.testimonials || {};
+      const chosen = (Array.isArray(b.pick) ? b.pick : []).map((x) => all[x]).filter(Boolean);
+      const list = (chosen.length ? chosen : Object.values(all).sort((x, y) => y.id - x.id)).slice(0, Math.max(1, Math.min(12, Number(b.limit) || 3)));
       if (!list.length) return ctx.preview ? '<div class="ph"><b>Reviews show here</b><small>Only real ones you approve (People → Testimonials). Visitors don’t see this box until then.</small></div>' : '';
-      return list.map((t) => testimonialHtml(t, ctx)).join('');
+      return `<div class="tcards n${Math.min(list.length, 3)}">${list.map((t) => testimonialHtml(t, ctx)).join('')}</div>`;
     }
     case 'spacer':
       return `<div style="height:${Math.min(Math.max(Number(b.height) || 40, 0), 400)}px"></div>`;
@@ -610,7 +617,7 @@ form.onsubmit=function(e){e.preventDefault();if(!picked)return;var err=form.quer
 // selected block when you're not typing. The builder does the change (and undo).
 const PREVIEW_TOOLS_SCRIPT = `<style>
 [data-bi]{position:relative}
-.ff-tools{position:absolute;top:6px;right:6px;z-index:9999;display:none;gap:2px;padding:3px;background:#14282B;border-radius:9px;box-shadow:0 4px 14px rgba(0,0,0,.18)}
+.ff-tools{position:absolute;top:-17px;right:10px;z-index:9999;display:none;gap:2px;padding:3px;background:#14282B;border-radius:9px;box-shadow:0 4px 14px rgba(0,0,0,.18)}
 [data-bi]:hover>.ff-tools,[data-bi].ff-sel>.ff-tools{display:flex}
 [data-bi].ff-sel{box-shadow:inset 0 0 0 2px #2BA39A}
 .ff-tools button{all:unset;cursor:pointer;width:28px;height:28px;display:grid;place-items:center;border-radius:6px;color:#fff}
@@ -644,7 +651,7 @@ bin.addEventListener('drop',function(e){if(dragging<0)return;e.preventDefault();
 })();<\/script>`;
 
 const PREVIEW_EDIT_SCRIPT = `<style>[data-f]{outline:1px dashed transparent;outline-offset:3px;cursor:text;-webkit-user-select:text;user-select:text}a,a *,button,button *{-webkit-user-drag:none}[data-f]:hover{outline-color:#818cf8}[data-f][contenteditable]{outline:2px solid #4f46e5}[data-bi]:hover{box-shadow:inset 0 0 0 1px #c7d2fe}</style>
-<script>document.addEventListener('click',function(e){var blk=e.target.closest('[data-bi]');var el=e.target.closest('[data-f]');if(e.target.closest('a,button'))e.preventDefault();if(blk)parent.postMessage({ff:'open',i:+blk.dataset.bi},'*');if(!el||el.isContentEditable)return;e.preventDefault();el.contentEditable='true';el.focus();var rg=document.caretRangeFromPoint?document.caretRangeFromPoint(e.clientX,e.clientY):null;if(rg&&el.contains(rg.startContainer)){var sl=getSelection();sl.removeAllRanges();sl.addRange(rg);}el.oninput=function(){parent.postMessage({ff:'edit',i:+blk.dataset.bi,f:el.dataset.f,v:el.innerText.replace(/^\\u201c|\\u201d$/g,'').trim()},'*');};el.onkeydown=function(k){if(k.key==='Escape'||(k.key==='Enter'&&el.dataset.f!=='text'&&el.dataset.f!=='quote'&&el.dataset.f!=='subtext')){k.preventDefault();el.blur();}};el.onblur=function(){el.removeAttribute('contenteditable');};},true);
+<script>document.addEventListener('click',function(e){var blk=e.target.closest('[data-bi]');var el=e.target.closest('[data-f]');if(e.target.closest('a,button'))e.preventDefault();if(blk)parent.postMessage({ff:'open',i:+blk.dataset.bi},'*');if(!el||el.isContentEditable)return;e.preventDefault();el.contentEditable='true';el.focus();var rg=document.caretRangeFromPoint?document.caretRangeFromPoint(e.clientX,e.clientY):null;if(rg&&el.contains(rg.startContainer)){var sl=getSelection();sl.removeAllRanges();sl.addRange(rg);}el.oninput=function(){parent.postMessage({ff:'edit',i:+blk.dataset.bi,f:el.dataset.f,row:el.dataset.row,col:el.dataset.col,v:el.innerText.replace(/^\\u201c|\\u201d$/g,'').replace(/[|\\n]+/g,' ').trim()},'*');};el.onkeydown=function(k){if(k.key==='Escape'||(k.key==='Enter'&&el.dataset.f!=='text'&&el.dataset.f!=='quote'&&el.dataset.f!=='subtext')){k.preventDefault();el.blur();}};el.onblur=function(){el.removeAttribute('contenteditable');};},true);
 document.querySelectorAll('a,img').forEach(function(x){x.setAttribute('draggable','false');});
 document.addEventListener('dblclick',function(e){var el=e.target.closest('[data-f]');if(!el)return;if(!el.isContentEditable){el.contentEditable='true';el.focus();}var rg=document.caretRangeFromPoint?document.caretRangeFromPoint(e.clientX,e.clientY):null;if(rg&&el.contains(rg.startContainer)){var sl=getSelection();sl.removeAllRanges();sl.addRange(rg);sl.modify&&(sl.modify('move','backward','word'),sl.modify('extend','forward','word'));}},true);<\/script>`;
 

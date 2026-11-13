@@ -58,6 +58,17 @@ async function viewPages() {
 }
 
 // ---------------- Testimonials (real records only) ----------------
+// Name, title and photo fields for a testimonial (their words are kept as they said them).
+const testiWhoFields = (t = {}) => `<div class="colors" style="grid-template-columns:1fr 1fr"><label class="f">Name as shown<input name="name" value="${esc(t.name || '')}" required></label>
+  <label class="f">Title <span class="hint">optional</span><input name="detail" value="${esc(t.detail || '')}" placeholder="e.g. Owner, Bloom Bakery"></label></div>
+  <label class="f">Photo of them <span class="hint">optional · a square face photo looks best</span>
+    <span class="row" style="gap:10px;align-items:center">${t.photo ? `<img src="${esc(t.photo)}" alt="" class="tp-photo">` : ''}<input type="file" name="photofile" accept="image/jpeg,image/png,image/webp"></span></label>
+  ${t.photo ? '<label class="check"><input type="checkbox" name="nophoto"> Remove the photo</label>' : ''}`;
+async function testiPhoto(v, current = '') {
+  if (v.nophoto) return '';
+  if (v.photofile && v.photofile.size) return uploadImage(v.photofile);
+  return current;
+}
 const ratingStars = (n) => (n ? `<span class="stars-sm" title="${n} of 5">${'★'.repeat(n)}<i>${'★'.repeat(5 - n)}</i></span> ` : '');
 async function viewTestimonials() {
   const list = await api('GET', '/api/testimonials');
@@ -65,13 +76,28 @@ async function viewTestimonials() {
   const avg = rated.length ? (rated.reduce((s, t) => s + t.rating, 0) / rated.length).toFixed(1) : null;
   shell('people', `
     <div class="head"><div><h1>Testimonials</h1><div class="muted">Only real customers’ words, shared with their permission. Pages show approved ones; nothing is ever made up.</div></div>
-      <a class="btn" href="#/people">← People</a></div>
+      <div class="row"><a class="btn" href="#/people">← People</a><button class="btn primary" data-addtesti>${icon('plus')} Add testimonial</button></div></div>
     ${avg ? `<div class="card row" style="gap:14px;margin-bottom:14px"><b style="font-size:28px">${avg}</b>${ratingStars(Math.round(avg))}<span class="muted small">from ${rated.length} review request${rated.length === 1 ? '' : 's'}. Set them up in Settings → Email → Reviews.</span></div>` : ''}
-    ${list.length ? `<div class="card">${list.map((t) => `<div class="li"><span style="max-width:70%">${ratingStars(t.rating)}<b>“${esc(t.quote)}”</b><br>
-        <span class="muted small">${esc(t.name)}${t.detail ? ` · ${esc(t.detail)}` : ''} · ${esc(t.source)}${t.person_id ? ` · <a href="#/people/${t.person_id}">${esc(t.person_name || 'person')}</a>` : ''} · ${fmtDate(t.created_at)}</span></span>
+    ${list.length ? `<div class="card">${list.map((t) => `<div class="li"><span style="max-width:70%;display:flex;gap:12px;align-items:flex-start">${t.photo ? `<img src="${esc(t.photo)}" alt="" class="tp-photo">` : `<span class="tp-ini tp-photo">${esc(String(t.name || '?').split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() || '').join(''))}</span>`}<span>${ratingStars(t.rating)}<b>“${esc(t.quote)}”</b><br>
+        <span class="muted small">${esc(t.name)}${t.detail ? ` · ${esc(t.detail)}` : ''} · ${esc(t.source)}${t.person_id ? ` · <a href="#/people/${t.person_id}">${esc(t.person_name || 'person')}</a>` : ''} · ${fmtDate(t.created_at)}</span></span></span>
       <span class="row">${!t.shareable ? '<span class="pill">private: for your eyes only</span>' : t.approved ? '<span class="pill ok">shown on pages</span><button class="btn sm" data-ap="' + t.id + ':0">Hide</button>' : '<span class="pill warn">waiting for approval</span><button class="btn sm primary" data-ap="' + t.id + ':1">Approve</button>'}
-        <button class="btn sm danger" data-delt="${t.id}">Delete</button></span></div>`).join('')}</div>`
+        <button class="btn sm" data-editt="${t.id}">${icon('pencil')} Name, title &amp; photo</button><button class="btn sm danger" data-delt="${t.id}">Delete</button></span></div>`).join('')}</div>`
       : '<div class="card empty"><div class="big">' + icon('quote') + '</div><h2>No testimonials yet</h2><p>Add one from a customer’s page (People → a person → Add testimonial), or put a Review form on your website. Reviews wait here for your approval.</p></div>'}`);
   $$('[data-ap]').forEach((b) => { b.onclick = async () => { const [tid, v] = b.dataset.ap.split(':'); await api('PUT', `/api/testimonials/${tid}`, { approved: v === '1' }); viewTestimonials(); }; });
   $$('[data-delt]').forEach((b) => { b.onclick = async () => { deleteWithUndo('Testimonial deleted', { url: `/api/testimonials/${b.dataset.delt}`, hide: hideEl(b.closest('.li')) }); }; });
+  $$('[data-editt]').forEach((b) => { b.onclick = async () => {
+    const t = list.find((x) => String(x.id) === b.dataset.editt);
+    const r = await modal('Name, title and photo', `<p class="muted small">Their words stay exactly as they said them.</p>${testiWhoFields(t)}`,
+      { onSubmit: async (v) => api('PUT', `/api/testimonials/${t.id}`, { name: v.name, detail: v.detail, photo: await testiPhoto(v, t.photo) }) });
+    if (r) { toast('Saved. Pages using it update too'); viewTestimonials(); }
+  }; });
+  $('[data-addtesti]').onclick = async () => {
+    const r = await modal('Add a testimonial', `
+      <label class="f">What they said <span class="hint">their words, not a summary</span><textarea name="quote" rows="4" required></textarea></label>
+      ${testiWhoFields()}
+      <label class="f">Where it came from<input name="source" placeholder="e.g. email, Google review, in person"></label>
+      <label class="check"><input type="checkbox" name="consent" required> These are a real customer’s words, and they agreed to share them.</label>`,
+    { submit: 'Save testimonial', onSubmit: async (v) => api('POST', '/api/testimonials', { quote: v.quote, name: v.name, detail: v.detail, source: v.source, consent: v.consent, photo: await testiPhoto(v) }) });
+    if (r) { toast('Saved. Drag it onto any page from the editor’s Testimonials tray'); viewTestimonials(); }
+  };
 }
