@@ -135,39 +135,53 @@ function tidyLayout(steps, entryId) {
   return pos;
 }
 
-// One look for the whole flow, from the map: a palette and a type style applied to
-// every page (Undo puts each page back as it was).
-async function flowLook(funnelId) {
+// One look for the whole flow, from the map: a dropdown of palettes and type styles.
+// One click restyles every page (Undo puts each page back as it was).
+async function flowLook(funnelId, btn) {
+  if ($('.lk-pop')) { $('.lk-pop').remove(); return; }
   const f = await api('GET', `/api/funnels/${funnelId}`);
   if (!f.steps.length) { toast('Add a page first'); return; }
-  const first = f.steps.find((s) => s.id === f.entry_step_id) || f.steps[0];
-  const cur = first.settings || {};
+  const cur = (f.steps.find((s) => s.id === f.entry_step_id) || f.steps[0]).settings || {};
   const pals = allPalettes();
-  const sw = (p) => `<span class="lk-sw"><i style="background:${p.bg}"></i><i style="background:${p.band}"></i><i style="background:${p.accent}"></i></span>`;
-  const v = await modal('Look of every page', `<p class="muted small">Pick colours and a type style. Every page in “${esc(f.name)}” changes to match; Undo puts them back.</p>
-    <fieldset class="lk-group"><legend>Colours</legend><div class="lk-pals">
-      <label class="lk-pal"><input type="radio" name="pal" value="" ${cur.palette ? '' : 'checked'}><span class="lk-sw lk-keep">${icon('check')}</span><small>Keep as is</small></label>
-      ${pals.map((p) => `<label class="lk-pal"><input type="radio" name="pal" value="${esc(p.name)}" ${cur.palette === p.name ? 'checked' : ''}>${sw(p)}<small>${esc(p.name)}</small></label>`).join('')}</div></fieldset>
-    <fieldset class="lk-group"><legend>Type style</legend><div class="lk-types">
-      ${[['', 'Classic'], ['elegant', 'Elegant'], ['modern', 'Modern']].map(([k, l]) => `<label class="lk-type t-${k || 'classic'}"><input type="radio" name="font" value="${k}" ${(cur.font || '') === k ? 'checked' : ''}><b>Aa</b><small>${l}</small></label>`).join('')}</div></fieldset>`,
-  { submit: 'Apply to every page' });
-  if (!v) return;
-  const pal = pals.find((p) => p.name === v.pal);
-  const before = f.steps.map((s) => ({ id: s.id, name: s.name, settings: JSON.parse(JSON.stringify(s.settings || {})), blocks: JSON.parse(JSON.stringify(s.blocks || [])) }));
-  try {
-    for (const s of f.steps) {
-      s.settings = s.settings || {};
-      if (pal) applyPalette(pal, s.settings, s.blocks);
-      if (v.font) s.settings.font = v.font; else delete s.settings.font;
-      await api('PUT', `/api/steps/${s.id}`, { name: s.name, blocks: s.blocks, settings: s.settings });
-    }
-  } catch (e) { toast(e.message, true); return; }
-  if (location.hash === `#/funnels/${funnelId}`) viewFunnel(funnelId);
-  undoToast(`All ${f.steps.length} page${f.steps.length === 1 ? '' : 's'} restyled`, async () => {
-    for (const x of before) await api('PUT', `/api/steps/${x.id}`, { name: x.name, blocks: x.blocks, settings: x.settings });
+  const pop = document.createElement('div');
+  pop.className = 'lk-pop';
+  pop.setAttribute('role', 'dialog');
+  pop.setAttribute('aria-label', 'Look of every page');
+  pop.innerHTML = `<div class="lk-h">Colours <small>for every page</small></div>
+    <div class="lk-pals">${pals.map((p) => `<button type="button" class="lk-pal ${cur.palette === p.name ? 'on' : ''}" data-lkpal="${esc(p.name)}" aria-pressed="${cur.palette === p.name}"><span class="lk-sw"><i style="background:${p.bg}"></i><i style="background:${p.band}"></i><i style="background:${p.accent}"></i></span><small>${esc(p.name)}</small></button>`).join('')}</div>
+    <div class="lk-h">Type style</div>
+    <div class="lk-types">${[['', 'Classic'], ['elegant', 'Elegant'], ['modern', 'Modern']].map(([k, l]) => `<button type="button" class="lk-type t-${k || 'classic'} ${(cur.font || '') === k ? 'on' : ''}" data-lkfont="${k}" aria-pressed="${(cur.font || '') === k}"><b>Aa</b><small>${l}</small></button>`).join('')}</div>`;
+  document.body.append(pop);
+  const r = btn.getBoundingClientRect();
+  pop.style.top = `${r.bottom + window.scrollY + 6}px`;
+  pop.style.left = `${Math.max(8, Math.min(r.left + window.scrollX, window.innerWidth - pop.offsetWidth - 8))}px`;
+  const close = () => { pop.remove(); document.removeEventListener('mousedown', away); document.removeEventListener('keydown', esc_); };
+  const away = (e) => { if (!pop.contains(e.target) && !btn.contains(e.target)) close(); };
+  const esc_ = (e) => { if (e.key === 'Escape') close(); };
+  setTimeout(() => { document.addEventListener('mousedown', away); document.addEventListener('keydown', esc_); });
+  pop.querySelector('button')?.focus();
+  pop.onclick = async (e) => {
+    const t = e.target.closest('[data-lkpal], [data-lkfont]');
+    if (!t) return;
+    const pal = t.dataset.lkpal !== undefined ? pals.find((p) => p.name === t.dataset.lkpal) : null;
+    const font = t.dataset.lkfont;
+    close();
+    const before = f.steps.map((s) => ({ id: s.id, name: s.name, settings: JSON.parse(JSON.stringify(s.settings || {})), blocks: JSON.parse(JSON.stringify(s.blocks || [])) }));
+    try {
+      for (const s of f.steps) {
+        s.settings = s.settings || {};
+        if (pal) applyPalette(pal, s.settings, s.blocks);
+        if (font !== undefined) { if (font) s.settings.font = font; else delete s.settings.font; }
+        await api('PUT', `/api/steps/${s.id}`, { name: s.name, blocks: s.blocks, settings: s.settings });
+      }
+    } catch (err) { toast(err.message, true); return; }
     if (location.hash === `#/funnels/${funnelId}`) viewFunnel(funnelId);
-    toast('Pages put back');
-  });
+    undoToast(`${pal ? `${pal.name} colours` : `${t.textContent.replace('Aa', '').trim()} type`} on all ${f.steps.length} page${f.steps.length === 1 ? '' : 's'}`, async () => {
+      for (const x of before) await api('PUT', `/api/steps/${x.id}`, { name: x.name, blocks: x.blocks, settings: x.settings });
+      if (location.hash === `#/funnels/${funnelId}`) viewFunnel(funnelId);
+      toast('Pages put back');
+    });
+  };
 }
 async function viewFunnel(id) {
   const f = await api('GET', `/api/funnels/${id}`);
@@ -198,7 +212,7 @@ async function viewFunnel(id) {
       <div class="map-tools">
         <button class="btn primary sm" data-addpage>+ Add page</button>
         <button class="btn sm" data-tidy title="Arrange pages as a tidy tree">${icon('sparkle')} Tidy up</button>
-        <button class="btn sm" data-look title="Colours and type style for every page in this flow">${icon('palette')} Look</button>
+        <button class="btn sm" data-look title="Colours and type style for every page in this flow">${icon('palette')} Colours &amp; type ▾</button>
         <span class="sep"></span>
         <button class="btn sm icon" data-zoom="-1" title="Zoom out">${icon('minus')}</button><span class="zoomlbl" data-zoomlbl>100%</span>
         <button class="btn sm icon" data-zoom="1" title="Zoom in">+</button><button class="btn sm" data-fit>Fit</button>
@@ -859,7 +873,7 @@ async function viewFunnel(id) {
     if (ds.addpage !== undefined) {
       addPage({ x: Math.round((mapEl.clientWidth / 2 - m.panX) / m.zoom - NODE_W / 2), y: Math.round((mapEl.clientHeight / 2 - m.panY) / m.zoom - 80) });
     } else if (ds.look !== undefined) {
-      flowLook(id);
+      flowLook(id, t);
     } else if (ds.tidy !== undefined) {
       const pos = layout();
       m.steps.forEach((s) => Object.assign(s, pos[s.id]));
