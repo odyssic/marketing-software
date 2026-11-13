@@ -6,6 +6,7 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => (
 ));
 const { payOf, payLabel, money: payMoney } = require('./paidbookings'); // paid Booking blocks
 const sections = require('./sections'); // cover banner, features, FAQ, guarantee and other rich sections
+const { cardIcon } = require('./cardicons'); // icons on cards, matched to their words
 // *Words between stars* in a headline are highlighted.
 const starHl = (html) => html.replace(/\*([^*<\n]+)\*/g, '<em class="hl">$1</em>');
 
@@ -249,7 +250,9 @@ function renderBlock(b, ctx, index) {
     }
     case 'cards': {
       const items = String(b.items || '').split('\n').map((l) => l.split('|').map((x) => x.trim())).filter(([t]) => t);
-      return `<div class="cards${b.numbered ? ' numbered' : ''}">${items.map(([t, d]) => `<div class="card"><h3>${esc(t)}</h3>${d ? `<p>${esc(d)}</p>` : ''}</div>`).join('')}</div>`;
+      // Icon style: matched line icons, bold (filled tile) icons, plain dots or none.
+      const ic = b.numbered ? '' : ({ 'matched icons': 'line', 'bold icons': 'solid', none: 'none' })[b.icons] || '';
+      return `<div class="cards${b.numbered ? ' numbered' : ''}${ic ? ` ic-${ic}` : ''}">${items.map(([t, d, n]) => `<div class="card">${ic === 'line' || ic === 'solid' ? `<span class="ci">${cardIcon(t, d, n)}</span>` : ''}<h3>${esc(t)}</h3>${d ? `<p>${esc(d)}</p>` : ''}</div>`).join('')}</div>`;
     }
     case 'info': {
       const rows = [['🕘', 'Hours', b.hours], ['📍', 'Address', b.address], ['📞', 'Phone', b.phone && `<a href="tel:${esc(String(b.phone).replace(/[^+\d]/g, ''))}">${esc(b.phone)}</a>`], ['✉️', 'Email', b.email && `<a href="mailto:${esc(b.email)}">${esc(b.email)}</a>`]]

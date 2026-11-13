@@ -12,7 +12,7 @@ const id = () => Math.random().toString(36).slice(2, 10);
 const h = (text, size = 'medium', align = 'center') => ({ id: id(), type: 'heading', text, size, align });
 const p = (text, align = 'center') => ({ id: id(), type: 'text', text, align });
 const btn = (label, url, o = {}) => ({ id: id(), type: 'button', label, url, align: 'center', big: true, ...o });
-const cards = (items, o = {}) => ({ id: id(), type: 'cards', items: items.map(([t, d]) => `${t} | ${d}`).join('\n'), ...o });
+const cards = (items, o = {}) => ({ id: id(), type: 'cards', items: items.map(([t, d]) => `${t} | ${d}`).join('\n'), icons: 'matched icons', ...o });
 // Social proof comes only from real, approved testimonials (hidden until there are some).
 const reviews = (limit = 3, o = {}) => ({ id: id(), type: 'reviews', limit, ...o });
 // Asks happy customers for a review; it becomes a testimonial only with their permission and your approval.

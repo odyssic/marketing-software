@@ -48,7 +48,7 @@ test('website templates: menu, footer, page links, contact inquiries, menu order
   assert.match(home, /<a href="\/f\/green-lawn-co" aria-current="page">Home<\/a>/);
   assert.match(home, /href="\/f\/green-lawn-co\/quote">(<span>)?Get a free quote/); // page: link resolved
   assert.match(home, /<footer class="site">/);
-  assert.match(home, /class="cards"/);
+  assert.match(home, /class="cards[" ]/);
 
   // The quote form logs an inquiry with the message.
   const quote = f.steps.find((s) => s.slug === 'quote');

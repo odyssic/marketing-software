@@ -267,6 +267,11 @@ details[open] .pm::after{transform:rotate(0)}.faq details p{margin:0 0 18px;opac
 .cards.numbered .card::before{width:38px;height:38px;border-radius:12px;font:700 .95rem/38px system-ui,sans-serif;margin-bottom:16px;
   background:linear-gradient(145deg,color-mix(in srgb,var(--accent) 85%,#fff),var(--accent));box-shadow:0 8px 16px -8px var(--accent)}
 .band-dark .cards .card,.band-brand .cards .card{color:#fff;box-shadow:none}
+.cards.ic-line .card::before,.cards.ic-solid .card::before,.cards.ic-none .card::before{display:none}
+.cards .ci svg{width:24px;height:24px}
+.cards .ci{display:grid;place-items:center;width:46px;height:46px;border-radius:13px;margin-bottom:16px;color:var(--accent);background:linear-gradient(145deg,color-mix(in srgb,var(--accent) 16%,#fff),color-mix(in srgb,var(--accent) 7%,#fff))}
+.cards.ic-solid .ci{color:#fff;background:linear-gradient(145deg,color-mix(in srgb,var(--accent) 80%,#fff),var(--accent));box-shadow:0 10px 18px -10px var(--accent)}
+.band-dark .cards .ci,.band-brand .cards .ci{color:#fff;background:rgba(255,255,255,.12);box-shadow:none}
 .band-dark .cards:not(.numbered) .card::before,.band-brand .cards:not(.numbered) .card::before{background:radial-gradient(circle,#fff 0 5px,transparent 5.5px),rgba(255,255,255,.12)}
 
 /* Guarantee */

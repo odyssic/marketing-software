@@ -49,8 +49,10 @@ const BLOCKS = {
     fields: [['title', 'text', 'Heading'], ['items', 'textarea', 'What they get (one per line: item | value)', null, 'e.g. Workbook | $49. Leave the value off to skip the total.'],
       ['showTotal', 'check', 'Show the total value'], ['priceLabel', 'text', 'Price label', null, 'e.g. Today, Your price'], ['price', 'text', 'Your price', null, 'e.g. $49'],
       ['buttonLabel', 'text', 'Button text'], ['url', 'text', 'Button link', null, '#next = this page’s ✓ Yes exit · page:slug · or a full https:// link'], ['note', 'text', 'Small print under the button']] },
-  cards: { label: 'Cards', icon: icon('cards'), defaults: { items: 'Service one | A short description\nService two | A short description\nService three | A short description' },
-    fields: [['items', 'textarea', 'Cards (one per line: Title | description)'], ['numbered', 'check', 'Number them (for steps like 1, 2, 3)']] },
+  cards: { label: 'Cards', icon: icon('cards'), defaults: { items: 'Service one | A short description\nService two | A short description\nService three | A short description', icons: 'matched icons' },
+    fields: [['items', 'textarea', 'Cards (one per line: Title | description)'],
+      ['icons', 'select', 'Icons', ['dots', 'matched icons', 'bold icons', 'none'], 'Matched icons are picked from each card’s words (“Fast delivery” gets a truck). To choose one yourself, add it after a third | , like “Gentle care | Short line | heart”. Names: check, star, heart, clock, calendar, mail, phone, chat, people, shield, lock, bolt, leaf, home, pin, truck, gift, tag, dollar, chart, target, trophy, book, video, camera, coffee, food, sparkle, sun, smile, wrench, globe, rocket, bulb, key, brush, fitness, paw, car, cart, refresh, compass, music, doc, hand'],
+      ['numbered', 'check', 'Number them instead (for steps like 1, 2, 3)']] },
   info: { label: 'Business info', icon: icon('info'), defaults: { hours: 'Mon–Fri 9am–5pm', address: '', phone: '', email: '' },
     fields: [['hours', 'text', 'Hours'], ['address', 'text', 'Address'], ['phone', 'text', 'Phone'], ['email', 'text', 'Email']] },
   booking: { label: 'Booking', icon: icon('calendar'), defaults: { heading: 'Pick a time that suits you', buttonLabel: 'Confirm booking', collectPhone: false, askNote: true, tag: 'booked', payment: 'Free', price: '', deposit: '', currency: 'usd' },
@@ -154,6 +156,54 @@ function applyPalette(pal, settings, blocks) {
   }
 }
 
+// How long a YouTube or Vimeo video is, in seconds (null if it can't be told).
+// Read in the browser: Vimeo's public oEmbed info, or a hidden YouTube player.
+function videoSeconds(url) {
+  const vm = String(url).match(/vimeo\.com\/(?:video\/|channels\/[\w-]+\/|groups\/[\w-]+\/videos\/)?(\d{5,12})(?:\/([0-9a-f]{6,20}))?/i);
+  if (vm) {
+    return fetch(`https://vimeo.com/api/oembed.json?url=${encodeURIComponent(`https://vimeo.com/${vm[1]}${vm[2] ? `/${vm[2]}` : ''}`)}`)
+      .then((r) => (r.ok ? r.json() : null)).then((j) => j?.duration || null).catch(() => null);
+  }
+  const yt = String(url).match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/|live\/))([\w-]{11})/)?.[1];
+  if (!yt) return Promise.resolve(null);
+  return new Promise((done) => {
+    const finish = (v) => { clearTimeout(timer); done(v); setTimeout(() => holder.remove(), 0); };
+    const timer = setTimeout(() => finish(null), 10000);
+    const holder = document.createElement('div');
+    holder.style.cssText = 'position:fixed;left:-9999px;top:0;width:200px;height:120px;opacity:0;pointer-events:none';
+    const box = document.createElement('div'); holder.append(box); document.body.append(holder);
+    const make = () => {
+      const p = new YT.Player(box, { videoId: yt, playerVars: { mute: 1 }, events: {
+        onReady: () => { let n = 0; const tick = () => { const d = p.getDuration?.(); if (d > 0) finish(d); else if (++n < 40) setTimeout(tick, 150); else finish(null); }; tick(); },
+        onError: () => finish(null),
+      } });
+    };
+    if (window.YT?.Player) make();
+    else {
+      const prev = window.onYouTubeIframeAPIReady;
+      window.onYouTubeIframeAPIReady = () => { prev?.(); make(); };
+      if (!document.querySelector('script[src*="youtube.com/iframe_api"]')) { const s = document.createElement('script'); s.src = 'https://www.youtube.com/iframe_api'; document.head.append(s); }
+    }
+  });
+}
+// Rewrites "2-minute video" (and "2 min video") in the page's words to the real length.
+// Returns the new wording ("5-minute") when anything changed.
+function matchVideoWording(blocks, secs) {
+  const m = Math.max(1, Math.round(secs / 60));
+  const said = `${m}-minute`;
+  let hit = false;
+  const re = /\b\d+(?:-minute| minute|-min| min)( video)\b/gi;
+  for (const b of blocks) {
+    for (const [k, v] of Object.entries(b)) {
+      if (typeof v !== 'string' || !re.test(v)) continue;
+      re.lastIndex = 0;
+      const nv = v.replace(re, `${said}$1`);
+      if (nv !== v) { b[k] = nv; hit = true; }
+    }
+    re.lastIndex = 0;
+  }
+  return hit ? said : null;
+}
 async function viewEditor(stepId) {
   const [step, products, testimonials, savedList] = await Promise.all([api('GET', `/api/steps/${stepId}`), api('GET', '/api/products'), api('GET', '/api/testimonials'), api('GET', '/api/saved-blocks').catch(() => [])]);
   const realTestimonials = testimonials.filter((t) => t.approved);
@@ -553,6 +603,16 @@ async function viewEditor(stepId) {
   side.addEventListener('change', (e) => {
     const t = e.target;
     if (t.dataset.photofile && t.files[0]) putPhoto(Number(t.dataset.photofile), t.files[0]);
+    // A new video link: read how long it is and fix wording like "Watch the 2-minute video".
+    const vb = t.dataset.k === 'url' && ed.blocks[t.dataset.i];
+    if (vb?.type === 'video' && vb.url) {
+      videoSeconds(vb.url).then((secs) => {
+        if (!secs || ed.blocks[t.dataset.i] !== vb) return;
+        vb.seconds = Math.round(secs);
+        const said = matchVideoWording(ed.blocks, secs);
+        if (said) { renderBlocks(); changed(); undoToast(`The video is about ${said.replace("-minute", " minutes")}, so the page now says “${said} video”`); } else changed();
+      });
+    }
   });
   side.addEventListener('dragover', (e) => {
     const z = e.target.closest?.('[data-photo]');

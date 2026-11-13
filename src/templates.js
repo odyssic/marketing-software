@@ -20,7 +20,7 @@ const FRESH = { font: 'modern', background: '#ffffff', textColor: '#10231f', acc
 const cover = (o) => ({ id: id(), type: 'hero', style: 'cover', textColor: '#ffffff', ...o });
 const form = (o) => ({ id: id(), type: 'form', collectName: true, collectPhone: false, purpose: 'Sign up', tag: 'lead', ...o });
 const feature = (o) => ({ id: id(), type: 'feature', ...o });
-const cards = (items, o = {}) => ({ id: id(), type: 'cards', items: items.map((x) => x.join(' | ')).join('\n'), ...o });
+const cards = (items, o = {}) => ({ id: id(), type: 'cards', items: items.map((x) => x.join(' | ')).join('\n'), icons: 'matched icons', ...o });
 const head = (text, o = {}) => ({ id: id(), type: 'heading', text, size: 'medium', align: 'center', ...o });
 const faq = (items, o = {}) => ({ id: id(), type: 'faq', title: 'Questions, answered', items: items.map((x) => x.join(' | ')).join('\n'), ...o });
 const bio = (o = {}) => ({ id: id(), type: 'bio', eyebrow: 'Who’s behind it', name: '', role: '', text: 'A few warm sentences about who you are, why you do this and who you help. People buy from people.', ...o });
