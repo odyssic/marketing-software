@@ -29,13 +29,21 @@ async function newWebsite() {
     <div class="tpl-grid pics">${templates.map((t, i) => `<label class="tpl ${i === 0 ? 'on' : ''}"><input type="radio" name="template" value="${t.key}" ${i === 0 ? 'checked' : ''} class="sr">
       <span class="tpl-pic"><img src="/img/tpl/site-${esc(t.key)}.jpg" alt="" loading="lazy" width="640" height="440"></span><b>${esc(t.label)}</b><span class="muted small">${esc(t.description)}</span>
       <span class="small">${t.pages.map(esc).join(' · ')}</span>${t.workflows.length ? `<span class="small">${icon('bolt')} ${t.workflows.map(esc).join(', ')}</span>` : ''}</label>`).join('')}</div>
-    <p class="hint">Words in [brackets] are yours to fill in. Click any text in the page editor to change it.</p>
+    <p class="hint">Tip: double-click a template to start with it. Words in [brackets] are yours to fill in; click any text in the page editor to change it.</p>
     <div class="err"></div><div class="actions"><button type="button" class="btn" data-x>Cancel</button><button class="btn primary">Create website</button></div></form>`;
   document.body.append(bg);
   const close = () => bg.remove();
   bg.addEventListener('mousedown', (e) => { if (e.target === bg) close(); });
   $('[data-x]', bg).onclick = close;
   $$('input[name=template]', bg).forEach((r) => { r.onchange = () => $$('.tpl', bg).forEach((l) => l.classList.toggle('on', l.contains(r) && r.checked)); });
+  // Double-click a template to use it straight away (a page with no name yet is named after the template).
+  $$('.tpl', bg).forEach((l) => { l.ondblclick = (e) => {
+    e.preventDefault();
+    const r = $('input[name=template]', l); r.checked = true; r.onchange();
+    const nm = $('[name=name]', bg);
+    if (nm && !nm.value.trim()) nm.value = $('b', l).textContent.trim();
+    $('form', bg).requestSubmit();
+  }; });
   $('form', bg).onsubmit = async (e) => {
     e.preventDefault();
     try {

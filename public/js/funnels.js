@@ -31,13 +31,21 @@ async function newFunnel() {
       <span class="tpl-pic">${t.key === 'blank' ? '<span class="tpl-blank">+</span>' : `<img src="/img/tpl/${esc(t.key)}.jpg" alt="" loading="lazy" width="640" height="440">`}</span>
       <b>${esc(t.label)}</b><span class="muted small">${esc(t.description)}</span>
       <span class="small">${t.pages} page${t.pages === 1 ? '' : 's'}${t.workflows.length ? ` · ${icon('bolt')} ${t.workflows.map(esc).join(', ')}` : ''}</span></label>`).join('')}</div>
-    <p class="hint">Follow-up workflows are created switched off, so you can review the emails first.</p>
+    <p class="hint">Tip: double-click a template to start with it. Follow-ups are created switched off, so you can review the emails first.</p>
     <div class="err"></div><div class="actions"><button type="button" class="btn" data-x>Cancel</button><button class="btn primary">Create page</button></div></form>`;
   document.body.append(bg);
   const close = () => { bg.remove(); if (location.hash === '#/funnels/new') location.hash = '#/funnels'; };
   bg.addEventListener('mousedown', (e) => { if (e.target === bg) close(); });
   $('[data-x]', bg).onclick = close;
   $$('input[name=template]', bg).forEach((r) => { r.onchange = () => $$('.tpl', bg).forEach((l) => l.classList.toggle('on', l.contains(r) && r.checked)); });
+  // Double-click a template to use it straight away (a page with no name yet is named after the template).
+  $$('.tpl', bg).forEach((l) => { l.ondblclick = (e) => {
+    e.preventDefault();
+    const r = $('input[name=template]', l); r.checked = true; r.onchange();
+    const nm = $('[name=name]', bg);
+    if (nm && !nm.value.trim()) nm.value = $('b', l).textContent.trim();
+    $('form', bg).requestSubmit();
+  }; });
   // On phones the keyboard would cover the templates, so nothing is focused there.
   if (matchMedia('(pointer: fine)').matches) $('[data-sentence]', bg).focus();
   $('[data-describe]', bg).onclick = async (e) => {
