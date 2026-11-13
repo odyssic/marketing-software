@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node --disable-warning=ExperimentalWarning server.js",
     "dev": "node --disable-warning=ExperimentalWarning --watch server.js",
-    "test": "node scripts/check-globals.js && node --disable-warning=ExperimentalWarning --test test/*.test.js"
+    "test": "node scripts/check-globals.js && PREFLIGHT_PROMISES=off node --disable-warning=ExperimentalWarning --test test/*.test.js"
   },
   "engines": {
     "node": ">=22.5"

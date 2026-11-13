@@ -42,7 +42,7 @@ const BLOCKS = {
       ['newsletter', 'text', 'Newsletter name (for Newsletter forms)'],
       ['buttonLabel', 'text', 'Button text'], ['collectName', 'check', 'Ask for first name'], ['collectPhone', 'check', 'Ask for phone number'], ['collectBirthday', 'check', 'Ask for birthday (for birthday follow-ups)'], ['smsOptIn', 'check', 'SMS updates (adds a mobile number and the required text-message consent)'], ['collectMessage', 'check', 'Ask for a message'],
       ['tag', 'text', 'Tag new contacts with', null, 'Use tags to email this group later. Comma-separate for several.'],
-      ['deliverUrl', 'file', 'Send them something (optional)'], ['deliverName', 'text', 'What it’s called in the email', null, 'e.g. the free typewriter care guide']] },
+      ['deliverUrl', 'file', 'The free guide or download (emailed the moment they sign up)'], ['deliverName', 'text', 'What it’s called in the email', null, 'e.g. the free typewriter care guide']] },
   bullets: { label: 'Bullet list', icon: icon('check'), defaults: { title: '', items: 'One clear benefit\nAnother benefit\nA third benefit', style: 'check', align: 'center' },
     fields: [['title', 'text', 'Heading (optional)'], ['items', 'textarea', 'Points (one per line)'], ['style', 'select', 'Style', ['check', 'dot', 'number']], ALIGN] },
   offer: { label: 'Offer stack', icon: icon('bag'), defaults: { title: 'Here’s everything you get', items: 'The full course | $297\nWorkbook and templates | $49\nPrivate community | $99\nBonus: live Q&A replays | $79', priceLabel: 'Today', price: '$49', buttonLabel: 'Get everything', url: '#next', note: '30-day money-back guarantee', showTotal: true },
@@ -256,7 +256,7 @@ async function viewEditor(stepId) {
       <label class="f">For this page only <span class="hint">for every page: Settings → Website</span><textarea data-s="customCss" rows="6" class="code" spellcheck="false" placeholder=".hero h1 { letter-spacing: -0.02em; }">${esc(ed.settings.customCss || '')}</textarea></label>
       </details>
     </div>
-    <div class="stage"><iframe title="Page preview" sandbox="allow-same-origin allow-scripts allow-modals"></iframe></div></div>`;
+    <div class="stage ed-stage"><iframe title="Page preview" sandbox="allow-same-origin allow-scripts allow-modals"></iframe></div></div>`;
 
   const saved = $('[data-saved]');
   let saveTimer, previewTimer;

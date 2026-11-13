@@ -1882,3 +1882,10 @@ ul.tasks { list-style: none; padding: 0; margin: 10px 0 4px; }
 .lk-type b { font-size: 1.4rem; line-height: 1.2; }
 .lk-type.t-elegant b { font-family: Georgia, 'Times New Roman', serif; font-weight: 500; }
 .lk-type.t-modern b { font-family: system-ui, sans-serif; font-weight: 800; letter-spacing: -.03em; }
+
+/* Editor preview area (kept apart from the People "stage" labels, which share the name) */
+.stage.ed-stage { display: flex; justify-content: center; align-items: stretch; padding: 20px; border-radius: 0; font-size: inherit; font-weight: inherit; background: #e5e7eb; color: inherit; overflow: auto; }
+/* Mobile: a phone, centred */
+.stage.ed-stage.mobile { align-items: flex-start; padding: 28px 20px 40px; background: radial-gradient(900px 500px at 50% 0%, #f1f3f5, #dfe3e7); }
+.stage.ed-stage.mobile iframe { flex: none; box-sizing: content-box; width: 390px; height: min(844px, calc(100vh - 150px)); min-height: 0; border: 12px solid #15191d; border-radius: 52px; background: #fff;
+  box-shadow: 0 0 0 1.5px #3a4148, 0 0 0 5px #0d1013, 0 40px 70px -28px rgba(15, 23, 30, .55); }

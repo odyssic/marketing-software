@@ -141,3 +141,22 @@ test('order bump adds a second item to the same payment; testimonial block rende
   await fetch(`${base}/f/${f.slug}/${page.slug}/buy`, { method: 'POST', redirect: 'manual', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ block: pricing.id }) });
   assert.equal((await c('GET', '/api/orders')).body[0].amount_cents, 3000);
 });
+
+test('a page that promises a free guide needs the file before it can go live', async () => {
+  const prev = process.env.PREFLIGHT_PROMISES;
+  process.env.PREFLIGHT_PROMISES = 'on';
+  try {
+    const c = await setup('fk-promise@example.com');
+    const { id } = (await c('POST', '/api/funnels', { name: 'Guide', template: 'optin' })).body;
+    let pre = (await c('GET', `/api/funnels/${id}/preflight`)).body;
+    assert.equal(pre.ready, false);
+    const p = pre.problems.find((x) => /no file to send/.test(x.text));
+    assert.ok(p, 'flags the missing guide');
+    assert.match(p.fix.href, /#\/editor\/\d+/);
+    const f = (await c('GET', `/api/funnels/${id}`)).body;
+    const s = f.steps[0];
+    await c('PUT', `/api/steps/${s.id}`, { blocks: s.blocks.map((b) => (b.type === 'form' ? { ...b, deliverUrl: 'https://files.example/guide.pdf' } : b)) });
+    pre = (await c('GET', `/api/funnels/${id}/preflight`)).body;
+    assert.ok(!pre.problems.some((x) => /no file to send/.test(x.text)));
+  } finally { process.env.PREFLIGHT_PROMISES = prev; }
+});

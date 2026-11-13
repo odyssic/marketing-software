@@ -158,7 +158,7 @@ main>.feat+.feat,.band-in>.feat+.feat{margin-top:88px}
 .notice a{color:#fff;font-weight:700;text-underline-offset:3px}.notice.first{margin-top:-48px}main>.notice+*{margin-top:0}
 
 /* Cover banner */
-.cover{margin:0 calc(50% - 50vw);padding:72px 20px 80px;background:radial-gradient(1200px 500px at 85% -10%,color-mix(in srgb,var(--cv-bg) 70%,#fff) 0%,transparent 60%),linear-gradient(160deg,color-mix(in srgb,var(--cv-bg) 82%,#000),var(--cv-bg));color:var(--cv-fg);position:relative;overflow:hidden}
+.cover{margin:0 calc(50% - 50vw);padding:104px 20px 84px;background:radial-gradient(1200px 500px at 85% -10%,color-mix(in srgb,var(--cv-bg) 70%,#fff) 0%,transparent 60%),linear-gradient(160deg,color-mix(in srgb,var(--cv-bg) 82%,#000),var(--cv-bg));color:var(--cv-fg);position:relative;overflow:hidden}
 .cover.first{margin-top:-48px}main>.cover+*{margin-top:56px}
 .cover::after{content:"";position:absolute;inset:auto -10% -60% auto;width:620px;height:620px;border-radius:50%;background:radial-gradient(circle,rgba(255,255,255,.08),transparent 65%);pointer-events:none}
 .cv-in{max-width:var(--w);margin:0 auto;display:grid;grid-template-columns:1.1fr .9fr;gap:56px;align-items:center;position:relative;z-index:1}

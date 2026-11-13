@@ -38,6 +38,16 @@ function preflight({ funnel, steps, products, account, testimonials = {} }) {
     const b = blocksOf(s).find(goesNext);
     if (b) add('block', s, `The “${b.label || b.button || b.buttonLabel || 'Next'}” button on “${s.name}” goes straight to “${n.name}” without taking an order, a booking or anyone’s details. Add a checkout, a form or a booking first, or link the button to a page that has one.`, map);
   }
+  // A page that promises a free guide, checklist or download has to have the file to send.
+  const PROMISE = /\b(free guide|guide|checklist|e-?book|workbook|download|pdf|cheat ?sheet|free copy|template pack)\b/i;
+  const formsAt = steps.filter((s) => blocksOf(s).some((b) => b.type === 'form' && !['newsletter', 'inquiry', 'review'].includes(String(b.purpose || '').toLowerCase())));
+  const hasFile = steps.some((s) => blocksOf(s).some((b) => b.type === 'form' && /^https?:\/\//i.test(b.deliverUrl || '')));
+  // (The older tests switch this off with PREFLIGHT_PROMISES=off; its own test turns it on.)
+  if (formsAt.length && !hasFile && process.env.PREFLIGHT_PROMISES !== 'off') {
+    const words = (s) => blocksOf(s).map((b) => ['eyebrow', 'text', 'subtext', 'title', 'buttonLabel', 'button', 'mockupTitle'].map((k) => (typeof b[k] === 'string' ? b[k] : '')).join(' ')).join(' ');
+    const promised = formsAt.map((s) => words(s).match(PROMISE)).find(Boolean);
+    if (promised) add('block', formsAt[0], `“${formsAt[0].name}” promises ${/guide|checklist|book|copy|sheet|pack/i.test(promised[0]) ? `a ${promised[0].toLowerCase().replace(/^free /, 'free ')}` : 'a download'}, but there’s no file to send yet. Open the sign-up form on that page and add it under “The free guide or download”. It’s emailed the moment someone signs up.`, { label: 'Add the file', href: `#/editor/${formsAt[0].id}` });
+  }
   for (const s of steps) {
     const blocks = typeof s.blocks === 'string' ? JSON.parse(s.blocks) : s.blocks;
     if (!blocks.length) add('block', s, `“${s.name}” is empty.`, edit(s));
