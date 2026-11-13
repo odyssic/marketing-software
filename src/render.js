@@ -102,6 +102,13 @@ function renderPricing(b, ctx) {
 }
 
 const TICK = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>';
+// Vimeo: vimeo.com/123456, vimeo.com/123456/abcdef (unlisted), player.vimeo.com/video/123456?h=abcdef.
+const vimeoOf = (url) => {
+  const m = String(url || '').match(/vimeo\.com\/(?:video\/|channels\/[\w-]+\/|groups\/[\w-]+\/videos\/)?(\d{5,12})(?:\/([0-9a-f]{6,20}))?/i);
+  if (!m) return null;
+  const h = m[2] || (String(url).match(/[?&]h=([0-9a-f]{6,20})/i) || [])[1] || '';
+  return `https://player.vimeo.com/video/${m[1]}?dnt=1&title=0&byline=0&portrait=0${h ? `&h=${h}` : ''}`;
+};
 const youtubeId = (url) => String(url || '').match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/|live\/))([\w-]{11})/)?.[1] || null;
 function youtubeEmbed(url) {
   const id = youtubeId(url);
@@ -186,7 +193,10 @@ function renderBlock(b, ctx, index) {
     }
     case 'video': {
       const vid = youtubeId(b.url);
-      if (!vid) return ctx.preview ? `<div class="ph">Video: paste a YouTube link in the panel on the left</div>` : '';
+      // Vimeo plays in its own player, with its title, byline and portrait hidden.
+      const vimeo = !vid && vimeoOf(b.url);
+      if (vimeo) return `<div class="video"><iframe src="${esc(vimeo)}" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen loading="lazy" title="Video"></iframe></div>`;
+      if (!vid) return ctx.preview ? `<div class="ph">Video: paste a YouTube or Vimeo link in the panel on the left</div>` : '';
       // Standard YouTube player, only when asked for (long videos people need to skip around in).
       if (b.controls) return `<div class="video"><iframe src="${youtubeEmbed(b.url)}" allowfullscreen loading="lazy" title="Video"></iframe></div>`;
       // Clean player: the thumbnail and our own play button; once playing, YouTube's title, logo,
@@ -497,7 +507,9 @@ document.addEventListener('dragleave',function(e){if(!e.relatedTarget)line.style
 document.addEventListener('dragover',function(e){if(!has(e,'Files'))return;var b=e.target.closest&&e.target.closest('[data-bi]'),ph=b&&b.querySelector('.ph-image');document.querySelectorAll('.ph-over').forEach(function(x){if(x!==ph)x.classList.remove('ph-over');});if(ph){ph.classList.add('ph-over');line.style.display='none';}});
 document.addEventListener('drop',function(e){if(!ours(e))return;e.preventDefault();line.style.display='none';document.querySelectorAll('.ph-over').forEach(function(x){x.classList.remove('ph-over');});var at=spot(e.clientY,e.clientX).at;
 if(has(e,'Files')){var f=e.dataTransfer.files[0],b=e.target.closest&&e.target.closest('[data-bi]');if(f)parent.postMessage({ff:'photo',at:at,i:b?+b.dataset.bi:-1,file:f},'*');return;}
-parent.postMessage({ff:'drop',at:at,data:e.dataTransfer.getData('text/x-fourfold')},'*');});})();<\/script>`;
+parent.postMessage({ff:'drop',at:at,data:e.dataTransfer.getData('text/x-fourfold')},'*');});
+function pick(e){var z=e.target.closest&&e.target.closest('[data-pickphoto]');if(!z)return;var b=z.closest('[data-bi]');if(!b)return;e.preventDefault();e.stopPropagation();parent.postMessage({ff:'pickphoto',i:+b.dataset.bi},'*');}
+document.addEventListener('click',pick,true);document.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' ')pick(e);},true);})();<\/script>`;
 
 // The booking widget: days with open times, then times, then name and email.
 // Without a server (the editor preview) it shows sample times and doesn't book.
@@ -628,7 +640,9 @@ bin.addEventListener('dragleave',function(){bin.classList.remove('over');});
 bin.addEventListener('drop',function(e){if(dragging<0)return;e.preventDefault();e.stopPropagation();parent.postMessage({ff:'act',act:'rm',i:dragging},'*');bin.classList.remove('on','over');});
 })();<\/script>`;
 
-const PREVIEW_EDIT_SCRIPT = `<style>[data-f]{outline:1px dashed transparent;outline-offset:3px;cursor:text}[data-f]:hover{outline-color:#818cf8}[data-f][contenteditable]{outline:2px solid #4f46e5}[data-bi]:hover{box-shadow:inset 0 0 0 1px #c7d2fe}</style>
-<script>document.addEventListener('click',function(e){var blk=e.target.closest('[data-bi]');var el=e.target.closest('[data-f]');if(e.target.closest('a,button'))e.preventDefault();if(blk)parent.postMessage({ff:'open',i:+blk.dataset.bi},'*');if(!el||el.isContentEditable)return;e.preventDefault();el.contentEditable='true';el.focus();el.oninput=function(){parent.postMessage({ff:'edit',i:+blk.dataset.bi,f:el.dataset.f,v:el.innerText.replace(/^\\u201c|\\u201d$/g,'').trim()},'*');};el.onkeydown=function(k){if(k.key==='Escape'||(k.key==='Enter'&&el.dataset.f!=='text'&&el.dataset.f!=='quote'&&el.dataset.f!=='subtext')){k.preventDefault();el.blur();}};el.onblur=function(){el.removeAttribute('contenteditable');};},true);<\/script>`;
+const PREVIEW_EDIT_SCRIPT = `<style>[data-f]{outline:1px dashed transparent;outline-offset:3px;cursor:text;-webkit-user-select:text;user-select:text}a,a *,button,button *{-webkit-user-drag:none}[data-f]:hover{outline-color:#818cf8}[data-f][contenteditable]{outline:2px solid #4f46e5}[data-bi]:hover{box-shadow:inset 0 0 0 1px #c7d2fe}</style>
+<script>document.addEventListener('click',function(e){var blk=e.target.closest('[data-bi]');var el=e.target.closest('[data-f]');if(e.target.closest('a,button'))e.preventDefault();if(blk)parent.postMessage({ff:'open',i:+blk.dataset.bi},'*');if(!el||el.isContentEditable)return;e.preventDefault();el.contentEditable='true';el.focus();var rg=document.caretRangeFromPoint?document.caretRangeFromPoint(e.clientX,e.clientY):null;if(rg&&el.contains(rg.startContainer)){var sl=getSelection();sl.removeAllRanges();sl.addRange(rg);}el.oninput=function(){parent.postMessage({ff:'edit',i:+blk.dataset.bi,f:el.dataset.f,v:el.innerText.replace(/^\\u201c|\\u201d$/g,'').trim()},'*');};el.onkeydown=function(k){if(k.key==='Escape'||(k.key==='Enter'&&el.dataset.f!=='text'&&el.dataset.f!=='quote'&&el.dataset.f!=='subtext')){k.preventDefault();el.blur();}};el.onblur=function(){el.removeAttribute('contenteditable');};},true);
+document.querySelectorAll('a,img').forEach(function(x){x.setAttribute('draggable','false');});
+document.addEventListener('dblclick',function(e){var el=e.target.closest('[data-f]');if(!el)return;if(!el.isContentEditable){el.contentEditable='true';el.focus();}var rg=document.caretRangeFromPoint?document.caretRangeFromPoint(e.clientX,e.clientY):null;if(rg&&el.contains(rg.startContainer)){var sl=getSelection();sl.removeAllRanges();sl.addRange(rg);sl.modify&&(sl.modify('move','backward','word'),sl.modify('extend','forward','word'));}},true);<\/script>`;
 
-module.exports = { renderPage, esc, formatMoney, trackingTags };
+module.exports = { vimeoOf, renderPage, esc, formatMoney, trackingTags };

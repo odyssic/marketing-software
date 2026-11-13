@@ -1074,7 +1074,11 @@ function createApp({ dbPath } = {}) {
     const newId = await db.tx(async (t) => {
       const parent = from ? await stepInFunnel(t, f.id, from) : null;
       const pos = (await t.get('SELECT COALESCE(MAX(position), -1) + 1 AS p FROM funnel_steps WHERE funnel_id = ?', f.id)).p;
-      const stepId = await insertStep(t, f.id, { name, blocks: [], settings: {} }, pos);
+      // A new page takes the flow's look (colours, highlight, type style, width) from its first page.
+      const first = await t.get('SELECT settings FROM funnel_steps WHERE id = ?', f.entry_step_id || 0);
+      const look = (() => { try { return JSON.parse(first?.settings || '{}'); } catch { return {}; } })();
+      const settings = Object.fromEntries(['background', 'textColor', 'accent', 'font', 'palette', 'highlight', 'width'].filter((k) => look[k] !== undefined).map((k) => [k, look[k]]));
+      const stepId = await insertStep(t, f.id, { name, blocks: [], settings }, pos);
       await t.run('UPDATE funnel_steps SET x = ?, y = ? WHERE id = ?', num(x), num(y), stepId);
       // Created by dragging out of a page's exit: connect it to that exit.
       if (parent) {

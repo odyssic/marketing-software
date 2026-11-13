@@ -26,6 +26,18 @@ function preflight({ funnel, steps, products, account, testimonials = {} }) {
   const edit = (s) => ({ label: 'Edit page', href: `#/editor/${s.id}` });
   const map = { label: 'Open the map', href: `#/funnels/${funnel.id}` };
   if (!steps.length) add('block', null, 'This funnel has no pages yet.', map);
+  // Every way through to a thank-you page has to collect something first: an order,
+  // a booking or the person's details. A "next" button straight to the end doesn't.
+  const blocksOf = (s) => (typeof s.blocks === 'string' ? JSON.parse(s.blocks) : s.blocks) || [];
+  const gathers = (s) => blocksOf(s).some((b) => ['form', 'pricing', 'booking'].includes(b.type));
+  const goesNext = (b) => (['button', 'cta', 'offer', 'feature', 'hero'].includes(b.type) && (b.type === 'button' || b.button || b.buttonLabel) && (b.url === '#next' || (!b.url && b.type !== 'hero' && b.type !== 'feature')));
+  for (const s of steps) {
+    if (gathers(s) || !s.next_step_id) continue;
+    const n = steps.find((x) => x.id === s.next_step_id);
+    if (!n || gathers(n) || n.next_step_id) continue;
+    const b = blocksOf(s).find(goesNext);
+    if (b) add('block', s, `The “${b.label || b.button || b.buttonLabel || 'Next'}” button on “${s.name}” goes straight to “${n.name}” without taking an order, a booking or anyone’s details. Add a checkout, a form or a booking first, or link the button to a page that has one.`, map);
+  }
   for (const s of steps) {
     const blocks = typeof s.blocks === 'string' ? JSON.parse(s.blocks) : s.blocks;
     if (!blocks.length) add('block', s, `“${s.name}” is empty.`, edit(s));
@@ -45,7 +57,7 @@ function preflight({ funnel, steps, products, account, testimonials = {} }) {
         if (!/^https?:\/\//i.test(b.url || '')) add('block', s, `An image on “${s.name}” has no picture yet.`, edit(s));
         else if (!String(b.alt || '').trim()) add('warn', s, `An image on “${s.name}” has no description (needed for screen readers).`, edit(s));
       }
-      if (b.type === 'video' && b.url && !YT.test(b.url)) add('block', s, `The video link on “${s.name}” isn’t a YouTube link.`, edit(s));
+      if (b.type === 'video' && b.url && !YT.test(b.url) && !/vimeo\.com\/(?:video\/|channels\/[\w-]+\/|groups\/[\w-]+\/videos\/)?\d{5,12}/i.test(b.url)) add('block', s, `The video link on “${s.name}” isn’t a YouTube or Vimeo link.`, edit(s));
       if (b.type === 'testimonial' && !testimonials[b.testimonialId]) add('block', s, `A testimonial on “${s.name}” isn’t linked to a real, approved testimonial.`, { label: 'Pick one', href: `#/editor/${s.id}` });
       if (b.type === 'reviews' && !Object.keys(testimonials).length) add('warn', s, `The reviews section on “${s.name}” stays hidden until you approve a real testimonial.`, { label: 'Testimonials', href: '#/people/testimonials' });
       // Template sample words in [brackets] that were never replaced.

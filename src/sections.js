@@ -38,7 +38,8 @@ const media = (b, ctx, fallbackTitle) => {
   if (b.image && b.mockup === 'book') return `<div class="mk mk-book"><div class="mk-cover has-img"><img src="${esc(safeUrl(b.image))}" alt="${esc(b.imageAlt || '')}" loading="lazy"></div></div>`;
   if (b.image) return `<img class="sec-img" src="${esc(safeUrl(b.image))}" alt="${esc(b.imageAlt || '')}" loading="lazy">`;
   if (MOCKUPS.includes(b.mockup)) return mockup(b.mockup, { title: b.mockupTitle || fallbackTitle, label: b.mockupLabel, by: ctx.business });
-  return ctx.preview ? '<div class="sec-ph">Add a photo, or pick a drawn mockup, in the panel</div>' : '';
+  // In the editor: a clear box to drop a picture onto, or click to choose one.
+  return ctx.preview ? `<div class="sec-ph ph-image" data-pickphoto role="button" tabindex="0"><svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><circle cx="9" cy="9.5" r="1.6"/><path d="m4 17.5 4.8-4.6a1.2 1.2 0 0 1 1.6 0l3.1 2.9 2.3-2.1a1.2 1.2 0 0 1 1.6 0l3.1 2.8"/></svg><b>Drop a photo here</b><small>or click to choose one · or pick a drawn mockup in the panel</small></div>` : '';
 };
 
 function button(label, sub, href, extra = '', f = () => '') {
@@ -127,7 +128,11 @@ const SECTION_CSS = `
 .ticks .tick{flex:none;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:color-mix(in srgb,var(--accent) 15%,transparent);color:var(--accent);margin-top:2px}
 .sec-t{text-align:center;font-size:clamp(1.7rem,3.6vw,2.4rem);line-height:1.15;letter-spacing:-.02em;margin:0 auto 28px;max-width:760px}
 .sec-img{width:100%;border-radius:18px;display:block;box-shadow:0 30px 60px -30px rgba(0,0,0,.35)}
-.sec-ph{aspect-ratio:4/3;border:2px dashed color-mix(in srgb,var(--accent) 35%,transparent);border-radius:18px;display:grid;place-items:center;text-align:center;padding:20px;color:var(--accent);font-size:.9rem;background:color-mix(in srgb,var(--accent) 5%,transparent)}
+.sec-ph{aspect-ratio:4/3;width:100%;border:2px dashed color-mix(in srgb,var(--accent) 45%,transparent);border-radius:18px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;text-align:center;padding:20px;color:var(--accent);background:color-mix(in srgb,var(--accent) 6%,#fff);cursor:pointer;transition:background .15s,border-color .15s;font-family:system-ui,sans-serif}
+.sec-ph b{font-size:1.05rem}.sec-ph small{font-size:.82rem;opacity:.8;max-width:280px}.sec-ph:hover{border-color:var(--accent)}
+.cover .sec-ph,.band-dark .sec-ph,.band-brand .sec-ph{color:#fff;border-color:rgba(255,255,255,.55);background:rgba(255,255,255,.08)}
+.cover .sec-ph:hover,.band-dark .sec-ph:hover,.band-brand .sec-ph:hover{border-color:#fff;background:rgba(255,255,255,.14)}
+.sec-ph.ph-over{background:rgba(255,255,255,.22)!important;border-color:#fff!important;border-style:solid}
 
 /* Full-width bands */
 .band{margin-left:calc(50% - 50vw);margin-right:calc(50% - 50vw);padding:72px 20px}

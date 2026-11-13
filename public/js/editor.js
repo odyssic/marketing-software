@@ -34,7 +34,7 @@ const BLOCKS = {
   image: { label: 'Image', icon: icon('image'), defaults: { url: '', alt: '', align: 'center' },
     fields: [['url', 'photo', 'Photo'], ['alt', 'text', 'Description (for accessibility)'], ALIGN] },
   video: { label: 'Video', icon: icon('video'), defaults: { url: '' },
-    fields: [['url', 'text', 'YouTube link', null, 'e.g. https://youtu.be/…'], ['controls', 'check', 'Show YouTube controls (seek bar, title, logo, more videos)']] },
+    fields: [['url', 'text', 'YouTube or Vimeo link', null, 'e.g. https://youtu.be/… or https://vimeo.com/…'], ['controls', 'check', 'Show YouTube controls (seek bar, title, logo, more videos)']] },
   button: { label: 'Button', icon: icon('button'), defaults: { label: 'Continue', url: '#next', align: 'center' },
     fields: [['label', 'text', 'Button text'], ['sub', 'text', 'Small line in the button (optional)', null, 'e.g. It’s free · Takes 30 seconds'], ['big', 'check', 'Big button with an arrow'], ['url', 'text', 'Link', null, 'page:contact = another page of this site · #next = this page’s ✓ Yes exit · #no = its ✕ No thanks exit · or a full https:// link'], ALIGN] },
   form: { label: 'Form', icon: icon('form'), defaults: { buttonLabel: 'Get instant access', collectName: true, collectPhone: false, purpose: 'Sign up', tag: 'lead' },
@@ -356,6 +356,7 @@ async function viewEditor(stepId) {
     for (const k of ['background', 'textColor', 'accent']) { const x = $(`[data-s="${k}"]`); if (x) x.value = ed.settings[k]; }
     renderPalettes();
     structural();
+    spreadLook(true);
   };
   renderPalettes();
   // Type style: Classic, Elegant (serif headings) or Modern (tight, bold).
@@ -363,12 +364,16 @@ async function viewEditor(stepId) {
     if (b.dataset.font) ed.settings.font = b.dataset.font; else delete ed.settings.font;
     $$('[data-font]').forEach((x) => { x.classList.toggle('on', x === b); x.setAttribute('aria-pressed', String(x === b)); });
     structural();
+    spreadLook(true);
   }; });
-  $('[data-palall]').onclick = async () => {
-    const pal = allPalettes().find((x) => x.name === ed.settings.palette) || { name: '', bg: ed.settings.background, text: ed.settings.textColor, accent: ed.settings.accent, band: ed.blocks.find((b) => b.type === 'hero')?.background || ed.settings.accent };
+  // One look for the whole flow: picking colours or a type style on any page restyles
+  // every page of it (Undo puts the others back). The button does the same by hand,
+  // for colours changed one at a time.
+  const spreadLook = async (auto = false) => {
+    const pal = allPalettes().find((x) => x.name === ed.settings.palette) || { name: '', bg: ed.settings.background, text: ed.settings.textColor, accent: ed.settings.accent, band: ed.blocks.find((b) => b.type === 'hero')?.background || ed.settings.accent, highlight: ed.settings.highlight || '' };
     const f = await api('GET', `/api/funnels/${step.funnel.id}`);
     const others = f.steps.filter((x) => x.id !== step.id);
-    if (!others.length) { toast('This is the only page'); return; }
+    if (!others.length) { if (!auto) toast('This is the only page'); return; }
     const before = others.map((x) => ({ id: x.id, settings: JSON.parse(JSON.stringify(x.settings)), blocks: JSON.parse(JSON.stringify(x.blocks)) }));
     for (const x of others) {
       applyPalette(pal, x.settings, x.blocks);
@@ -376,11 +381,12 @@ async function viewEditor(stepId) {
       if (!pal.name) delete x.settings.palette;
       await api('PUT', `/api/steps/${x.id}`, { name: x.name, blocks: x.blocks, settings: x.settings });
     }
-    undoToast(`Colours applied to ${others.length} more page${others.length === 1 ? '' : 's'}`, async () => {
+    undoToast(auto ? `The other ${others.length} page${others.length === 1 ? '' : 's'} in this flow match too` : `Colours applied to ${others.length} more page${others.length === 1 ? '' : 's'}`, async () => {
       for (const x of before) await api('PUT', `/api/steps/${x.id}`, { name: f.steps.find((y) => y.id === x.id).name, blocks: x.blocks, settings: x.settings });
       toast('Other pages put back');
     });
   };
+  $('[data-palall]').onclick = () => spreadLook(false);
 
   const side = $('.side');
   side.addEventListener('click', (e) => {
@@ -618,6 +624,13 @@ async function viewEditor(stepId) {
       // Onto an image block: fill it. Anywhere else: a new image block there.
       const at = Math.max(0, Math.min(Number(d.at) || 0, ed.blocks.length));
       return photoKey(ed.blocks[d.i]) ? putPhoto(d.i, d.file) : photoAt(at, d.file);
+    }
+    // The photo box on the page was clicked: choose a picture for that block.
+    if (d?.ff === 'pickphoto' && $('.editor') && ed.blocks[d.i]) {
+      const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/jpeg,image/png,image/webp,image/gif';
+      inp.onchange = () => { if (inp.files[0]) putPhoto(d.i, inp.files[0]); };
+      inp.click();
+      return;
     }
     if (d?.ff === 'act' && $('.editor') && ed.blocks[d.i]) {
       const i = d.i;

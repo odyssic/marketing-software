@@ -146,6 +146,15 @@ const TEMPLATES = {
           reviews(3),
         ],
       },
+      // The button leads here: the order is taken before the thank-you page.
+      {
+        name: 'Checkout', slug: 'checkout', settings: { ...MODERN, width: 880 },
+        blocks: [
+          cover({ eyebrow: 'Checkout', text: 'You’re *one step* away', subtext: 'Secure payment. Your receipt and access arrive by email straight away.', mockup: 'none', background: '#1e1b4b' }),
+          { id: id(), type: 'pricing', productId: null, badge: '', compareText: '', billingText: '', note: '', featuresTitle: 'Included:', features: '[What they get]\nInstant access\n30-day money-back guarantee', buttonLabel: 'Complete my order', buttonSubtext: 'Secure checkout', buttonColor: '#4338ca' },
+          guarantee({ band: 'soft' }),
+        ],
+      },
       thanks('Order confirmed', 'Thanks for your order!', 'Your receipt and access are on their way to your inbox.', [['Check your inbox', 'Your receipt and access link are there now.'], ['Start with lesson one', 'It takes about ten minutes.'], ['Questions?', 'Just reply to your receipt.']], { ...MODERN, width: 960 }, { name: 'Order confirmation', slug: 'confirmed', bg: '#1e1b4b' }),
     ],
   },

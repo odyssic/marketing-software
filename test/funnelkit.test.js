@@ -38,14 +38,14 @@ test('pre-flight blocks publishing with plain fixes; drafts are only visible to 
   assert.equal(f.status, 'draft');
   const [sales] = f.steps;
   await c('PUT', `/api/steps/${sales.id}`, { blocks: [...sales.blocks,
-    { id: 'v', type: 'video', url: 'https://vimeo.com/123' },
+    { id: 'v', type: 'video', url: 'https://example.com/my-video' },
     { id: 'btn', type: 'button', label: 'Read more', url: 'javascript:alert(1)' },
     { id: 'img', type: 'image', url: 'https://img.example/a.png', alt: '' }] });
   const pre = (await c('GET', `/api/funnels/${id}/preflight`)).body;
   assert.equal(pre.ready, false);
   const texts = pre.problems.map((p) => `${p.severity}: ${p.text}`);
   assert.ok(texts.includes('block: A buy button on “Pricing” has no product.'));
-  assert.ok(texts.includes('block: The video link on “Pricing” isn’t a YouTube link.'));
+  assert.ok(texts.includes('block: The video link on “Pricing” isn’t a YouTube or Vimeo link.'));
   assert.ok(texts.includes('block: The “Read more” button on “Pricing” has a broken link.'));
   assert.ok(texts.includes('warn: An image on “Pricing” has no description (needed for screen readers).'));
   assert.ok(texts.includes('warn: Payments aren’t connected, so checkout runs in test mode and no one is charged.'));
