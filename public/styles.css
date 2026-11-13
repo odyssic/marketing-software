@@ -1889,3 +1889,12 @@ ul.tasks { list-style: none; padding: 0; margin: 10px 0 4px; }
 .stage.ed-stage.mobile { align-items: flex-start; padding: 28px 20px 40px; background: radial-gradient(900px 500px at 50% 0%, #f1f3f5, #dfe3e7); }
 .stage.ed-stage.mobile iframe { flex: none; box-sizing: content-box; width: 390px; height: min(844px, calc(100vh - 150px)); min-height: 0; border: 12px solid #15191d; border-radius: 52px; background: #fff;
   box-shadow: 0 0 0 1.5px #3a4148, 0 0 0 5px #0d1013, 0 40px 70px -28px rgba(15, 23, 30, .55); }
+
+/* Flow map: abandoned-checkout reminders under a payment page */
+.fu-chip.rc-chip { transform: translate(-50%, 0); }
+.fu-chip.rc-chip .fc-top { border-color: #f3d9b1; background: #fffaf2; }
+.rc .fc-row .fc-r { border-color: #f1d3a6; }
+.rc.off .fc-row .fc-r { border-style: dashed; border-color: #cfd8d7; }
+.rc .fc-row .fc-r.rc-skip { border-style: dashed; opacity: .7; }
+.rc .fc-more { font-size: .75rem; text-align: center; }
+.edge.rc-line { stroke: #e7b56b; stroke-dasharray: 4 4; fill: none; stroke-width: 2; }

@@ -480,6 +480,32 @@ async function viewFunnel(id) {
   }
 
   // The emails a follow-up sends, as "Right away · Welcome", "Day 2 · The story behind…".
+  // Abandoned checkout: the two reminders (an hour later, and a day later with an
+  // optional code) shown under each page that takes payment, with their switch.
+  function recoveryChip(s) {
+    if (!s.blocks.some((b) => b.type === 'pricing')) return '';
+    const a = state.me.account;
+    const on = a.recover_checkouts !== 0;
+    const pricing = s.blocks.find((b) => b.type === 'pricing');
+    const prod = (m.products || []).find((p) => p.id === pricing?.productId);
+    const what = prod ? prod.name : 'your order';
+    const second = (a.sales_style || 3) >= 3;
+    const code = (m.coupons || []).find((c) => c.id === a.recover_coupon_id);
+    return `<div class="fu-card rc ${on ? 'on' : 'off'}">
+      <div class="fc-top"><span class="fc-t">${icon('cart')} Didn’t finish paying</span>
+        <label class="switch sm" title="${on ? 'On: turn off' : 'Off: turn on'}"><input type="checkbox" data-rcon ${on ? 'checked' : ''} aria-label="Checkout reminders ${on ? 'on' : 'off'}"><span></span></label>
+        <span class="fc-state">${on ? 'On' : 'Off: won’t send'}</span></div>
+      <div class="fc-row">
+        <div class="fc-r mail"><div class="fc-when">${icon('mail')} 1 hour later</div>
+          <div class="fc-subj">Your ${esc(what)} is still waiting</div>
+          <div class="fc-pre">You started checking out but didn’t quite finish. Pick up where you left off…</div></div>
+        <div class="fc-r mail ${second ? '' : 'rc-skip'}"><div class="fc-when">${icon('mail')} Next day</div>
+          <div class="fc-subj">${code ? `${esc(code.label)} your ${esc(what)}` : `Still thinking about ${esc(what)}?`}</div>
+          <div class="fc-pre">${second ? (code ? `Offers code ${esc(code.code)}, already filled in.` : 'Your order is saved. No code offered.') : `Not sent at your ${['', 'Gentle', 'Soft'][a.sales_style || 3]} sales style.`}</div>
+          ${second ? `<button type="button" class="fc-edit" data-rccode>${icon('tag')} ${code ? 'Change code' : 'Offer a code'}</button>` : '<a class="fc-edit" href="#/settings">Change sales style</a>'}</div>
+      </div>
+      <div class="fc-more muted">Stops the moment they buy. Never sent to people who unsubscribed.</div></div>`;
+  }
   function followupChip(stepId) {
     const list = m.fuAt?.[stepId];
     if (!list?.length) return '';
@@ -523,6 +549,10 @@ async function viewFunnel(id) {
   }
   async function renderFollowups() {
     const list = await Promise.all((f.workflows || []).map((w) => api('GET', `/api/workflows/${w.id}`)));
+    if (!m.products && m.steps.some((s) => s.blocks.some((b) => b.type === 'pricing'))) {
+      [m.products, m.coupons] = await Promise.all([api('GET', '/api/products').catch(() => []), api('GET', '/api/coupons').catch(() => [])]);
+      if (!Array.isArray(m.products)) m.products = m.products?.products || [];
+    }
     placeFollowups(list);
     makeRoom();
     renderEdges();
@@ -702,6 +732,13 @@ async function viewFunnel(id) {
         if (fu) buttons += `<div class="fu-chip" data-chip="${s.id}" style="left:${mid.x}px;top:${mid.y}px">${fu}</div>`;
         if (p === 'yes') buttons += `<button class="edge-add" style="left:${mid.x}px;top:${fu ? mid.y + chipHalf(s.id) + 20 : mid.y + 26}px" data-edgeadd="${s.id}" ${fu ? `data-below="${s.id}"` : ''} title="Add an email, a text or a page here" aria-label="Add an email, a text or a page here">${icon('plus')}</button>`;
       }
+      // Checkout reminders hang below a page that takes payment.
+      const rc = recoveryChip(s);
+      if (rc) {
+        const h = nodeEl(s.id)?.offsetHeight || NODE_H;
+        html += `<path class="edge rc-line" d="M${s.x + NODE_W / 2},${s.y + h} V${s.y + h + 44}"/>`;
+        buttons += `<div class="fu-chip rc-chip" style="left:${s.x + NODE_W / 2}px;top:${s.y + h + 44}px">${rc}</div>`;
+      }
       // Follow-ups after the last page sit just to its right (on websites: after pages that collect people).
       if (!ids[s.next_step_id] && (f.kind !== 'website' || followupChip(s.id) || s.blocks.some((x) => ['form', 'booking', 'pricing'].includes(x.type)))) {
         const fu = followupChip(s.id);
@@ -731,6 +768,23 @@ async function viewFunnel(id) {
       if (chip) b.style.top = `${parseFloat(chip.style.top) + chip.offsetHeight / 2 + 20}px`;
     });
     $$('[data-edgeadd]', world).forEach((b) => { b.onclick = (e) => { e.stopPropagation(); addHere(Number(b.dataset.edgeadd), !b.dataset.end); }; });
+    $$('.rc-chip [data-rcon]', world).forEach((c) => { c.onclick = (e) => e.stopPropagation(); c.onchange = async () => {
+      try { await api('PUT', '/api/account/recovery', { on: c.checked }); state.me = await api('GET', '/api/me'); }
+      catch (err) { c.checked = !c.checked; toast(err.message, true); return; }
+      toast(c.checked ? 'Checkout reminders on (for every checkout page)' : 'Checkout reminders off');
+      renderEdges();
+    }; });
+    $$('.rc-chip [data-rccode]', world).forEach((b) => { b.onclick = async (e) => {
+      e.stopPropagation();
+      const v = await modal('Code in the second reminder', `<p class="muted small">A thank-you for coming back, filled in for them at checkout. Applies to every checkout page.</p>
+        <label class="f">Code<select name="coupon"><option value="">No code</option>${(m.coupons || []).map((c) => `<option value="${c.id}" ${c.id === state.me.account.recover_coupon_id ? 'selected' : ''}>${esc(c.code)} (${esc(c.label)})</option>`).join('')}</select></label>
+        ${(m.coupons || []).length ? '' : '<p class="hint">No codes yet. Make one in <a href="#/products/coupons">Products → Coupons</a>.</p>'}`, { submit: 'Save' });
+      if (!v) return;
+      try { await api('PUT', '/api/account/recovery-coupon', { coupon_id: v.coupon ? Number(v.coupon) : null }); state.me = await api('GET', '/api/me'); }
+      catch (err) { toast(err.message, true); return; }
+      toast(v.coupon ? 'The next-day reminder offers the code' : 'No code in reminders');
+      renderEdges();
+    }; });
     $$('.fu-chip [data-fuedit]', world).forEach((b) => { b.onclick = (e) => {
       e.stopPropagation();
       const [wid, key] = b.dataset.fuedit.split(':');
@@ -808,7 +862,7 @@ async function viewFunnel(id) {
       const s = byId()[node.dataset.node];
       drag = { kind: 'node', s, el: node, start: toWorld(e), ox: s.x, oy: s.y, moved: false };
       node.classList.add('dragging');
-    } else if (!e.target.closest('a, button, .map-tools')) {
+    } else if (!e.target.closest('a, button, label, input, select, textarea, .map-tools')) {
       drag = { kind: 'pan', sx: e.clientX, sy: e.clientY, px: m.panX, py: m.panY, moved: false };
       mapEl.classList.add('panning');
     } else return;
