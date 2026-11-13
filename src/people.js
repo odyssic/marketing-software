@@ -57,7 +57,7 @@ function createPeople({ getDb, HttpError, parseTags, id, formatMoney }) {
           (SELECT COUNT(*) FROM events e WHERE e.person_id = p.id AND e.type = 'purchase') AS purchases,
           (SELECT COUNT(*) FROM events e WHERE e.person_id = p.id AND e.type IN ('signup', 'inquiry', 'booking', 'subscribe', 'open', 'click')) AS lead_events,
           (SELECT COUNT(*) FROM subscriptions s WHERE s.person_id = p.id AND s.status = 'active') AS active_subs
-        FROM contacts p WHERE p.id IN (SELECT (jsonb_array_elements_text(?::jsonb))::int)) x
+        FROM contacts p WHERE p.id IN (SELECT (jsonb_array_elements_text(?::text::jsonb))::int)) x
       WHERE c.id = x.id`, JSON.stringify(ids));
   }
 

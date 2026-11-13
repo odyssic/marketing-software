@@ -225,7 +225,8 @@ async function viewEditor(stepId) {
       <button class="btn sm" data-undo title="Undo (Ctrl+Z)" disabled>${icon('undo')} Undo</button><button class="btn sm" data-redo title="Redo (Ctrl+Shift+Z)" disabled>${icon('redo')} Redo</button>
       <button class="btn sm" data-history title="Earlier versions of this page">${icon('history')} History</button>
       <button class="btn sm" data-device title="Toggle mobile preview">${icon('phone')} Mobile</button>
-      <a class="btn sm primary" href="${esc(link)}" target="_blank" rel="noopener" data-live>View live ${icon('external')}</a></div>
+      ${step.funnel.status === 'live' ? '' : '<button type="button" class="btn sm primary" data-edpublish>Publish</button>'}
+      <a class="btn sm ${step.funnel.status === 'live' ? 'primary' : ''}" href="${esc(link)}" target="_blank" rel="noopener" data-live>${step.funnel.status === 'live' ? 'View live' : 'Preview'} ${icon('external')}</a></div>
     <div class="side">
       <h3>Add a block</h3><div class="palette">${Object.entries(BLOCKS).filter(([, b]) => !b.hidden).map(([k, b]) => `<button data-addblock="${k}" draggable="true" title="Click to add at the end, or drag onto the page"><span class="ico">${b.icon}</span>${b.label}</button>`).join('')}</div>
       <div data-savedpal></div>
@@ -437,6 +438,8 @@ async function viewEditor(stepId) {
     });
   };
   $('[data-palall]').onclick = () => spreadLook(false);
+  const edPub = $('[data-edpublish]');
+  if (edPub) edPub.onclick = () => publishFlow(step.funnel.id, () => { step.funnel.status = 'live'; edPub.remove(); const l = $('[data-live]'); l.classList.add('primary'); l.firstChild.textContent = 'View live '; });
 
   const side = $('.side');
   side.addEventListener('click', (e) => {

@@ -611,7 +611,7 @@ function createWorkflows({ getDb, HttpError, id, people, messaging, getAccount }
       const b = req.body || {};
       let ids = [];
       if (Array.isArray(b.person_ids)) {
-        ids = (await db().all('SELECT id FROM contacts WHERE account_id = ? AND id IN (SELECT (jsonb_array_elements_text(?::jsonb))::int)',
+        ids = (await db().all('SELECT id FROM contacts WHERE account_id = ? AND id IN (SELECT (jsonb_array_elements_text(?::text::jsonb))::int)',
           req.accountId, JSON.stringify(b.person_ids.map(Number).filter(Number.isFinite)))).map((r) => r.id);
       } else if (b.tag) {
         ids = (await db().all('SELECT id, tags FROM contacts WHERE account_id = ?', req.accountId)).filter((c) => JSON.parse(c.tags).includes(String(b.tag).toLowerCase())).map((c) => c.id);

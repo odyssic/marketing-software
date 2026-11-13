@@ -183,6 +183,17 @@ async function flowLook(funnelId, btn) {
     });
   };
 }
+// Publish a flow after the pre-flight check (from the map or the page editor).
+async function publishFlow(id, after) {
+  const pre = await api('GET', `/api/funnels/${id}/preflight`);
+  const list = (ps) => ps.map((p) => `<div class="li"><span>${p.severity === 'block' ? icon('stop') : icon('alert')} ${esc(p.text)}</span>${p.fix ? `<a class="btn sm" href="${esc(p.fix.href)}">${esc(p.fix.label)}</a>` : ''}</div>`).join('');
+  if (!pre.ready) {
+    modal('Fix these before publishing', `<p class="muted small">Checked before going live so customers never hit a broken page.</p>${list(pre.problems)}`, { submit: 'OK' });
+    return;
+  }
+  if (!await modal('Publish this page?', `<p>Everything checks out${pre.problems.length ? ', with a note or two:' : '.'}</p>${list(pre.problems)}<p class="muted small">Your pages go live at the page link. You can unpublish any time.</p>`, { submit: 'Publish' })) return;
+  try { await api('POST', `/api/funnels/${id}/publish`); toast('Published! Your page is live'); after?.(); } catch (err) { toast(err.message, true); }
+}
 async function viewFunnel(id) {
   const f = await api('GET', `/api/funnels/${id}`);
   const link = publicUrl(`/f/${f.slug}`);
@@ -249,16 +260,7 @@ async function viewFunnel(id) {
     }
   }).catch(() => {});
   const pub = $('[data-publish]');
-  if (pub) pub.onclick = async () => {
-    const pre = await api('GET', `/api/funnels/${id}/preflight`);
-    const list = (ps) => ps.map((p) => `<div class="li"><span>${p.severity === 'block' ? icon('stop') : icon('alert')} ${esc(p.text)}</span>${p.fix ? `<a class="btn sm" href="${esc(p.fix.href)}">${esc(p.fix.label)}</a>` : ''}</div>`).join('');
-    if (!pre.ready) {
-      modal('Fix these before publishing', `<p class="muted small">Checked before going live so customers never hit a broken page.</p>${list(pre.problems)}`, { submit: 'OK' });
-      return;
-    }
-    if (!await modal('Publish this page?', `<p>Everything checks out${pre.problems.length ? ', with a note or two:' : '.'}</p>${list(pre.problems)}<p class="muted small">Your pages go live at the page link. You can unpublish any time.</p>`, { submit: 'Publish' })) return;
-    try { await api('POST', `/api/funnels/${id}/publish`); toast('Published! Your page is live'); viewFunnel(id); } catch (err) { toast(err.message, true); }
-  };
+  if (pub) pub.onclick = () => publishFlow(id, () => viewFunnel(id));
   const unpub = $('[data-unpublish]');
   if (unpub) unpub.onclick = async () => {
     await api('POST', `/api/funnels/${id}/unpublish`); viewFunnel(id);

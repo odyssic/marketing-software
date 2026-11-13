@@ -1120,7 +1120,7 @@ function createApp({ dbPath } = {}) {
 
   api.get('/steps/:id', async (req, res) => {
     const s = await getStep(req.accountId, req.params.id);
-    const funnel = await db.get('SELECT id, name, slug, kind FROM funnels WHERE id = ?', s.funnel_id);
+    const funnel = await db.get('SELECT id, name, slug, kind, status FROM funnels WHERE id = ?', s.funnel_id);
     res.json({ ...stepOut(s), funnel });
   });
 
@@ -1721,7 +1721,7 @@ function createApp({ dbPath } = {}) {
     const sess = await db.get('SELECT account_id FROM sessions WHERE token = ? AND expires_at > now()', token);
     return sess?.account_id === funnel.account_id;
   };
-  const notPublished = (res) => res.status(404).type('html').send('<!doctype html><meta name="viewport" content="width=device-width"><title>Not published yet</title><p style="font:18px system-ui;text-align:center;margin-top:20vh;padding:0 20px">This page isn’t published yet.</p>');
+  const notPublished = (res) => res.status(404).type('html').send('<!doctype html><meta name="viewport" content="width=device-width"><title>Not published yet</title><p style="font:18px system-ui;text-align:center;margin-top:20vh;padding:0 20px"><b>This page isn’t live yet.</b><br><span style="font-size:15px;color:#5b6b6d">If it’s yours: sign in to Rilly in this browser to try it, or press <b>Publish</b> on the page to try the whole flow, from sign-up to thank-you page and emails.</span></p>');
   const notFound = (res) => res.status(404).type('html').send('<!doctype html><title>Not found</title><p style="font:18px system-ui;text-align:center;margin-top:20vh">Page not found.</p>');
 
   app.get('/f/:funnel{/:step}', async (req, res) => {

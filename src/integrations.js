@@ -328,7 +328,7 @@ function createIntegrations({ getDb, HttpError, id, people, workflows, parseTags
         const q = `%${str(req.query.search, 100).replace(/[%_\\]/g, (c) => `\\${c}`)}%`;
         args.push(q, q, q);
       }
-      if (req.query.tag) { where.push('tags::jsonb @> ?::jsonb'); args.push(JSON.stringify([str(req.query.tag, 60).toLowerCase()])); }
+      if (req.query.tag) { where.push('tags::jsonb @> ?::text::jsonb'); args.push(JSON.stringify([str(req.query.tag, 60).toLowerCase()])); }
       if (req.query.before) { where.push('id < ?'); args.push(id(req.query.before)); }
       const limit = limitOf(req.query.limit);
       const rows = await db().all(`SELECT * FROM contacts WHERE ${where.join(' AND ')} ORDER BY id DESC LIMIT ${limit}`, ...args);

@@ -109,7 +109,7 @@ function createMoves({ getDb, HttpError, id, leversFor, getAccount, messaging, f
     }
     const out = campaignOut(c);
     const people = out.audience.length ? await db.all(`SELECT id, TRIM(first_name || ' ' || last_name) AS name, email FROM contacts
-      WHERE id IN (SELECT (jsonb_array_elements_text(?::jsonb))::int) ORDER BY id LIMIT 5`, JSON.stringify(out.audience)) : [];
+      WHERE id IN (SELECT (jsonb_array_elements_text(?::text::jsonb))::int) ORDER BY id LIMIT 5`, JSON.stringify(out.audience)) : [];
     return { campaign_id: out.id, lever: out.lever, title: out.move.title, reason: out.move.reason, count: out.audience.length,
       people: people.map((p) => ({ id: p.id, name: p.name || p.email })), status: out.status };
   }
@@ -127,7 +127,7 @@ function createMoves({ getDb, HttpError, id, leversFor, getAccount, messaging, f
       FROM email_log WHERE campaign_id = ?`, c.id);
     const buys = await db.get(`SELECT COUNT(DISTINCT person_id)::int AS buyers, COALESCE(SUM(value_cents), 0)::int AS cents FROM events
       WHERE type = 'purchase' AND occurred_at >= ? AND occurred_at < ?::timestamptz + interval '14 days'
-      AND person_id IN (SELECT (jsonb_array_elements_text(?::jsonb))::int)`, c.sent_at, c.sent_at, JSON.stringify(c.audience));
+      AND person_id IN (SELECT (jsonb_array_elements_text(?::text::jsonb))::int)`, c.sent_at, c.sent_at, JSON.stringify(c.audience));
     return { ...mail, buyers: buys.buyers, revenue: formatMoney(buys.cents, 'usd'),
       plain: `${mail.sent} sent · ${mail.opened} opened · ${mail.clicked} clicked · ${buys.buyers} bought within 14 days (${formatMoney(buys.cents, 'usd')})` };
   }
@@ -143,7 +143,7 @@ function createMoves({ getDb, HttpError, id, leversFor, getAccount, messaging, f
     api.get('/campaigns/:id', async (req, res) => {
       const c = await getCampaign(req.accountId, req.params.id);
       const people = c.audience.length ? await getDb().all(`SELECT id, first_name, last_name, email, stage FROM contacts
-        WHERE id IN (SELECT (jsonb_array_elements_text(?::jsonb))::int) ORDER BY id`, JSON.stringify(c.audience)) : [];
+        WHERE id IN (SELECT (jsonb_array_elements_text(?::text::jsonb))::int) ORDER BY id`, JSON.stringify(c.audience)) : [];
       res.json({ ...c, people, stats: await results(c), aiLive: ai.isLive() });
     });
 
@@ -184,7 +184,7 @@ function createMoves({ getDb, HttpError, id, leversFor, getAccount, messaging, f
       const claimed = await getDb().get("UPDATE campaigns SET status = 'sending' WHERE id = ? AND status IN ('draft', 'proposed') RETURNING id", c.id);
       if (!claimed) throw new HttpError(409, c.status === 'sent' ? 'This campaign was already sent' : 'This campaign can’t be sent right now');
       const account = await getAccount(req.accountId);
-      const people = c.audience.length ? await getDb().all(`SELECT * FROM contacts WHERE account_id = ? AND id IN (SELECT (jsonb_array_elements_text(?::jsonb))::int)`,
+      const people = c.audience.length ? await getDb().all(`SELECT * FROM contacts WHERE account_id = ? AND id IN (SELECT (jsonb_array_elements_text(?::text::jsonb))::int)`,
         req.accountId, JSON.stringify(c.audience)) : [];
       const tally = { sent: 0, skipped: 0, failed: 0 };
       for (const p of people) {
