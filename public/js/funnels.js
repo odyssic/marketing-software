@@ -228,7 +228,7 @@ async function viewFunnel(id) {
         <button class="btn sm icon" data-zoom="-1" title="Zoom out">${icon('minus')}</button><span class="zoomlbl" data-zoomlbl>100%</span>
         <button class="btn sm icon" data-zoom="1" title="Zoom in">+</button><button class="btn sm" data-fit>Fit</button>
       </div>
-      <div class="map-help">${f.kind === 'website' ? 'Your site map: Home on top, the pages in its menu below (left to right, as in the menu) · A page’s ⋯ menu moves it or hides it from the menu · Tap <b>+</b> next to a form page to add an email or text' : 'Your flow: pages and the emails between them · Tap <b>+</b> on a link to add an email, a text or a page · Drag cards to move them · Drag the background to pan'}</div>
+      <details class="map-help"><summary>${icon('info')} Tips</summary><div class="mh-body">${f.kind === 'website' ? 'Your site map: Home on top, the pages in its menu below (left to right, as in the menu) · A page’s ⋯ menu moves it or hides it from the menu · Tap <b>+</b> next to a form page to add an email or text' : 'Your flow: pages and the emails between them · Tap <b>+</b> on a link to add an email, a text or a page · Drag cards to move them · Drag the background to pan'}</div></details>
       <div class="world"><svg class="edges"></svg><div class="nodes"></div></div>
     </div>`);
   bindCopy();
@@ -862,7 +862,7 @@ async function viewFunnel(id) {
       const s = byId()[node.dataset.node];
       drag = { kind: 'node', s, el: node, start: toWorld(e), ox: s.x, oy: s.y, moved: false };
       node.classList.add('dragging');
-    } else if (!e.target.closest('a, button, label, input, select, textarea, .map-tools')) {
+    } else if (!e.target.closest('a, button, label, input, select, textarea, summary, .map-tools, .map-help')) {
       drag = { kind: 'pan', sx: e.clientX, sy: e.clientY, px: m.panX, py: m.panY, moved: false };
       mapEl.classList.add('panning');
     } else return;

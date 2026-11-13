@@ -1898,3 +1898,11 @@ ul.tasks { list-style: none; padding: 0; margin: 10px 0 4px; }
 .rc .fc-row .fc-r.rc-skip { border-style: dashed; opacity: .7; }
 .rc .fc-more { font-size: .75rem; text-align: center; }
 .edge.rc-line { stroke: #e7b56b; stroke-dasharray: 4 4; fill: none; stroke-width: 2; }
+
+/* Map tips: a small button that opens, so it never covers the toolbar */
+.map-help { pointer-events: auto; max-width: none; padding: 0; background: transparent; border: 0; box-shadow: none; }
+.map-help summary { list-style: none; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; background: #fff; border: 1px solid var(--line); border-radius: 99px; padding: 6px 12px; font-size: .85rem; color: var(--muted); box-shadow: 0 1px 4px rgba(20,40,43,.06); float: right; }
+.map-help summary::-webkit-details-marker { display: none; }
+.map-help summary svg { width: 15px; height: 15px; }
+.map-help[open] summary { color: var(--text); border-color: var(--brand); }
+.map-help .mh-body { clear: both; margin-top: 44px; width: min(360px, 70vw); background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; font-size: .85rem; line-height: 1.5; color: var(--muted); box-shadow: 0 12px 28px -12px rgba(20,40,43,.25); }
