@@ -84,17 +84,29 @@ async function newWorkflow() {
 // ---------- Builder ----------
 const wf = { w: null, selected: null, saveTimer: null, pipelines: [], funnels: [] };
 
+// The follow-up's full name: the flow's name in front, as stored (the box shows just its own part).
+function wfFullName() {
+  const fl = wf.w?.funnel_id && wf.funnels.find((x) => x.id === wf.w.funnel_id);
+  const v = $('[data-name]').value.trim();
+  return fl && !v.startsWith(`${fl.name}: `) && wf.w.name.startsWith(`${fl.name}: `) ? `${fl.name}: ${v}` : v;
+}
 async function viewWorkflow(workflowId) {
   const [w, pipelines, funnels] = await Promise.all([api('GET', `/api/workflows/${workflowId}`), api('GET', '/api/pipelines'), api('GET', '/api/funnels')]);
   Object.assign(wf, { w, pipelines, funnels, selected: wf.w?.id === w.id ? wf.selected : w.graph.root });
   if (!w.graph.nodes[wf.selected]) wf.selected = w.graph.root;
-  app.innerHTML = `<div class="wfb">
-    <div class="bar"><a class="btn sm" href="${w.funnel_id ? `#/funnels/${w.funnel_id}` : `#/flows/followup/${w.id}`}">← Back to the flow</a>
-      <div class="title"><input data-name value="${esc(w.name)}" aria-label="Workflow name"></div>
+  // While it's live, the map is frozen (read-only); pausing unlocks it.
+  const live = w.status === 'active';
+  app.innerHTML = `<div class="wfb ${live ? 'locked' : ''}">
+    <div class="bar"><a class="btn sm" href="${w.funnel_id ? `#/funnels/${w.funnel_id}` : `#/flows/followup/${w.id}`}">← Back</a>
+      <div class="title wf-where">
+        <nav class="crumbs" aria-label="Where you are"><a href="#/flows">Flows</a><span>›</span>${(() => { const fl = w.funnel_id && funnels.find((x) => x.id === w.funnel_id); return fl ? `<a href="#/funnels/${fl.id}">${esc(fl.name)}</a><span>›</span>` : '<a href="#/flows?show=followups">Follow-ups</a><span>›</span>'; })()}<b>Follow-up</b></nav>
+        <input data-name value="${esc((() => { const fl = w.funnel_id && funnels.find((x) => x.id === w.funnel_id); return fl && w.name.startsWith(`${fl.name}: `) ? w.name.slice(fl.name.length + 2) : w.name; })())}" aria-label="Follow-up name">
+        <span class="muted small">${esc((w.triggers?.[w.graph.nodes[w.graph.root]?.config?.event] || 'Starts on its own').replace(/^./, (x) => x.toUpperCase()))}</span></div>
       <select data-lever aria-label="Growth lever" class="sm-select">${['lead', 'conversion', 'upsell', 'continuity'].map((k) => `<option value="${k}" ${w.lever === k ? 'selected' : ''}>${esc(LEVER_UI[k].label)}</option>`).join('')}</select>
       <span class="saved" data-saved>Saved</span>
-      <button class="btn sm" data-activity>People</button><button class="btn sm" data-enroll>Add people</button>
+      <button class="btn sm" data-activity>People</button><button class="btn sm" data-enroll>Add people</button><button class="btn sm" data-copyto>${icon('copy')} Copy to another flow</button>
       <button class="btn sm ${w.status === 'active' ? '' : 'primary'}" data-status>${w.status === 'active' ? icon('pause') + ' Pause' : icon('play') + ' Turn on'}</button></div>
+    ${live ? `<div class="wf-livebar">${icon('lock')}<span><b>This follow-up is live.</b> Pause it to make changes; nothing is lost and people pick up where they were when you turn it back on.</span><button type="button" class="btn sm primary" data-pauseedit>${icon('pause')} Pause to edit</button></div>` : ''}
     <aside class="palette-col" aria-label="Steps"><h3>Steps</h3><p class="hint">Drag onto a + on the map, or click a +.</p>
       ${PALETTE.map((t) => `<div class="pchip" draggable="true" data-ptype="${t}" style="--c:${STEP_UI[t].color}"><span class="pi">${STEP_UI[t].icon}</span><span><b>${STEP_UI[t].label}</b><small>${STEP_UI[t].hint}</small></span></div>`).join('')}</aside>
     <main class="canvas" data-canvas><div data-problems></div><div class="tree" data-tree></div></main>
@@ -206,6 +218,7 @@ function bindTree() {
 }
 
 function plusMenu(btn) {
+  if (wf.w?.status === 'active') { toast('It’s live. Pause it to edit', true); return; }
   $('.plus-menu')?.remove();
   const [parent, port] = btn.dataset.plus.split(':');
   const m = document.createElement('div');
@@ -228,6 +241,7 @@ const DEFAULT_CONFIG = {
 const newKey = () => `n${Math.random().toString(36).slice(2, 10)}`;
 
 function insertStep(type, parent, port) {
+  if (wf.w?.status === 'active') { toast('It’s live. Pause it to edit', true); return; }
   const key = newKey();
   const child = nodes()[parent][port] || null;
   nodes()[key] = type === 'condition' ? { type, config: DEFAULT_CONFIG[type](), yes: child, no: null } : { type, config: DEFAULT_CONFIG[type](), next: child };
@@ -237,6 +251,7 @@ function insertStep(type, parent, port) {
 }
 
 function moveStep(key, parent, port) {
+  if (wf.w?.status === 'active') { toast('It’s live. Pause it to edit', true); return; }
   const n = nodes()[key];
   if (!n || n.type === 'trigger') return;
   if (subtree(key).has(parent) && (n.type === 'condition' || parent === key)) { if (parent !== key) toast('A step can’t move inside itself', true); return; }
@@ -256,6 +271,7 @@ function moveStep(key, parent, port) {
 }
 
 function deleteStep(key) {
+  if (wf.w?.status === 'active') { toast('It’s live. Pause it to edit', true); return; }
   const before = JSON.parse(JSON.stringify(wf.w.graph));
   const n = nodes()[key];
   const [p, pp] = parentOf(key);
@@ -293,12 +309,18 @@ function changed() {
   renderInspector();
   scheduleSave();
 }
+// Live: everything in the inspector is read-only (still scrollable and readable).
+function lockInspector() {
+  if (wf.w?.status !== 'active') return;
+  document.querySelectorAll('[data-inspector] input, [data-inspector] textarea, [data-inspector] select, [data-inspector] button').forEach((x) => { x.disabled = true; });
+}
 function scheduleSave(extra = {}) {
+  if (wf.w?.status === 'active') { toast('It’s live. Pause it to edit', true); return; }
   $('[data-saved]').textContent = 'Saving…';
   clearTimeout(wf.saveTimer);
   wf.saveTimer = setTimeout(async () => {
     try {
-      const r = await api('PUT', `/api/workflows/${wf.w.id}`, { graph: wf.w.graph, name: $('[data-name]').value, lever: $('[data-lever]').value, ...extra });
+      const r = await api('PUT', `/api/workflows/${wf.w.id}`, { graph: wf.w.graph, name: wfFullName(), lever: $('[data-lever]').value, ...extra });
       wf.w.problems = r.problems;
       renderProblems(r.problems);
       $('[data-saved]').textContent = 'Saved';
@@ -315,6 +337,7 @@ function renderProblems(list) {
 }
 
 function renderInspector() {
+  queueMicrotask(lockInspector);
   const key = wf.selected, n = nodes()[key], ui = STEP_UI[n.type], c = n.config;
   const [p, pp] = parentOf(key);
   const canUp = p && pp === 'next' && !['trigger', 'condition'].includes(nodes()[p]?.type);
@@ -421,15 +444,24 @@ function bindBuilderChrome() {
   });
   $('[data-name]').addEventListener('input', () => scheduleSave());
   $('[data-lever]').addEventListener('change', () => scheduleSave());
+  const pe = $('[data-pauseedit]'); if (pe) pe.onclick = () => $('[data-status]').click();
   $('[data-status]').onclick = async () => {
     const on = wf.w.status !== 'active';
     try {
       clearTimeout(wf.saveTimer);
-      await api('PUT', `/api/workflows/${wf.w.id}`, { graph: wf.w.graph, name: $('[data-name]').value, lever: $('[data-lever]').value });
+      await api('PUT', `/api/workflows/${wf.w.id}`, { graph: wf.w.graph, name: wfFullName(), lever: $('[data-lever]').value });
       await api('PUT', `/api/workflows/${wf.w.id}/status`, { status: on ? 'active' : 'paused' });
       toast(on ? 'Live: new people will flow through this map' : 'Paused: nobody moves until you turn it back on');
       viewWorkflow(wf.w.id);
     } catch (err) { toast(err.message, true); }
+  };
+  // Copy this follow-up to another flow (switched off there until turned on).
+  $('[data-copyto]').onclick = async () => {
+    const others = wf.funnels.filter((x) => x.id !== wf.w.funnel_id);
+    const r = await modal('Copy to another flow', `<p class="muted small">A copy with the same steps and messages, starting from that flow. It starts switched off so you can check the wording first.</p>
+      <label class="f">Flow<select name="funnel_id">${others.map((x) => `<option value="${x.id}">${esc(x.name)}</option>`).join('')}<option value="">None: starts on its own (any page)</option></select></label>`,
+    { submit: 'Copy', onSubmit: (v) => api('POST', `/api/workflows/${wf.w.id}/copy`, { funnel_id: v.funnel_id ? Number(v.funnel_id) : null }) });
+    if (r?.id) { toast('Copied. It’s off until you turn it on'); location.hash = `#/workflows/${r.id}`; }
   };
   $('[data-enroll]').onclick = async () => {
     const tags = await api('GET', '/api/tags');

@@ -589,6 +589,22 @@ function createWorkflows({ getDb, HttpError, id, people, messaging, getAccount }
       res.json({ ok: true, status });
     });
 
+    // A copy of this follow-up for another flow (or none): same steps and messages, its trigger
+    // pointed at that flow, switched off until the owner turns it on.
+    api.post('/workflows/:id/copy', async (req, res) => {
+      const w = await getWorkflow(req.accountId, req.params.id);
+      const to = req.body?.funnel_id ? await db().get('SELECT id, name FROM funnels WHERE id = ? AND account_id = ?', id(req.body.funnel_id), req.accountId) : null;
+      if (req.body?.funnel_id && !to) throw new HttpError(404, 'Flow not found');
+      const from = w.funnel_id ? await db().get('SELECT name FROM funnels WHERE id = ?', w.funnel_id) : null;
+      const base = from && w.name.startsWith(`${from.name}: `) ? w.name.slice(from.name.length + 2) : w.name;
+      const graph = JSON.parse(JSON.stringify(w.graph));
+      const t = graph.nodes[graph.root];
+      t.config = { ...(t.config || {}), funnel_id: to ? to.id : null, step_id: null };
+      const r = await db().get(`INSERT INTO workflows (account_id, name, lever, status, template, funnel_id, graph)
+        VALUES (?, ?, ?, 'draft', ?, ?, ?) RETURNING id`, req.accountId, str(to ? `${to.name}: ${base}` : `${base} (copy)`, 120), w.lever, w.template || 'blank', to ? to.id : null, JSON.stringify(normalizeGraph(graph, HttpError)));
+      res.status(201).json({ id: r.id });
+    });
+
     // Add people by hand: specific people, everyone with a tag, or everyone at a stage.
     api.post('/workflows/:id/enroll', async (req, res) => {
       const w = await getWorkflow(req.accountId, req.params.id);

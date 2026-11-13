@@ -356,3 +356,21 @@ test('after a yes/no split, everyone carries on to "then, for everyone", whichev
   assert.deepEqual([...(await tagsOf(vip.id))].sort(), ['everyone', 'vip', 'vip-path'], 'yes path, then everyone');
   assert.deepEqual([...(await tagsOf(plain.id))].sort(), ['everyone'], 'empty no path, then everyone');
 });
+
+test('a follow-up can be copied to another flow: same steps, pointed at that flow, switched off', async () => {
+  const c = await signup('wf-copy@example.com');
+  const a = (await c('POST', '/api/funnels', { name: 'Guide A', template: 'optin' })).body;
+  const b = (await c('POST', '/api/funnels', { name: 'Guide B', template: 'blank' })).body;
+  const src = (await c('GET', '/api/workflows')).body.find((w) => w.funnel_id === a.id);
+  const r = await c('POST', `/api/workflows/${src.id}/copy`, { funnel_id: b.id });
+  assert.equal(r.status, 201);
+  const copy = (await c('GET', `/api/workflows/${r.body.id}`)).body;
+  const orig = (await c('GET', `/api/workflows/${src.id}`)).body;
+  assert.equal(copy.funnel_id, b.id);
+  assert.equal(copy.status, 'draft');
+  assert.equal(copy.graph.nodes[copy.graph.root].config.funnel_id, b.id);
+  assert.equal(Object.keys(copy.graph.nodes).length, Object.keys(orig.graph.nodes).length);
+  assert.match(copy.name, /^Guide B: /);
+  const other = await signup('wf-copy-other@example.com');
+  assert.equal((await other('POST', `/api/workflows/${src.id}/copy`, {})).status, 404);
+});

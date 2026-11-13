@@ -327,7 +327,24 @@ async function viewFunnel(id) {
     }
   }
   // Roughly half the height of a page's follow-up cards, to sit the + just below them.
-  const chipHalf = (stepId) => (m.fuAt?.[stepId] || []).reduce((n, w) => n + 70 + 96 * Math.min(3, chain(w).filter(([, x]) => x.type === 'email' || x.type === 'sms').length) + (chain(w).at(-1)?.[1].type === 'condition' ? 90 : 0), 0) / 2;
+  const FC_W = 210, FC_GAP = 26;
+  const cardsIn = (w) => Math.min(4, chain(w).filter(([, x]) => x.type === 'email' || x.type === 'sms').length) + (chain(w).at(-1)?.[1].type === 'condition' ? 1 : 0) + (chain(w).filter(([, x]) => x.type === 'email' || x.type === 'sms').length > 4 ? 1 : 0);
+  const chipWidth = (stepId) => Math.max(0, ...(m.fuAt?.[stepId] || []).map((w) => { const k = Math.max(1, cardsIn(w)); return k * FC_W + (k - 1) * FC_GAP; }));
+  const chipHalf = (stepId) => (m.fuAt?.[stepId] || []).reduce((n, w) => n + 230 + (chain(w).at(-1)?.[1].type === 'condition' ? 40 : 0), 0) / 2;
+  // Room for a row of message cards between a page and the next: pages further right shift over.
+  const makeRoom = () => {
+    const ids = byId();
+    for (const s of [...m.steps].sort((a, b) => a.x - b.x)) {
+      const t = ids[s.next_step_id];
+      if (!t || t.x <= s.x) continue;
+      const w = chipWidth(s.id);
+      const need = w ? w + 140 : 0, gap = t.x - (s.x + NODE_W);
+      if (need > gap) {
+        const d = need - gap, from = t.x;
+        for (const x of m.steps) if (x.x >= from) { x.x += d; const el = nodeEl(x.id); if (el) el.style.left = `${x.x}px`; }
+      }
+    }
+  };
   const STEP_UI_LABEL = { wait: 'Wait', tag: 'Tag', subscribe: 'Subscribe', notify: 'Notify me', deal: 'Create deal', condition: 'Another split' };
 
   // The + on a link: an email or text in this page's follow-up (made if there isn't one), or a page in between.
@@ -447,15 +464,16 @@ async function viewFunnel(id) {
         <div class="fc-top"><span class="fc-t">${icon(split ? 'branch' : 'mail')} ${count} ${word}${count === 1 ? '' : 's'}</span>
           <label class="switch sm" title="${w.status === 'active' ? 'Live: turn off' : 'Off: turn on'}"><input type="checkbox" data-fuonmap="${w.id}" ${w.status === 'active' ? 'checked' : ''} aria-label="${w.status === 'active' ? 'Live' : 'Off'}"><span></span></label>
           <span class="fc-state">${w.status === 'active' ? 'Live' : 'Off: won’t send'}</span></div>
-        ${rows.slice(0, 3).map((r) => `<div class="fc-r"><div class="fc-when">${esc(r.when)}${r.sms ? ' · text' : ''}</div>
+        <div class="fc-row">${rows.slice(0, 4).map((r) => `<div class="fc-r ${r.sms ? 'sms' : 'mail'}"><div class="fc-when">${icon(r.sms ? 'chat' : 'mail')} ${esc(r.when)}${r.sms ? ' · text' : ''}</div>
           <div class="fc-subj">${esc(r.title)}</div>${r.preview ? `<div class="fc-pre">${esc(r.preview)}</div>` : ''}
-          <button type="button" class="fc-edit" data-fuedit="${w.id}:${r.key}">${icon('pencil')} Edit</button></div>`).join('')}${split}
-        <a class="fc-more" href="#/workflows/${w.id}">${rows.length > 3 ? `+ ${rows.length - 3} more · ` : ''}Open full follow-up</a></div>`;
+          <button type="button" class="fc-edit" data-fuedit="${w.id}:${r.key}">${icon('pencil')} Edit</button></div>`).join('')}${split}${rows.length > 4 ? `<a class="fc-r fc-extra" href="#/workflows/${w.id}">+ ${rows.length - 4} more</a>` : ''}</div>
+        <a class="fc-more" href="#/workflows/${w.id}">Open full follow-up</a></div>`;
     }).join('');
   }
   async function renderFollowups() {
     const list = await Promise.all((f.workflows || []).map((w) => api('GET', `/api/workflows/${w.id}`)));
     placeFollowups(list);
+    makeRoom();
     renderEdges();
     // First load: frame the pages and their follow-ups together.
     if (!m.framed) { m.framed = true; fit(); }
