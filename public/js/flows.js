@@ -249,14 +249,15 @@ async function viewFollowupFlow(id) {
   $$('[data-ffedit]').forEach((b) => { b.onclick = async () => {
     const n = N[b.dataset.ffedit], c = n.config || {};
     const forms = {
-      email: `<label class="f">Subject<input name="subject" required value="${esc(c.subject || '')}"></label><label class="f">Message<textarea name="body" rows="8" required>${esc(c.body || '')}</textarea></label>`,
+      email: emailBoxHtml(c.subject || '', c.body || ''),
       sms: `<label class="f">Text message <span class="hint">only to people who said yes to texts</span><textarea name="body" rows="4" maxlength="480" required>${esc(c.body || '')}</textarea></label>`,
       wait: `<label class="f">Days<input name="days" type="number" min="0" max="3650" value="${c.days || 0}"></label><label class="f">Hours<input name="hours" type="number" min="0" max="23" value="${c.hours || 0}"></label>`,
       tag: `<label class="f">Add tags<input name="add" value="${esc(c.add || '')}"></label><label class="f">Remove tags<input name="remove" value="${esc(c.remove || '')}"></label>`,
       notify: `<label class="f">Your note to yourself<textarea name="message" rows="3">${esc(c.message || '')}</textarea></label>`,
     };
     const pend = modal(`Edit ${STEP_WORD[n.type].toLowerCase()}`, forms[n.type], { submit: 'Save' });
-    setTimeout(() => { const m = $('.modal'); if (m && typeof bindFieldInserts === 'function') bindFieldInserts(m); });
+    if (n.type === 'email') wireEmailBox();
+    else setTimeout(() => { const m = $('.modal'); if (m && typeof bindFieldInserts === 'function') bindFieldInserts(m); });
     const v = await pend;
     if (!v) return;
     n.config = n.type === 'wait' ? { days: Number(v.days) || 0, hours: Number(v.hours) || 0 } : { ...c, ...v };
@@ -300,8 +301,9 @@ async function viewFollowupFlow(id) {
       const v = await modal('Wait', '<label class="f">Days<input name="days" type="number" min="0" max="3650" value="2"></label>', { submit: 'Add wait' });
       if (!v) return; node = { type: 'wait', config: { days: Number(v.days) || 0, hours: 0 } };
     } else if (r.kind === 'email' || r.kind === 'sms') {
+      if (r.kind === 'email') wireEmailBox();
       const v = await modal(r.kind === 'email' ? 'New email' : 'New text', r.kind === 'email'
-        ? '<label class="f">Subject<input name="subject" required placeholder="e.g. A quick thank-you"></label><label class="f">Message<textarea name="body" rows="7" required>Hi {{first_name|there}},\n\n</textarea></label>'
+        ? emailBoxHtml('', 'Hi {{first_name|there}},\n\n', { subjectPlaceholder: 'e.g. A quick thank-you' })
         : '<label class="f">Text message <span class="hint">only to people who said yes to texts</span><textarea name="body" rows="3" maxlength="480" required>Hi {{first_name|there}}, it’s {{business}}. </textarea></label>', { submit: 'Add' });
       if (!v) return; node = r.kind === 'email' ? { type: 'email', config: { subject: v.subject, body: v.body } } : { type: 'sms', config: { body: v.body } };
     } else if (r.kind === 'guide') {

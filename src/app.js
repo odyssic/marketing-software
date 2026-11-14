@@ -1577,6 +1577,12 @@ function createApp({ dbPath } = {}) {
     await db.run('UPDATE accounts SET gravatar = ? WHERE id = ?', req.body?.on ? 1 : 0, req.accountId);
     res.json({ ok: true });
   });
+  // How every email looks: a plain letter, or branded with the logo and colour.
+  api.put('/account/email-look', async (req, res) => {
+    const look = req.body?.look === 'branded' ? 'branded' : 'letter';
+    await db.run('UPDATE accounts SET email_look = ? WHERE id = ?', look, req.accountId);
+    res.json({ look });
+  });
   api.put('/account/recovery', async (req, res) => {
     await db.run('UPDATE accounts SET recover_checkouts = ? WHERE id = ?', req.body?.on ? 1 : 0, req.accountId);
     res.json({ ok: true });

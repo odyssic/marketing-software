@@ -31,3 +31,14 @@ test('plain text reads naturally', () => {
   assert.match(t, /We have seven picks\. Read the guide \(https:\/\/x.com\/g\)/);
   assert.match(t, /Get the guide: https:\/\/x.com\/buy/);
 });
+
+test('email look: a letter is just the words; branded adds the logo band, a white card and the name', () => {
+  const { emailFrame } = require('../public/js/emailformat.js');
+  assert.equal(emailFrame('<p>Hi</p>'), '<p>Hi</p>');
+  const b = emailFrame('<p>Hi</p>', { look: 'branded', logo: 'https://x.example/logo.png', name: 'Bloom & Co', color: '#336699' });
+  assert.match(b, /background:#336699/);
+  assert.match(b, /<img src="https:\/\/x\.example\/logo\.png" alt="Bloom &amp; Co"/);
+  assert.match(b, /<p>Hi<\/p>/);
+  assert.match(emailFrame('<p>Hi</p>', { look: 'branded', name: 'Nora' }), />Nora<\/span>/, 'the name when there is no logo');
+  assert.match(emailFrame('x', { look: 'branded', color: 'red;evil' }), /background:#1F7F78/, 'only real colours');
+});

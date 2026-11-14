@@ -174,7 +174,11 @@ async function viewCompose(bid) {
     $('[data-pfrom]').textContent = sender; $('[data-pfrom2]').textContent = sender;
     $('[data-psubj]').textContent = merge(v.subject) || '(no subject)'; $('[data-psubj2]').textContent = merge(v.subject) || '(no subject)';
     $('[data-ppre]').textContent = `– ${merge(v.preheader) || emailBodyText(merge(v.body)).replace(/\{\{\s*signature[^}]*\}\}/g, '').replace(/\s+/g, ' ').trim().slice(0, 90)}`;
-    $('[data-pbody]').innerHTML = bodyHtml(v.body) || '<p class="muted">Your message appears here.</p>';
+    // In the business's chosen look (Letter or Branded; set from any email box's preview).
+    const body = bodyHtml(v.body) || '<p class="muted">Your message appears here.</p>';
+    const branded = acct.email_look === 'branded';
+    $('[data-pbody]').classList.toggle('et-branded', branded);
+    $('[data-pbody]').innerHTML = branded ? emailFrame(body, { look: 'branded', logo: acct.logo_url || '', name: acct.name || sender, color: acct.brand_color || '' }) : body;
     const n = v.subject.length;
     $('[data-sublen]').textContent = n ? `${n} characters${n > 60 ? ' · may be cut off on phones' : ''}` : '';
   };

@@ -53,7 +53,25 @@
     }).filter((x) => x !== '').join('\n\n');
   }
 
+  // The look around the words. "letter" (the default): just the words, like a personal note,
+  // which tends to land in the main inbox. "branded": your logo (or name) on a band of your
+  // colour, the words on a white card, your name at the foot. Table-based for every inbox.
+  function emailFrame(body, { look = 'letter', logo = '', name = '', color = '' } = {}) {
+    if (look !== 'branded') return body;
+    const c = /^#[0-9a-f]{6}$/i.test(color) ? color : '#1F7F78';
+    const head = logo
+      ? `<img src="${escE(logo)}" alt="${escE(name)}" style="display:block;margin:0 auto;max-height:46px;max-width:220px;border:0">`
+      : `<span style="font:700 20px/1.2 -apple-system,Segoe UI,Roboto,sans-serif;color:#ffffff">${escE(name)}</span>`;
+    return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f3f4f6;border-collapse:collapse"><tr><td align="center" style="padding:24px 12px">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;border-collapse:separate">
+        <tr><td align="center" style="background:${c};border-radius:12px 12px 0 0;padding:22px 24px">${head}</td></tr>
+        <tr><td style="background:#ffffff;border-radius:0 0 12px 12px;padding:30px 30px 18px;font:16px/1.6 -apple-system,Segoe UI,Roboto,sans-serif;color:#111827">${body}</td></tr>
+        <tr><td align="center" style="padding:16px 8px 0;font:12px/1.5 -apple-system,Segoe UI,Roboto,sans-serif;color:#6b7280">${escE(name)}</td></tr>
+      </table></td></tr></table>`;
+  }
+
   root.emailBodyHtml = emailBodyHtml;
   root.emailBodyText = emailBodyText;
-  if (typeof module !== 'undefined') module.exports = { emailBodyHtml, emailBodyText };
+  root.emailFrame = emailFrame;
+  if (typeof module !== 'undefined') module.exports = { emailBodyHtml, emailBodyText, emailFrame };
 })(typeof window !== 'undefined' ? window : globalThis);

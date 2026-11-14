@@ -753,6 +753,8 @@ ALTER TABLE testimonials ADD COLUMN IF NOT EXISTS photo TEXT NOT NULL DEFAULT ''
 ALTER TABLE products ADD COLUMN IF NOT EXISTS ships INT NOT NULL DEFAULT 0;
 ALTER TABLE products ADD COLUMN IF NOT EXISTS shipping_cents INT NOT NULL DEFAULT 0;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS ship_to TEXT NOT NULL DEFAULT '';
+-- How emails look: 'letter' (plain, personal) or 'branded' (logo band, white card).
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS email_look TEXT NOT NULL DEFAULT 'letter';
 -- The offer ladder: what to offer a product's buyers next (empty: the next pricier product).
 ALTER TABLE products ADD COLUMN IF NOT EXISTS next_product_id INT REFERENCES products(id) ON DELETE SET NULL;
 -- What the buyer gets: an uploaded file (/u/…) or a link, emailed the moment they pay.

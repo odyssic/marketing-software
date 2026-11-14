@@ -718,16 +718,23 @@ async function viewFunnel(id) {
       toast('Follow-up added. Add its emails below');
     };
   }
-  const emailForm = (c = {}, withWait = false) => `${withWait ? '<label class="f">Wait first <span class="hint">days after the previous step</span><input name="days" type="number" min="0" max="365" value="1"></label>' : ''}
+  const emailForm = (c = {}, withWait = false) => `<div class="et-grid"><div class="et-write">${withWait ? '<label class="f">Wait first <span class="hint">days after the previous step</span><input name="days" type="number" min="0" max="365" value="1"></label>' : ''}
     <div class="f"><span class="lbl-row">Subject ${fieldSelect('subject')}</span><input name="subject" required value="${esc(c.subject || '')}" placeholder="e.g. Quick tip for your new typewriter"></div>
-    <div class="f"><span class="lbl-row">Message <span class="hint">type {{ for fill-in fields</span> ${fieldSelect('body')}</span><textarea name="body" rows="7" required>${esc(c.body || 'Hi {{first_name|there}},\n\n')}</textarea></div>`;
+    <div class="f"><span class="lbl-row">Message <span class="hint">type {{ for fill-in fields</span> ${fieldSelect('body')}</span>${emailToolsHtml()}<textarea name="body" rows="12" required>${esc(c.body || 'Hi {{first_name|there}},\n\n')}</textarea></div></div>
+    ${emailPreviewPaneHtml()}</div>`;
+  // Once an email box is open: widen it and wire the bar and preview.
+  const wireEmailModal = () => setTimeout(() => {
+    const m = $('.modal:has(.et-grid)'); if (!m) return;
+    m.classList.add('wide-email'); bindFieldInserts(m);
+    bindEmailTools(m, { subject: $('[name=subject]', m), body: $('[name=body]', m) });
+  });
   const saveGraph = async (w, graph) => {
     try { await api('PUT', `/api/workflows/${w.id}`, { graph }); renderFollowups(); return true; }
     catch (err) { toast(err.message, true); return false; }
   };
   async function editStep(w, key) {
     const n = w.graph.nodes[key];
-    setTimeout(() => { const m = $('.modal'); if (m) bindFieldInserts(m); });
+    if (n.type === 'email') wireEmailModal(); else setTimeout(() => { const m = $('.modal'); if (m) bindFieldInserts(m); });
     const v = await modal(n.type === 'email' ? 'Edit email' : n.type === 'sms' ? 'Edit text' : 'Edit wait', n.type === 'email' ? emailForm(n.config)
       : n.type === 'sms' ? `<label class="f">Text message <span class="hint">only to people who said yes to texts</span><textarea name="body" rows="4" maxlength="480" required>${esc(n.config.body || '')}</textarea></label>`
         : `<label class="f">Wait (days)<input name="days" type="number" min="0" max="3650" value="${n.config.days || 0}"></label>`, { submit: 'Save' });
@@ -742,7 +749,7 @@ async function viewFunnel(id) {
       <label class="choice"><input type="radio" name="kind" value="more" hidden><span class="ci">${icon('branch')}</span><span><b>Something else</b><small>Yes/no split, tag, notify me, deal: on the full map</small></span></label></div>`, { submit: 'Next' });
     if (!kind) return;
     if (kind.kind === 'more') { location.hash = `#/workflows/${w.id}`; return; }
-    if (kind.kind === 'email') setTimeout(() => { const m = $('.modal'); if (m) bindFieldInserts(m); });
+    if (kind.kind === 'email') wireEmailModal();
     const v = kind.kind === 'email' ? await modal('New email', emailForm({}, true), { submit: 'Add email' })
       : kind.kind === 'sms' ? await modal('New text', `<label class="f">Wait first <span class="hint">days after the previous step</span><input name="days" type="number" min="0" max="365" value="1"></label>
         <label class="f">Text message <span class="hint">only to people who said yes to texts</span><textarea name="body" rows="3" maxlength="480" required>Hi {{first_name|there}}, it’s {{business}}. </textarea></label>`, { submit: 'Add text' })
