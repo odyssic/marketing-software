@@ -529,20 +529,24 @@ async function viewFunnel(id) {
       // A PDF's first page becomes the cover drawn on the page, unless a picture is already there.
       const s = byId()[stepId];
       const hero = s.blocks.find((b) => b.type === 'hero');
+      // A new PDF brings its own cover, unless the owner put their own photo there.
+      const replacing = Boolean(s.blocks[guideForm(s)]?.deliverUrl);
       let cover = '';
-      if (isPdf && hero && !hero.image) cover = await pdfCoverImage(file).then(uploadImage).catch(() => '');
+      if (isPdf && hero && (!hero.image || hero.coverFromPdf || (hero.coverFromPdf === undefined && hero.mockup === 'book' && /^Cover of /.test(hero.imageAlt || '')))) cover = await pdfCoverImage(file).then(uploadImage).catch(() => '');
       await saveGuide(stepId, (blocks) => {
         const fb = blocks[guideForm(s)];
-        fb.deliverUrl = data.url; if (!fb.deliverName) fb.deliverName = pretty;
+        fb.deliverUrl = data.url;
+        // The name in the email follows the file, unless the owner typed their own.
+        if (!fb.deliverName || fb.deliverAuto || fb.deliverName === 'the free guide') { fb.deliverName = pretty; fb.deliverAuto = true; }
         const h = blocks.find((b) => b.type === 'hero');
-        if (cover && h) Object.assign(h, { image: cover, imageAlt: `Cover of ${pretty.replace(/^the /, '')}`, mockup: h.mockup && h.mockup !== 'none' ? h.mockup : 'book' });
+        if (cover && h) Object.assign(h, { image: cover, coverFromPdf: true, imageAlt: `Cover of ${pretty.replace(/^the /, '')}`, mockup: h.mockup && h.mockup !== 'none' ? h.mockup : 'book' });
       });
-      toast(cover ? 'Guide ready, and its cover is now on your page' : 'Guide ready. It’s emailed to everyone who signs up');
+      toast(replacing ? `Replaced${cover ? ', with its cover' : ''}. New sign-ups get the new file` : cover ? 'Guide ready, and its cover is now on your page' : 'Guide ready. It’s emailed to everyone who signs up');
     } catch (err) { toast(err.message, true); }
   }
   function bindGuideChips() {
     $$('[data-gdpick]', world).forEach((b) => { b.onclick = (e) => { e.stopPropagation(); $(`[data-gdfile="${b.dataset.gdpick}"]`, world).click(); }; });
-    $$('[data-gdfile]', world).forEach((inp) => { inp.onchange = () => { if (inp.files[0]) putGuideFile(Number(inp.dataset.gdfile), inp.files[0]); }; });
+    $$('[data-gdfile]', world).forEach((inp) => { inp.onchange = () => { const f0 = inp.files[0]; inp.value = ''; if (f0) putGuideFile(Number(inp.dataset.gdfile), f0); }; });
     $$('[data-gdlink]', world).forEach((b) => { b.onclick = async (e) => {
       e.stopPropagation();
       const v = await modal('Link to the guide', `<p class="muted small">A Google Drive, Dropbox or any web link. Make sure anyone with the link can open it.</p>
@@ -561,7 +565,7 @@ async function viewFunnel(id) {
         toast('Uploading picture…');
         const url = await uploadImage(file);
         // A photo of the real thing replaces the drawn cover.
-        await saveGuide(Number(inp.dataset.gdimg), (blocks) => { const h = blocks.find((x) => x.type === 'hero'); if (h) Object.assign(h, { image: url, imageAlt: h.imageAlt || 'The free guide', mockup: 'none' }); });
+        await saveGuide(Number(inp.dataset.gdimg), (blocks) => { const h = blocks.find((x) => x.type === 'hero'); if (h) Object.assign(h, { image: url, coverFromPdf: false, imageAlt: h.imageAlt || 'The free guide', mockup: 'none' }); });
         toast('Your photo is on the page');
       } catch (err) { toast(err.message, true); }
     }; });
@@ -573,7 +577,7 @@ async function viewFunnel(id) {
         toast('Making a cover from the first page…');
         const blob = await (await fetch(fb.deliverUrl)).blob();
         const url = await uploadImage(await pdfCoverImage(new File([blob], 'guide.pdf', { type: 'application/pdf' })));
-        await saveGuide(s.id, (blocks) => { const h = blocks.find((x) => x.type === 'hero'); if (h) Object.assign(h, { image: url, imageAlt: `Cover of ${String(fb.deliverName || 'the guide').replace(/^the /, '')}`, mockup: 'book' }); });
+        await saveGuide(s.id, (blocks) => { const h = blocks.find((x) => x.type === 'hero'); if (h) Object.assign(h, { image: url, coverFromPdf: true, imageAlt: `Cover of ${String(fb.deliverName || 'the guide').replace(/^the /, '')}`, mockup: 'book' }); });
         toast('The PDF’s cover is on your page');
       } catch { toast('Couldn’t read that PDF’s cover. Use a photo instead', true); }
     }; });
