@@ -1815,12 +1815,30 @@ ul.tasks { list-style: none; padding: 0; margin: 10px 0 4px; }
 .people-empty .faces span:first-child { margin-left: 0; }
 .people-empty p { max-width: 520px; margin-left: auto; margin-right: auto; }
 
-/* Sales page: example pages instead of illustrations */
-.people-grid.biz { grid-template-columns: 1fr 1fr; gap: 22px; }
-.people-grid.biz figure { padding: 0; overflow: hidden; }
-.people-grid.biz img { border-radius: 0; aspect-ratio: 1200 / 640; object-fit: cover; object-position: top; border-bottom: 1px solid #e3e9e8; }
-.people-grid.biz figcaption { padding: 14px 18px 18px; }
-@media (max-width: 700px) { .people-grid.biz { grid-template-columns: 1fr; } }
+/* Sales page: example pages, on a computer with the phone version beside, and as a phone on phones */
+.people-grid.biz { grid-template-columns: 1fr 1fr; gap: 26px; }
+.people-grid.biz figure { padding: 0; overflow: visible; text-align: left; display: flex; flex-direction: column; }
+.biz-shot { position: relative; margin: 14px 14px 0; }
+.biz-shot > picture img { display: block; width: 100%; height: auto; border-radius: 12px 12px 0 0; box-shadow: 0 0 0 1px #e3e9e8, 0 18px 40px -26px rgba(20,40,43,.45); }
+.biz-phone { position: absolute; right: -6px; bottom: -26px; width: 23%; border: 5px solid #15191d; border-radius: 18px; overflow: hidden; background: #000; box-shadow: 0 16px 30px -12px rgba(15,23,30,.55); aspect-ratio: 390 / 700; }
+.biz-phone img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: top; }
+.people-grid.biz figcaption { padding: 34px 20px 20px; display: grid; gap: 6px; }
+.people-grid.biz figcaption b { font-size: 1.15rem; }
+.people-grid.biz figcaption span { color: var(--muted); line-height: 1.5; font-size: 1rem; }
+.people-grid.biz figcaption small { color: var(--brand); font-weight: 600; font-size: .8rem; letter-spacing: .02em; }
+.biz-own { justify-content: center; background: linear-gradient(160deg, #f1faf8, #fff); }
+.biz-own > div { padding: 30px; display: grid; gap: 10px; justify-items: start; }
+.biz-own b { font-size: 1.3rem; } .biz-own span { color: var(--muted); line-height: 1.55; }
+@media (max-width: 700px) {
+  .people-grid.biz { grid-template-columns: 1fr; gap: 18px; }
+  /* On a phone: the example as a phone shows it, framed and readable */
+  .biz-shot { margin: 18px auto 0; width: min(78%, 300px); border: 7px solid #15191d; border-radius: 30px; overflow: hidden; aspect-ratio: 390 / 640; box-shadow: 0 20px 40px -18px rgba(15,23,30,.5); }
+  .biz-shot > picture img { border-radius: 0; box-shadow: none; height: 100%; object-fit: cover; object-position: top; }
+  .biz-phone { display: none; }
+  .people-grid.biz figcaption { padding: 16px 20px 20px; text-align: center; }
+  .people-grid.biz figcaption b { font-size: 1.1rem; }
+  .people-grid.biz figcaption span { font-size: .95rem; }
+}
 
 /* Flow map: each email or text is its own card, in order, left to right */
 .fu-chip { width: max-content; }
@@ -1968,3 +1986,4 @@ span.tp-photo { display: grid; place-items: center; }
 /* The preview shows email tables as inboxes do (buttons only as wide as their words) */
 .et-mail table:not([width]), .et-branded table:not([width]) { width: auto; }
 .et-mail table:not([width]) td, .et-branded table:not([width]) td { padding: 0; border: 0; }
+.people-grid .biz-phone img { border-radius: 0; height: 100%; }

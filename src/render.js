@@ -318,7 +318,8 @@ const TYPE_CSS = {
 @font-face{font-family:Oswald;src:url(/fonts/oswald-600.woff2) format("woff2");font-weight:600;font-display:swap}
 h1,h2,h3,.hero h1,.offer-t,.bul-t,.cv-title,.tcard blockquote,.faq summary,.price{font-family:"Special Elite","Courier New",Courier,monospace;font-weight:400;letter-spacing:0}
 .eyebrow,.btn,.cta,.stats b,.cv-eyebrow,.tcard .tc-who b,.guar-t{font-family:Oswald,"Arial Narrow",Arial,sans-serif;font-weight:600;text-transform:uppercase;letter-spacing:.07em}
-.eyebrow{font-size:.8rem;border-radius:4px}body{line-height:1.7}.tcard blockquote{font-style:normal}`,
+.eyebrow{font-size:.8rem;border-radius:4px}body{line-height:1.7}.tcard blockquote{font-style:normal}
+@media(max-width:560px){.btn small{letter-spacing:.04em}.hero h1,.cover h1{letter-spacing:-.01em}}`,
   modern: `h1,h2,h3{font-weight:800;letter-spacing:-.035em}.hero h1{font-weight:800;letter-spacing:-.04em}
 .eyebrow{font-size:.75rem;font-weight:700;letter-spacing:.2em;border:0;padding:6px 12px;border-radius:99px;background:color-mix(in srgb,currentColor 12%,transparent)}.btn{border-radius:99px}`,
 };

@@ -195,6 +195,7 @@ main>.feat+.feat,.band-in>.feat+.feat{margin-top:88px}
 .cover .cv-eye{background:color-mix(in srgb,var(--hl) 18%,rgba(255,255,255,.08));color:var(--hl);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--hl) 40%,transparent)}
 .cover .optin .btn{background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 85%,#fff),var(--accent) 45%,color-mix(in srgb,var(--accent) 75%,#000));box-shadow:0 14px 28px -12px color-mix(in srgb,var(--accent) 90%,#000);font-weight:700;letter-spacing:.01em;transition:transform .15s,box-shadow .15s}
 .cover .optin .btn:hover{transform:translateY(-1px);box-shadow:0 18px 32px -12px color-mix(in srgb,var(--accent) 90%,#000)}
+.cv-in>*{min-width:0}.cover .btn{max-width:100%}.cover .btn small{overflow-wrap:anywhere}
 @media(max-width:820px){.cv-in,.cover.with-form .cv-in{grid-template-columns:1fr;gap:36px;text-align:center}.cv-words{order:0}.cv-media{order:1}.cover.with-form .cv-media{order:-1}.cover .ticks{display:grid;width:max-content;max-width:100%;margin-left:auto;margin-right:auto}.cv-sub{margin:0 auto}.cover .optin{margin:24px auto 0}.cover{padding:52px 20px 60px}}
 
 /* Mockups */
