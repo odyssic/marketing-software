@@ -31,6 +31,9 @@ async function call(secretKey, method, path, params) {
 // unitAmount: the price after any code. planParts: a payment plan, charged
 // monthly as a subscription that we end after the last part (see checkout.js).
 // trialDays: free days before a monthly/yearly subscription's first charge.
+// Where Stripe Checkout can ship to: nearly everywhere it supports.
+const SHIP_COUNTRIES = ('AD AE AF AG AI AL AM AO AR AT AU AW AX AZ BA BB BD BE BF BG BH BI BJ BL BM BN BO BQ BR BS BT BW BY BZ CA CD CF CG CH CI CK CL CM CN CO CR CV CW CY CZ DE DJ DK DM DO DZ EC EE EG EH ER ES ET FI FJ FK FO FR GA GB GD GE GF GG GH GI GL GM GN GP GQ GR GT GU GW GY HK HN HR HT HU ID IE IL IM IN IQ IS IT JE JM JO JP KE KG KH KI KM KN KR KW KY KZ LA LB LC LI LK LR LS LT LU LV LY MA MC MD ME MF MG MK ML MM MN MO MQ MR MS MT MU MV MW MX MY MZ NA NC NE NG NI NL NO NP NR NU NZ OM PA PE PF PG PH PK PL PM PN PR PS PT PY QA RE RO RS RU RW SA SB SC SE SG SH SI SJ SK SL SM SN SO SR SS ST SV SX SZ TC TD TF TG TH TJ TK TL TM TN TO TR TT TV TW TZ UA UG US UY UZ VA VC VE VG VN VU WF WS XK YE YT ZA ZM ZW').split(' ');
+
 function createCheckoutSession(secretKey, { product, extra = null, orderId, email, successUrl, cancelUrl, unitAmount = product.price_cents, planParts = 0, trialDays = 0, couponCode = '', expiresAt }) {
   const recurring = planParts ? { interval: 'month' } : product.billing === 'monthly' ? { interval: 'month' }
     : product.billing === 'yearly' ? { interval: 'year' } : undefined;
@@ -49,6 +52,12 @@ function createCheckoutSession(secretKey, { product, extra = null, orderId, emai
     },
     // Order bump: a second one-time item in the same payment.
     ...(extra ? { 1: { quantity: 1, price_data: { currency: extra.currency, unit_amount: extra.price_cents, product_data: { name: extra.name } } } } : {}) },
+    // A product that ships: ask for the mailing address, and show shipping (free or its cost).
+    ...(product.ships && !recurring ? {
+      shipping_address_collection: { allowed_countries: Object.fromEntries(SHIP_COUNTRIES.map((c, i) => [i, c])) },
+      shipping_options: { 0: { shipping_rate_data: { type: 'fixed_amount', display_name: product.shipping_cents ? 'Shipping' : 'Free shipping',
+        fixed_amount: { amount: product.shipping_cents || 0, currency: product.currency } } } },
+    } : {}),
     // One-time payments save the card so a later upsell can be one click.
     ...(recurring ? { subscription_data: { metadata: subMeta, ...(trialDays ? { trial_period_days: trialDays } : {}) } }
       : { payment_intent_data: { setup_future_usage: 'off_session' }, customer_creation: 'always' }),

@@ -17,7 +17,13 @@ const fakeStripe = http.createServer((req, res) => {
       const id = `cs_test_${Object.keys(sessions).length + 1}`;
       sessions[id] = { id, url: `https://checkout.stripe.test/${id}`, client_reference_id: p.get('client_reference_id'),
         mode: p.get('mode'), amount: p.get('line_items[0][price_data][unit_amount]'), payment_status: 'paid',
-        customer_details: { email: 'buyer@example.com', name: 'Bea Buyer' } };
+        customer_details: { email: 'buyer@example.com', name: 'Bea Buyer' },
+        // A product that ships: Stripe asks for the address; the fake fills one in.
+        ...(p.get('shipping_address_collection[allowed_countries][0]') ? {
+          shipCountries: [...p.keys()].filter((k) => k.startsWith('shipping_address_collection')).length,
+          shippingAmount: p.get('shipping_options[0][shipping_rate_data][fixed_amount][amount]'),
+          shippingLabel: p.get('shipping_options[0][shipping_rate_data][display_name]'),
+          shipping_details: { name: 'Bea Buyer', address: { line1: '1 Main St', line2: null, city: 'Taylor', state: 'MI', postal_code: '48180', country: 'US' } } } : {}) };
       return res.end(JSON.stringify(sessions[id]));
     }
     const m = req.url.match(/^\/v1\/checkout\/sessions\/([^?]+)/);
@@ -161,4 +167,28 @@ test('abandoned checkout: one reminder after an hour, none if they paid, none wh
   await c('PUT', '/api/account/recovery', { on: false });
   await client()('POST', `/f/${funnel.slug}/pricing/buy`, null, { form: { block: block.id, email: 'other@example.com' } });
   assert.equal((await c('POST', '/api/jobs/run', { now: new Date(Date.now() + 2 * 3600e3).toISOString() })).body.recovered, 0);
+});
+
+test('a product that ships: checkout asks for the address, free or paid shipping, and the order keeps where to send it', async () => {
+  const { c, funnel, block, productId } = await setupSeller('ship@example.com');
+  await c('PUT', '/api/account/stripe', { secretKey: 'sk_test_ship' });
+  // Not shipping yet: no address asked.
+  await client()('POST', `/f/${funnel.slug}/pricing/buy`, null, { form: { block: block.id } });
+  assert.equal(Object.values(sessions).at(-1).shipCountries, undefined);
+  // Ships, free.
+  assert.equal((await c('PUT', `/api/products/${productId}`, { name: 'The Book', price: '7.95', currency: 'usd', billing: 'one_time', ships: true })).status, 200);
+  await client()('POST', `/f/${funnel.slug}/pricing/buy`, null, { form: { block: block.id } });
+  let s = Object.values(sessions).at(-1);
+  assert.ok(s.shipCountries > 100, 'ships nearly everywhere');
+  assert.equal(s.shippingAmount, '0'); assert.equal(s.shippingLabel, 'Free shipping');
+  const v = client();
+  await v('GET', `/checkout/success/${s.client_reference_id}?session_id=${s.id}`);
+  const order = (await c('GET', '/api/orders')).body.find((o) => String(o.id) === String(s.client_reference_id));
+  assert.equal(order.ship_to, 'Bea Buyer\n1 Main St\nTaylor MI 48180\nUS');
+  // Ships at a cost.
+  await c('PUT', `/api/products/${productId}`, { name: 'The Book', price: '7.95', currency: 'usd', billing: 'one_time', ships: true, shipping: '4.50' });
+  await client()('POST', `/f/${funnel.slug}/pricing/buy`, null, { form: { block: block.id } });
+  s = Object.values(sessions).at(-1);
+  assert.equal(s.shippingAmount, '450'); assert.equal(s.shippingLabel, 'Shipping');
+  assert.equal((await c('PUT', `/api/products/${productId}`, { name: 'The Book', price: '7.95', ships: true, shipping: '-1' })).status, 400);
 });

@@ -28,6 +28,8 @@ async function viewProducts(tab) {
     <div class="colors" data-only="one_time"><label class="f">Let buyers pay in parts <span class="hint">number of monthly payments; empty for pay in full only</span><input name="plan_parts" type="number" min="2" max="24" step="1" inputmode="numeric" placeholder="e.g. 3" value="${pr.plan_parts || ''}"></label>
       <label class="f">Each payment <span class="hint">empty = price split evenly</span><input name="plan_part" type="number" min="0.5" step="0.01" value="${pr.plan_part_cents ? pr.plan_part_cents / 100 : ''}"></label></div>
     <label class="f" data-only="monthly yearly">Free trial <span class="hint">days free before the first payment; empty for none</span><input name="trial_days" type="number" min="0" max="365" step="1" inputmode="numeric" placeholder="e.g. 14" value="${pr.trial_days || ''}"></label>
+    <div class="f" data-only="one_time"><label class="check"><input type="checkbox" name="ships" ${pr.ships ? 'checked' : ''} data-ships> It’s a physical thing I mail out <span class="hint">checkout asks for their mailing address</span></label>
+      <label class="f" data-shipcost ${pr.ships ? '' : 'hidden'} style="margin-top:8px">Shipping <span class="hint">0 or empty for free shipping</span><input name="shipping" type="number" min="0" step="0.01" placeholder="0.00" value="${pr.shipping_cents ? pr.shipping_cents / 100 : ''}"></label></div>
     <div class="f prod-photo"><span>Photo <span class="hint">shown on your sales page and buy buttons</span></span>
       <div class="row" style="gap:12px;align-items:center"><span class="prod-thumb" data-pthumb>${pr.image_url ? `<img src="${esc(pr.image_url)}" alt="">` : icon('image')}</span>
         <label class="btn sm">${icon('upload')} ${pr.image_url ? 'Change photo' : 'Upload a photo'}<input type="file" accept="image/jpeg,image/png,image/webp,image/gif" hidden data-pphoto></label>
@@ -84,6 +86,8 @@ function bindProductUploads() {
       hiddenImg.value = url; $('[data-pthumb]', bg).innerHTML = `<img src="${esc(url)}" alt="">`; msg.textContent = 'Photo ready';
     } catch (e) { msg.textContent = e.message; }
   };
+  const ships = $('[data-ships]', bg);
+  if (ships) ships.onchange = () => { $('[data-shipcost]', bg).hidden = !ships.checked; };
   const hiddenDel = $('input[name=deliver_url]', bg);
   $$('[data-dmode]', bg).forEach((b) => { b.onclick = () => {
     $$('[data-dmode]', bg).forEach((x) => { x.classList.toggle('on', x === b); x.setAttribute('aria-checked', x === b); });
@@ -115,7 +119,7 @@ const productsHtml = (items) => (items.length ? `<div class="card table-wrap"><t
 const ordersHtml = (items) => (items.length ? `<div class="card table-wrap"><table>
   <tr><th>Order</th><th>Product</th><th>Buyer</th><th>Amount</th><th>Status</th><th>Date</th></tr>
   ${items.map((o) => `<tr><td>#${o.id}${o.mode === 'test' ? ' <span class="pill">test</span>' : ''}</td><td>${esc(o.product_name)}<div class="muted small">${esc(o.funnel_name || '')}</div></td>
-    <td>${esc(o.email) || '<span class="muted">—</span>'}</td><td>${esc(o.amountLabel)}${o.coupon_code ? `<div class="muted small">${esc(o.discountLabel)} off with ${esc(o.coupon_code)}</div>` : ''}${o.plan_parts ? `<div class="muted small">first of ${o.plan_parts} payments</div>` : ''}${o.trial_days ? `<div class="muted small">${o.trial_days}-day free trial</div>` : ''}</td>
+    <td>${esc(o.email) || '<span class="muted">—</span>'}${o.ship_to ? `<div class="ship-to">${icon('truck')}<span>${esc(o.ship_to).replace(/\n/g, '<br>')}</span></div>` : ''}</td><td>${esc(o.amountLabel)}${o.coupon_code ? `<div class="muted small">${esc(o.discountLabel)} off with ${esc(o.coupon_code)}</div>` : ''}${o.plan_parts ? `<div class="muted small">first of ${o.plan_parts} payments</div>` : ''}${o.trial_days ? `<div class="muted small">${o.trial_days}-day free trial</div>` : ''}</td>
     <td><span class="pill ${o.status === 'paid' ? 'ok' : ''}">${o.status === 'pending' ? 'abandoned / pending' : esc(o.status)}</span></td>
     <td class="muted small">${fmtDate(o.paid_at || o.created_at)}</td></tr>`).join('')}
   </table></div>` : '<div class="card empty"><div class="big">' + icon('receipt') + '</div><h2>No orders yet</h2><p>Orders appear here when someone buys from a page or pays an invoice or payment link.</p></div>');

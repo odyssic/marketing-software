@@ -749,6 +749,10 @@ ALTER TABLE funnels ADD COLUMN IF NOT EXISTS drip_emails INT NOT NULL DEFAULT 1;
 ALTER TABLE testimonials ADD COLUMN IF NOT EXISTS rating INT NOT NULL DEFAULT 0;
 ALTER TABLE testimonials ADD COLUMN IF NOT EXISTS shareable INT NOT NULL DEFAULT 1;
 ALTER TABLE testimonials ADD COLUMN IF NOT EXISTS photo TEXT NOT NULL DEFAULT '';
+-- Physical products: ask for a mailing address at checkout, and what shipping costs (0 = free).
+ALTER TABLE products ADD COLUMN IF NOT EXISTS ships INT NOT NULL DEFAULT 0;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS shipping_cents INT NOT NULL DEFAULT 0;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS ship_to TEXT NOT NULL DEFAULT '';
 -- The offer ladder: what to offer a product's buyers next (empty: the next pricier product).
 ALTER TABLE products ADD COLUMN IF NOT EXISTS next_product_id INT REFERENCES products(id) ON DELETE SET NULL;
 -- What the buyer gets: an uploaded file (/u/…) or a link, emailed the moment they pay.

@@ -79,10 +79,10 @@ function renderSection(b, ctx, index, { href, formHtml = '' } = {}) {
     case 'guarantee': {
       const days = Math.max(0, Math.min(365, Number(b.days) || 0));
       return `<div class="guar"><div class="seal" aria-hidden="true"><svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="56" class="s1"/><circle cx="60" cy="60" r="47" class="s2"/></svg><span>${days ? `<b>${days}</b>DAY` : `<b>${TICK}</b>`}</span></div>
-        <div><h3${f('title')}>${esc(b.title || 'Our promise')}</h3><p${f('text')}>${esc(b.text)}</p></div></div>`;
+        <div><h3${f('title')}>${hl(b.title || 'Our promise')}</h3><p${f('text')}>${esc(b.text)}</p></div></div>`;
     }
     case 'bio': {
-      const initials = esc(String(b.name || ctx.business || '?').split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase());
+      const initials = esc(String(b.name || ctx.business || '?').replace(/[^\p{L}\s]/gu, '').split(/\s+/).filter(Boolean).map((w) => w[0]).join('').slice(0, 2).toUpperCase() || '✎');
       const pic = b.image ? `<img src="${esc(safeUrl(b.image))}" alt="${esc(b.name || '')}" loading="lazy">` : `<span class="bio-ini" aria-hidden="true">${initials}</span>`;
       return `<div class="bio"><div class="bio-pic">${pic}</div><div class="bio-words">${b.eyebrow ? `<div class="kick"${f('eyebrow')}>${esc(b.eyebrow)}</div>` : ''}
         <h2${f('name')}>${esc(b.name || ctx.business || '')}</h2>${b.role ? `<p class="bio-role"${f('role')}>${esc(b.role)}</p>` : ''}<p${f('text')}>${esc(b.text).replace(/\n/g, '<br>')}</p>
@@ -276,6 +276,8 @@ details[open] .pm::after{transform:rotate(0)}.faq details p{margin:0 0 18px;opac
 .cards .card:hover{transform:translateY(-3px);box-shadow:0 1px 2px rgba(16,24,40,.04),0 22px 40px -22px color-mix(in srgb,var(--accent) 55%,transparent)}
 .cards:not(.numbered) .card::before{content:"";display:block;width:36px;height:36px;border-radius:11px;margin-bottom:16px;
   background:radial-gradient(circle at 50% 50%,var(--accent) 0 5px,transparent 5.5px),linear-gradient(145deg,color-mix(in srgb,var(--accent) 16%,#fff),color-mix(in srgb,var(--accent) 7%,#fff))}
+.cards.n5{grid-template-columns:repeat(6,1fr)}.cards.n5 .card{grid-column:span 2}.cards.n5 .card:nth-child(4){grid-column:2/span 2}
+@media(max-width:820px){.cards.n5{grid-template-columns:1fr}.cards.n5 .card,.cards.n5 .card:nth-child(4){grid-column:auto}}
 .cards .card h3{font-size:1.12rem;letter-spacing:-.01em;margin:0 0 6px}.cards .card p{opacity:.72;line-height:1.55}
 .cards.numbered .card::before{width:38px;height:38px;border-radius:12px;font:700 .95rem/38px system-ui,sans-serif;margin-bottom:16px;
   background:linear-gradient(145deg,color-mix(in srgb,var(--accent) 85%,#fff),var(--accent));box-shadow:0 8px 16px -8px var(--accent)}

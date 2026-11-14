@@ -150,7 +150,7 @@ async function flowLook(funnelId, btn) {
   pop.innerHTML = `<div class="lk-h">Colours <small>for every page</small></div>
     <div class="lk-pals">${pals.map((p) => `<button type="button" class="lk-pal ${cur.palette === p.name ? 'on' : ''}" data-lkpal="${esc(p.name)}" aria-pressed="${cur.palette === p.name}"><span class="lk-sw"><i style="background:${p.bg}"></i><i style="background:${p.band}"></i><i style="background:${p.accent}"></i></span><small>${esc(p.name)}</small></button>`).join('')}</div>
     <div class="lk-h">Type style</div>
-    <div class="lk-types">${[['', 'Classic'], ['elegant', 'Elegant'], ['modern', 'Modern']].map(([k, l]) => `<button type="button" class="lk-type t-${k || 'classic'} ${(cur.font || '') === k ? 'on' : ''}" data-lkfont="${k}" aria-pressed="${(cur.font || '') === k}"><b>Aa</b><small>${l}</small></button>`).join('')}</div>`;
+    <div class="lk-types">${[['', 'Classic'], ['elegant', 'Elegant'], ['modern', 'Modern'], ['typewriter', 'Typewriter']].map(([k, l]) => `<button type="button" class="lk-type t-${k || 'classic'} ${(cur.font || '') === k ? 'on' : ''}" data-lkfont="${k}" aria-pressed="${(cur.font || '') === k}"><b>Aa</b><small>${l}</small></button>`).join('')}</div>`;
   document.body.append(pop);
   const r = btn.getBoundingClientRect();
   pop.style.top = `${r.bottom + window.scrollY + 6}px`;

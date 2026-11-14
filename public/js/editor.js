@@ -235,7 +235,7 @@ async function viewEditor(stepId) {
       <div class="list-bin" data-bin aria-hidden="true">${icon('trash')} Drop here to delete</div>
       <h3>Page style</h3>
       <div class="pal-row" role="group" aria-label="Colour palettes" data-palrow></div>
-      <div class="type-row" role="group" aria-label="Type style">${[['', 'Classic'], ['elegant', 'Elegant'], ['modern', 'Modern']].map(([k, l]) => `<button type="button" class="type-opt t-${k || 'classic'} ${(ed.settings.font || '') === k ? 'on' : ''}" data-font="${k}" aria-pressed="${(ed.settings.font || '') === k}"><b>Aa</b><small>${l}</small></button>`).join('')}</div>
+      <div class="type-row" role="group" aria-label="Type style">${[['', 'Classic'], ['elegant', 'Elegant'], ['modern', 'Modern'], ['typewriter', 'Typewriter']].map(([k, l]) => `<button type="button" class="type-opt t-${k || 'classic'} ${(ed.settings.font || '') === k ? 'on' : ''}" data-font="${k}" aria-pressed="${(ed.settings.font || '') === k}"><b>Aa</b><small>${l}</small></button>`).join('')}</div>
       <button type="button" class="btn sm ghost" data-palall style="margin:-2px 0 10px">${icon('sparkle')} Use this look on every page</button>
       <details class="more-page seo-fold" ${ed.settings.seoTitle ? '' : 'open'}><summary>Search &amp; AI <span class="muted small" data-seostate>${ed.settings.seoTitle && ed.settings.seoDescription ? 'ready' : 'not set yet'}</span></summary>
         <button type="button" class="btn sm primary seo-write" data-seowrite>${icon('sparkle')} Write these for me</button>

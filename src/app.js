@@ -809,6 +809,13 @@ function createApp({ dbPath } = {}) {
     if (trial < 0 || trial > 365) throw new HttpError(400, 'A free trial can be up to 365 days');
     return [name, String(b.description || '').trim(), price, currency, billing, parseTags(b.tag).join(','), image, parts, part, trial, deliver];
   };
+  // A physical product: a mailing address is asked for at checkout; shipping is free or a set cost.
+  const shippingInput = (b) => {
+    const ships = b.ships === true || b.ships === 'on' || b.ships === '1' || b.ships === 1 ? 1 : 0;
+    const cost = ships ? Math.round((Number(b.shipping) || 0) * 100) : 0;
+    if (cost < 0 || cost > 100000) throw new HttpError(400, 'Shipping must be between 0 and 1,000');
+    return [ships, cost];
+  };
   const productOut = (p) => ({ ...p, price: p.price_cents / 100, priceLabel: formatMoney(p.price_cents, p.currency) });
 
   api.get('/products', async (req, res) => {
@@ -818,14 +825,14 @@ function createApp({ dbPath } = {}) {
   });
 
   api.post('/products', async (req, res) => {
-    const r = await db.get(`INSERT INTO products (account_id, name, description, price_cents, currency, billing, tag, image_url, plan_parts, plan_part_cents, trial_days, deliver_url)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`, req.accountId, ...productInput(req.body || {}));
+    const r = await db.get(`INSERT INTO products (account_id, name, description, price_cents, currency, billing, tag, image_url, plan_parts, plan_part_cents, trial_days, deliver_url, ships, shipping_cents)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`, req.accountId, ...productInput(req.body || {}), ...shippingInput(req.body || {}));
     res.status(201).json({ id: r.id });
   });
 
   api.put('/products/:id', async (req, res) => {
     const r = await db.run(`UPDATE products SET name = ?, description = ?, price_cents = ?, currency = ?, billing = ?, tag = ?, image_url = ?,
-      plan_parts = ?, plan_part_cents = ?, trial_days = ?, deliver_url = ? WHERE id = ? AND account_id = ?`, ...productInput(req.body || {}), id(req.params.id), req.accountId);
+      plan_parts = ?, plan_part_cents = ?, trial_days = ?, deliver_url = ?, ships = ?, shipping_cents = ? WHERE id = ? AND account_id = ?`, ...productInput(req.body || {}), ...shippingInput(req.body || {}), id(req.params.id), req.accountId);
     if (!r.changes) throw new HttpError(404, 'Product not found');
     if (req.body?.next_product_id !== undefined) {
       const next = req.body.next_product_id ? await db.get('SELECT id FROM products WHERE id = ? AND account_id = ? AND id <> ?', id(req.body.next_product_id), req.accountId, id(req.params.id)) : null;

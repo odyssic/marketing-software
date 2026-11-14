@@ -14,6 +14,8 @@ const id = () => Math.random().toString(36).slice(2, 10);
 // Contemporary looks: a warm, editorial serif and a clean modern sans.
 const ELEGANT = { font: 'elegant', background: '#fbf9f6', textColor: '#1f1b16', accent: '#8a5a2b', width: 1080 };
 const MODERN = { font: 'modern', background: '#ffffff', textColor: '#0b1220', accent: '#4338ca', width: 1080 };
+// Typewriter: deep plum with a soft pink highlight, typewriter headlines.
+const TYPEWRITER = { font: 'typewriter', background: '#fbf6ee', textColor: '#2a1633', accent: '#341b3f', highlight: '#ffa0a3', width: 1040 };
 const FRESH = { font: 'modern', background: '#ffffff', textColor: '#10231f', accent: '#0f766e', width: 1080 };
 
 // Small builders so each template reads like the page it makes.
@@ -81,6 +83,36 @@ const TEMPLATES = {
         ],
       },
       thanks('Thank you', 'It’s on its way', 'Check your inbox in the next few minutes. If it’s not there, look in Promotions or Spam.', NEXT_EMAIL, { ...ELEGANT }, { bg: '#3b2414' }),
+    ],
+  },
+  // A physical book: free, they pay only what it costs to print (shipping included), or pre-order.
+  book_offer: {
+    label: 'Free book, pay the printing',
+    description: 'For a printed book: they pay only what it costs to print and you ship it (free shipping, or a set cost). Real reviews, who they’ll become, an interview, FAQ, the author, a bold guarantee. Then an order confirmation and care emails.',
+    workflows: ['care'],
+    steps: () => [
+      {
+        name: 'Book', slug: 'book', settings: { ...TYPEWRITER },
+        blocks: [
+          cover({ eyebrow: 'New book', text: '[Your book title]', subtext: '[Promise one] : [promise two] : [promise three]', items: 'Get the book free. You only pay what it costs to print\nShipping is on us, worldwide\n[Ships season and year]', button: 'Get my copy', buttonSub: 'One-year money-back guarantee', url: '#form', mockup: 'book', mockupLabel: 'New book', mockupTitle: '[Your book title]', background: '#341b3f' }),
+          { id: id(), type: 'pricing', productId: null, badge: 'Free book', compareText: '', billingText: 'printing only · free shipping', note: '', featuresTitle: 'You get:', features: 'The paperback, shipped to your door\n[A bonus, if you include one]\nA one-year, no-questions refund', buttonLabel: 'Send me the book', buttonSubtext: '[Ships season and year]', buttonColor: '#341b3f' },
+          reviews(3, { band: 'soft' }),
+          head('Upgrade your [life or craft] to *[the new way]*', { size: 'large' }),
+          { id: id(), type: 'text', text: '(It’s simpler than you think.)', align: 'center' },
+          { id: id(), type: 'spacer', height: 36 },
+          head('While reading [your book title], *you will become…*'),
+          cards([['An inspired [reader]', 'One or two lines on the first change they’ll feel.'], ['A productive [reader]', 'What gets easier, and why.'], ['A clear thinker', 'What falls away, and what’s left.'], ['The most interesting person in the room', 'What others start to notice.'], ['A happier [maker]', 'The deeper change, in their words.']], { numbered: true }),
+          cta({ title: 'Ready for *your copy*?', text: 'You only pay what it costs to print. Shipping is on us.', button: 'Get my copy', buttonSub: '[Ships season and year]', url: '#form' }),
+          head('About the book'),
+          { id: id(), type: 'video', url: '' },
+          feature({ eyebrow: 'Why it’s free', title: 'Why I’m giving the paperback away *at cost*', text: 'Say plainly why: what you hope readers do next, and what (if anything) you offer later. No catch, and say so.', items: '[Your honest reason]\n[What happens after they read it]\n[What it isn’t]', mockup: 'none' }),
+          faq([['How long will it take to arrive?', 'Say where it ships from and typical times for your country and abroad. Tracking arrives by email after you order.'], ['Do you offer refunds?', 'Yes. Send the book back within a year for a full refund, shipping included. No questions asked.'], ['Will this work for me?', 'Answer the most common worry honestly.'], ['Is this a subscription?', 'No. One payment for the printing, and that’s it.']], { band: 'soft' }),
+          bio({ eyebrow: 'About the author', name: '[Your name]', role: '[What you do]', text: 'Tell the moment it started, what changed, and why you wrote the book. Sign off in your own voice.' }),
+          guarantee({ days: 365, title: 'My bold *one-year* guarantee', text: 'If the book doesn’t make a difference for you, send it back within a year and I’ll refund every penny, the printing and the shipping. No questions asked.' }),
+          cta({ title: 'Get *your copy*', text: 'Free book, you only pay the printing. Ships worldwide.', button: 'Send me the book', buttonSub: 'One-year money-back guarantee', url: '#form' }),
+        ],
+      },
+      thanks('Order confirmed', 'Your book is *on its way*', 'Your receipt is in your inbox. Tracking follows as soon as it ships.', [['Check your inbox', 'Your receipt is there now.'], ['Watch for tracking', 'It comes by email the day your book ships.'], ['Hit reply', 'Tell me why you picked it up. I read every reply.']], { ...TYPEWRITER }, { bg: '#341b3f' }),
     ],
   },
   modern_sales: {

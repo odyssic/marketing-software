@@ -137,6 +137,13 @@ function registerCheckout(app, api, { getDb, HttpError, id, messaging, publicBas
   // After Stripe confirms a checkout: a payment plan's subscription is set to
   // end after its last part. Safe to call twice (success page and webhook).
   async function afterSession(order, session) {
+    // Where to send a physical product.
+    const ship = session?.shipping_details || session?.collected_information?.shipping_details;
+    if (ship?.address) {
+      const a = ship.address;
+      const text = [ship.name, a.line1, a.line2, [a.city, a.state, a.postal_code].filter(Boolean).join(' '), a.country].filter(Boolean).join('\n');
+      await db().run("UPDATE orders SET ship_to = ? WHERE id = ? AND ship_to = ''", text.slice(0, 600), order.id);
+    }
     if (!order.plan_parts || !session?.subscription) return;
     const sub = typeof session.subscription === 'string' ? session.subscription : session.subscription.id;
     const claimed = await db().get('UPDATE orders SET stripe_subscription = ? WHERE id = ? AND stripe_subscription IS NULL RETURNING id', sub, order.id);

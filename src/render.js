@@ -43,6 +43,7 @@ d.querySelector('.pcode-go').onclick=go;i.addEventListener('keydown',function(e)
 f.querySelectorAll('input[name=plan]').forEach(function(r){r.addEventListener('change',go)});
 if(pre){i.value=pre;d.open=true;go()}})})}</script>`;
 
+const pricingAnchor = (ctx) => { if (ctx.formAnchored) return ''; ctx.formAnchored = true; return ' id="form"'; };
 function renderPricing(b, ctx) {
   const product = ctx.products?.[b.productId];
   const price = product ? moneyParts(product.price_cents, product.currency) : null;
@@ -56,7 +57,7 @@ function renderPricing(b, ctx) {
   let cta;
   // One-click upsell: the buyer just paid, so "Yes" charges the same card.
   if (product && ctx.oneClick && product.billing === 'one_time') {
-    return `<div class="pricing">
+    return `<div class="pricing"${pricingAnchor(ctx)}>
     ${product.image_url ? `<img class="pimg" src="${esc(product.image_url)}" alt="${esc(product.name)}" loading="lazy">` : ''}
     ${b.badge ? `<span class="badge">${esc(b.badge)}</span>` : ''}
     <div class="price">${price ? `<sup>${esc(price.symbol)}</sup>${esc(price.amount)}` : ''}</div>
@@ -90,7 +91,7 @@ function renderPricing(b, ctx) {
     cta = `<a class="btn cta" style="${btnStyle}" href="${esc(ctx.nextUrl)}">${label}</a>`
       + (ctx.preview ? '<p class="warn">Choose a product for this pricing card so the button takes payment.</p>' : '');
   }
-  return `<div class="pricing">
+  return `<div class="pricing"${pricingAnchor(ctx)}>
     ${product?.image_url ? `<img class="pimg" src="${esc(product.image_url)}" alt="${esc(product.name)}" loading="lazy">` : ''}
     ${b.badge ? `<span class="badge"${ctx.preview ? ' data-f="badge"' : ''}>${esc(b.badge)}</span>` : ''}
     ${b.compareText ? `<div class="was">${esc(b.compareText)}</div>` : ''}
@@ -256,7 +257,7 @@ function renderBlock(b, ctx, index) {
       const items = String(b.items || '').split('\n').map((l) => l.split('|').map((x) => x.trim())).filter(([t]) => t);
       // Icon style: matched line icons, bold (filled tile) icons, plain dots or none.
       const ic = b.numbered ? '' : ({ 'matched icons': 'line', 'bold icons': 'solid', none: 'none' })[b.icons] || '';
-      return `<div class="cards${b.numbered ? ' numbered' : ''}${ic ? ` ic-${ic}` : ''}">${items.map(([t, d, n], r) => `<div class="card">${ic === 'line' || ic === 'solid' ? `<span class="ci">${cardIcon(t, d, n)}</span>` : ''}<h3${lf(r, 0)}>${esc(t)}</h3>${d ? `<p${lf(r, 1)}>${esc(d)}</p>` : ''}</div>`).join('')}</div>`;
+      return `<div class="cards${b.numbered ? ' numbered' : ''}${ic ? ` ic-${ic}` : ''}${items.length === 5 ? ' n5' : ''}">${items.map(([t, d, n], r) => `<div class="card">${ic === 'line' || ic === 'solid' ? `<span class="ci">${cardIcon(t, d, n)}</span>` : ''}<h3${lf(r, 0)}>${esc(t)}</h3>${d ? `<p${lf(r, 1)}>${esc(d)}</p>` : ''}</div>`).join('')}</div>`;
     }
     case 'info': {
       const rows = [['🕘', 'Hours', b.hours], ['📍', 'Address', b.address], ['📞', 'Phone', b.phone && `<a href="tel:${esc(String(b.phone).replace(/[^+\d]/g, ''))}">${esc(b.phone)}</a>`], ['✉️', 'Email', b.email && `<a href="mailto:${esc(b.email)}">${esc(b.email)}</a>`]]
@@ -310,6 +311,14 @@ function trackingTags(code = {}, ownDomain = false) {
 const TYPE_CSS = {
   elegant: `h1,h2,h3,.hero h1,.offer-t,.bul-t{font-family:"Iowan Old Style","Palatino Linotype","Book Antiqua",Palatino,Georgia,serif;font-weight:600;letter-spacing:-.01em}
 .eyebrow{font-family:system-ui,sans-serif;font-size:.78rem;letter-spacing:.24em;border:0;padding:0}body{line-height:1.7}`,
+  // Typewriter: Special Elite for headlines and quotes, Oswald capitals for labels and buttons
+  // (both open-source fonts, served from /fonts so pages don't call out to anyone).
+  typewriter: `@font-face{font-family:"Special Elite";src:url(/fonts/special-elite.woff2) format("woff2");font-display:swap}
+@font-face{font-family:Oswald;src:url(/fonts/oswald-500.woff2) format("woff2");font-weight:500;font-display:swap}
+@font-face{font-family:Oswald;src:url(/fonts/oswald-600.woff2) format("woff2");font-weight:600;font-display:swap}
+h1,h2,h3,.hero h1,.offer-t,.bul-t,.cv-title,.tcard blockquote,.faq summary,.price{font-family:"Special Elite","Courier New",Courier,monospace;font-weight:400;letter-spacing:0}
+.eyebrow,.btn,.cta,.stats b,.cv-eyebrow,.tcard .tc-who b,.guar-t{font-family:Oswald,"Arial Narrow",Arial,sans-serif;font-weight:600;text-transform:uppercase;letter-spacing:.07em}
+.eyebrow{font-size:.8rem;border-radius:4px}body{line-height:1.7}.tcard blockquote{font-style:normal}`,
   modern: `h1,h2,h3{font-weight:800;letter-spacing:-.035em}.hero h1{font-weight:800;letter-spacing:-.04em}
 .eyebrow{font-size:.75rem;font-weight:700;letter-spacing:.2em;border:0;padding:6px 12px;border-radius:99px;background:color-mix(in srgb,currentColor 12%,transparent)}.btn{border-radius:99px}`,
 };
