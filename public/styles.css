@@ -1987,3 +1987,11 @@ span.tp-photo { display: grid; place-items: center; }
 .et-mail table:not([width]), .et-branded table:not([width]) { width: auto; }
 .et-mail table:not([width]) td, .et-branded table:not([width]) td { padding: 0; border: 0; }
 .people-grid .biz-phone img { border-radius: 0; height: 100%; }
+
+/* Areas in plain words (no scores) */
+.grow-row .g-said { flex: 1; text-align: left; color: var(--text); font-size: .92rem; }
+.h-said { margin: 8px 0 4px; font-size: .95rem; line-height: 1.45; color: var(--text); }
+.a-trend { font-size: .8rem; font-weight: 600; white-space: nowrap; }
+.a-trend.up { color: #15803d; } .a-trend.down { color: #b45309; }
+.grow-row .g-said { grid-column: 2 / -1; grid-row: 2; }
+.grow-row .a-trend { grid-column: 4; grid-row: 1; justify-self: end; }

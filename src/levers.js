@@ -24,6 +24,21 @@ function scoreFrom(cur, base) {
 const avg = (xs) => { const v = xs.filter((x) => x !== null && x !== undefined); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null; };
 const pctChange = (cur, prev) => (cur === null || prev === null || prev === undefined ? null : prev === 0 ? (cur > 0 ? null : 0) : Math.round(((cur - prev) / prev) * 100));
 
+// Each area in one plain sentence from the real count (no scores), and a trend
+// only when there's a real month before to compare with.
+function plainArea(key, l) {
+  const v = l.value;
+  const n = (x, one, many) => `${x} ${x === 1 ? one : many}`;
+  const said = {
+    lead: () => (v ? `${n(v, 'person', 'people')} signed up, asked or subscribed in the last 30 days` : 'Nobody signed up, asked or subscribed in the last 30 days'),
+    conversion: () => (v === null ? 'No sign-ups yet to turn into buyers' : v === 0 ? 'Nobody who signed up has bought yet' : `${v}% of people who signed up went on to buy`),
+    upsell: () => (v === null ? 'No orders yet' : `The average order is ${l.valueLabel}`),
+    continuity: () => (v ? `${n(v, 'repeat buyer or subscriber', 'repeat buyers and subscribers')}` : 'No repeat buyers or subscribers yet'),
+  }[key]();
+  const trend = l.previous && l.change !== null && l.change !== 0 ? `${l.change > 0 ? '↑' : '↓'} ${Math.abs(l.change)}% on the month before` : '';
+  return { said, trend };
+}
+
 function createLevers({ getDb, formatMoney }) {
   const metrics = {
     async lead(a, t) {
@@ -100,6 +115,7 @@ function createLevers({ getDb, formatMoney }) {
         change, changeLabel: change === null ? (m30.value === null ? 'new this month' : '') : `${change > 0 ? '+' : ''}${change}% vs last 30 days`,
         score: enough ? score : null, enough, churn: cur.churn ?? null, sample: cur.sample,
       };
+      Object.assign(out[key], plainArea(key, out[key]));
     }
     return out;
   }
@@ -115,4 +131,4 @@ function createLevers({ getDb, formatMoney }) {
   return { compute, focusOf, metrics };
 }
 
-module.exports = { createLevers, LEVERS, LEVER_KEYS, scoreFrom };
+module.exports = { createLevers, LEVERS, LEVER_KEYS, scoreFrom, plainArea };

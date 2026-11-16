@@ -42,18 +42,17 @@ function renderDashboard() {
     ${dash.customize ? '' : '<section class="card today" data-today hidden></section>'}
     ${dash.customize ? '' : '<section data-metrics aria-label="Business numbers"></section>'}
     ${!dash.customize && dash.week?.length ? `<section class="card week"><h2>This week, in plain words</h2><ul>${dash.week.map((l) => `<li>${esc(l)}</li>`).join('')}</ul></section>` : ''}
-    ${dash.customize ? '' : `<details class="grow-fold" ${dash.growOpen ? 'open' : ''}><summary><h2 class="section-h" style="display:inline">Where to grow next</h2> <span class="muted small">your four areas, scored, with this week’s idea</span></summary>
+    ${dash.customize ? '' : `<details class="grow-fold" ${dash.growOpen ? 'open' : ''}><summary><h2 class="section-h" style="display:inline">Where to grow next</h2> <span class="muted small">your four areas in plain words, with this week’s idea</span></summary>
     <section class="card grow">
       <div data-growmove><div class="skeleton"></div></div>
       <div class="grow-areas">${['lead', 'conversion', 'upsell', 'continuity'].map((k) => { const l = dash.levers.levers[k] || {}; return `<button type="button" class="grow-row" data-growlever="${k}" style="--c:${LEVER_UI[k].color}">
         <i class="dot"></i><b>${esc(LEVER_UI[k].label)}</b>${k === focus ? '<span class="pill" style="margin-left:4px">focus</span>' : ''}
-        <span class="gbar">${l.score === null || l.score === undefined ? '<span class="muted small">too early to tell</span>' : `<i style="width:${Math.max(4, l.score)}%"></i>`}</span>
-        <span class="muted small">${esc([l.valueLabel, l.changeLabel].filter(Boolean).join(' · '))}</span></button>`; }).join('')}</div>
+        <span class="g-said">${esc(l.said || '')}</span>${areaTrend(l)}</button>`; }).join('')}</div>
     </section></details>`}
     <details class="grow-more" ${dash.customize || dash.moreOpen ? 'open' : ''}><summary>See all charts${dash.customize ? '' : ' and customize'}</summary>
     <div class="row" style="justify-content:flex-end;margin:6px 0 10px"><button class="btn ${dash.customize ? 'primary' : ''}" data-customize>${dash.customize ? 'Done' : icon('gear') + ' Customize'}</button></div>
     <div class="leverbar" role="tablist">${Object.entries(LEVER_UI).map(([k, l]) => `<button role="tab" aria-selected="${k === lv}" data-lever="${k}" style="--c:${l.color}" class="${k === lv ? 'on' : ''}"><i class="dot"></i>
-      ${k !== 'all' && dash.levers.levers[k]?.score !== null && dash.levers.levers[k]?.score !== undefined ? `<span class="sc">${dash.levers.levers[k].score}</span>` : ''}${esc(l.label)}${k === focus ? ' <span class="focus-dot" title="Focus here">●</span>' : ''}</button>`).join('')}</div>
+      ${esc(l.label)}${k === focus ? ' <span class="focus-dot" title="Focus here">●</span>' : ''}</button>`).join('')}</div>
     ${dash.customize ? `<div class="tray"><span class="muted small">Hidden tiles:</span>
       ${tiles.filter((t) => t.hidden).map((t) => `<button class="chip" data-restore="${t.tile_id}">${icon('plus')} ${esc(meta(t.tile_id)?.title || t.tile_id)}</button>`).join('') || '<span class="muted small">none. Hide a tile with ✕ to park it here.</span>'}</div>` : ''}
     <div class="tiles ${dash.customize ? 'editing' : ''}" style="--lever:${lv === 'all' ? 'var(--brand)' : LEVER_UI[lv].color}">
@@ -154,10 +153,12 @@ function renderTile(id, t) {
   }
 }
 
+// "↑ 20% on the month before": only when there was a real month before.
+const areaTrend = (l) => (l.trend ? `<span class="a-trend ${l.trend.startsWith('↑') ? 'up' : 'down'}">${esc(l.trend)}</span>` : '');
 function healthTile(d) {
   if (!d) return '';
   const levers = d.levers;
-  // Nothing to score yet: one calm line instead of four empty meters.
+  // Nothing yet anywhere: one calm line instead of four empty cards.
   if (['lead', 'conversion', 'upsell', 'continuity'].every((k) => levers[k].score === null)) {
     return `<p class="muted">Too early to tell. Once people visit your pages and sign up or buy, you’ll see how you’re doing at bringing in <b>new people</b>, turning them into <b>first sales</b>, <b>bigger orders</b> and <b>repeat business</b>, and which one deserves your time.</p>`;
   }
@@ -165,9 +166,7 @@ function healthTile(d) {
     const l = levers[k];
     return `<button class="hcard ${k === d.focus ? 'focus' : ''}" data-golever="${k}" style="--c:${LEVER_UI[k].color}">
       <div class="row" style="justify-content:space-between"><b>${esc(l.label)}</b>${k === d.focus ? '<span class="badge">Focus here</span>' : ''}</div>
-      <div class="hbar"><span style="width:${l.score ?? 0}%"></span></div>
-      <div class="row" style="justify-content:space-between"><span class="score">${l.score ?? '—'}<small>/100</small></span><span class="muted small">${esc(l.valueLabel)}</span></div>
-      <div class="muted small">${esc(l.score === null ? 'Not enough data yet' : l.metric)}${l.changeLabel ? ` · ${esc(l.changeLabel)}` : ''}</div></button>`;
+      <div class="h-said">${esc(l.said || '')}</div>${areaTrend(l)}</button>`;
   }).join('')}</div>`;
 }
 

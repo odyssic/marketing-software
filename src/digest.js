@@ -9,21 +9,6 @@ const { weekResults } = require('./results');
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-// Each area in one plain sentence from the real count (no scores), and a trend
-// only when there's a real month before to compare with.
-function plainArea(key, l) {
-  const v = l.value;
-  const n = (x, one, many) => `${x} ${x === 1 ? one : many}`;
-  const said = {
-    lead: () => (v ? `${n(v, 'person', 'people')} signed up, asked or subscribed in the last 30 days` : 'Nobody signed up, asked or subscribed in the last 30 days'),
-    conversion: () => (v === null ? 'No sign-ups yet to turn into buyers' : v === 0 ? 'Nobody who signed up has bought yet' : `${v}% of people who signed up went on to buy`),
-    upsell: () => (v === null ? 'No orders yet' : `The average order is ${l.valueLabel}`),
-    continuity: () => (v ? `${n(v, 'repeat buyer or subscriber', 'repeat buyers and subscribers')}` : 'No repeat buyers or subscribers yet'),
-  }[key]();
-  const trend = l.previous && l.change !== null && l.change !== 0 ? `${l.change > 0 ? '↑' : '↓'} ${Math.abs(l.change)}% on the month before` : '';
-  return { said, trend };
-}
-
 function createDigest({ getDb, leversFor, moves, publicBase }) {
   async function build(accountId) {
     const db = getDb();
@@ -39,7 +24,7 @@ function createDigest({ getDb, leversFor, moves, publicBase }) {
       ...(results.length ? ['THIS WEEK', ...results.map((r) => `• ${r}`), ''] : ['A quiet week: nothing new to report yet. Share your page link to get things moving.', '']),
       'HOW EACH AREA IS DOING',
       ...['lead', 'conversion', 'upsell', 'continuity'].map((k) => {
-        const { said, trend } = plainArea(k, levers[k]);
+        const { said, trend } = levers[k];
         return `${levers[k].label}${k === levers.focus ? ' (focus this week)' : ''}: ${said}${trend ? `. ${trend}` : ''}`;
       }),
       '',
@@ -62,7 +47,7 @@ function createDigest({ getDb, leversFor, moves, publicBase }) {
       results.length ? { list: results.map((r) => [r]) } : { p: 'A quiet week: nothing new to report yet. Share your page link to get things moving.' },
       { h: 'How each area is doing' },
       { html: ['lead', 'conversion', 'upsell', 'continuity'].map((k) => {
-        const { said, trend } = plainArea(k, levers[k]);
+        const { said, trend } = levers[k];
         const up = trend.startsWith('↑');
         return `<div style="padding:12px 0;border-top:1px solid #E3E9E8">
           <div style="font-size:15px;font-weight:700;color:#14282B">${esc(levers[k].label)}${k === levers.focus ? ' <span style="font-size:12px;font-weight:600;color:#1F7F78;background:#E6F4F2;border-radius:99px;padding:2px 8px;margin-left:4px">Focus this week</span>' : ''}</div>
