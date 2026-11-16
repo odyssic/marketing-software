@@ -42,7 +42,11 @@ test('the Monday digest opens with the week in plain English', async () => {
   const ev = async (n, type, days, source = '') => { for (let i = 0; i < n; i++) await db.run('INSERT INTO page_events (account_id, funnel_id, step_id, type, source, created_at) VALUES (?, ?, ?, ?, ?, ?)', f.account_id, f.id, f.entry_step_id, type, source, ago(days)); };
   await ev(50, 'view', 2); await ev(6, 'optin', 2, 'Instagram'); // this week: 12%
   await ev(50, 'view', 9); await ev(4, 'optin', 9); // last week: 8%
-  for (const [i, d] of [[1, 1], [2, 2], [3, 3], [4, 10]]) await db.run('INSERT INTO contacts (account_id, email, created_at) VALUES (?, ?, ?)', f.account_id, `p${i}@example.com`, ago(d));
+  // People who signed up (an invoice to someone isn't a sign-up, so Kim below doesn't count).
+  for (const [i, d] of [[1, 1], [2, 2], [3, 3], [4, 10]]) {
+    const pr = await db.get('INSERT INTO contacts (account_id, email, created_at) VALUES (?, ?, ?) RETURNING id', f.account_id, `p${i}@example.com`, ago(d));
+    await db.run("INSERT INTO events (account_id, person_id, type, source, occurred_at) VALUES (?, ?, 'signup', 'funnel', ?)", f.account_id, pr.id, ago(d));
+  }
   await db.run("INSERT INTO orders (account_id, product_name, amount_cents, currency, mode, status, paid_at) VALUES (?, 'Fix', 12000, 'usd', 'stripe', 'paid', ?)", f.account_id, ago(1));
   await db.run("INSERT INTO orders (account_id, product_name, amount_cents, currency, mode, status, paid_at) VALUES (?, 'Fix', 8000, 'usd', 'stripe', 'paid', ?)", f.account_id, ago(8));
   await c('POST', '/api/invoices', { client_email: 'kim@example.com', items: [{ description: 'Boiler service', price: 90 }], send: true });
@@ -50,9 +54,13 @@ test('the Monday digest opens with the week in plain English', async () => {
   const { text, subject } = (await c('GET', '/api/digest/preview')).body;
   assert.match(text, /THIS WEEK/);
   assert.match(text, /page turned 12% of visitors into bookings this week, up from 8%/);
-  assert.match(text, /4 new people joined, up from 1\. Most came from Instagram\./);
+  assert.match(text, /3 new people signed up, asked or subscribed, up from 1\. Most came from Instagram\./);
   assert.match(text, /You took \$120 from 1 payment, up from \$80\./);
   assert.match(text, /\$90 is waiting on 1 invoice\./);
   assert.ok(text.indexOf('THIS WEEK') < text.indexOf('HOW EACH AREA IS DOING'));
+  // Each area in plain words: real counts, no scores.
+  assert.doesNotMatch(text, /\/100/);
+  assert.match(text, /New people[^:]*: 4 people signed up, asked or subscribed in the last 30 days/);
+  assert.match(text, /First sales \(focus this week\): Nobody who signed up has bought yet/);
   assert.ok(subject);
 });

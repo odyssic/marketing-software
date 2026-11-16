@@ -40,16 +40,18 @@ async function weekResults(db, accountId, now = new Date()) {
     }
   }
 
-  // New people, and where most of them came from.
-  const ppl = await db.get(`SELECT COUNT(*) FILTER (WHERE created_at >= ?) AS n1, COUNT(*) FILTER (WHERE created_at < ?) AS n0
-    FROM contacts WHERE account_id = ? AND created_at >= ? AND created_at < ?`, t0, t0, accountId, tm, t1);
+  // New people (first sign-up, inquiry or subscription: the same count as "New people"
+  // in the digest's areas), and where most of them came from.
+  const ppl = await db.get(`SELECT COUNT(*) FILTER (WHERE first >= ?::timestamptz) AS n1, COUNT(*) FILTER (WHERE first < ?::timestamptz) AS n0
+    FROM (SELECT person_id, MIN(occurred_at) AS first FROM events WHERE account_id = ? AND person_id IS NOT NULL
+      AND type IN ('signup', 'inquiry', 'subscribe') GROUP BY person_id) x WHERE first >= ?::timestamptz AND first < ?::timestamptz`, t0, t0, accountId, tm, t1);
   const n1 = Number(ppl.n1), n0 = Number(ppl.n0);
   if (n1 || n0) {
     const top = n1 >= 3 && await db.get(`SELECT source, COUNT(*) AS n FROM page_events WHERE account_id = ? AND type = 'optin' AND created_at >= ? AND source <> ''
       GROUP BY source ORDER BY COUNT(*) DESC LIMIT 1`, accountId, t0);
     const vs = versus(n1, n0);
-    lines.push(n1 ? `${plural(n1, 'new person', 'new people')} joined${vs ? `, ${vs}` : ''}.${top && top.source !== 'Direct' && Number(top.n) >= 2 ? ` Most came from ${top.source}.` : ''}`
-      : `No new people joined this week (${plural(n0, 'person', 'people')} the week before). A post or an email to past customers usually helps.`);
+    lines.push(n1 ? `${plural(n1, 'new person', 'new people')} signed up, asked or subscribed${vs ? `, ${vs}` : ''}.${top && top.source !== 'Direct' && Number(top.n) >= 2 ? ` Most came from ${top.source}.` : ''}`
+      : `Nobody new signed up, asked or subscribed this week (${plural(n0, 'person', 'people')} the week before). A post or an email to past customers usually helps.`);
   }
 
   // Money in.

@@ -7,7 +7,22 @@ const { rillyEmail } = require('./emailhtml');
 const { weekResults } = require('./results');
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-const bar = (score) => (score === null ? '··········' : '█'.repeat(Math.round(score / 10)).padEnd(10, '·'));
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+// Each area in one plain sentence from the real count (no scores), and a trend
+// only when there's a real month before to compare with.
+function plainArea(key, l) {
+  const v = l.value;
+  const n = (x, one, many) => `${x} ${x === 1 ? one : many}`;
+  const said = {
+    lead: () => (v ? `${n(v, 'person', 'people')} signed up, asked or subscribed in the last 30 days` : 'Nobody signed up, asked or subscribed in the last 30 days'),
+    conversion: () => (v === null ? 'No sign-ups yet to turn into buyers' : v === 0 ? 'Nobody who signed up has bought yet' : `${v}% of people who signed up went on to buy`),
+    upsell: () => (v === null ? 'No orders yet' : `The average order is ${l.valueLabel}`),
+    continuity: () => (v ? `${n(v, 'repeat buyer or subscriber', 'repeat buyers and subscribers')}` : 'No repeat buyers or subscribers yet'),
+  }[key]();
+  const trend = l.previous && l.change !== null && l.change !== 0 ? `${l.change > 0 ? '↑' : '↓'} ${Math.abs(l.change)}% on the month before` : '';
+  return { said, trend };
+}
 
 function createDigest({ getDb, leversFor, moves, publicBase }) {
   async function build(accountId) {
@@ -24,8 +39,8 @@ function createDigest({ getDb, leversFor, moves, publicBase }) {
       ...(results.length ? ['THIS WEEK', ...results.map((r) => `• ${r}`), ''] : ['A quiet week: nothing new to report yet. Share your page link to get things moving.', '']),
       'HOW EACH AREA IS DOING',
       ...['lead', 'conversion', 'upsell', 'continuity'].map((k) => {
-        const l = levers[k];
-        return `${l.label.padEnd(16)} ${bar(l.score)} ${l.score === null ? 'too early to tell' : `${l.score}/100`}  ${l.valueLabel}${l.changeLabel ? ` (${l.changeLabel})` : ''}${k === levers.focus ? '  ← focus' : ''}`;
+        const { said, trend } = plainArea(k, levers[k]);
+        return `${levers[k].label}${k === levers.focus ? ' (focus this week)' : ''}: ${said}${trend ? `. ${trend}` : ''}`;
       }),
       '',
       'THIS WEEK’S MOVE',
@@ -46,10 +61,13 @@ function createDigest({ getDb, leversFor, moves, publicBase }) {
       { h: 'This week' },
       results.length ? { list: results.map((r) => [r]) } : { p: 'A quiet week: nothing new to report yet. Share your page link to get things moving.' },
       { h: 'How each area is doing' },
-      { rows: ['lead', 'conversion', 'upsell', 'continuity'].map((k) => {
-        const l = levers[k];
-        return [l.label, `${l.score === null ? '' : `${l.score}/100 · `}${l.valueLabel}${l.changeLabel ? ` (${l.changeLabel})` : ''}`, k === levers.focus ? 'Focus this week' : '', l.score];
-      }) },
+      { html: ['lead', 'conversion', 'upsell', 'continuity'].map((k) => {
+        const { said, trend } = plainArea(k, levers[k]);
+        const up = trend.startsWith('↑');
+        return `<div style="padding:12px 0;border-top:1px solid #E3E9E8">
+          <div style="font-size:15px;font-weight:700;color:#14282B">${esc(levers[k].label)}${k === levers.focus ? ' <span style="font-size:12px;font-weight:600;color:#1F7F78;background:#E6F4F2;border-radius:99px;padding:2px 8px;margin-left:4px">Focus this week</span>' : ''}</div>
+          <div style="font-size:15px;line-height:1.5;color:#3d4b4f;margin-top:2px">${esc(said)}.${trend ? ` <span style="color:${up ? '#15803d' : '#b45309'};font-weight:600;white-space:nowrap">${esc(trend)}</span>` : ''}</div></div>`;
+      }).join('') },
       { h: 'This week’s move' },
       { p: move.status === 'empty' ? move.title : `${move.title}\n${move.reason}` },
       ...(move.campaign_id ? [{ button: [move.status === 'sent' ? 'See results' : 'Draft and send it', `${base}/#/campaigns/${move.campaign_id}`] }] : []),
@@ -92,8 +110,8 @@ function createDigest({ getDb, leversFor, moves, publicBase }) {
 
   function register(api, { HttpError }) {
     api.get('/digest/preview', async (req, res) => {
-      const { subject, text } = await build(req.accountId);
-      res.json({ subject, text, day: DAYS[(await getDb().get('SELECT digest_day FROM accounts WHERE id = ?', req.accountId)).digest_day] });
+      const { subject, text, html } = await build(req.accountId);
+      res.json({ subject, text, html, day: DAYS[(await getDb().get('SELECT digest_day FROM accounts WHERE id = ?', req.accountId)).digest_day] });
     });
     api.get('/results/week', async (req, res) => res.json({ lines: await weekResults(getDb(), req.accountId) }));
     api.post('/digest/send', async (req, res) => res.json(await send(req.accountId)));
