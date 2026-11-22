@@ -135,7 +135,7 @@ function renderBlock(b, ctx, index) {
       if (b.style === 'cover') return sections.renderCover(b, ctx, index, { href: linkOf, formHtml: ctx.coverForm || '' });
       const bg = color(b.background, '#0f766e');
       const fg = color(b.textColor, '#ffffff');
-      const style = ['flat', 'minimal', 'split'].includes(b.style) ? b.style : 'wave';
+      const style = ['flat', 'minimal', 'split', 'photo'].includes(b.style) ? b.style : 'wave';
       // An optional button right in the hero.
       const href = !b.button ? '' : String(b.url || '').startsWith('page:') ? ctx.pageHref(String(b.url).slice(5))
         : b.url === '#next' || !b.url ? ctx.nextUrl : b.url === '#no' ? ctx.noUrl : safeUrl(b.url);
@@ -143,6 +143,14 @@ function renderBlock(b, ctx, index) {
       const words = `${b.eyebrow ? `<div class="eyebrow"${f('eyebrow')}>${esc(b.eyebrow)}</div>` : ''}
         <h1${f('text')}>${starHl(multiline(b.text))}</h1>${b.subtext ? `<p${f('subtext')}>${multiline(b.subtext)}</p>` : ''}${cta}`;
       if (style === 'minimal') return `<section class="hero-min${index === 0 ? ' first' : ''}">${words}</section>`;
+      // Full photo: the picture fills the band, the words sit on the dark side, a signature over it.
+      if (style === 'photo') {
+        const pic = b.image ? `<img class="hp-img" src="${esc(safeUrl(b.image))}" alt="${esc(b.imageAlt || '')}">`
+          : ctx.preview ? '<div class="hp-ph sec-ph ph-image" data-pickphoto role="button" tabindex="0"><b>Drop a photo of you here</b><small>A wide photo works best, with you on the right</small></div>' : '';
+        return `<section class="hphoto${index === 0 ? ' first' : ''}${b.image ? '' : ' no-img'}" style="--hp-bg:${bg};color:${fg}">${pic}<div class="hp-shade" aria-hidden="true"></div>
+          <div class="hp-in"><div class="hp-words">${b.eyebrow ? `<div class="hp-eye"${f('eyebrow')}>${esc(b.eyebrow)}</div>` : ''}<h1${f('text')}>${starHl(multiline(b.text))}</h1>${b.subtext ? `<p${f('subtext')}>${multiline(b.subtext)}</p>` : ''}${cta}</div></div>
+          ${b.signature ? `<div class="hp-sig" aria-hidden="true"${f('signature')}>${esc(b.signature)}</div>` : ''}</section>`;
+      }
       if (style === 'split') {
         const img = b.image ? `<img src="${esc(safeUrl(b.image))}" alt="${esc(b.imageAlt || '')}">` : '<div class="hero-ph" aria-hidden="true"></div>';
         return `<section class="hero-split${index === 0 ? ' first' : ''}"><div class="hs-words">${words}</div><div class="hs-img">${img}</div></section>`;
@@ -304,6 +312,12 @@ function renderBlock(b, ctx, index) {
       const chosen = (Array.isArray(b.pick) ? b.pick : []).map((x) => all[x]).filter(Boolean);
       const list = (chosen.length ? chosen : Object.values(all).sort((x, y) => y.id - x.id)).slice(0, Math.max(1, Math.min(12, Number(b.limit) || 3)));
       if (!list.length) return ctx.preview ? '<div class="ph"><b>Reviews show here</b><small>Only real ones you approve (People → Testimonials). Visitors don’t see this box until then.</small></div>' : '';
+      // One big quote at a time, with arrows (and swipe on phones).
+      if (b.style === 'slider') {
+        const slides = list.map((t) => `<figure class="rs-slide"><blockquote>“${esc(t.quote)}”</blockquote><figcaption>${t.photo ? `<img src="${esc(safeUrl(t.photo))}" alt="" loading="lazy">` : ''}<b>${esc(t.name)}</b>${t.detail ? `<span>${esc(t.detail)}</span>` : ''}</figcaption></figure>`).join('');
+        const arrows = list.length > 1 ? '<button type="button" class="rs-btn rs-prev" aria-label="Previous"><svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="1.6"><path d="m15 4-8 8 8 8"/></svg></button><button type="button" class="rs-btn rs-next" aria-label="Next"><svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="1.6"><path d="m9 4 8 8-8 8"/></svg></button>' : '';
+        return `<div class="rslide">${b.title ? `<h2 class="sec-t"${f('title')}>${starHl(esc(b.title))}</h2>` : ''}<div class="rs-wrap">${arrows}<div class="rs-track" tabindex="0">${slides}</div></div></div>`;
+      }
       return `<div class="tcards n${Math.min(list.length, 3)}">${list.map((t) => testimonialHtml(t, ctx)).join('')}</div>`;
     }
     case 'spacer':
@@ -360,6 +374,27 @@ h1,h2,h3,.hero h1,.offer-t,.bul-t,.price,.an-v,.pc-body h3,.tcard .tc-who b,.faq
 .eyebrow{letter-spacing:.22em;font-weight:500;font-size:.78rem;border-radius:999px}
 .card,.pcard,.tcard,.faq details,.guar,.optin,.pricing{border-radius:28px}
 .hl{background:none;padding:0;text-decoration:underline;text-decoration-thickness:.12em;text-underline-offset:.14em;text-decoration-color:var(--hl)}`,
+  // Prestige: Montserrat capitals (bold italic headlines, wide tracking), Oswald buttons,
+  // square corners and a short rule under section headings. Black, white and one metal.
+  prestige: `@font-face{font-family:Montserrat;src:url(/fonts/montserrat-700.woff2) format("woff2");font-weight:700;font-display:swap}
+@font-face{font-family:Montserrat;src:url(/fonts/montserrat-700i.woff2) format("woff2");font-weight:700;font-style:italic;font-display:swap}
+@font-face{font-family:Montserrat;src:url(/fonts/montserrat-600.woff2) format("woff2");font-weight:600;font-display:swap}
+@font-face{font-family:Oswald;src:url(/fonts/oswald-600.woff2) format("woff2");font-weight:600;font-display:swap}
+@font-face{font-family:"Great Vibes";src:url(/fonts/great-vibes.woff2) format("woff2");font-display:swap}
+body{line-height:1.75;letter-spacing:.01em}
+h1,h2,.hero h1,.sec-t,.cta-sec h2,.offer-t,.bul-t,.cv-words h1,.tl-t,.ev-t{font-family:Montserrat,system-ui,sans-serif;font-weight:700;font-style:italic;text-transform:uppercase;letter-spacing:.05em;line-height:1.12}
+h3,.pc-body h3,.tcard .tc-who b,.faq summary,.price,.stats b{font-family:Montserrat,system-ui,sans-serif;font-weight:700;letter-spacing:.06em}
+h3,.pc-body h3{text-transform:uppercase;font-size:1.02rem}
+.eyebrow,.kick,.cv-eye,.hp-eye{font-family:Montserrat,system-ui,sans-serif;font-weight:700;font-style:italic;text-transform:uppercase;letter-spacing:.16em;color:var(--accent);background:none;border:0;padding:0;border-radius:0}
+.btn{font-family:Oswald,"Arial Narrow",Arial,sans-serif;font-weight:600;text-transform:uppercase;letter-spacing:.14em;border-radius:0;color:#111;transition:transform .2s,filter .2s}.btn:hover{filter:brightness(1.08);transform:translateY(-1px)}
+.btn.big{border-radius:0;box-shadow:none}.band-dark .btn,.band-brand .btn{color:#111}
+.card,.pcard,.tcard,.faq details,.guar,.optin,.pricing,.tile,.offer,.sec-img{border-radius:0}
+.hl{background:none;padding:0;color:var(--accent)}
+.sec-t::after,.cta-sec h2::after,main h2[style*="center"]::after,main h1[style*="center"]:not(.hero h1)::after{content:"";display:block;width:46px;height:3px;background:currentColor;margin:18px auto 0;opacity:.85}
+.tcard blockquote{font-style:italic}.band-dark :is(.pcard,.optin,.pricing) .btn{color:#111}.pcard .pc-img,.pcard .pc-img img{border-radius:0}
+.pcards.n2{grid-template-columns:repeat(2,minmax(0,340px));justify-content:center}@media(max-width:640px){.pcards.n2{grid-template-columns:1fr}}
+header.site{background:#0a0a0a;border-bottom:0}header.site .brand{color:#fff;font-family:Montserrat,system-ui,sans-serif;text-transform:uppercase;letter-spacing:.12em;font-size:1rem}
+header.site nav a{color:#fff;font-family:Montserrat,system-ui,sans-serif;font-weight:700;font-size:.78rem;text-transform:uppercase;letter-spacing:.16em;opacity:.9}header.site nav a[aria-current]{color:var(--accent);border-bottom-color:var(--accent)}.burger{color:#fff}`,
   modern: `h1,h2,h3{font-weight:800;letter-spacing:-.035em}.hero h1{font-weight:800;letter-spacing:-.04em}
 .eyebrow{font-size:.75rem;font-weight:700;letter-spacing:.2em;border:0;padding:6px 12px;border-radius:99px;background:color-mix(in srgb,currentColor 12%,transparent)}.btn{border-radius:99px}`,
 };
@@ -393,6 +428,24 @@ if('IntersectionObserver' in window){var io=new IntersectionObserver(function(es
 function flush(){if(deep>sentDeep){sentDeep=deep;send({k:'r',b:deep})}}
 addEventListener('visibilitychange',function(){if(document.visibilityState==='hidden')flush()});addEventListener('pagehide',flush);setTimeout(flush,15000)})()</script>`;
 const EMBED_SCRIPT = `<script>(function(){var s=function(){parent.postMessage({rillyEmbed:Math.ceil(document.body.getBoundingClientRect().height)},'*')};addEventListener('load',s);new ResizeObserver(s).observe(document.body);document.querySelectorAll('a[href^="http"]').forEach(function(a){if(a.host!==location.host)a.target='_top'})})()</script>`;
+// The quote slider's arrows: slide the track by one quote (wraps round at the ends).
+const SLIDER_SCRIPT = `<script>document.querySelectorAll('.rslide').forEach(function(s){var t=s.querySelector('.rs-track');if(!t)return;var go=function(d){var w=t.clientWidth,n=Math.round(t.scrollLeft/w)+d,m=t.children.length;n=(n+m)%m;t.scrollTo({left:n*w,behavior:'smooth'})};
+var p=s.querySelector('.rs-prev'),x=s.querySelector('.rs-next');if(p)p.onclick=function(){go(-1)};if(x)x.onclick=function(){go(1)};t.addEventListener('keydown',function(e){if(e.key==='ArrowLeft')go(-1);if(e.key==='ArrowRight')go(1)})})</script>`;
+// Gentle motion: sections rise into place as they scroll into view, and numbers count up.
+// Only when the visitor hasn't asked for less motion; without JavaScript everything just shows.
+const MOTION_SCRIPT = `<style>.mo [data-mo]{opacity:0;transform:translateY(26px);transition:opacity .7s ease,transform .7s cubic-bezier(.2,.7,.2,1)}.mo [data-mo].in{opacity:1;transform:none}</style>
+<script>(function(){if(!('IntersectionObserver' in window)||matchMedia('(prefers-reduced-motion: reduce)').matches)return;document.documentElement.classList.add('mo');
+var els=[].slice.call(document.querySelectorAll('main>[data-bi],main>div:not([data-bi]),.band-in>[data-bi],.band-in>div,.cards>.card,.tiles>.tile,.pcards>.pcard,.tcards>.tcard,.evs>.ev,.pstack>.pcard-s,.stats>div,.logos>img'));
+els.forEach(function(e,i){if(e.querySelector('.hphoto.first,.cover.first'))return;e.setAttribute('data-mo','');var sib=e.parentNode.children,k=[].indexOf.call(sib,e);if(k>0&&e.parentNode.matches('.cards,.tiles,.pcards,.tcards,.evs,.stats,.logos,.pstack'))e.style.transitionDelay=Math.min(k,5)*90+'ms'});
+var count=function(b){var m=b.textContent.match(/^(\\D*)([\\d,]+(?:\\.\\d+)?)(.*)$/);if(!m)return;var end=parseFloat(m[2].replace(/,/g,'')),dec=(m[2].split('.')[1]||'').length,comma=m[2].indexOf(',')>-1,t0=null;
+var fmt=function(v){var s=v.toFixed(dec);return comma?s.replace(/\\B(?=(\\d{3})+(?!\\d))/g,','):s};var step=function(ts){t0=t0||ts;var p=Math.min(1,(ts-t0)/1300);b.textContent=m[1]+fmt(end*(1-Math.pow(1-p,3)))+m[3];if(p<1)requestAnimationFrame(step)};requestAnimationFrame(step)};
+var io=new IntersectionObserver(function(es){es.forEach(function(x){if(!x.isIntersecting)return;x.target.classList.add('in');io.unobserve(x.target);x.target.querySelectorAll&&x.target.querySelectorAll('.stats b').forEach(count);if(x.target.matches('.stats>div'))x.target.querySelectorAll('b').forEach(count)})},{threshold:.12,rootMargin:'0px 0px -40px 0px'});
+els.forEach(function(e){if(e.hasAttribute('data-mo'))io.observe(e)})})()</script>`;
+// On phones: the page's main button stays at the bottom of the screen once its own button has scrolled away.
+const STICKY_SCRIPT = `<script>(function(){var a=document.querySelector('main a.btn[href="#form"],main a.btn[href^="/f/"],main a.btn.big,main a.btn');if(!a)return;var bar=document.createElement('div');bar.className='sticky-cta';var c=a.cloneNode(true);c.className='btn';c.querySelectorAll('small,svg').forEach(function(x){x.remove()});bar.appendChild(c);document.body.appendChild(bar);
+var target=document.getElementById('form');var show=function(){var r=a.getBoundingClientRect(),past=r.bottom<0,f=target&&target.getBoundingClientRect(),atForm=f&&f.top<innerHeight&&f.bottom>0;bar.classList.toggle('on',past&&!atForm)};addEventListener('scroll',show,{passive:true});show()})()</script>
+<style>.sticky-cta{position:fixed;left:0;right:0;bottom:0;z-index:50;padding:10px 14px calc(10px + env(safe-area-inset-bottom));background:color-mix(in srgb,var(--bg) 92%,transparent);backdrop-filter:blur(8px);box-shadow:0 -8px 24px -12px rgba(0,0,0,.25);transform:translateY(110%);transition:transform .3s}
+.sticky-cta.on{transform:none}.sticky-cta .btn{display:block;width:100%;text-align:center}@media(min-width:761px){.sticky-cta{display:none}}</style>`;
 const HTML_RESIZE = `<script>addEventListener('message',function(e){var d=e.data;if(!d||d.rillyHtml===undefined)return;var f=document.querySelector('iframe[data-html="'+d.rillyHtml+'"]');if(f&&e.source===f.contentWindow)f.style.height=Math.min(Math.max(20,d.h),20000)+'px'})</script>`;
 
 function renderPage({ title, blocks, settings = {}, nextUrl = '#', noUrl = '#', formAction = '#', buyAction = '#', trackAction = '', products = {}, preview = false, oneClick = null, site = null, pageHref = (slug) => `#${slug}`, testimonials = {}, business = '', code = {}, ownDomain = false, embed = false, url = '', logo = '', coupons = false, course = null }) {
@@ -547,12 +600,29 @@ ${sections.SECTION_CSS}${TYPE_CSS[settings.font] || ''}${embed ? EMBED_STYLE : '
 .hero-split{display:grid;grid-template-columns:1.05fr 1fr;gap:48px;align-items:center;padding:24px 0}.hero-split h1{font-size:clamp(2rem,4.4vw,3.2rem);line-height:1.08;letter-spacing:-.02em;margin:.15em 0}
 .hero-split p{font-size:1.15rem;opacity:.8}.hero-split .eyebrow{color:${accent}}.hs-img img,.hero-ph{width:100%;aspect-ratio:4/5;object-fit:cover;border-radius:18px;display:block}
 .hero-ph{background:linear-gradient(135deg,color-mix(in srgb,${accent} 22%,${bg}),color-mix(in srgb,${accent} 8%,${bg}))}
+.hphoto{position:relative;margin:0 calc(50% - 50vw) 56px;min-height:min(84vh,660px);display:flex;align-items:center;background:var(--hp-bg);overflow:hidden;border-bottom:6px solid ${accent}}
+.hphoto.first{margin-top:-48px}.hp-img{position:absolute;inset:0;width:100%;height:100%;border-radius:0;max-width:none;object-fit:cover;object-position:70% 30%}
+.hp-shade{position:absolute;inset:0;background:linear-gradient(90deg,var(--hp-bg) 0%,color-mix(in srgb,var(--hp-bg) 82%,transparent) 34%,transparent 68%)}
+.hphoto.no-img .hp-shade{display:none}.hp-ph{position:absolute;right:4%;top:10%;bottom:10%;width:42%;aspect-ratio:auto}
+.hp-in{position:relative;width:100%;max-width:${width}px;margin:0 auto;padding:80px 20px}.hp-words{max-width:540px}
+.hp-eye{font-size:.95rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;margin-bottom:10px}
+.hphoto h1{font-size:clamp(2.6rem,6.4vw,4.6rem);line-height:1.02;margin:0 0 20px;color:${accent}}.hphoto h1 .hl{color:inherit}
+.hphoto p{font-size:1.12rem;line-height:1.85;letter-spacing:.03em;margin:0;opacity:.92}.hphoto .hero-cta{margin-top:28px;text-align:left}
+.hp-sig{position:absolute;right:6%;bottom:6%;font:400 clamp(3rem,8vw,6.4rem)/1 "Great Vibes","Snell Roundhand","Segoe Script",cursive;color:#fff;opacity:.6;transform:rotate(-6deg);pointer-events:none;white-space:nowrap}
+@media(max-width:760px){.hphoto{min-height:0;flex-direction:column;align-items:stretch}.hp-img{position:relative;height:56vh;object-position:65% 20%}.hp-shade{background:linear-gradient(180deg,transparent 30%,var(--hp-bg) 56vh)}
+.hp-in{padding:0 20px 44px;margin-top:-90px}.hp-words{text-align:center;margin:0 auto}.hphoto .hero-cta{text-align:center}.hp-sig{top:calc(56vh - 160px);bottom:auto;right:4%;font-size:3.4rem}.hp-ph{position:relative;inset:auto;width:auto;margin:20px;height:220px}}
+.rslide{max-width:900px;margin:0 auto;text-align:center}.rs-wrap{position:relative}.rs-track{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;outline:0}.rs-track::-webkit-scrollbar{display:none}
+.rs-slide{flex:0 0 100%;scroll-snap-align:center;margin:0;padding:10px 64px}.rs-slide blockquote{margin:0 0 26px;font-size:clamp(1.2rem,2.6vw,1.7rem);line-height:1.5;font-style:italic}
+.rs-slide figcaption{display:flex;flex-direction:column;align-items:center;gap:4px}.rs-slide figcaption img{width:64px;height:64px;border-radius:50%;object-fit:cover;margin-bottom:6px}
+.rs-slide figcaption b{text-transform:uppercase;letter-spacing:.08em;font-size:.95rem}.rs-slide figcaption span{font-size:.85rem;text-transform:uppercase;letter-spacing:.06em;opacity:.7}
+.rs-btn{position:absolute;top:40%;z-index:1;background:none;border:0;color:${accent};cursor:pointer;padding:8px}.rs-prev{left:0}.rs-next{right:0}
+@media(max-width:600px){.rs-slide{padding:6px 34px}.rs-btn svg{width:22px;height:22px}}
 @media(max-width:760px){.hero-split{grid-template-columns:1fr;gap:24px}.hs-img{order:-1}.hs-img img,.hero-ph{aspect-ratio:16/10}}
 </style>${code.css ? `<style data-site-css>${cleanCss(code.css)}</style>` : ''}${settings.customCss ? `<style data-page-css>${cleanCss(settings.customCss)}</style>` : ''}
 ${course ? `<style>:root{--crs-accent:${accent};--crs-bg:${bg};--crs-w:${width}px}${course.css}</style>` : ''}
 ${preview ? '' : trackingTags(code, ownDomain)}</head><body${course ? ' class="has-crs"' : ''}>${course ? course.nav : ''}${nav}${logoBar}<main>
 ${course ? course.top : ''}${body || '<p style="text-align:center;opacity:.5">This page is empty. Add blocks in the editor.</p>'}
-${course ? course.bottom : ''}</main>${foot}${(blocks || []).some((b) => b.type === 'booking') ? BOOKING_SCRIPT : ''}${(blocks || []).some((b) => b.type === 'video' && !b.controls && youtubeId(b.url)) ? VIDEO_SCRIPT : ''}${(blocks || []).some((b) => b.type === 'html') ? HTML_RESIZE : ''}${embed ? EMBED_SCRIPT : ''}${preview ? PREVIEW_EDIT_SCRIPT + PREVIEW_DROP_SCRIPT + PREVIEW_TOOLS_SCRIPT + PREVIEW_STATS_SCRIPT : trackAction ? trackScript(trackAction) : ''}</body></html>`;
+${course ? course.bottom : ''}</main>${foot}${(blocks || []).some((b) => b.type === 'booking') ? BOOKING_SCRIPT : ''}${(blocks || []).some((b) => b.type === 'video' && !b.controls && youtubeId(b.url)) ? VIDEO_SCRIPT : ''}${(blocks || []).some((b) => b.type === 'html') ? HTML_RESIZE : ''}${(blocks || []).some((b) => b.type === 'reviews' && b.style === 'slider') ? SLIDER_SCRIPT : ''}${settings.motion && !preview && !embed ? MOTION_SCRIPT : ''}${settings.stickyButton && !preview && !embed ? STICKY_SCRIPT : ''}${embed ? EMBED_SCRIPT : ''}${preview ? PREVIEW_EDIT_SCRIPT + PREVIEW_DROP_SCRIPT + PREVIEW_TOOLS_SCRIPT + PREVIEW_STATS_SCRIPT : trackAction ? trackScript(trackAction) : ''}</body></html>`;
 }
 
 // Click-to-edit in the editor preview: click any text to type over it; the
@@ -573,11 +643,11 @@ function place(s){document.querySelectorAll('.ph-over').forEach(function(x){if(x
 line.style.top=s.top+'px';line.style.left=(s.left!=null?s.left:0)+'px';line.style.width=s.width?s.width+'px':'100%';line.style.display='block';}
 document.addEventListener('dragover',function(e){if(!ours(e))return;e.preventDefault();e.dataTransfer.dropEffect='copy';place(spot(e.clientY,e.clientX));});
 document.addEventListener('dragleave',function(e){if(!e.relatedTarget)line.style.display='none';});
-document.addEventListener('dragover',function(e){if(!has(e,'Files'))return;var b=e.target.closest&&e.target.closest('[data-bi]'),ph=b&&b.querySelector('.ph-image');document.querySelectorAll('.ph-over').forEach(function(x){if(x!==ph)x.classList.remove('ph-over');});if(ph){ph.classList.add('ph-over');line.style.display='none';}});
+document.addEventListener('dragover',function(e){if(!has(e,'Files'))return;var b=e.target.closest&&e.target.closest('[data-bi]'),ph=b&&((e.target.closest&&e.target.closest('[data-pickphoto]'))||b.querySelector('.ph-image'));document.querySelectorAll('.ph-over').forEach(function(x){if(x!==ph)x.classList.remove('ph-over');});if(ph){ph.classList.add('ph-over');line.style.display='none';}});
 document.addEventListener('drop',function(e){if(!ours(e))return;e.preventDefault();line.style.display='none';document.querySelectorAll('.ph-over').forEach(function(x){x.classList.remove('ph-over');});var at=spot(e.clientY,e.clientX).at;
-if(has(e,'Files')){var f=e.dataTransfer.files[0],b=e.target.closest&&e.target.closest('[data-bi]');if(f)parent.postMessage({ff:'photo',at:at,i:b?+b.dataset.bi:-1,file:f},'*');return;}
+if(has(e,'Files')){var f=e.dataTransfer.files[0],b=e.target.closest&&e.target.closest('[data-bi]'),z=e.target.closest&&e.target.closest('[data-pickphoto]');if(f)parent.postMessage({ff:'photo',at:at,i:b?+b.dataset.bi:-1,k:z?z.dataset.pickphoto||'':'',file:f},'*');return;}
 parent.postMessage({ff:'drop',at:at,data:e.dataTransfer.getData('text/x-fourfold')},'*');});
-function pick(e){var z=e.target.closest&&e.target.closest('[data-pickphoto]');if(!z)return;var b=z.closest('[data-bi]');if(!b)return;e.preventDefault();e.stopPropagation();parent.postMessage({ff:'pickphoto',i:+b.dataset.bi},'*');}
+function pick(e){var z=e.target.closest&&e.target.closest('[data-pickphoto]');if(!z)return;var b=z.closest('[data-bi]');if(!b)return;e.preventDefault();e.stopPropagation();parent.postMessage({ff:'pickphoto',i:+b.dataset.bi,k:z.dataset.pickphoto||''},'*');}
 document.addEventListener('click',pick,true);document.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' ')pick(e);},true);})();<\/script>`;
 
 // The booking widget: days with open times, then times, then name and email.

@@ -93,6 +93,44 @@ function renderSection(b, ctx, index, { href, formHtml = '' } = {}) {
       const lf = (r, c) => (ctx.preview ? ` data-f="items" data-row="${r}" data-col="${c}"` : '');
       return items.length ? `<div class="stats">${items.map(([n, l], r) => `<div><b${lf(r, 0)}>${esc(n)}</b><span${lf(r, 1)}>${esc(l)}</span></div>`).join('')}</div>` : '';
     }
+    // Photo tiles: tall pictures with a title and a button over each (programs, offers, services).
+    case 'tiles': {
+      const rows = lines(b.items).slice(0, 4).map((l) => l.split('|').map((x) => x.trim()));
+      const lf = (r, c) => (ctx.preview ? ` data-f="items" data-row="${r}" data-col="${c}"` : '');
+      if (!rows.length) return '';
+      return `${b.title ? `<h2 class="sec-t"${f('title')}>${hl(b.title)}</h2>` : ''}${b.text ? `<p class="sec-lead"${f('text')}>${hl(b.text)}</p>` : ''}<div class="tiles n${rows.length}">${rows.map(([t, label, url], r) => {
+        const img = b[`img${r}`];
+        const pic = img ? `<img src="${esc(safeUrl(img))}" alt="" loading="lazy">` : ctx.preview ? `<span class="tl-ph" data-pickphoto="img${r}" role="button" tabindex="0">+ Photo</span>` : '';
+        return `<div class="tile${img ? '' : ' no-img'}">${pic}<div class="tl-body"><h3 class="tl-t"${lf(r, 0)}>${esc(t)}</h3>${label ? `<a class="btn" href="${esc(to(url))}"${lf(r, 1)}>${esc(label)}</a>` : ''}</div></div>`;
+      }).join('')}</div>`;
+    }
+    // Upcoming dates: a calendar tile, where, what, and a link. Dates with a year hide themselves once past.
+    case 'events': {
+      const MON = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+      const rows = lines(b.items).map((l) => l.split('|').map((x) => x.trim())).map(([when = '', where = '', what = '', url = '']) => {
+        const iso = when.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+        const m = iso ? [null, MON[Number(iso[2]) - 1], iso[3], iso[1]] : when.match(/^([a-z]{3})[a-z]*\.?\s+(\d{1,2})(?:,?\s+(\d{4}))?/i);
+        const mon = m && MON.includes(String(m[1]).toLowerCase()) ? String(m[1]).slice(0, 3).toUpperCase() : '';
+        const past = m && m[3] && mon ? new Date(Number(m[3]), MON.indexOf(mon.toLowerCase()), Number(m[2])) < today : false;
+        return { mon, day: mon ? m[2] : '', when, where, what, url, past };
+      }).filter((e) => e.what || e.when);
+      const show = rows.filter((e) => ctx.preview || !e.past);
+      if (!show.length) return ctx.preview ? '<div class="ph"><b>Your dates show here</b><small>One per line: Nov 15 | Town, State | Event name | link</small></div>' : '';
+      const lf = (r, c) => (ctx.preview ? ` data-f="items" data-row="${r}" data-col="${c}"` : '');
+      return `${b.title ? `<h2 class="sec-t"${f('title')}>${hl(b.title)}</h2>` : ''}${b.text ? `<p class="sec-lead"${f('text')}>${hl(b.text)}</p>` : ''}<div class="evs">${show.map((e) => {
+        const r = rows.indexOf(e);
+        const link = e.url ? `<a class="ev-go" href="${esc(to(e.url))}">${esc(b.button || 'Details')}<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>` : '';
+        return `<div class="ev${e.past ? ' past' : ''}">${e.mon ? `<div class="ev-date"><span>${esc(e.mon)}</span><b>${esc(e.day)}</b></div>` : `<div class="ev-date ev-free"${lf(r, 0)}>${esc(e.when)}</div>`}
+          <div class="ev-main">${e.where ? `<div class="ev-where"${lf(r, 1)}>${esc(e.where)}</div>` : ''}<div class="ev-t"${lf(r, 2)}>${esc(e.what)}</div>${e.past ? '<small class="ev-past">Past: hidden from visitors</small>' : ''}</div>${link}</div>`;
+      }).join('')}</div>`;
+    }
+    // A row of logos: where you've been featured, awards, partners. Your own, real ones only.
+    case 'logos': {
+      const imgs = [0, 1, 2, 3, 4, 5].map((k) => b[`logo${k}`]).filter((u) => u && safeUrl(u) !== '#');
+      if (!imgs.length) return ctx.preview ? `<div class="ph"><b>Your logos show here</b><small>Add logos of where you’ve been featured, awards or partners in the panel (real ones only).</small></div>` : '';
+      return `${b.title ? `<p class="logos-t"${f('title')}>${esc(b.title)}</p>` : ''}<div class="logos${b.gray === false ? '' : ' gray'}">${imgs.map((u) => `<img src="${esc(safeUrl(u))}" alt="" loading="lazy">`).join('')}</div>`;
+    }
     case 'cta': {
       return `<div class="cta-sec">${b.title ? `<h2${f('title')}>${hl(b.title)}</h2>` : ''}${b.text ? `<p${f('text')}>${esc(b.text)}</p>` : ''}${button(b.button || 'Get started', b.buttonSub, to(b.url), '', f)}${b.note ? `<p class="cta-note">${esc(b.note)}</p>` : ''}</div>`;
     }
@@ -165,7 +203,7 @@ main>.band{margin-top:56px}main>.band+.band,main>.cover+.band,main>.notice+.band
 .band-dark .hl,.band-brand .hl,.cover .hl{background:none;padding:0;color:var(--hl)}
 .cover .ticks .tick{background:color-mix(in srgb,var(--hl) 22%,transparent);color:var(--hl)}
 .band-dark .kick,.band-brand .kick,.cover .cv-note b{color:var(--hl)}
-.band-dark .btn,.band-brand .btn{background:#fff;color:var(--deep)}
+.band-dark .btn,.band-brand .btn{background:#fff;color:var(--deep)}.band-dark :is(.pcard,.optin,.pricing) .btn,.band-brand :is(.pcard,.optin,.pricing) .btn{background:var(--accent);color:#fff}
 .band-dark :is(.offer,.optin,.pricing,.booking) .btn,.band-brand :is(.offer,.optin,.pricing,.booking) .btn{background:var(--accent);color:#fff}
 main>.feat+.feat,.band-in>.feat+.feat{margin-top:88px}
 .band-dark .cards .card,.band-brand .cards .card{background:rgba(255,255,255,.07);border-color:rgba(255,255,255,.14)}
@@ -348,6 +386,30 @@ details[open] .pm::after{transform:rotate(0)}.faq details p{margin:0 0 18px;opac
 /* Closing call to action */
 .cta-sec{text-align:center;max-width:760px;margin-left:auto;margin-right:auto}
 .cta-sec h2{font-size:clamp(1.8rem,4vw,2.7rem);line-height:1.12;letter-spacing:-.02em;margin:0 0 12px}.cta-sec p{font-size:1.12rem;opacity:.85;margin:0}
+.sec-lead{text-align:center;max-width:680px;margin:-12px auto 30px;font-size:1.05rem;opacity:.85}
+/* Photo tiles */
+.tiles{display:grid;grid-template-columns:repeat(var(--tl-n,3),1fr);gap:16px}.tiles.n1{--tl-n:1}.tiles.n2{--tl-n:2}.tiles.n4{--tl-n:4}
+.tile{position:relative;aspect-ratio:3/4.2;overflow:hidden;background:linear-gradient(160deg,color-mix(in srgb,var(--deep) 80%,#fff),var(--deep));border-radius:6px;display:flex;align-items:flex-end;color:#fff}
+.tile>img{position:absolute;inset:0;width:100%;height:100%;border-radius:0;object-fit:cover;transition:transform .6s ease}.tile:hover>img{transform:scale(1.04)}
+.tile::after{content:"";position:absolute;inset:40% 0 0;background:linear-gradient(180deg,transparent,rgba(0,0,0,.82))}
+.tl-body{position:relative;z-index:1;width:100%;padding:22px 18px;text-align:center}.tl-t{margin:0 0 12px;font-size:1.05rem;line-height:1.25;color:#fff;padding-bottom:12px;border-bottom:1px solid rgba(255,255,255,.55)}
+.tl-body .btn{padding:9px 18px;font-size:.85rem}
+.tl-ph{position:absolute;inset:16px 16px 40%;border:2px dashed rgba(255,255,255,.55);display:grid;place-items:center;cursor:pointer;font:600 .95rem system-ui,sans-serif;z-index:1}.tl-ph:hover{border-color:#fff}
+@media(max-width:760px){.tiles,.tiles.n4{grid-template-columns:1fr 1fr}.tiles.n1{grid-template-columns:1fr}}@media(max-width:480px){.tiles,.tiles.n4,.tiles.n2{grid-template-columns:1fr}.tile{aspect-ratio:4/4.4}}
+/* Events */
+.evs{max-width:860px;margin:0 auto;border-top:1px solid color-mix(in srgb,currentColor 25%,transparent)}
+.ev{display:grid;grid-template-columns:auto 1fr auto;gap:22px;align-items:center;padding:16px 4px;border-bottom:1px solid color-mix(in srgb,currentColor 25%,transparent)}
+.ev-date{width:76px;padding:8px 0;text-align:center;background:color-mix(in srgb,currentColor 9%,transparent);line-height:1}.ev-date span{display:block;font-size:.85rem;letter-spacing:.2em;margin-bottom:4px}
+.ev-date b{font-size:2.1rem;color:var(--accent);font-style:italic}.ev-free{font-size:.85rem;padding:12px 6px;line-height:1.3}
+.ev-main{text-align:center}.ev-where{font-size:.85rem;letter-spacing:.18em;text-transform:uppercase;opacity:.8}.ev-t{font-size:clamp(1.15rem,2.6vw,1.6rem);font-weight:700}
+.ev-go{display:inline-flex;align-items:center;gap:6px;font-size:.78rem;letter-spacing:.16em;text-transform:uppercase;color:inherit;text-decoration:none;padding:10px 12px;border:1px solid color-mix(in srgb,var(--accent) 70%,transparent)}
+.ev-go svg{color:var(--accent);transition:transform .15s}.ev-go:hover svg{transform:translateX(3px)}.ev.past{opacity:.45}.ev-past{display:block;font-size:.75rem}
+@media(max-width:560px){.ev{grid-template-columns:auto 1fr;gap:14px}.ev-main{text-align:left}.ev-go{grid-column:1/-1;justify-content:center}}
+/* Logos */
+.logos-t{text-align:center;font-size:.8rem;letter-spacing:.2em;text-transform:uppercase;opacity:.65;margin:0 0 18px}
+.logos{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:28px 56px}.logos img{max-height:84px;max-width:170px;object-fit:contain}
+.logos.gray img{filter:grayscale(1);opacity:.8;transition:filter .2s,opacity .2s}.logos.gray img:hover{filter:none;opacity:1}
+.band-dark .logos.gray img{filter:grayscale(1) brightness(1.6)}@media(max-width:560px){.logos{gap:18px 30px}.logos img{max-width:120px;max-height:58px}}
 .cta-sec .btn.big{margin-top:28px}.cta-sec .cta-note{font-size:.88rem;opacity:.7;margin-top:12px}
 `;
 

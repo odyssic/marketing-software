@@ -2070,3 +2070,5 @@ span.tp-photo { display: grid; place-items: center; }
 .lk-types { grid-template-columns: repeat(5, 1fr); }
 @font-face { font-family: "Space Grotesk"; src: url(/fonts/space-grotesk-700.woff2) format("woff2"); font-weight: 700; font-display: swap; }
 .type-opt.t-penpal b, .lk-type.t-penpal b { font-family: "Space Grotesk", system-ui, sans-serif; font-weight: 700; letter-spacing: -.03em; }
+.type-opt.t-prestige b, .lk-type.t-prestige b { font-family: Montserrat, system-ui, sans-serif; font-weight: 700; font-style: italic; text-transform: uppercase; letter-spacing: .04em; }
+@font-face { font-family: Montserrat; src: url(/fonts/montserrat-700i.woff2) format("woff2"); font-weight: 700; font-style: italic; font-display: swap; }

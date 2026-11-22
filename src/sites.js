@@ -30,6 +30,11 @@ const guarantee = (o) => ({ id: id(), type: 'guarantee', days: 0, ...o });
 const look = (name, slug, blocks, settings) => ({ name, slug, blocks, settings: { ...settings } });
 const ELEGANT = (accent, background = '#fbf9f6', textColor = '#1f1b16') => ({ font: 'elegant', background, textColor, accent, width: 1080 });
 const BOLD = (accent, background = '#ffffff', textColor = '#0b1220') => ({ font: 'modern', background, textColor, accent, width: 1080 });
+// Prestige: black, white and gold, Montserrat capitals, gentle motion and a phone-sticky button.
+const PRESTIGE = { font: 'prestige', background: '#ffffff', textColor: '#141414', accent: '#c8903f', highlight: '#c8903f', palette: 'Black & Gold', width: 1100, motion: true, stickyButton: true };
+const photoHero = (o) => ({ id: id(), type: 'hero', style: 'photo', background: '#0a0a0a', textColor: '#ffffff', image: '', ...o });
+const tiles = (items, o = {}) => ({ id: id(), type: 'tiles', items: items.map((x) => x.join(' | ')).join('\n'), ...o });
+const events = (items, o = {}) => ({ id: id(), type: 'events', title: 'You can join an *upcoming event*', items: items.map((x) => x.join(' | ')).join('\n'), button: 'Details', ...o });
 
 const GENERIC_FOLLOWUP = {
   reply_subject: 'Thanks, {{first_name|there}}! We’ll be in touch',
@@ -40,6 +45,45 @@ const GENERIC_FOLLOWUP = {
 };
 
 const SITE_TEMPLATES = {
+  // A speaker, author or coach whose name is the brand: programs, dates, books, proof.
+  personal: {
+    followup: {
+      reply_subject: 'Thanks, {{first_name|there}}! Your message is with the team',
+      reply_body: 'Hi {{first_name|there}},\n\nThanks for getting in touch. Your message has reached us and we reply to every one within two business days.\n\n{{business}}',
+      checkin_subject: 'Anything else we can help with, {{first_name|there}}?',
+      checkin_body: 'Hi {{first_name|there}},\n\nJust checking we answered your question. If not, reply here and we’ll pick it up.\n\n{{business}}',
+      notify: 'New message from your website. Reply within two business days.',
+    },
+    label: 'Speaker, author or personal brand', description: 'Home with a full-photo banner, programs as photo tiles, upcoming dates, books and real reviews; About, Events and Contact. Black, white and gold.', accent: '#c8903f', workflows: ['site_followup'],
+    steps: () => {
+      const L = PRESTIGE, band = '#0a0a0a';
+      const dates = [['Mar 14', '[Town, State]', '[Your next event]', '#'], ['Apr 22', 'Online', '[A live workshop]', '#'], ['Jun 9', '[Town, State] · 2 days in person', '[Your flagship event]', '#']];
+      return [
+        look('Home', 'home', [photoHero({ eyebrow: 'Grow with', text: '[Your name]', subtext: '[What you’re known for, in one sentence: who you help and the result they get.]', signature: '[Your name]', button: 'Work with me', url: 'page:contact' }),
+          { id: id(), type: 'heading', text: 'Start your *journey*', size: 'medium', align: 'center' },
+          { id: id(), type: 'text', text: 'If you’re ready for [the change you help with], pick the way in that suits you.', align: 'center' },
+          tiles([['[Program one]', 'Claim your spot', '#'], ['[Program two]', 'Claim your spot', '#'], ['[Program three]', 'Claim your spot', '#']]),
+          events(dates, { band: 'dark', text: 'Reserve your seat at one of these.' }),
+          { id: id(), type: 'logos', title: 'As featured in', gray: true },
+          bio({ eyebrow: 'Speaker · author · [coach]', text: 'Tell your story in a few lines: where you started, what you learned, and who you help now.' }),
+          { id: id(), type: 'products', title: 'My *books*', pick: [], button: 'Get it', band: 'dark' },
+          { id: id(), type: 'reviews', limit: 5, style: 'slider', title: 'In their *words*' },
+          { id: id(), type: 'stats', items: '[Years] | years doing this\n[Number] | people helped\n[Number] | events hosted' },
+          cta({ title: 'We’re here to *help*', text: 'Questions about a program or an event? We reply within two business days.', button: 'Contact us', url: 'page:contact' })], L),
+        look('About', 'about', [photoHero({ eyebrow: 'About', text: 'Hi, I’m *[your name]*', subtext: 'Where I started, what I learned, and why I do this now.', signature: '' }),
+          bio({ eyebrow: 'My story', text: 'Tell your story: the turning point, what you believe, and who you help.' }),
+          { id: id(), type: 'logos', title: 'As featured in', gray: true },
+          { id: id(), type: 'stats', items: '[Years] | years doing this\n[Number] | people helped\n[Number] | books written' },
+          cta({ title: 'Let’s *work together*', button: 'See the programs', url: 'page:home' })], L),
+        look('Events', 'events', [cover({ eyebrow: 'Live', text: 'Upcoming *events*', subtext: 'In person and online. Add the year to a date and it hides itself once it’s passed.', background: band }),
+          events(dates, { title: '' }),
+          { id: id(), type: 'reviews', limit: 5, style: 'slider', title: 'From people who came', band: 'soft' },
+          cta({ title: 'Can’t make these?', text: 'Join the list and hear about the next dates first.', button: 'Get in touch', url: 'page:contact' })], L),
+        look('Contact', 'contact', [cover({ eyebrow: 'Contact', text: 'We’re here to *help*', subtext: 'Send a message and we’ll reply within two business days.', background: band }),
+          contactForm('Send message', { band: 'soft' }), info({ email: 'hello@yourname.com', phone: '', address: '', hours: '' })], L),
+      ];
+    },
+  },
   studio: {
     followup: GENERIC_FOLLOWUP,
     label: 'Studio (elegant)', description: 'A calm, editorial site with serif headings: Home, About, Work, and Contact.', accent: '#7a4e24', workflows: ['site_followup'],

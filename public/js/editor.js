@@ -4,7 +4,7 @@
 const ALIGN = ['align', 'align', 'Alignment'];
 const BLOCKS = {
   hero: { label: 'Hero banner', icon: icon('hero'), defaults: { eyebrow: 'New', text: 'A bold headline for your offer', subtext: '', background: '#0d9488', textColor: '#ffffff', style: 'wave' },
-    fields: [['style', 'select', 'Look', ['cover', 'wave', 'flat', 'minimal', 'split'], 'cover: a bold band with a photo or drawn mockup beside the words · wave and flat: a coloured band · minimal: big words, no band · split: words beside a photo'],
+    fields: [['style', 'select', 'Look', ['cover', 'photo', 'wave', 'flat', 'minimal', 'split'], 'cover: a bold band with a photo or drawn mockup beside the words · photo: your photo fills the whole banner, words on the dark side · wave and flat: a coloured band · minimal: big words, no band · split: words beside a photo'],
       ['eyebrow', 'text', 'Small label above'], ['text', 'textarea', 'Headline', null, 'Put *stars* around words to highlight them'], ['subtext', 'textarea', 'Subheadline'],
       ['items', 'textarea', 'Ticks under the headline (cover look, one per line)'],
       ['button', 'text', 'Button (optional)', null, 'e.g. Get the guide'], ['buttonSub', 'text', 'Small line in the button (cover look)', null, 'e.g. Free · Instant download'], ['url', 'text', 'Button link', null, '#form = jump to the form · #next = the next page · page:contact · or a full https:// link'],
@@ -12,7 +12,8 @@ const BLOCKS = {
       ['formHere', 'check', 'Put the sign-up form that follows inside the banner (cover look)'],
       ['mockup', 'select', 'Drawn mockup (cover look, when there’s no photo)', ['none', 'book', 'workbook', 'video', 'coupon', 'phone'], 'A cover drawn from your words and colours: an e-book, a checklist, a class on a laptop, a coupon or a phone'],
       ['mockupTitle', 'text', 'Words on the mockup', null, 'Leave empty to use the headline'], ['mockupLabel', 'text', 'Label on the mockup', null, 'e.g. Free guide, 10% OFF'],
-      ['image', 'photo', 'Photo (split and cover looks)'], ['imageAlt', 'text', 'Photo description'],
+      ['image', 'photo', 'Photo (split, cover and photo looks)'], ['imageAlt', 'text', 'Photo description'],
+      ['signature', 'text', 'Signature over the photo (photo look, optional)', null, 'Your name, written in script'],
       ['background', 'color', 'Band color'], ['textColor', 'color', 'Text color']] },
   pricing: { label: 'Pricing card', icon: icon('dollar'), defaults: { productId: null, badge: 'LIMITED TIME OFFER', compareText: '', billingText: '', note: '',
     featuresTitle: 'Everything you get:', features: 'Feature one\nFeature two\nFeature three', buttonLabel: 'Get Instant Access Now',
@@ -30,7 +31,15 @@ const BLOCKS = {
     fields: [['from', 'text', 'From'], ['place', 'text', 'Where'], ['when', 'text', 'When'], ['greeting', 'text', 'Greeting'], ['text', 'textarea', 'The letter (a blank line starts a new paragraph; *stars* underline words)'], ['signoff', 'text', 'Sign-off'], ['name', 'text', 'Signed (empty: your business name)'], ['title', 'text', 'Under the name (optional)'], ['ps', 'text', 'P.S. (optional)'], ['stamp', 'check', 'Show a stamp'], ['stampText', 'text', 'Stamp words']] },
   products: { label: 'Products', icon: icon('bag'), defaults: { title: 'Shop', pick: [], button: 'Buy now' },
     fields: [['title', 'text', 'Heading (optional)'], ['pick', 'productpick', 'Which products'], ['button', 'text', 'Button words']] },
-  reviews: { label: 'Testimonials (several)', icon: icon('star'), defaults: { limit: 3 }, fields: [['limit', 'number', 'How many to show'], ['pick', 'testipick', 'Which ones']] },
+  reviews: { label: 'Testimonials (several)', icon: icon('star'), defaults: { limit: 3 }, fields: [['limit', 'number', 'How many to show'], ['pick', 'testipick', 'Which ones'],
+    ['style', 'select', 'Layout', ['cards', 'slider'], 'slider: one big quote at a time, with arrows'], ['title', 'text', 'Heading (slider, optional)']] },
+  tiles: { label: 'Photo tiles', icon: icon('image'), defaults: { title: '', items: 'Program one | Find out more | #\nProgram two | Find out more | #\nProgram three | Find out more | #' },
+    fields: [['title', 'text', 'Heading (optional)'], ['text', 'textarea', 'A line under it (optional)'], ['items', 'textarea', 'Tiles (up to 4, one per line: Title | Button | link)', null, 'Link: #form · page:slug · or https://'],
+      ['img0', 'photo', 'Photo for tile 1'], ['img1', 'photo', 'Photo for tile 2'], ['img2', 'photo', 'Photo for tile 3'], ['img3', 'photo', 'Photo for tile 4']] },
+  events: { label: 'Events', icon: icon('calendar'), defaults: { title: 'Upcoming *events*', items: 'Nov 15 | Town, State | Event name | #\nDec 4 | Online | Another event | #', button: 'Details' },
+    fields: [['title', 'text', 'Heading (optional)'], ['text', 'textarea', 'A line under it (optional)'], ['items', 'textarea', 'Dates (one per line: Nov 15 2026 | Where | What | link)', null, 'Add the year and a date hides itself once it has passed'], ['button', 'text', 'Link words']] },
+  logos: { label: 'Logos', icon: icon('star'), defaults: { title: 'As featured in', gray: true },
+    fields: [['title', 'text', 'Small line above (optional)'], ['logo0', 'photo', 'Logo 1'], ['logo1', 'photo', 'Logo 2'], ['logo2', 'photo', 'Logo 3'], ['logo3', 'photo', 'Logo 4'], ['logo4', 'photo', 'Logo 5'], ['logo5', 'photo', 'Logo 6'], ['gray', 'check', 'Grey until hovered (keeps mixed logos calm)']] },
   heading: { label: 'Heading', icon: icon('heading'), defaults: { text: 'Your big headline', size: 'large', align: 'center' },
     fields: [['text', 'textarea', 'Text'], ['size', 'select', 'Size', ['large', 'medium', 'small']], ALIGN] },
   text: { label: 'Text', icon: icon('text'), defaults: { text: 'Write something persuasive here.', align: 'center' },
@@ -125,6 +134,7 @@ const PALETTES = [
   { name: 'Rose', bg: '#fffafa', text: '#2a1517', accent: '#be185d', band: '#9d174d' },
   { name: 'Charcoal', bg: '#ffffff', text: '#111827', accent: '#111827', band: '#1f2937' },
   { name: 'Penpal', bg: '#fbeedd', text: '#132a46', accent: '#4a1d4f', band: '#3b1640', highlight: '#f39a8f' },
+  { name: 'Black & Gold', bg: '#ffffff', text: '#141414', accent: '#c8903f', band: '#0a0a0a', highlight: '#c8903f' },
   { name: 'Night', bg: '#0f1720', text: '#e5edf0', accent: '#0f766e', band: '#134e4a' },
 ];
 // A whole palette from one brand colour: buttons in that colour (darkened until
@@ -242,7 +252,9 @@ async function viewEditor(stepId) {
       <div class="list-bin" data-bin aria-hidden="true">${icon('trash')} Drop here to delete</div>
       <h3>Page style</h3>
       <div class="pal-row" role="group" aria-label="Colour palettes" data-palrow></div>
-      <div class="type-row" role="group" aria-label="Type style">${[['', 'Classic'], ['elegant', 'Elegant'], ['modern', 'Modern'], ['typewriter', 'Typewriter'], ['penpal', 'Penpal']].map(([k, l]) => `<button type="button" class="type-opt t-${k || 'classic'} ${(ed.settings.font || '') === k ? 'on' : ''}" data-font="${k}" aria-pressed="${(ed.settings.font || '') === k}"><b>Aa</b><small>${l}</small></button>`).join('')}</div>
+      <div class="type-row" role="group" aria-label="Type style">${[['', 'Classic'], ['elegant', 'Elegant'], ['modern', 'Modern'], ['typewriter', 'Typewriter'], ['penpal', 'Penpal'], ['prestige', 'Prestige']].map(([k, l]) => `<button type="button" class="type-opt t-${k || 'classic'} ${(ed.settings.font || '') === k ? 'on' : ''}" data-font="${k}" aria-pressed="${(ed.settings.font || '') === k}"><b>Aa</b><small>${l}</small></button>`).join('')}</div>
+      <label class="check"><input type="checkbox" data-s="motion" ${ed.settings.motion ? 'checked' : ''}> Gentle motion as people scroll <span class="hint">sections rise in, numbers count up</span></label>
+      <label class="check"><input type="checkbox" data-s="stickyButton" ${ed.settings.stickyButton ? 'checked' : ''}> Keep the main button on screen on phones</label>
       <button type="button" class="btn sm ghost" data-palall style="margin:-2px 0 10px">${icon('sparkle')} Use this look on every page</button>
       <details class="more-page seo-fold" ${ed.settings.seoTitle ? '' : 'open'}><summary>Search &amp; AI <span class="muted small" data-seostate>${ed.settings.seoTitle && ed.settings.seoDescription ? 'ready' : 'not set yet'}</span></summary>
         <button type="button" class="btn sm primary seo-write" data-seowrite>${icon('sparkle')} Write these for me</button>
@@ -574,7 +586,7 @@ async function viewEditor(stepId) {
       changed();
     } else if (t.dataset.s) {
       if (['background', 'textColor', 'accent'].includes(t.dataset.s)) { delete ed.settings.palette; $$('[data-pal]').forEach((b) => { b.classList.remove('on'); b.setAttribute('aria-pressed', 'false'); }); }
-      ed.settings[t.dataset.s] = t.type === 'number' ? Number(t.value) : t.value;
+      ed.settings[t.dataset.s] = t.type === 'checkbox' ? t.checked : t.type === 'number' ? Number(t.value) : t.value;
       changed();
     }
   });
@@ -645,13 +657,14 @@ async function viewEditor(stepId) {
     dropAt(e.dataTransfer.getData('text/x-fourfold'), listSpot(e.clientY));
   });
   // Photos: dropped or chosen in the panel, or dropped onto the page preview.
-  const putPhoto = async (i, file) => {
+  const putPhoto = async (i, file, want = '') => {
     const b = ed.blocks[i];
     if (!b) return;
     saved.textContent = 'Uploading photo…';
     try {
       const url = await uploadImage(file);
-      const key = photoKey(b) || 'url', alt = file.name.replace(/\.[a-z0-9]+$/i, '').replace(/[-_]+/g, ' ').trim();
+      const own = (BLOCKS[b.type]?.fields || []).some((x) => x[0] === want && x[1] === 'photo');
+      const key = (own && want) || photoKey(b) || 'url', alt = file.name.replace(/\.[a-z0-9]+$/i, '').replace(/[-_]+/g, ' ').trim();
       b[key] = url;
       if (key === 'url' && !b.alt) b.alt = alt;
       if (key === 'image' && !b.imageAlt) b.imageAlt = alt;
@@ -772,12 +785,12 @@ async function viewEditor(stepId) {
     if (d?.ff === 'photo' && $('.editor') && d.file) {
       // Onto an image block: fill it. Anywhere else: a new image block there.
       const at = Math.max(0, Math.min(Number(d.at) || 0, ed.blocks.length));
-      return photoKey(ed.blocks[d.i]) ? putPhoto(d.i, d.file) : photoAt(at, d.file);
+      return photoKey(ed.blocks[d.i]) ? putPhoto(d.i, d.file, d.k) : photoAt(at, d.file);
     }
     // The photo box on the page was clicked: choose a picture for that block.
     if (d?.ff === 'pickphoto' && $('.editor') && ed.blocks[d.i]) {
       const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/jpeg,image/png,image/webp,image/gif';
-      inp.onchange = () => { if (inp.files[0]) putPhoto(d.i, inp.files[0]); };
+      inp.onchange = () => { if (inp.files[0]) putPhoto(d.i, inp.files[0], d.k); };
       inp.click();
       return;
     }

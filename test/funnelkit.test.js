@@ -278,3 +278,35 @@ test('a product page in one click: filled in from the product, linked from the s
   assert.equal(pre.status, 200, JSON.stringify(pre.body));
   assert.match(await (await fetch(`${base}/f/${sf.slug}`)).text(), new RegExp(`href="/f/${f.slug}">See details`));
 });
+
+test('prestige site: photo banner, tiles, events (past dates hidden), logos, quote slider, motion and phone button', async () => {
+  const c = await setup('fk-prestige@example.com');
+  await c('POST', '/api/testimonials', { quote: 'Worth every minute.', name: 'Ann B.', consent: true });
+  await c('POST', '/api/testimonials', { quote: 'Paid for itself.', name: 'Bo C.', consent: true });
+  const site = (await c('POST', '/api/websites', { name: 'Jordan Reyes', template: 'personal' })).body;
+  const f = (await c('GET', `/api/funnels/${site.id}`)).body;
+  assert.deepEqual(f.steps.map((s) => s.slug), ['home', 'about', 'events', 'contact']);
+  const home = f.steps[0];
+  assert.equal(home.settings.font, 'prestige'); assert.equal(home.settings.motion, true);
+  const blocks = home.blocks.map((b) => (b.type === 'events' ? { ...b, items: 'Mar 14 2099 | Austin, TX | Offer Lab Live | #\nJan 3 2001 | Old Town | Long gone | #\nSpring | Online | Date to come | #' }
+    : b.type === 'logos' ? { ...b, logo0: '/u/a.png', logo1: 'javascript:x' } : b.type === 'tiles' ? { ...b, img0: 'https://img.example/t.jpg' } : b));
+  await c('PUT', `/api/steps/${home.id}`, { blocks });
+  assert.equal((await c('POST', `/api/funnels/${site.id}/publish`)).status, 200);
+  const html = await (await fetch(`${base}/f/${f.slug}`)).text();
+  assert.match(html, /class="hphoto first no-img"/);
+  assert.match(html, /class="hp-sig"/);
+  assert.match(html, /<div class="tiles n3"><div class="tile"><img src="https:\/\/img\.example\/t\.jpg"/);
+  assert.match(html, /<span>MAR<\/span><b>14<\/b>/); assert.match(html, /Offer Lab Live/);
+  assert.ok(!html.includes('Long gone'), 'a date with a year that has passed is hidden');
+  assert.match(html, /ev-free[^>]*>Spring</);
+  assert.match(html, /<div class="logos gray"><img src="\/u\/a\.png"[^>]*><\/div>/, 'a bad link is left out');
+  assert.match(html, /class="rslide"/); assert.match(html, /rs-next/); assert.match(html, /\.rs-track'\)/);
+  assert.match(html, /IntersectionObserver/); assert.match(html, /prefers-reduced-motion/);
+  assert.match(html, /sticky-cta/);
+  assert.match(html, /url\(\/fonts\/montserrat-700i\.woff2\)/);
+  // The editor preview shows past dates (marked) and never runs the motion.
+  const pv = (await c('POST', '/api/preview', { blocks, settings: home.settings, name: 'Home' })).body.html;
+  assert.match(pv, /Long gone/); assert.match(pv, /Past: hidden from visitors/);
+  assert.ok(!pv.includes('IntersectionObserver(function'), 'no motion in the editor');
+  assert.match(pv, /data-pickphoto="img1"/, 'an empty tile is a photo box for its own slot');
+});
