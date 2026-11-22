@@ -231,3 +231,24 @@ test('analytics: visits, sign-ups and clicks against the period before; sources,
   assert.equal(a.sources[0].source, 'Direct');
   assert.equal((await c('GET', '/api/analytics?range=bogus')).body.range, '30d');
 });
+
+test('products shelf: cards for the chosen products, each buy button orders its own product, and only those', async () => {
+  const c = await setup('fk-shelf@example.com');
+  const a = (await c('POST', '/api/products', { name: 'Smith Corona', price: '495', currency: 'usd', billing: 'one_time' })).body;
+  const g = (await c('POST', '/api/products', { name: 'Field Guide', price: '19.95', currency: 'usd', billing: 'one_time' })).body;
+  const h = (await c('POST', '/api/products', { name: 'Hidden', price: '5', currency: 'usd', billing: 'one_time' })).body;
+  const { id } = (await c('POST', '/api/funnels', { name: 'Shelf', template: 'blank' })).body;
+  const f = (await c('GET', `/api/funnels/${id}`)).body;
+  const s = f.steps[0];
+  await c('PUT', `/api/steps/${s.id}`, { blocks: [{ id: 'shelf', type: 'products', title: 'Shop', pick: [g.id, a.id], button: 'Buy now' }] });
+  assert.equal((await c('POST', `/api/funnels/${id}/publish`)).status, 200);
+  const html = await (await fetch(`${base}/f/${f.slug}`)).text();
+  assert.ok(html.indexOf('Field Guide') < html.indexOf('Smith Corona'), 'in the order chosen');
+  assert.doesNotMatch(html, /Hidden/);
+  assert.match(html, /\$19\.95/);
+  const buy = (pid) => fetch(`${base}/f/${f.slug}/${s.slug}/buy`, { method: 'POST', redirect: 'manual', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ block: 'shelf', product: String(pid) }) });
+  assert.equal((await buy(g.id)).status, 303);
+  assert.equal((await buy(h.id)).status, 404, 'not on this shelf');
+  const orders = (await c('GET', '/api/orders')).body;
+  assert.deepEqual(orders.map((o) => [o.product_name, o.amount_cents]), [['Field Guide', 1995]]);
+});

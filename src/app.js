@@ -1905,9 +1905,13 @@ function createApp({ dbPath } = {}) {
     const { funnel, step } = found;
     if (funnel.status !== 'live' && !await ownerViewing(req, funnel)) return notPublished(res);
     const back = `/f/${funnel.slug}/${step.slug}`;
-    const block = findBlock(step, 'pricing', req.body.block);
-    const product = block?.productId && await db.get('SELECT * FROM products WHERE id = ? AND account_id = ?',
-      id(block.productId), funnel.account_id);
+    // A pricing card sells its one product; a products shelf sells the one whose button was pressed.
+    const shelf = !findBlock(step, 'pricing', req.body.block) && findBlock(step, 'products', req.body.block);
+    const block = shelf || findBlock(step, 'pricing', req.body.block);
+    const wanted = shelf ? Number(req.body.product) : block?.productId;
+    const allowed = shelf ? (!Array.isArray(shelf.pick) || !shelf.pick.length || shelf.pick.map(Number).includes(wanted)) : true;
+    const product = wanted && allowed && await db.get('SELECT * FROM products WHERE id = ? AND account_id = ?',
+      id(wanted), funnel.account_id);
     if (!product) return messagePage(res, 404, 'This offer is no longer available.', back);
     // Order bump: only a one-time item in the same currency joins the payment.
     const bumpProduct = req.body.bump === '1' && block.bumpProductId && await db.get('SELECT * FROM products WHERE id = ? AND account_id = ?', id(block.bumpProductId), funnel.account_id);

@@ -26,6 +26,8 @@ const BLOCKS = {
     ['askEmail', 'check', 'Ask for their email first (fills in checkout, and sends one reminder if they don’t finish)']] },
   // Only real, approved testimonials (People → Testimonials) can be shown.
   testimonial: { label: 'Testimonial', icon: icon('quote'), defaults: { testimonialId: null }, fields: [['testimonialId', 'testimonial', 'Testimonial from your records']] },
+  products: { label: 'Products', icon: icon('bag'), defaults: { title: 'Shop', pick: [], button: 'Buy now' },
+    fields: [['title', 'text', 'Heading (optional)'], ['pick', 'productpick', 'Which products'], ['button', 'text', 'Button words']] },
   reviews: { label: 'Testimonials (several)', icon: icon('star'), defaults: { limit: 3 }, fields: [['limit', 'number', 'How many to show'], ['pick', 'testipick', 'Which ones']] },
   heading: { label: 'Heading', icon: icon('heading'), defaults: { text: 'Your big headline', size: 'large', align: 'center' },
     fields: [['text', 'textarea', 'Text'], ['size', 'select', 'Size', ['large', 'medium', 'small']], ALIGN] },
@@ -339,6 +341,12 @@ async function viewEditor(stepId) {
     if (kind === 'code') return `<label class="f">${label}<textarea ${attrs} rows="10" class="code" spellcheck="false" autocapitalize="off">${esc(v)}</textarea></label>`;
     if (kind === 'select') return `<label class="f">${label}<select ${attrs}>${options.map((o) => `<option ${o === v ? 'selected' : ''}>${o}</option>`).join('')}</select></label>`;
     if (kind === 'color') return `<label class="f">${label}<input type="color" ${attrs} value="${esc(v || '#000000')}"></label>`;
+    if (kind === 'productpick') {
+      const picked = Array.isArray(v) ? v : [];
+      return `<div class="f">${label} <span class="hint">${picked.length ? 'shown in the order ticked' : 'none ticked: all of them, newest first'}</span>
+        <div class="tpick">${products.map((pr) => `<label class="tpick-i"><input type="checkbox" data-prodpick="${i}" value="${pr.id}" ${picked.includes(pr.id) ? 'checked' : ''}>
+          ${pr.image_url ? `<img src="${esc(pr.image_url)}" alt="">` : `<span class="tp-ini">${esc(pr.name.slice(0, 1))}</span>`}<span><b>${esc(pr.name)}</b> <small>${esc(pr.priceLabel)}</small></span></label>`).join('') || '<span class="hint">No products yet. <a href="#/products" target="_blank">Add one</a>, then reload.</span>'}</div></div>`;
+    }
     if (kind === 'testipick') {
       const picked = Array.isArray(v) ? v : [];
       return `<div class="f">${label} <span class="hint">${picked.length ? 'shown in the order ticked' : 'none ticked: the newest are shown'}</span>
@@ -663,6 +671,14 @@ async function viewEditor(stepId) {
     const t = e.target;
     if (t.dataset.photofile && t.files[0]) putPhoto(Number(t.dataset.photofile), t.files[0]);
     // Ticking testimonials for a row: in the order ticked; the row shows as many as are ticked.
+    if (t.dataset.prodpick !== undefined) {
+      const b = ed.blocks[Number(t.dataset.prodpick)];
+      const idv = Number(t.value);
+      const pick = (Array.isArray(b.pick) ? b.pick : []).filter((x) => x !== idv);
+      if (t.checked) pick.push(idv);
+      b.pick = pick;
+      renderBlocks(); changed();
+    }
     if (t.dataset.testipick !== undefined) {
       const b = ed.blocks[Number(t.dataset.testipick)];
       const idv = Number(t.value);

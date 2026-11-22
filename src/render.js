@@ -158,6 +158,18 @@ function renderBlock(b, ctx, index) {
     }
     case 'pricing':
       return renderPricing(b, ctx);
+    // A shop shelf: the products chosen (or all of them, newest first) as cards, each with its own buy button.
+    case 'products': {
+      const all = Object.values(ctx.products || {});
+      const chosen = Array.isArray(b.pick) && b.pick.length ? b.pick.map((x) => ctx.products?.[x]).filter(Boolean) : all.sort((x, y) => y.id - x.id);
+      if (!chosen.length) return ctx.preview ? '<div class="ph"><b>Your products show here</b><small>Add them in Products (a photo, a name and a price), then tick which ones in this block.</small></div>' : '';
+      const card = (p) => `<article class="pcard">${p.image_url ? `<div class="pc-img"><img src="${esc(safeUrl(p.image_url))}" alt="${esc(p.name)}" loading="lazy"></div>` : `<div class="pc-img pc-none" aria-hidden="true">${esc(p.name.slice(0, 1).toUpperCase())}</div>`}
+        <div class="pc-body"><h3>${esc(p.name)}</h3>${p.description ? `<p>${esc(p.description.length > 140 ? `${p.description.slice(0, 137)}…` : p.description)}</p>` : ''}
+        <div class="pc-price">${esc(formatMoney(p.price_cents, p.currency))}${p.billing !== 'one_time' ? ` <small>${esc(BILLING_TEXT[p.billing] || '')}</small>` : ''}${p.ships ? `<small class="pc-ship">${p.shipping_cents ? `+ ${esc(formatMoney(p.shipping_cents, p.currency))} shipping` : 'Free shipping'}</small>` : ''}</div>
+        <form method="post" action="${esc(ctx.buyAction)}"><input type="hidden" name="block" value="${esc(b.id)}"><input type="hidden" name="product" value="${p.id}">
+        <button class="btn pc-buy" type="submit">${esc(b.button || 'Buy now')}</button></form></div></article>`;
+      return `${b.title ? `<h2 class="pc-title"${f('title')}>${starHl(esc(b.title))}</h2>` : ''}<div class="pcards n${Math.min(chosen.length, 3)}">${chosen.map(card).join('')}</div>`;
+    }
     case 'heading': {
       const tag = b.size === 'small' ? 'h3' : b.size === 'medium' ? 'h2' : 'h1';
       return `<${tag} style="text-align:${a}"${f('text')}>${starHl(multiline(b.text))}</${tag}>`;
