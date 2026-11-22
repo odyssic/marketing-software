@@ -17,7 +17,7 @@ const BLOCKS = {
   pricing: { label: 'Pricing card', icon: icon('dollar'), defaults: { productId: null, badge: 'LIMITED TIME OFFER', compareText: '', billingText: '', note: '',
     featuresTitle: 'Everything you get:', features: 'Feature one\nFeature two\nFeature three', buttonLabel: 'Get Instant Access Now',
     buttonSubtext: '14-day money-back guarantee', buttonColor: '#ff7849' },
-  fields: [['productId', 'product', 'Product sold by this card'], ['badge', 'text', 'Badge'],
+  fields: [['productId', 'product', 'Product sold by this card'], ['hidePhoto', 'check', 'Hide the product photo (when the banner shows it)'], ['badge', 'text', 'Badge'],
     ['compareText', 'text', 'Crossed-out “was” price', null, 'e.g. $190 per year'],
     ['billingText', 'text', 'Text under the price', null, 'Leave empty to use the product’s billing (e.g. one-time payment)'],
     ['note', 'text', 'Highlight line'], ['featuresTitle', 'text', 'Features heading'], ['features', 'textarea', 'Features (one per line)'],
@@ -26,6 +26,8 @@ const BLOCKS = {
     ['askEmail', 'check', 'Ask for their email first (fills in checkout, and sends one reminder if they don’t finish)']] },
   // Only real, approved testimonials (People → Testimonials) can be shown.
   testimonial: { label: 'Testimonial', icon: icon('quote'), defaults: { testimonialId: null }, fields: [['testimonialId', 'testimonial', 'Testimonial from your records']] },
+  letter: { label: 'Letter', icon: icon('mail'), defaults: { from: '[Your name]', place: '[Your town]', when: '[Day], [time]', greeting: 'Dear Friend,', text: 'Write the way you’d write to one person.\n\nSay why you started, who this is for, and what you hope they’ll do next.\n\nKeep it honest: real reasons, real people, no pressure.', signoff: 'Warm regards,', name: '', title: '', ps: '', stamp: true, stampText: 'Certified · ' },
+    fields: [['from', 'text', 'From'], ['place', 'text', 'Where'], ['when', 'text', 'When'], ['greeting', 'text', 'Greeting'], ['text', 'textarea', 'The letter (a blank line starts a new paragraph; *stars* underline words)'], ['signoff', 'text', 'Sign-off'], ['name', 'text', 'Signed (empty: your business name)'], ['title', 'text', 'Under the name (optional)'], ['ps', 'text', 'P.S. (optional)'], ['stamp', 'check', 'Show a stamp'], ['stampText', 'text', 'Stamp words']] },
   products: { label: 'Products', icon: icon('bag'), defaults: { title: 'Shop', pick: [], button: 'Buy now' },
     fields: [['title', 'text', 'Heading (optional)'], ['pick', 'productpick', 'Which products'], ['button', 'text', 'Button words']] },
   reviews: { label: 'Testimonials (several)', icon: icon('star'), defaults: { limit: 3 }, fields: [['limit', 'number', 'How many to show'], ['pick', 'testipick', 'Which ones']] },
@@ -54,7 +56,8 @@ const BLOCKS = {
   cards: { label: 'Cards', icon: icon('cards'), defaults: { items: 'Service one | A short description\nService two | A short description\nService three | A short description', icons: 'matched icons' },
     fields: [['items', 'textarea', 'Cards (one per line: Title | description)'],
       ['icons', 'select', 'Icons', ['dots', 'matched icons', 'bold icons', 'none'], 'Matched icons are picked from each card’s words (“Fast delivery” gets a truck). To choose one yourself, add it after a third | , like “Gentle care | Short line | heart”. Names: check, star, heart, clock, calendar, mail, phone, chat, people, shield, lock, bolt, leaf, home, pin, truck, gift, tag, dollar, chart, target, trophy, book, video, camera, coffee, food, sparkle, sun, smile, wrench, globe, rocket, bulb, key, brush, fitness, paw, car, cart, refresh, compass, music, doc, hand'],
-      ['numbered', 'check', 'Number them instead (for steps like 1, 2, 3)']] },
+      ['numbered', 'check', 'Number them instead (for steps like 1, 2, 3)'],
+      ['style', 'select', 'Layout', ['grid', 'pastel stack'], 'pastel stack: big rounded cards, one per row, each its own soft colour. Put *stars* around a word in a title to underline it in colour.']] },
   info: { label: 'Business info', icon: icon('info'), defaults: { hours: 'Mon–Fri 9am–5pm', address: '', phone: '', email: '' },
     fields: [['hours', 'text', 'Hours'], ['address', 'text', 'Address'], ['phone', 'text', 'Phone'], ['email', 'text', 'Email']] },
   booking: { label: 'Booking', icon: icon('calendar'), defaults: { heading: 'Pick a time that suits you', buttonLabel: 'Confirm booking', collectPhone: false, askNote: true, tag: 'booked', payment: 'Free', price: '', deposit: '', currency: 'usd' },
@@ -94,7 +97,7 @@ const BLOCKS = {
     fields: [['code', 'code', 'Your HTML', null, 'Embeds, widgets, forms from other tools. Scripts run in a sealed box on the page.'], ['title', 'text', 'What it is (for screen readers)', null, 'e.g. Calendly scheduler']] },
 };
 // Any section can sit on a full-width band of colour.
-for (const [k, b] of Object.entries(BLOCKS)) if (!['hero', 'notice', 'spacer', 'colbreak', 'colend'].includes(k)) b.fields.push(['band', 'select', 'Background', ['none', 'soft', 'dark', 'brand'], 'soft: a light tint · dark: a deep band · brand: your button colour. Neighbouring blocks with the same background share one band.']);
+for (const [k, b] of Object.entries(BLOCKS)) if (!['hero', 'notice', 'spacer', 'colbreak', 'colend'].includes(k)) b.fields.push(['band', 'select', 'Background', ['none', 'soft', 'dark', 'brand', 'sunset'], 'soft: a light tint · dark: a deep band · brand: your button colour · sunset: deep colour fading to warm. Neighbouring blocks with the same background share one band.']);
 const uid = () => Math.random().toString(36).slice(2, 10);
 // New blocks of a kind: Two columns comes as its three markers, ready to drop things into.
 const newBlocks = (type) => (type === 'cols'
@@ -121,6 +124,7 @@ const PALETTES = [
   { name: 'Plum', bg: '#fdfbff', text: '#24142e', accent: '#7e22ce', band: '#581c87' },
   { name: 'Rose', bg: '#fffafa', text: '#2a1517', accent: '#be185d', band: '#9d174d' },
   { name: 'Charcoal', bg: '#ffffff', text: '#111827', accent: '#111827', band: '#1f2937' },
+  { name: 'Penpal', bg: '#fbeedd', text: '#132a46', accent: '#4a1d4f', band: '#3b1640', highlight: '#f39a8f' },
   { name: 'Night', bg: '#0f1720', text: '#e5edf0', accent: '#0f766e', band: '#134e4a' },
 ];
 // A whole palette from one brand colour: buttons in that colour (darkened until
@@ -238,7 +242,7 @@ async function viewEditor(stepId) {
       <div class="list-bin" data-bin aria-hidden="true">${icon('trash')} Drop here to delete</div>
       <h3>Page style</h3>
       <div class="pal-row" role="group" aria-label="Colour palettes" data-palrow></div>
-      <div class="type-row" role="group" aria-label="Type style">${[['', 'Classic'], ['elegant', 'Elegant'], ['modern', 'Modern'], ['typewriter', 'Typewriter']].map(([k, l]) => `<button type="button" class="type-opt t-${k || 'classic'} ${(ed.settings.font || '') === k ? 'on' : ''}" data-font="${k}" aria-pressed="${(ed.settings.font || '') === k}"><b>Aa</b><small>${l}</small></button>`).join('')}</div>
+      <div class="type-row" role="group" aria-label="Type style">${[['', 'Classic'], ['elegant', 'Elegant'], ['modern', 'Modern'], ['typewriter', 'Typewriter'], ['penpal', 'Penpal']].map(([k, l]) => `<button type="button" class="type-opt t-${k || 'classic'} ${(ed.settings.font || '') === k ? 'on' : ''}" data-font="${k}" aria-pressed="${(ed.settings.font || '') === k}"><b>Aa</b><small>${l}</small></button>`).join('')}</div>
       <button type="button" class="btn sm ghost" data-palall style="margin:-2px 0 10px">${icon('sparkle')} Use this look on every page</button>
       <details class="more-page seo-fold" ${ed.settings.seoTitle ? '' : 'open'}><summary>Search &amp; AI <span class="muted small" data-seostate>${ed.settings.seoTitle && ed.settings.seoDescription ? 'ready' : 'not set yet'}</span></summary>
         <button type="button" class="btn sm primary seo-write" data-seowrite>${icon('sparkle')} Write these for me</button>

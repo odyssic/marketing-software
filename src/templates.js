@@ -14,6 +14,8 @@ const id = () => Math.random().toString(36).slice(2, 10);
 // Contemporary looks: a warm, editorial serif and a clean modern sans.
 const ELEGANT = { font: 'elegant', background: '#fbf9f6', textColor: '#1f1b16', accent: '#8a5a2b', width: 1080 };
 const MODERN = { font: 'modern', background: '#ffffff', textColor: '#0b1220', accent: '#4338ca', width: 1080 };
+// Penpal: warm cream, navy headlines, letters in Courier Prime, plum and coral.
+const PENPAL = { font: 'penpal', background: '#fbeedd', textColor: '#132a46', accent: '#4a1d4f', highlight: '#f39a8f', palette: 'Penpal', width: 1080 };
 // Typewriter: deep plum with a soft pink highlight, typewriter headlines.
 const TYPEWRITER = { font: 'typewriter', background: '#fbf6ee', textColor: '#2a1633', accent: '#341b3f', highlight: '#ffa0a3', width: 1040 };
 const FRESH = { font: 'modern', background: '#ffffff', textColor: '#10231f', accent: '#0f766e', width: 1080 };
@@ -83,6 +85,29 @@ const TEMPLATES = {
         ],
       },
       thanks('Thank you', 'It’s on its way', 'Check your inbox in the next few minutes. If it’s not there, look in Promotions or Spam.', NEXT_EMAIL, { ...ELEGANT }, { bg: '#3b2414' }),
+    ],
+  },
+  // One product's own page: filled in from the product (name, photo, price, buy button) when made from it.
+  product_page: {
+    label: 'Product page',
+    description: 'A long, warm sales page for one product: what it is, five ways it changes things, real reviews, a letter from you, a guarantee and questions. Made in one click from any product.',
+    workflows: ['care'],
+    steps: () => [
+      {
+        name: 'Product', slug: 'product', settings: { ...PENPAL },
+        blocks: [
+          cover({ eyebrow: 'New', text: '[Product name]', subtext: '[One line on what it is and who it’s for.]', mockup: 'book', mockupLabel: 'New', mockupTitle: '[Product name]', button: 'Get yours', buttonSub: '[Ships in … / Instant access]', url: '#form', background: '#3b1640' }),
+          { id: id(), type: 'pricing', productId: null, badge: '', compareText: '', billingText: '', note: '', featuresTitle: 'You get:', features: '[What’s included]\n[A bonus, if there is one]\nA no-questions refund', buttonLabel: 'Get yours', buttonSubtext: '', buttonColor: '#4a1d4f' },
+          reviews(3, { band: 'sunset' }),
+          head('Five ways [product name] *changes things*', { size: 'large' }),
+          cards([['Experience the *[first change]*', 'Two or three sentences in your own words: what changes, for whom, and why it matters.'], ['Create more *[second change]*', 'What gets easier, and what it frees them to do.'], ['Feel the *[third change]*', 'The part people tell their friends about.'], ['Start every *[day / project]* ahead', 'The practical win, in plain words.'], ['Become a *[who they become]*', 'The deeper change, the reason it’s worth it.']], { style: 'pastel stack', icons: 'none' }),
+          { id: id(), type: 'letter', from: '[Your name]', place: '[Your town]', when: '[Day], [time]', greeting: 'Dear Friend,', text: 'Tell them why you made this, and who it’s for.\n\nOne true story beats three claims. Say what it won’t do, too.\n\nThen tell them the simplest next step.', signoff: 'Warm regards,', name: '', title: '', ps: '', stamp: true, stampText: 'Certified · ' },
+          guarantee({ days: 365, title: 'My bold *one-year* guarantee', text: 'If it doesn’t make a difference for you, send it back within a year and I’ll refund every penny. No questions asked.' }),
+          faq([['How soon will it arrive?', 'Say how it’s delivered and how long it takes, honestly.'], ['Do you offer refunds?', 'Yes. Within a year, for any reason.'], ['Is this for me?', 'Answer the most common worry in a sentence or two.']], { band: 'soft' }),
+          cta({ title: 'Get *yours* today', text: '[One honest line on why now is a good time.]', button: 'Get yours', buttonSub: 'One-year money-back guarantee', url: '#form' }),
+        ],
+      },
+      thanks('Order confirmed', 'Thank you, *it’s on its way*', 'Your receipt is in your inbox.', [['Check your inbox', 'Your receipt is there now.'], ['Watch for the next step', 'Tracking or access arrives by email.'], ['Hit reply', 'Tell me why you picked it up. I read every reply.']], { ...PENPAL }, { bg: '#3b1640' }),
     ],
   },
   // A physical book: free, they pay only what it costs to print (shipping included), or pre-order.

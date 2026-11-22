@@ -252,3 +252,29 @@ test('products shelf: cards for the chosen products, each buy button orders its 
   const orders = (await c('GET', '/api/orders')).body;
   assert.deepEqual(orders.map((o) => [o.product_name, o.amount_cents]), [['Field Guide', 1995]]);
 });
+
+test('a product page in one click: filled in from the product, linked from the shop shelf once live', async () => {
+  const c = await setup('fk-prodpage@example.com');
+  const p = (await c('POST', '/api/products', { name: 'Antinet "Field" Book', price: '19.95', currency: 'usd', billing: 'one_time', description: 'The 594-page hardcover.', image_url: 'https://img.example/book.jpg' })).body;
+  const r = await c('POST', `/api/products/${p.id}/page`);
+  assert.equal(r.status, 201);
+  assert.equal((await c('POST', `/api/products/${p.id}/page`)).body.id, r.body.id, 'a second click opens the same page');
+  const f = (await c('GET', `/api/funnels/${r.body.id}`)).body;
+  const blocks = f.steps[0].blocks;
+  const hero = blocks.find((b) => b.type === 'hero');
+  assert.equal(hero.text, 'Antinet "Field" Book');
+  assert.equal(hero.image, 'https://img.example/book.jpg');
+  assert.equal(hero.subtext, 'The 594-page hardcover.');
+  assert.equal(blocks.find((b) => b.type === 'pricing').productId, p.id);
+  assert.equal(f.steps[0].settings.font, 'penpal');
+  assert.ok(blocks.some((b) => b.type === 'letter') && blocks.some((b) => b.type === 'cards' && b.style === 'pastel stack'));
+  // A shelf elsewhere links to the page once it's live.
+  const shop = (await c('POST', '/api/funnels', { name: 'Shop', template: 'blank' })).body;
+  const sf = (await c('GET', `/api/funnels/${shop.id}`)).body;
+  await c('PUT', `/api/steps/${sf.steps[0].id}`, { blocks: [{ id: 's', type: 'products', pick: [], button: 'Buy now' }] });
+  await c('POST', `/api/funnels/${shop.id}/publish`);
+  assert.doesNotMatch(await (await fetch(`${base}/f/${sf.slug}`)).text(), /See details/, 'not while its page is a draft');
+  const pre = await c('POST', `/api/funnels/${f.id}/publish`);
+  assert.equal(pre.status, 200, JSON.stringify(pre.body));
+  assert.match(await (await fetch(`${base}/f/${sf.slug}`)).text(), new RegExp(`href="/f/${f.slug}">See details`));
+});

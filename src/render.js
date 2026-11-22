@@ -58,7 +58,7 @@ function renderPricing(b, ctx) {
   // One-click upsell: the buyer just paid, so "Yes" charges the same card.
   if (product && ctx.oneClick && product.billing === 'one_time') {
     return `<div class="pricing"${pricingAnchor(ctx)}>
-    ${product.image_url ? `<img class="pimg" src="${esc(product.image_url)}" alt="${esc(product.name)}" loading="lazy">` : ''}
+    ${product.image_url && !b.hidePhoto ? `<img class="pimg" src="${esc(product.image_url)}" alt="${esc(product.name)}" loading="lazy">` : ''}
     ${b.badge ? `<span class="badge">${esc(b.badge)}</span>` : ''}
     <div class="price">${price ? `<sup>${esc(price.symbol)}</sup>${esc(price.amount)}` : ''}</div>
     ${b.featuresTitle ? `<h3>${esc(b.featuresTitle)}</h3>` : ''}
@@ -92,7 +92,7 @@ function renderPricing(b, ctx) {
       + (ctx.preview ? '<p class="warn">Choose a product for this pricing card so the button takes payment.</p>' : '');
   }
   return `<div class="pricing"${pricingAnchor(ctx)}>
-    ${product?.image_url ? `<img class="pimg" src="${esc(product.image_url)}" alt="${esc(product.name)}" loading="lazy">` : ''}
+    ${product?.image_url && !b.hidePhoto ? `<img class="pimg" src="${esc(product.image_url)}" alt="${esc(product.name)}" loading="lazy">` : ''}
     ${b.badge ? `<span class="badge"${ctx.preview ? ' data-f="badge"' : ''}>${esc(b.badge)}</span>` : ''}
     ${b.compareText ? `<div class="was">${esc(b.compareText)}</div>` : ''}
     <div class="price">${price ? `<sup>${esc(price.symbol)}</sup>${esc(price.amount)}` : esc(b.priceText || '$0')}</div>
@@ -158,16 +158,29 @@ function renderBlock(b, ctx, index) {
     }
     case 'pricing':
       return renderPricing(b, ctx);
+    case 'letter': {
+      const name = b.name || ctx.business || '';
+      const stamp = b.stamp ? `<svg class="lt-stamp" viewBox="0 0 120 120" aria-hidden="true"><defs><path id="lt-ring-${esc(b.id)}" d="M60,60 m-41,0 a41,41 0 1,1 82,0 a41,41 0 1,1 -82,0"/></defs>
+        <circle cx="60" cy="60" r="56" fill="none" stroke="currentColor" stroke-width="3"/><circle cx="60" cy="60" r="32" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="3 4"/>
+        <text font-size="12.5" font-weight="700" letter-spacing="3" fill="currentColor"><textPath href="#lt-ring-${esc(b.id)}">${esc(String(b.stampText || 'CERTIFIED · ').toUpperCase())}${esc(name.toUpperCase().slice(0, 22))} ·</textPath></text>
+        <text x="60" y="66" text-anchor="middle" font-size="18" fill="currentColor">★</text></svg>` : '';
+      return `<div class="letter">${stamp}<div class="lt-head">${b.from ? `<em>From:</em><br><span${f('from')}>${esc(b.from)}</span>` : ''}${b.place ? `<br><span${f('place')}>${esc(b.place)}</span>` : ''}${b.when ? `<br><span${f('when')}>${esc(b.when)}</span>` : ''}</div>
+        ${b.greeting ? `<p class="lt-greet"${f('greeting')}>${esc(b.greeting)}</p>` : ''}<div class="lt-body"${f('text')}>${String(b.text || '').split(/\n{2,}/).map((pg) => `<p>${starHl(esc(pg)).replace(/\n/g, '<br>')}</p>`).join('')}</div>
+        <div class="lt-sign">${b.signoff ? `<p${f('signoff')}>${esc(b.signoff)}</p>` : ''}<p class="lt-name"${f('name')}>${esc(name)}</p>${b.title ? `<p class="lt-title"${f('title')}>${esc(b.title)}</p>` : ''}</div>
+        ${b.ps ? `<p class="lt-ps"${f('ps')}><b>P.S.</b> ${esc(b.ps)}</p>` : ''}</div>`;
+    }
     // A shop shelf: the products chosen (or all of them, newest first) as cards, each with its own buy button.
     case 'products': {
       const all = Object.values(ctx.products || {});
       const chosen = Array.isArray(b.pick) && b.pick.length ? b.pick.map((x) => ctx.products?.[x]).filter(Boolean) : all.sort((x, y) => y.id - x.id);
       if (!chosen.length) return ctx.preview ? '<div class="ph"><b>Your products show here</b><small>Add them in Products (a photo, a name and a price), then tick which ones in this block.</small></div>' : '';
-      const card = (p) => `<article class="pcard">${p.image_url ? `<div class="pc-img"><img src="${esc(safeUrl(p.image_url))}" alt="${esc(p.name)}" loading="lazy"></div>` : `<div class="pc-img pc-none" aria-hidden="true">${esc(p.name.slice(0, 1).toUpperCase())}</div>`}
-        <div class="pc-body"><h3>${esc(p.name)}</h3>${p.description ? `<p>${esc(p.description.length > 140 ? `${p.description.slice(0, 137)}…` : p.description)}</p>` : ''}
+      // A product with its own live page links to it from the photo and the name.
+      const page = (p) => (p.page_slug ? `/f/${encodeURIComponent(p.page_slug)}` : '');
+      const card = (p) => `<article class="pcard">${page(p) ? `<a class="pc-link" href="${esc(page(p))}">` : ''}${p.image_url ? `<div class="pc-img"><img src="${esc(safeUrl(p.image_url))}" alt="${esc(p.name)}" loading="lazy"></div>` : `<div class="pc-img pc-none" aria-hidden="true">${esc(p.name.slice(0, 1).toUpperCase())}</div>`}${page(p) ? '</a>' : ''}
+        <div class="pc-body"><h3>${page(p) ? `<a href="${esc(page(p))}">${esc(p.name)}</a>` : esc(p.name)}</h3>${p.description ? `<p>${esc(p.description.length > 140 ? `${p.description.slice(0, 137)}…` : p.description)}</p>` : ''}
         <div class="pc-price">${esc(formatMoney(p.price_cents, p.currency))}${p.billing !== 'one_time' ? ` <small>${esc(BILLING_TEXT[p.billing] || '')}</small>` : ''}${p.ships ? `<small class="pc-ship">${p.shipping_cents ? `+ ${esc(formatMoney(p.shipping_cents, p.currency))} shipping` : 'Free shipping'}</small>` : ''}</div>
         <form method="post" action="${esc(ctx.buyAction)}"><input type="hidden" name="block" value="${esc(b.id)}"><input type="hidden" name="product" value="${p.id}">
-        <button class="btn pc-buy" type="submit">${esc(b.button || 'Buy now')}</button></form></div></article>`;
+        <button class="btn pc-buy" type="submit">${esc(b.button || 'Buy now')}</button></form>${page(p) ? `<a class="pc-more" href="${esc(page(p))}">See details →</a>` : ''}</div></article>`;
       return `${b.title ? `<h2 class="pc-title"${f('title')}>${starHl(esc(b.title))}</h2>` : ''}<div class="pcards n${Math.min(chosen.length, 3)}">${chosen.map(card).join('')}</div>`;
     }
     case 'heading': {
@@ -267,6 +280,9 @@ function renderBlock(b, ctx, index) {
     }
     case 'cards': {
       const items = String(b.items || '').split('\n').map((l) => l.split('|').map((x) => x.trim())).filter(([t]) => t);
+      if (b.style === 'pastel stack') {
+        return `<div class="pstack">${items.map(([t, d], r) => `<div class="pcard-s"><span class="ps-n">${r + 1}.</span><h3${t.includes('*') ? '' : lf(r, 0)}>${starHl(esc(t))}</h3>${d ? `<p${lf(r, 1)}>${esc(d)}</p>` : ''}</div>`).join('')}</div>`;
+      }
       // Icon style: matched line icons, bold (filled tile) icons, plain dots or none.
       const ic = b.numbered ? '' : ({ 'matched icons': 'line', 'bold icons': 'solid', none: 'none' })[b.icons] || '';
       return `<div class="cards${b.numbered ? ' numbered' : ''}${ic ? ` ic-${ic}` : ''}${items.length === 5 ? ' n5' : ''}">${items.map(([t, d, n], r) => `<div class="card">${ic === 'line' || ic === 'solid' ? `<span class="ci">${cardIcon(t, d, n)}</span>` : ''}<h3${lf(r, 0)}>${esc(t)}</h3>${d ? `<p${lf(r, 1)}>${esc(d)}</p>` : ''}</div>`).join('')}</div>`;
@@ -332,6 +348,18 @@ h1,h2,h3,.hero h1,.offer-t,.bul-t,.cv-title,.tcard blockquote,.faq summary,.pric
 .eyebrow,.btn,.cta,.stats b,.cv-eyebrow,.tcard .tc-who b,.guar-t{font-family:Oswald,"Arial Narrow",Arial,sans-serif;font-weight:600;text-transform:uppercase;letter-spacing:.07em}
 .eyebrow{font-size:.8rem;border-radius:4px}body{line-height:1.7}.tcard blockquote{font-style:normal}
 @media(max-width:560px){.btn small{letter-spacing:.04em}.hero h1,.cover h1{letter-spacing:-.01em}}`,
+  // Penpal: chunky Space Grotesk headlines, Courier Prime letters, pill buttons, big round cards.
+  penpal: `@font-face{font-family:"Space Grotesk";src:url(/fonts/space-grotesk-700.woff2) format("woff2");font-weight:700;font-display:swap}
+@font-face{font-family:"Space Grotesk";src:url(/fonts/space-grotesk-500.woff2) format("woff2");font-weight:500;font-display:swap}
+@font-face{font-family:"Courier Prime";src:url(/fonts/courier-prime-400.woff2) format("woff2");font-weight:400;font-display:swap}
+@font-face{font-family:"Courier Prime";src:url(/fonts/courier-prime-700.woff2) format("woff2");font-weight:700;font-display:swap}
+body{font-family:"Courier Prime","Courier New",monospace;font-size:17.5px;line-height:1.75}
+h1,h2,h3,.hero h1,.offer-t,.bul-t,.price,.an-v,.pc-body h3,.tcard .tc-who b,.faq summary,.cv-title{font-family:"Space Grotesk",system-ui,sans-serif;font-weight:700;letter-spacing:-.025em}
+.btn,.eyebrow,.kick,.pc-price,input,select,textarea,.tick{font-family:"Space Grotesk",system-ui,sans-serif}
+.btn{border-radius:999px;font-weight:700;transition:transform .2s ease,box-shadow .2s ease}.btn:hover{transform:translateY(-2px);box-shadow:0 14px 26px -14px var(--accent)}
+.eyebrow{letter-spacing:.22em;font-weight:500;font-size:.78rem;border-radius:999px}
+.card,.pcard,.tcard,.faq details,.guar,.optin,.pricing{border-radius:28px}
+.hl{background:none;padding:0;text-decoration:underline;text-decoration-thickness:.12em;text-underline-offset:.14em;text-decoration-color:var(--hl)}`,
   modern: `h1,h2,h3{font-weight:800;letter-spacing:-.035em}.hero h1{font-weight:800;letter-spacing:-.04em}
 .eyebrow{font-size:.75rem;font-weight:700;letter-spacing:.2em;border:0;padding:6px 12px;border-radius:99px;background:color-mix(in srgb,currentColor 12%,transparent)}.btn{border-radius:99px}`,
 };
@@ -414,7 +442,7 @@ function renderPage({ title, blocks, settings = {}, nextUrl = '#', noUrl = '#', 
       };
       const ratio = ['wide-left', 'wide-right'].includes(b.ratio) ? b.ratio : 'half';
       const html = `<section class="cols r-${ratio}${b.valign === 'top' ? ' v-top' : ''}">${col(i + 1, br, br)}${col(br + 1, end, end)}</section>`;
-      parts.push({ band: ['soft', 'dark', 'brand'].includes(b.band) ? b.band : '', html: preview ? `<div data-bc="${i}">${html}</div>` : html });
+      parts.push({ band: ['soft', 'dark', 'brand', 'sunset'].includes(b.band) ? b.band : '', html: preview ? `<div data-bc="${i}">${html}</div>` : html });
       i = end; continue;
     }
     // A cover banner can hold the sign-up form that follows it.
@@ -423,7 +451,7 @@ function renderPage({ title, blocks, settings = {}, nextUrl = '#', noUrl = '#', 
       parts.push({ band: '', html: wrap(i, renderBlock(b, ctx, i)) + (preview ? `<div data-bi="${i + 1}" hidden></div>` : '') });
       ctx.coverForm = ''; i++; continue;
     }
-    const band = ['soft', 'dark', 'brand'].includes(b.band) && !['hero', 'notice'].includes(b.type) ? b.band : '';
+    const band = ['soft', 'dark', 'brand', 'sunset'].includes(b.band) && !['hero', 'notice'].includes(b.type) ? b.band : '';
     const html = renderBlock(b, ctx, i);
     if (!html && !preview) continue; // nothing to show (e.g. reviews before any are approved): no empty band
     parts.push({ band, html: wrap(i, html) });

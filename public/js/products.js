@@ -59,6 +59,13 @@ async function viewProducts(tab) {
     }
   };
   if (dashNew.next === 'product') { dashNew.next = ''; $('[data-new]').click(); }
+  // A product's own page: made in one click from the product, then opened on the map.
+  $$('[data-makepage]').forEach((b) => { b.onclick = async (e) => {
+    e.stopPropagation(); b.disabled = true;
+    try { const r = await api('POST', `/api/products/${b.dataset.makepage}/page`); toast('Its page is ready. Fill in the [brackets], then publish'); location.hash = `#/funnels/${r.id}`; }
+    catch (err) { b.disabled = false; toast(err.message, true); }
+  }; });
+  $$('[data-noedit]').forEach((a) => { a.onclick = (e) => e.stopPropagation(); });
   $$('[data-edit]').forEach((row) => { row.onclick = async () => {
     const pr = items.find((x) => x.id === Number(row.dataset.edit));
     const pending = modal('Edit product', `${form(pr)}<button type="button" class="btn danger sm" data-delp>Delete product</button>`,
@@ -109,9 +116,10 @@ function bindProductUploads() {
 }
 
 const productsHtml = (items) => (items.length ? `<div class="card table-wrap"><table>
-  <tr><th>Product</th><th>Price</th><th>Billing</th><th>Buyer tag</th><th>Sales</th></tr>
+  <tr><th>Product</th><th>Price</th><th>Billing</th><th>Buyer tag</th><th>Sales</th><th></th></tr>
   ${items.map((pr) => `<tr class="click" data-edit="${pr.id}"><td><strong>${esc(pr.name)}</strong><div class="muted small">${esc(pr.description.slice(0, 70))}</div></td>
-    <td>${esc(pr.priceLabel)}</td><td>${BILLING_LABEL[pr.billing]}${pr.billing === 'one_time' && pr.plan_parts >= 2 ? `<div class="muted small">or ${pr.plan_parts} payments</div>` : ''}${pr.billing !== 'one_time' && pr.trial_days ? `<div class="muted small">${pr.trial_days}-day free trial</div>` : ''}</td><td>${pr.tag ? tagsHtml(pr.tag.split(',')) : ''}</td><td>${pr.sales}</td></tr>`).join('')}
+    <td>${esc(pr.priceLabel)}</td><td>${BILLING_LABEL[pr.billing]}${pr.billing === 'one_time' && pr.plan_parts >= 2 ? `<div class="muted small">or ${pr.plan_parts} payments</div>` : ''}${pr.billing !== 'one_time' && pr.trial_days ? `<div class="muted small">${pr.trial_days}-day free trial</div>` : ''}</td><td>${pr.tag ? tagsHtml(pr.tag.split(',')) : ''}</td><td>${pr.sales}</td>
+    <td class="pr-page">${pr.page_funnel_id ? `<a class="btn sm" href="#/funnels/${pr.page_funnel_id}" data-noedit>${icon('page')} Its page</a>` : `<button type="button" class="btn sm" data-makepage="${pr.id}">${icon('sparkle')} Make its page</button>`}</td></tr>`).join('')}
   </table></div>` : `<div class="card empty"><div class="big">${icon('bag')}</div><h2>No products yet</h2>
   <p>Add what you sell and its price. Then put it on any page with a Pricing block, and Rilly handles checkout and receipts.</p>
   <button class="btn primary" data-new>+ New product</button></div>`);

@@ -229,7 +229,8 @@ function createApp({ dbPath } = {}) {
   const moneyTotals = (rows) => Object.entries(rows.reduce((acc, r) => ({ ...acc, [r.currency]: (acc[r.currency] || 0) + r.value_cents }), {}))
     .sort((x, y) => y[1] - x[1]).map(([currency, cents]) => ({ currency, cents, label: formatMoney(cents, currency) }));
   const productsMap = async (accountId) => Object.fromEntries(
-    (await db.all('SELECT * FROM products WHERE account_id = ?', accountId)).map((p) => [p.id, p]),
+    (await db.all(`SELECT p.*, CASE WHEN f.status = 'live' THEN f.slug END AS page_slug FROM products p
+      LEFT JOIN funnels f ON f.id = p.page_funnel_id WHERE p.account_id = ?`, accountId)).map((p) => [p.id, p]),
   );
   // Public URL of the page a step's "yes" (next_step_id) or "no" exit leads to.
   const linkUrl = async (linkedId) => {
@@ -840,6 +841,25 @@ function createApp({ dbPath } = {}) {
       await db.run('UPDATE products SET next_product_id = ? WHERE id = ?', next?.id || null, id(req.params.id));
     }
     res.json({ ok: true });
+  });
+
+  // One click: the product's own page, from the Product page template, filled in from the product.
+  api.post('/products/:id/page', async (req, res) => {
+    const p = await db.get('SELECT * FROM products WHERE id = ? AND account_id = ?', id(req.params.id), req.accountId);
+    if (!p) throw new HttpError(404, 'Product not found');
+    if (p.page_funnel_id && await db.get('SELECT 1 FROM funnels WHERE id = ? AND account_id = ?', p.page_funnel_id, req.accountId)) return res.json({ id: p.page_funnel_id, existed: true });
+    const made = await createFunnel(req.accountId, p.name.slice(0, 80), 'product_page');
+    const step = await db.get('SELECT * FROM funnel_steps WHERE funnel_id = ? ORDER BY position LIMIT 1', made.id);
+    const fill = (s) => String(s || '').split('[Product name]').join(p.name).split('[product name]').join(p.name);
+    const blocks = JSON.parse(step.blocks).map((b) => {
+      const out = JSON.parse(JSON.stringify(b), (k, v) => (typeof v === 'string' ? fill(v) : v));
+      if (out.type === 'hero') Object.assign(out, p.description ? { subtext: p.description.slice(0, 220) } : {}, p.image_url ? { image: p.image_url, imageAlt: p.name, mockup: 'none' } : {}, { button: `Get ${p.name.length > 22 ? 'yours' : p.name}` });
+      if (out.type === 'pricing') Object.assign(out, { productId: p.id }, p.image_url ? { hidePhoto: true } : {});
+      return out;
+    });
+    await db.run('UPDATE funnel_steps SET blocks = ? WHERE id = ?', JSON.stringify(blocks), step.id);
+    await db.run('UPDATE products SET page_funnel_id = ? WHERE id = ?', made.id, p.id);
+    res.status(201).json({ id: made.id });
   });
 
   api.delete('/products/:id', async (req, res) => {

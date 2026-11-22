@@ -2064,3 +2064,9 @@ span.tp-photo { display: grid; place-items: center; }
 @media (max-width: 900px) { .an-three { grid-template-columns: 1fr; } }
 .an-grid .an-wide:only-child { grid-column: 1 / -1; }
 @media (max-width: 900px) { .an-kpi:last-child:nth-child(odd) { grid-column: 1 / -1; border-right: 0; } .an-chart { padding: 12px 8px 0; } }
+
+/* Five type styles in the pickers */
+.type-row { grid-template-columns: repeat(5, 1fr); }
+.lk-types { grid-template-columns: repeat(5, 1fr); }
+@font-face { font-family: "Space Grotesk"; src: url(/fonts/space-grotesk-700.woff2) format("woff2"); font-weight: 700; font-display: swap; }
+.type-opt.t-penpal b, .lk-type.t-penpal b { font-family: "Space Grotesk", system-ui, sans-serif; font-weight: 700; letter-spacing: -.03em; }
