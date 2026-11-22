@@ -310,3 +310,35 @@ test('prestige site: photo banner, tiles, events (past dates hidden), logos, quo
   assert.ok(!pv.includes('IntersectionObserver(function'), 'no motion in the editor');
   assert.match(pv, /data-pickphoto="img1"/, 'an empty tile is a photo box for its own slot');
 });
+
+test('a flow can have a domain of its own: the whole domain is that flow, www or not; addresses can’t be shared', async () => {
+  const c = await setup('fk-flowdomain@example.com');
+  const { id } = (await c('POST', '/api/funnels', { name: 'Field Guide', template: 'optin' })).body;
+  const f = (await c('GET', `/api/funnels/${id}`)).body;
+  assert.equal((await c('PUT', `/api/funnels/${id}/domain`, { domain: 'nope' })).status, 400);
+  const r = (await c('PUT', `/api/funnels/${id}/domain`, { domain: 'https://FieldGuide.test/' })).body;
+  assert.equal(r.domain, 'fieldguide.test'); assert.equal(r.connected, 'manual', 'without a Netlify token it’s one step by hand');
+  assert.equal((await fetch(`${base}/d/fieldguide.test/`)).status, 404, 'nothing shows until it’s published');
+  await c('PUT', `/api/steps/${f.steps[0].id}`, { settings: { ...f.steps[0].settings, seoTitle: 'Field guide', seoDescription: 'Free field guide' } });
+  const prev = process.env.PREFLIGHT_PROMISES; process.env.PREFLIGHT_PROMISES = 'off';
+  const pub = await c('POST', `/api/funnels/${id}/publish`);
+  process.env.PREFLIGHT_PROMISES = prev;
+  assert.equal(pub.status, 200, JSON.stringify(pub.body));
+  for (const host of ['fieldguide.test', 'www.fieldguide.test']) {
+    const home = await fetch(`${base}/d/${host}/`);
+    assert.equal(home.status, 200, host);
+    const html = await home.text();
+    assert.match(html, /<link rel="canonical" href="https:\/\/fieldguide\.test"/);
+  }
+  const second = f.steps.find((s) => s.id !== f.entry_step_id);
+  assert.equal((await fetch(`${base}/d/fieldguide.test/${second.slug}`)).status, 200, 'its other pages sit at /their-name');
+  assert.match(await (await fetch(`${base}/d/fieldguide.test/sitemap.xml`)).text(), /<loc>https:\/\/fieldguide\.test\/<\/loc>/);
+  // Nobody else (and no business) can take it, in either form.
+  const other = await setup('fk-flowdomain2@example.com');
+  assert.equal((await other('PUT', '/api/account/domain', { domain: 'www.fieldguide.test' })).status, 409);
+  const o = (await other('POST', '/api/funnels', { name: 'Copy', template: 'optin' })).body;
+  assert.equal((await other('PUT', `/api/funnels/${o.id}/domain`, { domain: 'fieldguide.test' })).status, 409);
+  // Taking it off: the domain stops showing it.
+  assert.equal((await c('PUT', `/api/funnels/${id}/domain`, { domain: '' })).body.domain, null);
+  assert.equal((await fetch(`${base}/d/fieldguide.test/`)).status, 404);
+});

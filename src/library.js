@@ -2,7 +2,33 @@
 // domain the account connects, and testimonials as real records.
 const HOST_RE = /^(?=.{4,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$/;
 
-function registerLibrary(api, { getDb, HttpError, id, ownHost, clearDomainCache }) {
+const netlify = require('./netlifyalias');
+
+function registerLibrary(api, { getDb, HttpError, id, ownHost, clearDomainCache, hostForms }) {
+  // Is this address already someone's (a business's domain, or another flow's)?
+  const taken = async (domain, { accountId = 0, funnelId = 0 } = {}) => {
+    const [bare, www] = hostForms(domain);
+    return Boolean(await db().get('SELECT 1 FROM accounts WHERE domain IN (?, ?) AND id <> ?', bare, www, accountId)
+      || await db().get('SELECT 1 FROM funnels WHERE domain IN (?, ?) AND id <> ?', bare, www, funnelId));
+  };
+  const cleanDomain = (v) => String(v ?? '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/[/?#].*$/, '').replace(/\.$/, '') || null;
+
+  // ---------- A domain of its own for one flow (a product, a book, an event) ----------
+  api.put('/funnels/:id/domain', async (req, res) => {
+    const f = await db().get('SELECT id, domain FROM funnels WHERE id = ? AND account_id = ?', id(req.params.id), req.accountId);
+    if (!f) throw new HttpError(404, 'Flow not found');
+    const domain = cleanDomain(req.body?.domain);
+    if (domain && !HOST_RE.test(domain)) throw new HttpError(400, 'Enter a domain like fieldguide.com');
+    if (domain && ownHost(domain)) throw new HttpError(400, 'That’s the app’s own address; use a domain of your own');
+    if (domain && await taken(domain, { funnelId: f.id })) throw new HttpError(409, 'That domain is already in use in Rilly. If it’s your business domain, give this flow a different one');
+    await db().run('UPDATE funnels SET domain = ? WHERE id = ?', domain, f.id);
+    clearDomainCache();
+    // Tell the host about it (HTTPS included) when Rilly can; otherwise it's one step by hand.
+    if (f.domain && f.domain !== domain) await netlify.removeAlias(hostForms(f.domain)).catch(() => {});
+    const auto = domain ? await netlify.addAlias(hostForms(domain)).catch(() => false) : false;
+    res.json({ domain, connected: domain ? (auto ? 'auto' : 'manual') : '' });
+  });
+
   const db = () => getDb();
 
   // ---------- One place for pages ----------
@@ -53,10 +79,10 @@ function registerLibrary(api, { getDb, HttpError, id, ownHost, clearDomainCache 
 
   // ---------- One domain for the whole account ----------
   api.put('/account/domain', async (req, res) => {
-    let domain = String(req.body?.domain ?? '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '') || null;
+    let domain = cleanDomain(req.body?.domain);
     if (domain && !HOST_RE.test(domain)) throw new HttpError(400, 'Enter a domain like www.yourbusiness.com');
     if (domain && ownHost(domain)) throw new HttpError(400, 'That’s the app’s own address; use a domain of your own');
-    if (domain && await db().get('SELECT 1 FROM accounts WHERE domain = ? AND id <> ?', domain, req.accountId)) throw new HttpError(409, 'Another business already uses that domain');
+    if (domain && await taken(domain, { accountId: req.accountId })) throw new HttpError(409, 'That domain is already in use in Rilly (by another business, or by one of your flows)');
     let home = req.body?.home_funnel_id === undefined ? undefined : req.body.home_funnel_id ? id(req.body.home_funnel_id) : null;
     if (home) {
       const f = await db().get('SELECT id FROM funnels WHERE id = ? AND account_id = ?', home, req.accountId);

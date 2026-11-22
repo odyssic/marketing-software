@@ -73,7 +73,7 @@ function viewSettings() {
     <form class="card" style="max-width:560px;margin-top:16px" data-pagecode><h2>Tracking and custom CSS</h2><p class="muted small">Loading…</p></form>
     <form class="card" style="max-width:560px;margin-top:16px" data-domain>
       <h2>Your domain</h2>
-      <p class="muted small">Connect it once for the whole business. The home website opens at the domain; every other website or page lives at /its-name.</p>
+      <p class="muted small">Connect it once for the whole business. The home website opens at the domain; every other website or page lives at /its-name. A flow can also have a domain of its own (a book or product at fieldguide.com): open the flow, then ⋯ → Give it its own domain.</p>
       <label class="f">Domain<input name="domain" value="${esc(a.domain || '')}" placeholder="www.yourbusiness.com"></label>
       <label class="f">Home website<select name="home_funnel_id" data-homes><option value="">— Pick one —</option></select></label>
       <details class="hint"><summary>How to connect it</summary><ol style="padding-left:18px;margin:6px 0">

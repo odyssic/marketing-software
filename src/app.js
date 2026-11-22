@@ -94,6 +94,18 @@ function createApp({ dbPath } = {}) {
     || (process.env.APP_HOSTS || '').split(',').map((x) => x.trim().toLowerCase()).includes(h)
     || (process.env.PUBLIC_URL && new URL(process.env.PUBLIC_URL).hostname === h);
   const domainCache = new Map();
+  const hostForms = (h) => { const bare = h.replace(/^www\./, ''); return [bare, `www.${bare}`]; };
+  // A flow with a domain of its own (fieldguide.com): the whole domain is that flow.
+  const flowForDomain = async (host) => {
+    // Only "no flow here" is remembered (most custom domains are a business's); a flow's
+    // status is read fresh, so publishing or unpublishing shows straight away.
+    const miss = domainCache.get(`f:${host}`);
+    if (miss && miss.at > Date.now() - 30e3) return null;
+    const [bare, www] = hostForms(host);
+    const f = await db.get('SELECT id, slug, account_id, status FROM funnels WHERE domain IN (?, ?) LIMIT 1', bare, www);
+    if (!f) domainCache.set(`f:${host}`, { at: Date.now() });
+    return f || null;
+  };
   // The account that connected this domain (one domain per account).
   const accountForDomain = async (host) => {
     const hit = domainCache.get(host);
@@ -131,8 +143,24 @@ function createApp({ dbPath } = {}) {
     const viaEdge = req.path.match(/^\/d\/([a-z0-9.-]+)(\/.*)?$/i);
     if (viaEdge) { host = viaEdge[1].toLowerCase(); path = viaEdge[2] || '/'; } else if (ownHost(host)) { lastBase = `${req.protocol}://${req.host}`; return next(); }
     if (PASS.test(path)) { req.url = path + (req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : ''); return next(); }
-    const acct = await accountForDomain(host).catch(() => null);
     const nothing = () => res.status(404).type('text').send('Nothing is published at this address yet.');
+    const flow = await flowForDomain(host).catch(() => null);
+    if (flow) {
+      if (flow.status !== 'live') return nothing();
+      req.publicHost = host; req.domainBase = ''; req.viaDomain = true;
+      if (path === '/robots.txt') return res.type('text/plain').send(`User-agent: *\nAllow: /\nDisallow: /dl/\nDisallow: /t/\n\nSitemap: https://${host}/sitemap.xml\n`);
+      if (path === '/sitemap.xml') {
+        const f = await db.get('SELECT kind, entry_step_id FROM funnels WHERE id = ?', flow.id);
+        const steps = await db.all('SELECT id, slug, updated_at FROM funnel_steps WHERE funnel_id = ? ORDER BY position, id', flow.id);
+        const urls = steps.filter((s) => f.kind === 'website' || s.id === f.entry_step_id).map((s) => `  <url><loc>https://${host}/${s.id === f.entry_step_id ? '' : s.slug}</loc></url>`);
+        return res.type('application/xml').send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join('\n')}\n</urlset>\n`);
+      }
+      const segs = path.split('/').filter(Boolean);
+      const q = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
+      req.url = `/f/${flow.slug}${segs.length ? `/${segs.join('/')}` : ''}${q}`;
+      return next();
+    }
+    const acct = await accountForDomain(host).catch(() => null);
     if (!acct) return nothing();
     req.publicHost = host;
     if (['/sitemap.xml', '/robots.txt', '/llms.txt'].includes(path)) return siteFiles(acct, host, path, res);
@@ -472,7 +500,7 @@ function createApp({ dbPath } = {}) {
       billing: planOf(await db.get(`SELECT u.plan_status, u.trial_ends_at, u.created_at FROM memberships m JOIN users u ON u.id = m.user_id
         WHERE m.account_id = ? AND m.role = 'owner' ORDER BY (u.id = ?) DESC, u.id LIMIT 1`, req.accountId, req.user.id).catch(() => null) || req.user), account: { ...account, hidden_sections: business.hiddenSections(account, await business.usedSections(db, req.accountId)), people_word: business.typeOf(account.business_type).people },
       sections: Object.entries(business.OPTIONAL_SECTIONS).map(([key, label]) => ({ key, label, hint: business.SECTION_HINTS[key] })),
-      businessTypes: business.publicTypes(), emailLive: mailer.isLive(), aiLive: require('./ai').isLive(), baseUrl: baseUrl(req),
+      businessTypes: business.publicTypes(), emailLive: mailer.isLive(), aiLive: require('./ai').isLive(), baseUrl: baseUrl(req), domainAuto: require('./netlifyalias').ready(),
       accounts: await db.all(`SELECT a.id, a.name, m.role FROM memberships m JOIN accounts a ON a.id = m.account_id
         WHERE m.user_id = ? ORDER BY a.name, a.id`, req.user.id),
       payments: {
@@ -1587,7 +1615,7 @@ function createApp({ dbPath } = {}) {
     res.json(await app.runJobs(now));
   });
   registerUploads(app, api, { getDb: () => db, HttpError, baseUrl });
-  registerLibrary(api, { getDb: () => db, HttpError, id, ownHost, clearDomainCache: () => domainCache.clear() });
+  registerLibrary(api, { getDb: () => db, HttpError, id, ownHost, clearDomainCache: () => domainCache.clear(), hostForms });
   registerPrint(api, app, { getDb: () => db, HttpError, id, logEvent, publicBase, toCsv: people.toCsv });
   registerAccounts(api, { getDb: () => db, HttpError, id, seed: (accountId) => workflows.seedDefaults(accountId), onChange: (userId) => billing.syncExtras(userId) });
   // How the business likes to sell (1 gentle … 5 direct).
@@ -1813,7 +1841,8 @@ function createApp({ dbPath } = {}) {
         const acct = await getAccount(funnel.account_id);
         let code = {}; try { code = JSON.parse(acct.page_code || '{}'); } catch { /* none */ }
         const entry = step.id === funnel.entry_step_id;
-        const url = req.publicHost ? `https://${req.publicHost}${req.domainBase || ''}${entry ? '' : `/${step.slug}`}` || `https://${req.publicHost}/`
+        const url = funnel.domain && funnel.status === 'live' ? `https://${funnel.domain}${entry ? '' : `/${step.slug}`}`
+          : req.publicHost ? `https://${req.publicHost}${req.domainBase || ''}${entry ? '' : `/${step.slug}`}` || `https://${req.publicHost}/`
           : `${publicBase()}/f/${funnel.slug}${entry ? '' : `/${step.slug}`}`;
         return { business: acct.name, code, ownDomain: !ownHostList().includes(req.hostname.toLowerCase()), url, logo: acct.logo_url || '' };
       })()),

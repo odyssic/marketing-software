@@ -194,9 +194,32 @@ async function publishFlow(id, after) {
   if (!await modal('Publish this page?', `<p>Everything checks out${pre.problems.length ? ', with a note or two:' : '.'}</p>${list(pre.problems)}<p class="muted small">Your pages go live at the page link. You can unpublish any time.</p>`, { submit: 'Publish' })) return;
   try { await api('POST', `/api/funnels/${id}/publish`); toast('Published! Your page is live'); after?.(); } catch (err) { toast(err.message, true); }
 }
+// A domain of its own for one flow (fieldguide.com): the whole domain shows this flow.
+// Optional: without one, the flow lives on the business's domain (or Rilly's) at /its-name.
+async function flowDomain(f, after) {
+  const app = new URL(state.me.baseUrl).hostname;
+  const steps = (auto) => `<details class="hint" ${f.domain ? '' : 'open'}><summary>How to connect it</summary><ol style="padding-left:18px;margin:6px 0">
+    <li>At the company where you bought the domain, open its DNS settings.</li>
+    <li>Add an <b>A</b> record for the bare domain (<b>@</b>) pointing to <b>75.2.60.5</b>.</li>
+    <li>Add a <b>CNAME</b> record for <b>www</b> pointing to <b>${esc(app)}</b>.</li>
+    ${auto ? '' : `<li>In Netlify → Domain management, add the domain as an alias (HTTPS is automatic).</li>`}
+    <li>Publish the flow. DNS can take an hour or so to reach everyone.</li></ol></details>`;
+  const r = await modal('Its own domain', `<p class="muted small">Give <b>${esc(f.name)}</b> an address of its own, like <b>fieldguide.com</b>. The domain opens straight onto it; it keeps working at its Rilly address too, and your main domain is untouched.</p>
+    <label class="f">Domain<input name="domain" value="${esc(f.domain || '')}" placeholder="fieldguide.com" autocomplete="off" spellcheck="false"></label>
+    ${steps(state.me.domainAuto)}
+    ${f.domain ? '<label class="check"><input type="checkbox" name="remove"> Stop using this domain (the flow stays at its Rilly address)</label>' : ''}`,
+  { submit: 'Save', onSubmit: (v) => api('PUT', `/api/funnels/${f.id}/domain`, { domain: v.remove ? '' : v.domain }) });
+  if (!r) return;
+  const before = f.domain || '';
+  if (!r.domain) toast('Domain removed. The flow is still at its Rilly address');
+  else undoToast(r.connected === 'auto' ? `Connected ${r.domain}. Add the DNS records and it’s live` : `Saved ${r.domain}. Add the DNS records, then add it in Netlify`,
+    async () => { await api('PUT', `/api/funnels/${f.id}/domain`, { domain: before }); toast('Put back'); after?.(); });
+  after?.();
+}
 async function viewFunnel(id) {
   const f = await api('GET', `/api/funnels/${id}`);
-  const link = publicUrl(`/f/${f.slug}`);
+  // Once live on a domain of its own, that's its address.
+  const link = f.domain && f.status === 'live' ? `https://${f.domain}` : publicUrl(`/f/${f.slug}`);
   shell('pages', `${PAGES_TABS(f.kind === 'website' ? 'websites' : 'funnels')}
     <div class="head" style="margin-bottom:14px"><div><a href="#/flows?show=${f.kind === 'website' ? 'websites' : 'pageflows'}" class="small">← Flows</a>
       <h1 style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">${esc(f.name)} ${f.status === 'live' ? '<span class="pill ok">Live</span>' : '<span class="pill warn">Draft</span>'} ${purposeTag(f)}</h1></div>
@@ -204,6 +227,7 @@ async function viewFunnel(id) {
         <a class="btn" href="${esc(link)}" target="_blank" rel="noopener">${icon('external')} View</a>
         <button class="btn" data-copy="${esc(link)}" title="${esc(link)}">${icon('copy')} Copy link</button>
         ${moreMenu(`<button role="menuitem" data-rename>${icon('gear')} Settings and address</button>
+          <button role="menuitem" data-owndomain>${icon('globe')} ${f.domain ? `Own domain: ${esc(f.domain)}` : 'Give it its own domain'}</button>
           <button role="menuitem" data-dup>${icon('copy')} Duplicate</button>
           <button role="menuitem" data-embed>${icon('globe')} Put on another website</button>
           <button role="menuitem" data-seoall>${icon('sparkle')} Write search titles for every page</button>
@@ -235,6 +259,7 @@ async function viewFunnel(id) {
   bindPurposeTags([f], () => viewFunnel(id));
   bindMoreMenus();
   $('[data-dup]').onclick = () => duplicateFunnel(f);
+  $('[data-owndomain]').onclick = () => flowDomain(f, () => viewFunnel(id));
   $('[data-embed]').onclick = () => embedCode(f);
   $('[data-seoall]').onclick = async () => {
     const all = await modal('Search titles and descriptions', '<p class="muted small">Rilly writes a search title and description for each page from what’s on it, for Google and AI search. Page addresses stay as they are.</p><label class="check"><input type="checkbox" name="overwrite"> Rewrite pages that already have them</label>', { submit: 'Write them' });
