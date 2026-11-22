@@ -1125,6 +1125,23 @@ function createApp({ dbPath } = {}) {
     res.json({ ok: true });
   });
 
+  api.get('/steps/:id/clicks', async (req, res) => {
+    const s = await getStep(req.accountId, req.params.id);
+    const days = [7, 30, 90, 365].includes(Number(req.query.days)) ? Number(req.query.days) : 30;
+    const since = new Date(Date.now() - days * 864e5).toISOString();
+    const [v, clicks, reach] = await Promise.all([
+      db.get("SELECT COUNT(*)::int AS n FROM page_events WHERE step_id = ? AND type = 'view' AND created_at >= ?", s.id, since),
+      db.all(`SELECT block, label, COUNT(*)::int AS clicks, COUNT(DISTINCT visit)::int AS people FROM page_clicks
+        WHERE step_id = ? AND created_at >= ? GROUP BY block, label ORDER BY people DESC LIMIT 200`, s.id, since),
+      db.all('SELECT deepest, COUNT(*)::int AS n FROM page_reach WHERE step_id = ? AND created_at >= ? GROUP BY deepest', s.id, since),
+    ]);
+    // How many visits got at least as far as each block.
+    const tracked = reach.reduce((t, r) => t + r.n, 0);
+    const blocksN = (typeof s.blocks === 'string' ? JSON.parse(s.blocks) : s.blocks).length;
+    const reached = Array.from({ length: blocksN }, (_, i) => reach.filter((r) => r.deepest >= i).reduce((t, r) => t + r.n, 0));
+    res.json({ days, views: v.n, tracked, clicks, reached });
+  });
+
   api.get('/steps/:id', async (req, res) => {
     const s = await getStep(req.accountId, req.params.id);
     const funnel = await db.get('SELECT id, name, slug, kind, status FROM funnels WHERE id = ?', s.funnel_id);
@@ -1768,6 +1785,7 @@ function createApp({ dbPath } = {}) {
       title: step.name, blocks: page.blocks, settings: page.settings, embed,
       ...chrome, ...(course && !embed ? { course: course.course } : {}),
       nextUrl: withEmbed(nextUrl), noUrl: withEmbed(noUrl), formAction: withEmbed(`/f/${funnel.slug}/${step.slug}/optin`), buyAction: `/f/${funnel.slug}/${step.slug}/buy`,
+      trackAction: draft ? '' : `/f/${funnel.slug}/${step.slug}/t`,
       products, oneClick: buyer ? `/f/${funnel.slug}/${step.slug}/oneclick` : null, coupons: page.blocks.some((x) => x.type === 'pricing') && await checkout.hasCoupons(funnel.account_id),
       testimonials: await approvedTestimonials(db, funnel.account_id), ...(await (async () => {
         const acct = await getAccount(funnel.account_id);
@@ -1780,6 +1798,29 @@ function createApp({ dbPath } = {}) {
     })));
   });
   function withChat(tag, html) { return tag ? html.replace(/<\/body>(?![\s\S]*<\/body>)/, `${tag}</body>`) : html; }
+
+  // Click tracking from live pages (see trackScript in render.js): a click on a button or
+  // link, or how far down a visit got. Quiet: always 204, never an error page.
+  app.post('/f/:funnel/:step/t', express.json({ limit: '2kb', type: () => true }), async (req, res) => {
+    res.status(204).end();
+    try {
+      const b = req.body || {};
+      const visit = String(b.v || '').replace(/[^a-z0-9]/gi, '').slice(0, 16);
+      const block = Number.isInteger(b.b) && b.b >= -1 && b.b < 500 ? b.b : -1;
+      if (!visit) return;
+      const found = await findPublicStep(req.params.funnel, req.params.step);
+      if (!found || found.funnel.status !== 'live') return;
+      const { funnel, step } = found;
+      if (b.k === 'c') {
+        const label = String(b.l || '').replace(/\s+/g, ' ').trim().slice(0, 80);
+        if (!label) return;
+        await db.run('INSERT INTO page_clicks (account_id, funnel_id, step_id, block, label, visit) VALUES (?, ?, ?, ?, ?, ?)', funnel.account_id, funnel.id, step.id, block, label, visit);
+      } else if (b.k === 'r' && block >= 0) {
+        await db.run(`INSERT INTO page_reach (step_id, visit, deepest) VALUES (?, ?, ?)
+          ON CONFLICT (step_id, visit) DO UPDATE SET deepest = GREATEST(page_reach.deepest, excluded.deepest)`, step.id, visit, block);
+      }
+    } catch (e) { console.error('click tracking:', e.message); }
+  });
 
   app.post('/f/:funnel/:step/optin', express.urlencoded({ extended: false, limit: '20kb' }), async (req, res) => {
     const found = await findPublicStep(req.params.funnel, req.params.step);

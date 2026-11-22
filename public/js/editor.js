@@ -224,6 +224,7 @@ async function viewEditor(stepId) {
       <span class="saved" data-saved>All changes saved</span>
       <button class="btn sm" data-undo title="Undo (Ctrl+Z)" disabled>${icon('undo')} Undo</button><button class="btn sm" data-redo title="Redo (Ctrl+Shift+Z)" disabled>${icon('redo')} Redo</button>
       <button class="btn sm" data-history title="Earlier versions of this page">${icon('history')} History</button>
+      <button class="btn sm" data-clicks title="Show what visitors click and how far they read" aria-pressed="false">${icon('cursor')} Clicks</button>
       <button class="btn sm" data-device title="Toggle mobile preview">${icon('phone')} Mobile</button>
       ${step.funnel.status === 'live' ? '' : '<button type="button" class="btn sm primary" data-edpublish>Publish</button>'}
       <a class="btn sm ${step.funnel.status === 'live' ? 'primary' : ''}" href="${esc(link)}" target="_blank" rel="noopener" data-live>${step.funnel.status === 'live' ? 'View live' : 'Preview'} ${icon('external')}</a></div>
@@ -264,6 +265,24 @@ async function viewEditor(stepId) {
   const preview = async () => {
     const { html } = await api('POST', '/api/preview', { blocks: ed.blocks, settings: ed.settings, name: $('[data-name]').value });
     $('iframe').srcdoc = html;
+  };
+  // Clicks: what visitors click on this page and how far they read, drawn on the preview.
+  const sendStats = () => { const fr = $('iframe'); if (fr?.contentWindow) fr.contentWindow.postMessage(ed.clicks ? { ff: 'stats', on: true, ...ed.clicks } : { ff: 'stats', on: false }, '*'); };
+  $('iframe').addEventListener('load', () => setTimeout(sendStats, 150));
+  const clickBar = (c) => {
+    const top = [...c.clicks].sort((a, b) => b.people - a.people)[0];
+    const pct = (n, d) => (d ? Math.round((n * 100) / d) : 0);
+    const last = c.reached.length ? c.reached[c.reached.length - 1] : 0;
+    return !c.views ? 'No visits in the last 30 days yet. Numbers appear here once the page is live and people visit.'
+      : `Last ${c.days} days: <b>${c.views}</b> visit${c.views === 1 ? '' : 's'}${top ? ` · most clicked: <b>“${esc(top.label)}”</b> (${pct(top.people, c.views)}%)` : ' · no clicks yet'}${c.tracked ? ` · ${pct(last, c.tracked)}% read to the end` : ''}`;
+  };
+  $('[data-clicks]').onclick = async (e) => {
+    const b = e.currentTarget;
+    if (ed.clicks) { ed.clicks = null; b.classList.remove('on'); b.setAttribute('aria-pressed', 'false'); $('.clk-bar')?.remove(); sendStats(); return; }
+    try { ed.clicks = await api('GET', `/api/steps/${stepId}/clicks?days=30`); } catch (err) { toast(err.message, true); return; }
+    b.classList.add('on'); b.setAttribute('aria-pressed', 'true');
+    $('.stage').insertAdjacentHTML('afterbegin', `<div class="clk-bar">${icon('cursor')}<span>${clickBar(ed.clicks)}</span></div>`);
+    sendStats();
   };
   // Undo / redo: snapshots of the page as it changes.
   const undo = { past: [JSON.stringify({ b: ed.blocks, s: ed.settings })], future: [] };

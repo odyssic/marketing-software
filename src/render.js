@@ -343,10 +343,19 @@ function seoHead({ title, description, url, business, blocks, logo, embed }) {
 const cleanCss = (css) => String(css || '').slice(0, 40000).replace(/<\/?\s*style/gi, '').replace(/@import[^;]*;?/gi, '');
 // Inside another website: tell the host page how tall we are, and open links in the top window.
 const EMBED_STYLE = 'main{padding:28px 20px}.hero.first,.hero-min.first,.hero-split.first{margin-top:-28px}body{background:transparent}';
+// Click tracking on live pages: each button or link click (its words and block), and the
+// deepest block each visit reached. Sent quietly with sendBeacon; also to Google Analytics
+// as "rilly_click" when GA is on the page. No cookies; a visit is one page load.
+const trackScript = (url) => `<script>(function(){var u=${JSON.stringify(url).replace(/</g, '\\u003c')},v=Math.random().toString(36).slice(2,12),n=0,deep=-1,sentDeep=-1;
+function send(o){if(n++>60)return;o.v=v;var b=JSON.stringify(o);try{if(navigator.sendBeacon&&navigator.sendBeacon(u,new Blob([b],{type:'application/json'})))return}catch(e){}fetch(u,{method:'POST',body:b,headers:{'content-type':'application/json'},keepalive:true}).catch(function(){})}
+document.addEventListener('click',function(e){var a=e.target.closest&&e.target.closest('a,button,input[type=submit],summary');if(!a)return;var bl=a.closest('[data-bi]'),i=bl?+bl.dataset.bi:-1,l=(a.innerText||a.value||a.getAttribute('aria-label')||'').trim().split('\\n')[0].slice(0,80);if(!l)return;send({k:'c',l:l,b:i});if(window.gtag)window.gtag('event','rilly_click',{click_text:l,block:i})},true);
+if('IntersectionObserver' in window){var io=new IntersectionObserver(function(es){es.forEach(function(x){if(x.isIntersecting){var i=+x.target.dataset.bi;if(i>deep)deep=i;io.unobserve(x.target)}})},{threshold:.3});document.querySelectorAll('[data-bi]').forEach(function(b){io.observe(b)})}
+function flush(){if(deep>sentDeep){sentDeep=deep;send({k:'r',b:deep})}}
+addEventListener('visibilitychange',function(){if(document.visibilityState==='hidden')flush()});addEventListener('pagehide',flush);setTimeout(flush,15000)})()</script>`;
 const EMBED_SCRIPT = `<script>(function(){var s=function(){parent.postMessage({rillyEmbed:Math.ceil(document.body.getBoundingClientRect().height)},'*')};addEventListener('load',s);new ResizeObserver(s).observe(document.body);document.querySelectorAll('a[href^="http"]').forEach(function(a){if(a.host!==location.host)a.target='_top'})})()</script>`;
 const HTML_RESIZE = `<script>addEventListener('message',function(e){var d=e.data;if(!d||d.rillyHtml===undefined)return;var f=document.querySelector('iframe[data-html="'+d.rillyHtml+'"]');if(f&&e.source===f.contentWindow)f.style.height=Math.min(Math.max(20,d.h),20000)+'px'})</script>`;
 
-function renderPage({ title, blocks, settings = {}, nextUrl = '#', noUrl = '#', formAction = '#', buyAction = '#', products = {}, preview = false, oneClick = null, site = null, pageHref = (slug) => `#${slug}`, testimonials = {}, business = '', code = {}, ownDomain = false, embed = false, url = '', logo = '', coupons = false, course = null }) {
+function renderPage({ title, blocks, settings = {}, nextUrl = '#', noUrl = '#', formAction = '#', buyAction = '#', trackAction = '', products = {}, preview = false, oneClick = null, site = null, pageHref = (slug) => `#${slug}`, testimonials = {}, business = '', code = {}, ownDomain = false, embed = false, url = '', logo = '', coupons = false, course = null }) {
   const bg = color(settings.background, '#ffffff');
   const fg = color(settings.textColor, '#1f2937');
   const accent = color(settings.accent, '#4f46e5');
@@ -366,7 +375,7 @@ function renderPage({ title, blocks, settings = {}, nextUrl = '#', noUrl = '#', 
   // The page's deep colour (dark bands, notice bar): the banner's colour when there is one.
   const heroBg = list.find((b) => b.type === 'hero' && /^#[0-9a-f]{6}$/i.test(b.background || ''))?.background;
   const deep = heroBg || `color-mix(in srgb,${accent} 62%,#0a0d12)`;
-  const wrap = (i, html) => (preview ? `<div data-bi="${i}">${html}</div>` : html);
+  const wrap = (i, html) => `<div data-bi="${i}">${html}</div>`;
   const parts = [];
   for (let i = 0; i < list.length; i++) {
     const b = list[i];
@@ -503,7 +512,7 @@ ${sections.SECTION_CSS}${TYPE_CSS[settings.font] || ''}${embed ? EMBED_STYLE : '
 ${course ? `<style>:root{--crs-accent:${accent};--crs-bg:${bg};--crs-w:${width}px}${course.css}</style>` : ''}
 ${preview ? '' : trackingTags(code, ownDomain)}</head><body${course ? ' class="has-crs"' : ''}>${course ? course.nav : ''}${nav}${logoBar}<main>
 ${course ? course.top : ''}${body || '<p style="text-align:center;opacity:.5">This page is empty. Add blocks in the editor.</p>'}
-${course ? course.bottom : ''}</main>${foot}${(blocks || []).some((b) => b.type === 'booking') ? BOOKING_SCRIPT : ''}${(blocks || []).some((b) => b.type === 'video' && !b.controls && youtubeId(b.url)) ? VIDEO_SCRIPT : ''}${(blocks || []).some((b) => b.type === 'html') ? HTML_RESIZE : ''}${embed ? EMBED_SCRIPT : ''}${preview ? PREVIEW_EDIT_SCRIPT + PREVIEW_DROP_SCRIPT + PREVIEW_TOOLS_SCRIPT : ''}</body></html>`;
+${course ? course.bottom : ''}</main>${foot}${(blocks || []).some((b) => b.type === 'booking') ? BOOKING_SCRIPT : ''}${(blocks || []).some((b) => b.type === 'video' && !b.controls && youtubeId(b.url)) ? VIDEO_SCRIPT : ''}${(blocks || []).some((b) => b.type === 'html') ? HTML_RESIZE : ''}${embed ? EMBED_SCRIPT : ''}${preview ? PREVIEW_EDIT_SCRIPT + PREVIEW_DROP_SCRIPT + PREVIEW_TOOLS_SCRIPT + PREVIEW_STATS_SCRIPT : trackAction ? trackScript(trackAction) : ''}</body></html>`;
 }
 
 // Click-to-edit in the editor preview: click any text to type over it; the
@@ -625,6 +634,16 @@ form.onsubmit=function(e){e.preventDefault();if(!picked)return;var err=form.quer
 // Block toolbar in the editor preview: on hover (or once selected) each block
 // shows Move up, Move down, Duplicate and Delete. Delete/Backspace removes the
 // selected block when you're not typing. The builder does the change (and undo).
+const PREVIEW_STATS_SCRIPT = `<style>.ff-stat{position:absolute;z-index:9998;font:700 12px/1.2 system-ui,sans-serif;padding:4px 9px;border-radius:99px;pointer-events:none;white-space:nowrap;box-shadow:0 4px 12px rgba(0,0,0,.18)}.ff-reach{background:rgba(20,40,43,.88);color:#fff}.ff-click{background:#ea580c;color:#fff}.ff-click.zero{background:#9ca3af}</style>
+<script>(function(){var S=null;function txt(a){return((a.innerText||a.value||a.getAttribute('aria-label')||'').trim().split('\\n')[0]).replace(/\\s+/g,' ').slice(0,80)}
+function pct(n,d){return d?Math.round(n*100/d):0}
+function tag(cls,text,x,y){var t=document.createElement('div');t.className='ff-stat '+cls;t.textContent=text;t.style.left=x+'px';t.style.top=y+'px';document.body.appendChild(t)}
+function draw(){document.querySelectorAll('.ff-stat').forEach(function(x){x.remove()});if(!S)return;var sx=scrollX,sy=scrollY;
+document.querySelectorAll('[data-bi]').forEach(function(b){if(b.hidden)return;var i=+b.dataset.bi,r=b.getBoundingClientRect();if(!r.height)return;
+if(S.tracked)tag('ff-reach',pct(S.reached[i]||0,S.tracked)+'% got here',r.left+sx+10,r.top+sy+8);
+[].slice.call(b.querySelectorAll('a,button,input[type=submit],summary')).forEach(function(a){var l=txt(a);if(!l)return;var c=(S.clicks||[]).filter(function(x){return x.block===i&&x.label===l})[0],n=c?c.people:0,q=a.getBoundingClientRect();if(!q.width)return;
+tag('ff-click'+(n?'':' zero'),pct(n,S.views)+'% clicked'+(n?' · '+n:''),q.right+sx-12,q.top+sy-10)})})}
+addEventListener('message',function(e){var d=e.data;if(!d||d.ff!=='stats')return;S=d.on?d:null;draw()});addEventListener('resize',function(){if(S)draw()})})()</script>`;
 const PREVIEW_TOOLS_SCRIPT = `<style>
 [data-bi]{position:relative}
 .ff-tools{position:absolute;top:-17px;right:10px;z-index:9999;display:none;gap:2px;padding:3px;background:#14282B;border-radius:9px;box-shadow:0 4px 14px rgba(0,0,0,.18)}

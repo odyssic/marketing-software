@@ -1995,3 +1995,9 @@ span.tp-photo { display: grid; place-items: center; }
 .a-trend.up { color: #15803d; } .a-trend.down { color: #b45309; }
 .grow-row .g-said { grid-column: 2 / -1; grid-row: 2; }
 .grow-row .a-trend { grid-column: 4; grid-row: 1; justify-self: end; }
+
+/* Editor: Clicks */
+[data-clicks].on { background: #fff7ed; border-color: #ea580c; color: #9a3412; }
+.stage.ed-stage { position: relative; }
+.clk-bar { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); z-index: 5; display: flex; gap: 8px; align-items: center; max-width: calc(100% - 32px); background: #fff; border: 1px solid #fed7aa; color: #7c2d12; border-radius: 99px; padding: 7px 14px; font-size: .85rem; box-shadow: 0 8px 22px -12px rgba(0,0,0,.3); }
+.clk-bar svg { width: 16px; height: 16px; flex: none; color: #ea580c; }

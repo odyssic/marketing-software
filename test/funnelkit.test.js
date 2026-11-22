@@ -178,3 +178,32 @@ test('testimonials carry a photo and title; a row shows the chosen ones in order
   assert.match(html, /<img class="tc-ph" src="https:\/\/img\.example\/ann\.jpg"/);
   assert.match(html, /<b>Bo C\.<\/b><span>Owner, Bloom<\/span>/);
 });
+
+test('click tracking: live pages record clicks and how far visits read; the editor gets the numbers', async () => {
+  const c = await setup('fk-clicks@example.com');
+  const { id } = (await c('POST', '/api/funnels', { name: 'Clicky', template: 'optin' })).body;
+  const f = (await c('GET', `/api/funnels/${id}`)).body;
+  const s = f.steps[0];
+  const t = (body) => fetch(`${base}/f/${f.slug}/${s.slug}/t`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+  // Drafts don't count.
+  assert.equal((await t({ k: 'c', l: 'Send me the guide', b: 1, v: 'aaa' })).status, 204);
+  assert.equal((await c('GET', `/api/steps/${s.id}/clicks`)).body.clicks.length, 0);
+  assert.equal((await c('POST', `/api/funnels/${id}/publish`)).status, 200);
+  const html = await (await fetch(`${base}/f/${f.slug}`)).text();
+  assert.match(html, /rilly_click/);
+  assert.match(html, /data-bi="0"/);
+  await fetch(`${base}/f/${f.slug}`); // a second view
+  await t({ k: 'c', l: 'Send me the guide', b: 1, v: 'aaa' });
+  await t({ k: 'c', l: 'Send me the guide', b: 1, v: 'aaa' });
+  await t({ k: 'c', l: '  Send   me the guide ', b: 1, v: 'bbb' });
+  await t({ k: 'r', b: 3, v: 'aaa' }); await t({ k: 'r', b: 1, v: 'aaa' }); await t({ k: 'r', b: 1, v: 'bbb' });
+  await t({ k: 'c', l: '', b: 1, v: 'ccc' }); await t({ k: 'x', v: 'ddd' }); // ignored
+  const st = (await c('GET', `/api/steps/${s.id}/clicks`)).body;
+  assert.equal(st.views, 2);
+  assert.deepEqual(st.clicks.map((x) => [x.block, x.label, x.clicks, x.people]), [[1, 'Send me the guide', 3, 2]]);
+  assert.equal(st.tracked, 2);
+  assert.deepEqual(st.reached.slice(0, 4), [2, 2, 1, 1], 'the deepest point each visit reached counts once');
+  // Another business can't read them.
+  const other = await setup('fk-clicks2@example.com');
+  assert.equal((await other('GET', `/api/steps/${s.id}/clicks`)).status, 404);
+});
