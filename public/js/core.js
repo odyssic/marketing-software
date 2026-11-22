@@ -352,6 +352,7 @@ const LOGO = '<img class="lockup" src="/brand/rilly-lockup-white.svg" alt="Rilly
 const LOGO_INK = '<img class="lockup" src="/brand/rilly-lockup-ink.svg" alt="Rilly" width="102" height="35">';
 const NAV = [
   ['', icon('dashboard'), 'Dashboard'],
+  ['analytics', icon('trend'), 'Analytics'],
   ['inbox', icon('chat'), 'Inbox'],
   ['flows', icon('branch'), 'Flows'],
   ['people', icon('people'), 'People'],

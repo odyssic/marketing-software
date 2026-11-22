@@ -207,3 +207,27 @@ test('click tracking: live pages record clicks and how far visits read; the edit
   const other = await setup('fk-clicks2@example.com');
   assert.equal((await other('GET', `/api/steps/${s.id}/clicks`)).status, 404);
 });
+
+test('analytics: visits, sign-ups and clicks against the period before; sources, pages, clicks and devices; robots are not visits', async () => {
+  const c = await setup('fk-analytics@example.com');
+  const { id } = (await c('POST', '/api/funnels', { name: 'Shop', template: 'optin' })).body;
+  const f = (await c('GET', `/api/funnels/${id}`)).body;
+  assert.equal((await c('POST', `/api/funnels/${id}/publish`)).status, 200);
+  const phone = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) Mobile/15E148';
+  await fetch(`${base}/f/${f.slug}`, { headers: { 'user-agent': phone } });
+  await fetch(`${base}/f/${f.slug}`, { headers: { 'user-agent': 'Mozilla/5.0 (Windows NT 10.0) Chrome/120' } });
+  await fetch(`${base}/f/${f.slug}`, { headers: { 'user-agent': 'Googlebot/2.1 (+http://www.google.com/bot.html)' } });
+  const s = f.steps[0];
+  await fetch(`${base}/f/${f.slug}/${s.slug}/t`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ k: 'c', l: 'Send me the guide', b: 1, v: 'x1' }) });
+  const a = (await c('GET', '/api/analytics?range=7d')).body;
+  assert.equal(a.current.visits, 2, 'the robot is not a visit');
+  assert.equal(a.current.clicks, 1);
+  assert.equal(a.previous.visits, 0);
+  assert.equal(a.series.length, 7, 'one point per day');
+  assert.equal(a.series.reduce((t, x) => t + x.visits, 0), 2);
+  assert.deepEqual(a.devices.map((d) => d.device).sort(), ['computer', 'phone']);
+  assert.equal(a.pages[0].step_id, s.id); assert.equal(a.pages[0].visits, 2);
+  assert.equal(a.clicks[0].label, 'Send me the guide'); assert.equal(a.clicks[0].rate, 0.5);
+  assert.equal(a.sources[0].source, 'Direct');
+  assert.equal((await c('GET', '/api/analytics?range=bogus')).body.range, '30d');
+});

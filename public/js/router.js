@@ -50,6 +50,7 @@ async function route() {
     else if (section === 'campaigns' && id) await viewCampaign(id);
     else if (section === 'settings' && id === 'developers') await viewDevelopers();
     else if (section === 'settings') viewSettings();
+    else if (section === 'analytics') await viewAnalytics();
     else await viewDashboard();
   } catch (err) {
     if (state.me) shell(section, `<div class="card empty"><div class="big">${icon('alert')}</div><h2>${esc(err.message)}</h2><a href="#/">Back to dashboard</a></div>`);

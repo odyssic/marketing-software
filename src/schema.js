@@ -775,6 +775,8 @@ CREATE TABLE IF NOT EXISTS page_reach (
   PRIMARY KEY (step_id, visit)
 );
 CREATE INDEX IF NOT EXISTS idx_page_reach_step ON page_reach(step_id, created_at);
+-- The kind of device a page visit came from: phone, tablet or computer.
+ALTER TABLE page_events ADD COLUMN IF NOT EXISTS device TEXT NOT NULL DEFAULT '';
 -- The offer ladder: what to offer a product's buyers next (empty: the next pricier product).
 ALTER TABLE products ADD COLUMN IF NOT EXISTS next_product_id INT REFERENCES products(id) ON DELETE SET NULL;
 -- What the buyer gets: an uploaded file (/u/…) or a link, emailed the moment they pay.

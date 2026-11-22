@@ -48,6 +48,7 @@ const { registerMembers } = require('./members');
 const { registerCourses } = require('./courses');
 const { registerCommunity } = require('./community');
 const { registerMetrics } = require('./metrics');
+const { registerAnalytics, deviceOf } = require('./analytics');
 const { registerBlog } = require('./blog');
 const { registerCheckout } = require('./checkout');
 const { createIntegrations } = require('./integrations');
@@ -1621,6 +1622,7 @@ function createApp({ dbPath } = {}) {
   registerDashboard(api, { getDb: () => db, HttpError, leversFor, formatMoney, getAccount, weeklyMove: (accountId) => moves.current(accountId) });
 
   registerMetrics(api, { getDb: () => db });
+  registerAnalytics(api, { getDb: () => db, formatMoney });
   const members = registerMembers(app, api, { getDb: () => db, HttpError, id, upsertContact, messaging, publicBase, getSecret: () => secret,
     createFunnel: (...x) => createFunnel(...x), getFunnel: (...x) => getFunnel(...x) });
   const courses = registerCourses(app, api, { getDb: () => db, HttpError, id, messaging, members, getFunnel: (...x) => getFunnel(...x), portalExtra: (...x) => community.portalCard(...x) });
@@ -1774,7 +1776,7 @@ function createApp({ dbPath } = {}) {
     if (!draft && req.query.ref) await affiliates.track(req, res, funnel.account_id);
     const [products] = await Promise.all([
       productsMap(funnel.account_id),
-      draft ? null : db.run("INSERT INTO page_events (account_id, funnel_id, step_id, type, variant, source) VALUES (?, ?, ?, 'view', ?, ?)", funnel.account_id, funnel.id, step.id, v, src?.source || ''),
+      draft || deviceOf(req.headers['user-agent']) === 'bot' ? null : db.run("INSERT INTO page_events (account_id, funnel_id, step_id, type, variant, source, device) VALUES (?, ?, ?, 'view', ?, ?, ?)", funnel.account_id, funnel.id, step.id, v, src?.source || '', deviceOf(req.headers['user-agent'])),
     ]);
     if (!draft) await funnelKit.decideWinner(step.id);
     if (draft) res.set('X-Robots-Tag', 'noindex');

@@ -276,6 +276,7 @@ async function viewEditor(stepId) {
     return !c.views ? 'No visits in the last 30 days yet. Numbers appear here once the page is live and people visit.'
       : `Last ${c.days} days: <b>${c.views}</b> visit${c.views === 1 ? '' : 's'}${top ? ` · most clicked: <b>“${esc(top.label)}”</b> (${pct(top.people, c.views)}%)` : ' · no clicks yet'}${c.tracked ? ` · ${pct(last, c.tracked)}% read to the end` : ''}`;
   };
+  if (/[?&]clicks=1/.test(location.hash)) setTimeout(() => $('[data-clicks]')?.click(), 600);
   $('[data-clicks]').onclick = async (e) => {
     const b = e.currentTarget;
     if (ed.clicks) { ed.clicks = null; b.classList.remove('on'); b.setAttribute('aria-pressed', 'false'); $('.clk-bar')?.remove(); sendStats(); return; }
