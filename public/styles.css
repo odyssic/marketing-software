@@ -2072,3 +2072,5 @@ span.tp-photo { display: grid; place-items: center; }
 .type-opt.t-penpal b, .lk-type.t-penpal b { font-family: "Space Grotesk", system-ui, sans-serif; font-weight: 700; letter-spacing: -.03em; }
 .type-opt.t-prestige b, .lk-type.t-prestige b { font-family: Montserrat, system-ui, sans-serif; font-weight: 700; font-style: italic; text-transform: uppercase; letter-spacing: .04em; }
 @font-face { font-family: Montserrat; src: url(/fonts/montserrat-700i.woff2) format("woff2"); font-weight: 700; font-style: italic; font-display: swap; }
+@font-face { font-family: Newsreader; src: url(/fonts/newsreader-300i.woff2) format("woff2"); font-weight: 300; font-style: italic; font-display: swap; }
+.type-opt.t-editorial b, .lk-type.t-editorial b { font-family: Newsreader, Georgia, serif; font-weight: 300; font-style: italic; letter-spacing: -.02em; }

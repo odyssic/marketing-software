@@ -14,6 +14,8 @@ const id = () => Math.random().toString(36).slice(2, 10);
 // Contemporary looks: a warm, editorial serif and a clean modern sans.
 const ELEGANT = { font: 'elegant', background: '#fbf9f6', textColor: '#1f1b16', accent: '#8a5a2b', width: 1080 };
 const MODERN = { font: 'modern', background: '#ffffff', textColor: '#0b1220', accent: '#4338ca', width: 1080 };
+// Editorial: cream, ink and terracotta; a light book serif; gentle motion on.
+const EDITORIAL = { font: 'editorial', background: '#f4ede3', textColor: '#1a1512', accent: '#a9402c', highlight: '#a9402c', palette: 'Editorial', width: 1120, motion: true, stickyButton: true };
 // Penpal: warm cream, navy headlines, letters in Courier Prime, plum and coral.
 const PENPAL = { font: 'penpal', background: '#fbeedd', textColor: '#132a46', accent: '#4a1d4f', highlight: '#f39a8f', palette: 'Penpal', width: 1080 };
 // Typewriter: deep plum with a soft pink highlight, typewriter headlines.
@@ -85,6 +87,31 @@ const TEMPLATES = {
         ],
       },
       thanks('Thank you', 'It’s on its way', 'Check your inbox in the next few minutes. If it’s not there, look in Promotions or Spam.', NEXT_EMAIL, { ...ELEGANT }, { bg: '#3b2414' }),
+    ],
+  },
+  // A launch page with a story to tell: a big promise, a picture that opens out of a letter,
+  // the steps with their pictures pinned, what's inside as bento tiles, and where it all goes.
+  editorial_launch: {
+    label: 'Launch page (editorial)',
+    description: 'A calm, beautiful launch page for an app, a course or a craft: a big promise, a picture that opens out of a giant letter as people scroll, pinned how-it-works steps, bento tiles, an orbit of everywhere it goes, real reviews and a sign-up.',
+    workflows: ['welcome'],
+    steps: () => [
+      {
+        name: 'Launch', slug: 'launch', settings: { ...EDITORIAL },
+        blocks: [
+          { id: id(), type: 'hero', style: 'minimal', background: '#15110e', eyebrow: '[What it is] for [who it’s for]', text: 'Your best work,\n*finally finished.*', subtext: '[Two sentences: what it does, and the result people get. Plain words.]', button: 'Start free', url: '#form' },
+          { id: id(), type: 'reveal', letter: '', title: 'Every detail\n*considered.*', text: '[One sentence on the care that goes into it.]', caption: '[What the picture shows]' },
+          { id: id(), type: 'steps', title: 'The same work.\n*Done properly.*', items: '[Bring what you have] | [How they start, in a sentence.]\n[Make it yours] | [The choices they get to make.]\n[See it before anyone else] | [How they check it’s right.]\n[Share it] | [What they walk away with.]' },
+          head('The craft, handled.\n*The choices, yours.*', { size: 'large' }),
+          cards([['[The big one] *handled*', '[The thing people dread, done for them.]'], ['[Feature]', '[One line.]'], ['[Feature]', '[One line.]'], ['[Feature]', '[One line.]'], ['[Feature]', '[One line.]'], ['[Something you’re proud of]', '[One line on why it matters.]']], { style: 'bento', icons: 'none' }),
+          { id: id(), type: 'orbit', band: 'dark', eyebrow: 'Where it goes', title: 'One place.\n*Everywhere it’s needed.*', text: '[A sentence on how one thing reaches all of these.]', center: '', items: '[Place one]\n[Place two]\n[Place three]\n[Place four]\n[Place five]\n[Place six]' },
+          reviews(3, { style: 'slider', title: 'In their *own words.*', note: 'Shared with each customer’s permission.' }),
+          head('Free to start.\n*Pay when it’s worth it.*', { size: 'large' }),
+          form({ buttonLabel: 'Start free' }),
+          cta({ title: 'Begin\n*today.*', text: '[One honest line on why now.]', button: 'Start free', url: '#form' }),
+        ],
+      },
+      thanks('You’re in', 'Welcome. *Let’s begin.*', 'Your first email is on its way.', NEXT_EMAIL, { ...EDITORIAL }, { bg: '#15110e' }),
     ],
   },
   // One product's own page: filled in from the product (name, photo, price, buy button) when made from it.

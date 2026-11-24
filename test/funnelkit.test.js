@@ -342,3 +342,25 @@ test('a flow can have a domain of its own: the whole domain is that flow, www or
   assert.equal((await c('PUT', `/api/funnels/${id}/domain`, { domain: '' })).body.domain, null);
   assert.equal((await fetch(`${base}/d/fieldguide.test/`)).status, 404);
 });
+
+test('editorial launch: letter reveal, pinned steps, bento tiles, orbit and an honest note under reviews', async () => {
+  const c = await setup('fk-editorial@example.com');
+  await c('POST', '/api/testimonials', { quote: 'Worth every penny.', name: 'Priya S.', consent: true });
+  const { id } = (await c('POST', '/api/funnels', { name: 'Launch', template: 'editorial_launch' })).body;
+  const f = (await c('GET', `/api/funnels/${id}`)).body;
+  const s = f.steps[0];
+  assert.equal(s.settings.font, 'editorial');
+  const blocks = s.blocks.map((b) => (b.type === 'reveal' ? { ...b, image: "/u/sea'(1).jpg", letter: 'tea' } : b.type === 'steps' ? { ...b, img0: '/u/a.jpg' } : b));
+  await c('PUT', `/api/steps/${s.id}`, { blocks });
+  const prev = process.env.PREFLIGHT_PROMISES; process.env.PREFLIGHT_PROMISES = 'off';
+  assert.equal((await c('POST', `/api/funnels/${id}/publish`)).status, 200);
+  process.env.PREFLIGHT_PROMISES = prev;
+  const html = await (await fetch(`${base}/f/${f.slug}`)).text();
+  assert.match(html, /<div class="rvl-letter" aria-hidden="true">t<\/div>/, 'one letter');
+  assert.match(html, /--rv-img:url\(&#39;\/u\/sea%27%281%29\.jpg&#39;\)/, 'the picture address can’t break out of the style');
+  assert.match(html, /class="stp"/); assert.match(html, /<div class="stp-pic on"><img src="\/u\/a\.jpg"/);
+  assert.match(html, /class="bento n6"/); assert.match(html, /class="orb-i" style="--a:60\.0deg;--r:36"/);
+  assert.match(html, /<p class="rv-note">Shared with each customer’s permission\.<\/p>/);
+  assert.match(html, /REVEAL|\.rvl'\)/); assert.match(html, /stp-item/);
+  assert.match(html, /url\(\/fonts\/newsreader-300\.woff2\)/);
+});

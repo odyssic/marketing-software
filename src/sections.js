@@ -125,6 +125,33 @@ function renderSection(b, ctx, index, { href, formHtml = '' } = {}) {
           <div class="ev-main">${e.where ? `<div class="ev-where"${lf(r, 1)}>${esc(e.where)}</div>` : ''}<div class="ev-t"${lf(r, 2)}>${esc(e.what)}</div>${e.past ? '<small class="ev-past">Past: hidden from visitors</small>' : ''}</div>${link}</div>`;
       }).join('')}</div>`;
     }
+    // The letter reveal: a huge letter filled with your picture, opening up as people scroll.
+    case 'reveal': {
+      const letter = esc(String(b.letter || ctx.business || 'A').trim().slice(0, 1) || 'A');
+      const img = b.image && safeUrl(b.image) !== '#' ? safeUrl(b.image) : '';
+      const fill = img ? `url('${img.replace(/['()\\\s]/g, (c) => `%${c.charCodeAt(0).toString(16).padStart(2, '0')}`)}')` : 'linear-gradient(135deg,var(--accent),var(--hl))';
+      return `<section class="rvl${img ? '' : ' no-img'}" style="--rv-img:${esc(fill)}"><div class="rvl-stick">
+        <div class="rvl-letter" aria-hidden="true">${letter}</div><div class="rvl-full"${img ? ` role="img" aria-label="${esc(b.imageAlt || '')}"` : ''}></div>
+        <div class="rvl-words">${b.title ? `<h2${f('title')}>${hl(b.title)}</h2>` : ''}${b.text ? `<p${f('text')}>${esc(b.text)}</p>` : ''}</div>
+        ${b.caption ? `<p class="rvl-cap"${f('caption')}>${esc(b.caption)}</p>` : ''}
+        ${ctx.preview && !img ? '<span class="rvl-pick sec-ph ph-image" data-pickphoto role="button" tabindex="0"><b>+ The picture inside the letter</b><small>A wide, detailed picture works best</small></span>' : ''}</div></section>`;
+    }
+    // Pinned steps: the steps scroll by while the picture for the current one stays in view.
+    case 'steps': {
+      const rows = lines(b.items).slice(0, 6).map((l) => l.split('|').map((x) => x.trim()));
+      if (!rows.length) return '';
+      const lf = (r, c) => (ctx.preview ? ` data-f="items" data-row="${r}" data-col="${c}"` : '');
+      const pic = (r) => { const u = b[`img${r}`]; return u ? `<img src="${esc(safeUrl(u))}" alt="" loading="lazy">` : ctx.preview ? `<span class="stp-ph sec-ph ph-image" data-pickphoto="img${r}" role="button" tabindex="0"><b>+ Picture for step ${r + 1}</b></span>` : ''; };
+      return `${b.title ? `<h2 class="sec-t stp-t"${f('title')}>${hl(b.title)}</h2>` : ''}${b.text ? `<p class="sec-lead"${f('text')}>${hl(b.text)}</p>` : ''}<div class="stp"><ol class="stp-list">${rows.map(([t, d], r) => `<li class="stp-item${r === 0 ? ' on' : ''}" data-st="${r}"><span class="stp-n">${String(r + 1).padStart(2, '0')}</span><h3${lf(r, 0)}>${esc(t)}</h3>${d ? `<p${lf(r, 1)}>${esc(d)}</p>` : ''}<div class="stp-pic-m">${pic(r)}</div></li>`).join('')}</ol>
+        <div class="stp-stage">${rows.map((_, r) => `<div class="stp-pic${r === 0 ? ' on' : ''}">${pic(r)}</div>`).join('')}</div></div>`;
+    }
+    // Orbit: one thing in the middle, everything it connects to circling it.
+    case 'orbit': {
+      const items = lines(b.items).slice(0, 10);
+      const n = Math.max(items.length, 1);
+      return `<div class="orb"><div class="orb-words">${b.eyebrow ? `<div class="kick"${f('eyebrow')}>${esc(b.eyebrow)}</div>` : ''}${b.title ? `<h2${f('title')}>${hl(b.title)}</h2>` : ''}${b.text ? `<p${f('text')}>${esc(b.text)}</p>` : ''}</div>
+        <div class="orb-ring"><div class="orb-c"${f('center')}>${esc(b.center || ctx.business?.slice(0, 1) || '★')}</div><ul class="orb-rot">${items.map((x, i) => `<li class="orb-i" style="--a:${((360 / n) * i).toFixed(1)}deg;--r:${i % 2 ? 36 : 47}"><span>${esc(x)}</span></li>`).join('')}</ul></div></div>`;
+    }
     // A row of logos: where you've been featured, awards, partners. Your own, real ones only.
     case 'logos': {
       const imgs = [0, 1, 2, 3, 4, 5].map((k) => b[`logo${k}`]).filter((u) => u && safeUrl(u) !== '#');
@@ -405,6 +432,52 @@ details[open] .pm::after{transform:rotate(0)}.faq details p{margin:0 0 18px;opac
 .ev-go{display:inline-flex;align-items:center;gap:6px;font-size:.78rem;letter-spacing:.16em;text-transform:uppercase;color:inherit;text-decoration:none;padding:10px 12px;border:1px solid color-mix(in srgb,var(--accent) 70%,transparent)}
 .ev-go svg{color:var(--accent);transition:transform .15s}.ev-go:hover svg{transform:translateX(3px)}.ev.past{opacity:.45}.ev-past{display:block;font-size:.75rem}
 @media(max-width:560px){.ev{grid-template-columns:auto 1fr;gap:14px}.ev-main{text-align:left}.ev-go{grid-column:1/-1;justify-content:center}}
+/* Letter reveal */
+.rvl{position:relative;height:230vh;margin:56px calc(50% - 50vw);background:var(--deep);color:#fff;--p:0}
+.rvl-stick{position:sticky;top:0;height:100vh;overflow:hidden}
+.rvl-letter{position:absolute;left:64%;top:50%;font:400 min(80vh,62vw)/.8 Newsreader,Georgia,"Times New Roman",serif;background:var(--rv-img) center/cover;-webkit-background-clip:text;background-clip:text;color:transparent;transform:translate(-50%,-52%) scale(calc(1 + var(--p) * var(--p) * 26));transform-origin:50% 60%;will-change:transform;pointer-events:none}
+.rvl-full{position:absolute;inset:0;background:var(--rv-img) center/cover;opacity:clamp(0,calc((var(--p) - .42) * 3),1)}
+.rvl-words{position:absolute;left:max(20px,calc(50% - var(--w) / 2 + 20px));bottom:12vh;max-width:480px;opacity:clamp(0,calc(1 - var(--p) * 3.2),1)}
+.rvl-words h2{font-size:clamp(2rem,4.6vw,3.4rem);line-height:1.06;margin:0 0 12px}.rvl-words p{margin:0;opacity:.75}
+.rvl-cap{position:absolute;right:20px;bottom:16px;margin:0;font-size:.8rem;max-width:420px;text-align:right;text-shadow:0 1px 8px rgba(0,0,0,.6);opacity:clamp(0,calc((var(--p) - .75) * 5),1)}
+.rvl-pick{position:absolute;right:6%;top:12%;width:30%;height:auto;aspect-ratio:4/3;z-index:2}
+.rvl.static{height:auto}.rvl.static .rvl-stick{position:relative;height:auto;min-height:70vh}.rvl.static .rvl-full{opacity:1}.rvl.static .rvl-letter{display:none}
+.rvl.static .rvl-words{opacity:1;position:relative;left:auto;bottom:auto;padding:60vh 20px 40px;max-width:var(--w);margin:0 auto;text-shadow:0 2px 14px rgba(0,0,0,.6)}.rvl.static .rvl-cap{opacity:1}
+@media(max-width:760px){.rvl{height:200vh}.rvl-letter{left:50%;top:40%;font-size:min(70vh,92vw)}.rvl-words{bottom:8vh;right:20px}.rvl-pick{width:70%;right:15%}}
+/* Pinned steps */
+.stp{display:grid;grid-template-columns:1fr 1fr;gap:56px;align-items:start;max-width:var(--w);margin:0 auto}
+.stp-list{list-style:none;margin:0;padding:0}
+.stp-item{min-height:64vh;display:flex;flex-direction:column;justify-content:center;transition:opacity .45s}.stp.js .stp-item{opacity:.3}.stp.js .stp-item.on{opacity:1}
+.stp-n{font:400 .8rem/1 ui-monospace,monospace;color:var(--accent);letter-spacing:.06em}
+.stp-item h3{font-size:clamp(1.4rem,2.4vw,1.9rem);margin:8px 0 10px;font-weight:400}.stp-item p{margin:0;opacity:.8;max-width:440px}
+.stp-stage{position:sticky;top:12vh;height:76vh}
+.stp-pic{position:absolute;inset:0;opacity:0;transform:translateY(16px) scale(.98);transition:opacity .55s ease,transform .55s ease;display:grid;place-items:center}.stp-pic.on{opacity:1;transform:none}
+.stp-pic img{max-width:100%;max-height:100%;object-fit:contain;border-radius:6px;box-shadow:0 34px 70px -34px rgba(0,0,0,.45)}.stp-ph{width:80%;height:auto;aspect-ratio:4/5}
+.stp-pic-m{display:none}
+@media(max-width:760px){.stp{grid-template-columns:1fr;gap:0}.stp-stage{display:none}.stp-item,.stp.js .stp-item{min-height:0;opacity:1;margin-bottom:44px}.stp-pic-m{display:block;margin-top:18px}.stp-pic-m img{width:100%;border-radius:6px}}
+/* Bento */
+.bento{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.bt{border-radius:14px;padding:26px 24px 24px;min-height:200px;display:flex;flex-direction:column;justify-content:flex-end;transition:transform .25s ease,box-shadow .25s ease;color:#1d1915}
+.bt:hover{transform:translateY(-3px);box-shadow:0 24px 40px -28px rgba(0,0,0,.4)}
+.bt-k{font:400 .74rem/1 ui-monospace,monospace;opacity:.7;margin-bottom:auto;padding-bottom:18px}
+.bt h3{font-size:clamp(1.3rem,2.2vw,1.7rem);line-height:1.15;margin:0 0 8px;font-weight:400}.bt p{margin:0;font-size:.95rem;opacity:.78}
+.bt0{grid-column:span 2;background:var(--deep);color:#fff;min-height:260px}.bt0 .hl{color:color-mix(in srgb,var(--accent) 50%,#fff)}
+.bt1{background:#e9e3f0}.bt2{background:#f2e5cf}.bt3{background:#dce9e5}.bt4{background:#f4ddd4}.bt5{grid-column:span 2;background:color-mix(in srgb,var(--accent) 16%,#fff)}
+.bento.n6 .bt5,.bento.n3 .bt2{grid-column:1/-1}.bento.n4 .bt3{grid-column:span 2}
+@media(max-width:760px){.bento{grid-template-columns:1fr}.bt0,.bt5{grid-column:auto}.bt{min-height:150px}}
+/* Orbit */
+.orb{display:grid;grid-template-columns:1fr 1.1fr;gap:44px;align-items:center}
+.orb-words h2{font-size:clamp(2rem,4.4vw,3.2rem);line-height:1.06;margin:6px 0 14px}.orb-words p{opacity:.8;margin:0}
+.orb-ring{position:relative;aspect-ratio:1;width:100%;max-width:520px;margin:0 auto;container-type:inline-size}
+.orb-ring::before,.orb-ring::after{content:"";position:absolute;border:1px solid color-mix(in srgb,currentColor 20%,transparent);border-radius:50%}.orb-ring::before{inset:3%}.orb-ring::after{inset:14%}
+.orb-c{position:absolute;inset:0;display:grid;place-items:center;font:300 italic clamp(3rem,22cqw,7rem)/1 Newsreader,Georgia,serif}
+.orb-rot{position:absolute;inset:0;margin:0;padding:0;list-style:none;animation:orb-spin 90s linear infinite}
+.orb-i{position:absolute;left:50%;top:50%;width:0;height:0;transform:rotate(var(--a)) translateY(calc(var(--r) * -1cqw)) rotate(calc(var(--a) * -1))}
+.orb-i span{position:absolute;transform:translate(-50%,-50%);white-space:nowrap;background:#fff;color:#1d1915;border-radius:999px;padding:6px 14px;font-size:.85rem;box-shadow:0 6px 18px -8px rgba(0,0,0,.35);animation:orb-keep 90s linear infinite}
+@keyframes orb-spin{to{transform:rotate(360deg)}}@keyframes orb-keep{from{transform:translate(-50%,-50%) rotate(0)}to{transform:translate(-50%,-50%) rotate(-360deg)}}
+@media(prefers-reduced-motion:reduce){.orb-rot,.orb-i span{animation:none}}
+@media(max-width:760px){.orb{grid-template-columns:1fr}.orb-ring{max-width:min(300px,78vw)}.orb-i span{font-size:.72rem;padding:4px 10px}}
+.rv-note{text-align:center;font-size:.8rem;opacity:.6;margin:16px 0 0}
 /* Logos */
 .logos-t{text-align:center;font-size:.8rem;letter-spacing:.2em;text-transform:uppercase;opacity:.65;margin:0 0 18px}
 .logos{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:28px 56px}.logos img{max-height:84px;max-width:170px;object-fit:contain}

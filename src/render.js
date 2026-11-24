@@ -288,6 +288,10 @@ function renderBlock(b, ctx, index) {
     }
     case 'cards': {
       const items = String(b.items || '').split('\n').map((l) => l.split('|').map((x) => x.trim())).filter(([t]) => t);
+      // Bento: tiles of different sizes in soft colours, the first one dark and wide.
+      if (b.style === 'bento') {
+        return `<div class="bento n${Math.min(items.length, 7)}">${items.map(([t, d], r) => `<div class="bt bt${r % 6}"><span class="bt-k">${String(r + 1).padStart(2, '0')}</span><h3${t.includes('*') ? '' : lf(r, 0)}>${starHl(esc(t))}</h3>${d ? `<p${lf(r, 1)}>${esc(d)}</p>` : ''}</div>`).join('')}</div>`;
+      }
       if (b.style === 'pastel stack') {
         return `<div class="pstack">${items.map(([t, d], r) => `<div class="pcard-s"><span class="ps-n">${r + 1}.</span><h3${t.includes('*') ? '' : lf(r, 0)}>${starHl(esc(t))}</h3>${d ? `<p${lf(r, 1)}>${esc(d)}</p>` : ''}</div>`).join('')}</div>`;
       }
@@ -312,13 +316,14 @@ function renderBlock(b, ctx, index) {
       const chosen = (Array.isArray(b.pick) ? b.pick : []).map((x) => all[x]).filter(Boolean);
       const list = (chosen.length ? chosen : Object.values(all).sort((x, y) => y.id - x.id)).slice(0, Math.max(1, Math.min(12, Number(b.limit) || 3)));
       if (!list.length) return ctx.preview ? '<div class="ph"><b>Reviews show here</b><small>Only real ones you approve (People → Testimonials). Visitors don’t see this box until then.</small></div>' : '';
+      const note = b.note ? `<p class="rv-note"${f('note')}>${esc(b.note)}</p>` : '';
       // One big quote at a time, with arrows (and swipe on phones).
       if (b.style === 'slider') {
         const slides = list.map((t) => `<figure class="rs-slide"><blockquote>“${esc(t.quote)}”</blockquote><figcaption>${t.photo ? `<img src="${esc(safeUrl(t.photo))}" alt="" loading="lazy">` : ''}<b>${esc(t.name)}</b>${t.detail ? `<span>${esc(t.detail)}</span>` : ''}</figcaption></figure>`).join('');
         const arrows = list.length > 1 ? '<button type="button" class="rs-btn rs-prev" aria-label="Previous"><svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="1.6"><path d="m15 4-8 8 8 8"/></svg></button><button type="button" class="rs-btn rs-next" aria-label="Next"><svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="1.6"><path d="m9 4 8 8-8 8"/></svg></button>' : '';
-        return `<div class="rslide">${b.title ? `<h2 class="sec-t"${f('title')}>${starHl(esc(b.title))}</h2>` : ''}<div class="rs-wrap">${arrows}<div class="rs-track" tabindex="0">${slides}</div></div></div>`;
+        return `<div class="rslide">${b.title ? `<h2 class="sec-t"${f('title')}>${starHl(esc(b.title))}</h2>` : ''}<div class="rs-wrap">${arrows}<div class="rs-track" tabindex="0">${slides}</div></div>${note}</div>`;
       }
-      return `<div class="tcards n${Math.min(list.length, 3)}">${list.map((t) => testimonialHtml(t, ctx)).join('')}</div>`;
+      return `<div class="tcards n${Math.min(list.length, 3)}">${list.map((t) => testimonialHtml(t, ctx)).join('')}</div>${note}`;
     }
     case 'spacer':
       return `<div style="height:${Math.min(Math.max(Number(b.height) || 40, 0), 400)}px"></div>`;
@@ -374,6 +379,21 @@ h1,h2,h3,.hero h1,.offer-t,.bul-t,.price,.an-v,.pc-body h3,.tcard .tc-who b,.faq
 .eyebrow{letter-spacing:.22em;font-weight:500;font-size:.78rem;border-radius:999px}
 .card,.pcard,.tcard,.faq details,.guar,.optin,.pricing{border-radius:28px}
 .hl{background:none;padding:0;text-decoration:underline;text-decoration-thickness:.12em;text-underline-offset:.14em;text-decoration-color:var(--hl)}`,
+  // Editorial: a light book serif (Newsreader) set large, the second idea in italic colour,
+  // small typewriter-style labels (IBM Plex Mono) and soft pill buttons. Cream, ink and one warm colour.
+  editorial: `@font-face{font-family:Newsreader;src:url(/fonts/newsreader-300.woff2) format("woff2");font-weight:300;font-display:swap}
+@font-face{font-family:Newsreader;src:url(/fonts/newsreader-300i.woff2) format("woff2");font-weight:300;font-style:italic;font-display:swap}
+@font-face{font-family:Newsreader;src:url(/fonts/newsreader-400.woff2) format("woff2");font-weight:400;font-display:swap}
+@font-face{font-family:Newsreader;src:url(/fonts/newsreader-400i.woff2) format("woff2");font-weight:400;font-style:italic;font-display:swap}
+@font-face{font-family:"IBM Plex Mono";src:url(/fonts/plex-mono-400.woff2) format("woff2");font-weight:400;font-display:swap}
+body{font-family:Newsreader,Georgia,serif;font-size:18.5px;line-height:1.65}
+h1,h2,.hero h1,.sec-t,.cta-sec h2,.cv-words h1,.offer-t,.bul-t,.rvl-words h2,.orb h2,.hphoto h1{font-family:Newsreader,Georgia,serif;font-weight:300;letter-spacing:-.025em;line-height:1.04}
+main .hero-min h1,main .hero-split h1,main .hero h1{font-size:clamp(2.9rem,7.6vw,5.8rem);line-height:1}main .hero-min{padding:10vh 0 6vh;max-width:980px}main .hero-min p{font-size:1.3rem;max-width:640px}main .hero-min .hero-cta{margin-top:30px}.sec-t,.cta-sec h2{font-size:clamp(2.2rem,5vw,3.6rem)}
+h3,.pc-body h3,.faq summary,.tcard .tc-who b,.price{font-family:Newsreader,Georgia,serif;font-weight:400;letter-spacing:-.01em}
+.hl{background:none;padding:0;font-style:italic;color:var(--accent)}.band-dark .hl,.cover .hl{color:color-mix(in srgb,var(--accent) 55%,#fff)}
+.eyebrow,.kick,.cv-eye,.hp-eye,.stp-n,.bt-k,.logos-t,.ev-where{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:.74rem;letter-spacing:.02em;text-transform:none;color:var(--accent);background:none;border:0;padding:0;font-weight:400;font-style:normal}
+.btn,input,select,textarea{font-family:system-ui,-apple-system,"Segoe UI",sans-serif}.btn{border-radius:999px;font-weight:500}.btn.big{border-radius:999px;box-shadow:none}
+.card,.pcard,.tcard,.faq details,.optin,.pricing,.guar{border-radius:14px}.tcard blockquote{font-size:1.1rem}`,
   // Prestige: Montserrat capitals (bold italic headlines, wide tracking), Oswald buttons,
   // square corners and a short rule under section headings. Black, white and one metal.
   prestige: `@font-face{font-family:Montserrat;src:url(/fonts/montserrat-700.woff2) format("woff2");font-weight:700;font-display:swap}
@@ -431,6 +451,12 @@ const EMBED_SCRIPT = `<script>(function(){var s=function(){parent.postMessage({r
 // The quote slider's arrows: slide the track by one quote (wraps round at the ends).
 const SLIDER_SCRIPT = `<script>document.querySelectorAll('.rslide').forEach(function(s){var t=s.querySelector('.rs-track');if(!t)return;var go=function(d){var w=t.clientWidth,n=Math.round(t.scrollLeft/w)+d,m=t.children.length;n=(n+m)%m;t.scrollTo({left:n*w,behavior:'smooth'})};
 var p=s.querySelector('.rs-prev'),x=s.querySelector('.rs-next');if(p)p.onclick=function(){go(-1)};if(x)x.onclick=function(){go(1)};t.addEventListener('keydown',function(e){if(e.key==='ArrowLeft')go(-1);if(e.key==='ArrowRight')go(1)})})</script>`;
+// The letter reveal: as the band scrolls past, the big letter grows until the picture inside fills the screen.
+const REVEAL_SCRIPT = `<script>(function(){var still=matchMedia('(prefers-reduced-motion: reduce)').matches;document.querySelectorAll('.rvl').forEach(function(s){if(still){s.classList.add('static');return}
+var f=function(){var r=s.getBoundingClientRect(),t=Math.max(1,s.offsetHeight-innerHeight),p=Math.min(1,Math.max(0,-r.top/t));s.style.setProperty('--p',p.toFixed(3))};addEventListener('scroll',f,{passive:true});addEventListener('resize',f);f()})})()</script>`;
+// Pinned steps: the picture beside the steps changes to match the step being read.
+const STEPS_SCRIPT = `<script>(function(){if(!('IntersectionObserver' in window))return;document.querySelectorAll('.stp').forEach(function(s){s.classList.add('js');var items=s.querySelectorAll('.stp-item'),pics=s.querySelectorAll('.stp-pic');
+var io=new IntersectionObserver(function(es){es.forEach(function(e){if(!e.isIntersecting)return;var k=+e.target.dataset.st;items.forEach(function(x,i){x.classList.toggle('on',i===k)});pics.forEach(function(x,i){x.classList.toggle('on',i===k)})})},{rootMargin:'-45% 0px -45% 0px'});items.forEach(function(x){io.observe(x)})})})()</script>`;
 // Gentle motion: sections rise into place as they scroll into view, and numbers count up.
 // Only when the visitor hasn't asked for less motion; without JavaScript everything just shows.
 const MOTION_SCRIPT = `<style>.mo [data-mo]{opacity:0;transform:translateY(26px);transition:opacity .7s ease,transform .7s cubic-bezier(.2,.7,.2,1)}.mo [data-mo].in{opacity:1;transform:none}</style>
@@ -622,7 +648,7 @@ ${sections.SECTION_CSS}${TYPE_CSS[settings.font] || ''}${embed ? EMBED_STYLE : '
 ${course ? `<style>:root{--crs-accent:${accent};--crs-bg:${bg};--crs-w:${width}px}${course.css}</style>` : ''}
 ${preview ? '' : trackingTags(code, ownDomain)}</head><body${course ? ' class="has-crs"' : ''}>${course ? course.nav : ''}${nav}${logoBar}<main>
 ${course ? course.top : ''}${body || '<p style="text-align:center;opacity:.5">This page is empty. Add blocks in the editor.</p>'}
-${course ? course.bottom : ''}</main>${foot}${(blocks || []).some((b) => b.type === 'booking') ? BOOKING_SCRIPT : ''}${(blocks || []).some((b) => b.type === 'video' && !b.controls && youtubeId(b.url)) ? VIDEO_SCRIPT : ''}${(blocks || []).some((b) => b.type === 'html') ? HTML_RESIZE : ''}${(blocks || []).some((b) => b.type === 'reviews' && b.style === 'slider') ? SLIDER_SCRIPT : ''}${settings.motion && !preview && !embed ? MOTION_SCRIPT : ''}${settings.stickyButton && !preview && !embed ? STICKY_SCRIPT : ''}${embed ? EMBED_SCRIPT : ''}${preview ? PREVIEW_EDIT_SCRIPT + PREVIEW_DROP_SCRIPT + PREVIEW_TOOLS_SCRIPT + PREVIEW_STATS_SCRIPT : trackAction ? trackScript(trackAction) : ''}</body></html>`;
+${course ? course.bottom : ''}</main>${foot}${(blocks || []).some((b) => b.type === 'booking') ? BOOKING_SCRIPT : ''}${(blocks || []).some((b) => b.type === 'video' && !b.controls && youtubeId(b.url)) ? VIDEO_SCRIPT : ''}${(blocks || []).some((b) => b.type === 'html') ? HTML_RESIZE : ''}${(blocks || []).some((b) => b.type === 'reviews' && b.style === 'slider') ? SLIDER_SCRIPT : ''}${(blocks || []).some((b) => b.type === 'reveal') ? REVEAL_SCRIPT : ''}${(blocks || []).some((b) => b.type === 'steps') ? STEPS_SCRIPT : ''}${settings.motion && !preview && !embed ? MOTION_SCRIPT : ''}${settings.stickyButton && !preview && !embed ? STICKY_SCRIPT : ''}${embed ? EMBED_SCRIPT : ''}${preview ? PREVIEW_EDIT_SCRIPT + PREVIEW_DROP_SCRIPT + PREVIEW_TOOLS_SCRIPT + PREVIEW_STATS_SCRIPT : trackAction ? trackScript(trackAction) : ''}</body></html>`;
 }
 
 // Click-to-edit in the editor preview: click any text to type over it; the

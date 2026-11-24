@@ -32,7 +32,15 @@ const BLOCKS = {
   products: { label: 'Products', icon: icon('bag'), defaults: { title: 'Shop', pick: [], button: 'Buy now' },
     fields: [['title', 'text', 'Heading (optional)'], ['pick', 'productpick', 'Which products'], ['button', 'text', 'Button words']] },
   reviews: { label: 'Testimonials (several)', icon: icon('star'), defaults: { limit: 3 }, fields: [['limit', 'number', 'How many to show'], ['pick', 'testipick', 'Which ones'],
-    ['style', 'select', 'Layout', ['cards', 'slider'], 'slider: one big quote at a time, with arrows'], ['title', 'text', 'Heading (slider, optional)']] },
+    ['style', 'select', 'Layout', ['cards', 'slider'], 'slider: one big quote at a time, with arrows'], ['title', 'text', 'Heading (slider, optional)'],
+    ['note', 'text', 'Small print under them (optional)', null, 'e.g. Shared with each customer’s permission.']] },
+  reveal: { label: 'Letter reveal', icon: icon('image'), defaults: { letter: '', title: 'Every detail, *considered.*', text: 'One sentence on the care that goes into it.', caption: '' },
+    fields: [['image', 'photo', 'The picture inside the letter'], ['imageAlt', 'text', 'Picture description'], ['letter', 'text', 'The letter (empty: your business’s first letter)'], ['title', 'textarea', 'Heading', null, '*Stars* set words in italic colour'], ['text', 'textarea', 'A line under it'], ['caption', 'text', 'Caption once the picture is open (optional)']] },
+  steps: { label: 'Pinned steps', icon: icon('check'), defaults: { title: 'How it *works*', items: 'Bring what you have | A sentence on the first step.\nMake it yours | A sentence on the second step.\nSee it before anyone else | A sentence on the third step.\nShare it | A sentence on the last step.' },
+    fields: [['title', 'textarea', 'Heading (optional)'], ['text', 'textarea', 'A line under it (optional)'], ['items', 'textarea', 'Steps (up to 6, one per line: Title | what happens)'],
+      ['img0', 'photo', 'Picture for step 1'], ['img1', 'photo', 'Picture for step 2'], ['img2', 'photo', 'Picture for step 3'], ['img3', 'photo', 'Picture for step 4'], ['img4', 'photo', 'Picture for step 5'], ['img5', 'photo', 'Picture for step 6']] },
+  orbit: { label: 'Orbit', icon: icon('globe'), defaults: { eyebrow: 'Where it goes', title: 'One place.\n*Everywhere it’s needed.*', text: 'A sentence on how one thing reaches all of these.', center: '', items: 'Website\nEmail\nShop\nPhone\nCalendar\nSocial' },
+    fields: [['eyebrow', 'text', 'Small label above'], ['title', 'textarea', 'Heading'], ['text', 'textarea', 'Text'], ['center', 'text', 'In the middle (a letter or short word; empty: your first letter)'], ['items', 'textarea', 'Around it (up to 10, one per line)']] },
   tiles: { label: 'Photo tiles', icon: icon('image'), defaults: { title: '', items: 'Program one | Find out more | #\nProgram two | Find out more | #\nProgram three | Find out more | #' },
     fields: [['title', 'text', 'Heading (optional)'], ['text', 'textarea', 'A line under it (optional)'], ['items', 'textarea', 'Tiles (up to 4, one per line: Title | Button | link)', null, 'Link: #form · page:slug · or https://'],
       ['img0', 'photo', 'Photo for tile 1'], ['img1', 'photo', 'Photo for tile 2'], ['img2', 'photo', 'Photo for tile 3'], ['img3', 'photo', 'Photo for tile 4']] },
@@ -66,7 +74,7 @@ const BLOCKS = {
     fields: [['items', 'textarea', 'Cards (one per line: Title | description)'],
       ['icons', 'select', 'Icons', ['dots', 'matched icons', 'bold icons', 'none'], 'Matched icons are picked from each card’s words (“Fast delivery” gets a truck). To choose one yourself, add it after a third | , like “Gentle care | Short line | heart”. Names: check, star, heart, clock, calendar, mail, phone, chat, people, shield, lock, bolt, leaf, home, pin, truck, gift, tag, dollar, chart, target, trophy, book, video, camera, coffee, food, sparkle, sun, smile, wrench, globe, rocket, bulb, key, brush, fitness, paw, car, cart, refresh, compass, music, doc, hand'],
       ['numbered', 'check', 'Number them instead (for steps like 1, 2, 3)'],
-      ['style', 'select', 'Layout', ['grid', 'pastel stack'], 'pastel stack: big rounded cards, one per row, each its own soft colour. Put *stars* around a word in a title to underline it in colour.']] },
+      ['style', 'select', 'Layout', ['grid', 'pastel stack', 'bento'], 'pastel stack: big rounded cards, one per row, each its own soft colour · bento: tiles of different sizes in soft colours, the first one dark and wide. Put *stars* around a word in a title to colour it.']] },
   info: { label: 'Business info', icon: icon('info'), defaults: { hours: 'Mon–Fri 9am–5pm', address: '', phone: '', email: '' },
     fields: [['hours', 'text', 'Hours'], ['address', 'text', 'Address'], ['phone', 'text', 'Phone'], ['email', 'text', 'Email']] },
   booking: { label: 'Booking', icon: icon('calendar'), defaults: { heading: 'Pick a time that suits you', buttonLabel: 'Confirm booking', collectPhone: false, askNote: true, tag: 'booked', payment: 'Free', price: '', deposit: '', currency: 'usd' },
@@ -134,6 +142,7 @@ const PALETTES = [
   { name: 'Rose', bg: '#fffafa', text: '#2a1517', accent: '#be185d', band: '#9d174d' },
   { name: 'Charcoal', bg: '#ffffff', text: '#111827', accent: '#111827', band: '#1f2937' },
   { name: 'Penpal', bg: '#fbeedd', text: '#132a46', accent: '#4a1d4f', band: '#3b1640', highlight: '#f39a8f' },
+  { name: 'Editorial', bg: '#f4ede3', text: '#1a1512', accent: '#a9402c', band: '#15110e', highlight: '#a9402c' },
   { name: 'Black & Gold', bg: '#ffffff', text: '#141414', accent: '#c8903f', band: '#0a0a0a', highlight: '#c8903f' },
   { name: 'Night', bg: '#0f1720', text: '#e5edf0', accent: '#0f766e', band: '#134e4a' },
 ];
@@ -252,7 +261,7 @@ async function viewEditor(stepId) {
       <div class="list-bin" data-bin aria-hidden="true">${icon('trash')} Drop here to delete</div>
       <h3>Page style</h3>
       <div class="pal-row" role="group" aria-label="Colour palettes" data-palrow></div>
-      <div class="type-row" role="group" aria-label="Type style">${[['', 'Classic'], ['elegant', 'Elegant'], ['modern', 'Modern'], ['typewriter', 'Typewriter'], ['penpal', 'Penpal'], ['prestige', 'Prestige']].map(([k, l]) => `<button type="button" class="type-opt t-${k || 'classic'} ${(ed.settings.font || '') === k ? 'on' : ''}" data-font="${k}" aria-pressed="${(ed.settings.font || '') === k}"><b>Aa</b><small>${l}</small></button>`).join('')}</div>
+      <div class="type-row" role="group" aria-label="Type style">${[['', 'Classic'], ['elegant', 'Elegant'], ['modern', 'Modern'], ['typewriter', 'Typewriter'], ['penpal', 'Penpal'], ['prestige', 'Prestige'], ['editorial', 'Editorial']].map(([k, l]) => `<button type="button" class="type-opt t-${k || 'classic'} ${(ed.settings.font || '') === k ? 'on' : ''}" data-font="${k}" aria-pressed="${(ed.settings.font || '') === k}"><b>Aa</b><small>${l}</small></button>`).join('')}</div>
       <label class="check"><input type="checkbox" data-s="motion" ${ed.settings.motion ? 'checked' : ''}> Gentle motion as people scroll <span class="hint">sections rise in, numbers count up</span></label>
       <label class="check"><input type="checkbox" data-s="stickyButton" ${ed.settings.stickyButton ? 'checked' : ''}> Keep the main button on screen on phones</label>
       <button type="button" class="btn sm ghost" data-palall style="margin:-2px 0 10px">${icon('sparkle')} Use this look on every page</button>
