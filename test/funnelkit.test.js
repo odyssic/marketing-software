@@ -427,7 +427,9 @@ test('no name yet: flows, websites and pages are called Untitled until renamed',
   const fa = (await c('GET', `/api/funnels/${a.body.id}`)).body, fb = (await c('GET', `/api/funnels/${b.id}`)).body;
   assert.equal(fa.name, 'Untitled'); assert.equal(fb.name, 'Untitled 2'); assert.notEqual(fa.slug, fb.slug);
   const w = (await c('POST', '/api/websites', { template: 'coach' })).body;
-  assert.equal((await c('GET', `/api/funnels/${w.id}`)).body.name, 'Untitled website');
+  assert.equal((await c('GET', `/api/funnels/${w.id}`)).body.name, (await c('GET', '/api/me')).body.account.name, 'a website takes the business’s name');
+  const m = (await c('POST', '/api/members-areas', {})).body;
+  assert.equal((await c('GET', `/api/funnels/${m.id}`)).body.name, 'Untitled course');
   const s = (await c('POST', `/api/funnels/${a.body.id}/steps`, { x: 0, y: 0 })).body;
   assert.equal((await c('GET', `/api/funnels/${a.body.id}`)).body.steps.find((x) => x.id === s.id).name, 'Untitled');
 });

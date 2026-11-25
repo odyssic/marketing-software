@@ -942,7 +942,7 @@ function createApp({ dbPath } = {}) {
       FROM funnels f WHERE f.account_id = ? AND f.kind = 'website' ORDER BY f.id DESC`, req.accountId));
   });
   api.post('/websites', async (req, res) => {
-    const name = String(req.body?.name || '').trim().slice(0, 80) || await untitled(req.accountId, 'Untitled website');
+    const name = String(req.body?.name || '').trim().slice(0, 80) || (await db.get('SELECT name FROM accounts WHERE id = ?', req.accountId))?.name?.slice(0, 80) || await untitled(req.accountId, 'Untitled website');
     const key = SITE_TEMPLATES[req.body?.template] ? req.body.template : 'services';
     res.status(201).json(await createFunnel(req.accountId, name, key, null, { kind: 'website', templates: SITE_TEMPLATES }));
   });

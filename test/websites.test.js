@@ -31,7 +31,7 @@ test('website templates: menu, footer, page links, contact inquiries, menu order
   assert.deepEqual(t.map((x) => x.key), ['personal', 'studio', 'modern', 'coach', 'services', 'restaurant', 'shop', 'wellness']);
   assert.deepEqual(t.find((x) => x.key === 'services').pages, ['Home', 'Services', 'About', 'Reviews', 'Get a quote']);
   const unnamed = (await c('POST', '/api/websites', { name: '' })).body;
-  assert.equal((await c('GET', `/api/funnels/${unnamed.id}`)).body.name, 'Untitled website', 'no name yet: Untitled');
+  assert.equal((await c('GET', `/api/funnels/${unnamed.id}`)).body.name, (await c('GET', '/api/me')).body.account.name, 'no name yet: the business’s name');
   await c('DELETE', `/api/funnels/${unnamed.id}`);
 
   const site = (await c('POST', '/api/websites', { name: 'Green Lawn Co', template: 'services' })).body;

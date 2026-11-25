@@ -148,9 +148,9 @@ async function newFlow() {
   if (r.kind === 'pageflow') return newFunnel();
   if (r.kind === 'website') return newWebsite();
   if (r.kind === 'followup') return newWorkflow();
-  const m = await modal('New members area', '<label class="f">Name <span class="hint">members see this</span><input name="name" required placeholder="e.g. Pottery Basics course, Client portal"></label>',
-    { submit: 'Create', onSubmit: (v) => api('POST', '/api/members-areas', v) });
-  if (m?.id) { toast('Course created. Fill in the lessons, then publish'); location.hash = `#/members/${m.id}`; }
+  // Made straight away as "Untitled course"; it's named on its own page.
+  const m = await api('POST', '/api/members-areas', {}).catch((err) => { toast(err.message, true); return null; });
+  if (m?.id) { toast('Course created. Name it, fill in the lessons, then publish'); location.hash = `#/members/${m.id}`; }
 }
 
 // ---------------- A follow-up that starts on its own, as a flow ----------------

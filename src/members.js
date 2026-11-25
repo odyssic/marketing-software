@@ -140,8 +140,7 @@ function registerMembers(app, api, { getDb, HttpError, id, upsertContact, messag
       FROM funnels f WHERE f.account_id = ? AND f.kind = 'members' ORDER BY f.id DESC`, req.accountId));
   });
   api.post('/members-areas', async (req, res) => {
-    const name = String(req.body?.name || '').trim().slice(0, 80);
-    if (!name) throw new HttpError(400, 'Name it, e.g. “Pottery Basics course” or “Client portal”');
+    const name = String(req.body?.name || '').trim().slice(0, 80) || 'Untitled course';
     res.status(201).json(await createFunnel(req.accountId, name, 'members', null, { kind: 'members', templates: MEMBERS_TEMPLATE }));
   });
   const area = async (req) => {

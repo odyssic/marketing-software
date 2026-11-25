@@ -24,7 +24,6 @@ async function newWebsite() {
   const bg = document.createElement('div');
   bg.className = 'modal-bg';
   bg.innerHTML = `<form class="modal wide"><h2>New website</h2>
-    <label class="f">Business name <span class="hint">shown at the top of every page</span><input name="name" value="${esc(state.me.account.name)}"></label>
     <div class="f" style="margin-bottom:6px;font-size:.85rem;font-weight:500">Template</div>
     <div class="tpl-grid pics">${templates.map((t, i) => `<label class="tpl ${i === 0 ? 'on' : ''}"><input type="radio" name="template" value="${t.key}" ${i === 0 ? 'checked' : ''} class="sr">
       <span class="tpl-pic"><img src="/img/tpl/site-${esc(t.key)}.jpg" alt="" loading="lazy" width="640" height="440"></span><b>${esc(t.label)}</b><span class="muted small">${esc(t.description)}</span>
@@ -40,8 +39,6 @@ async function newWebsite() {
   $$('.tpl', bg).forEach((l) => { l.ondblclick = (e) => {
     e.preventDefault();
     const r = $('input[name=template]', l); r.checked = true; r.onchange();
-    const nm = $('[name=name]', bg);
-    if (nm && !nm.value.trim()) nm.value = $('b', l).textContent.trim();
     $('form', bg).requestSubmit();
   }; });
   $('form', bg).onsubmit = async (e) => {
@@ -62,7 +59,7 @@ async function viewWebsite(id) {
   const isArea = f.kind === 'members';
   shell('pages', `${PAGES_TABS(isArea ? 'members' : 'websites')}
     <div class="head"><div><a href="#/flows?show=${isArea ? 'members' : 'websites'}" class="small">← Flows</a>
-      <h1 style="display:flex;gap:10px;align-items:center">${esc(f.name)} ${f.status === 'live' ? '<span class="pill ok">Live</span>' : '<span class="pill warn">Draft</span>'}</h1>
+      <h1 style="display:flex;gap:10px;align-items:center"><button type="button" class="h1-name" data-namehere title="Rename">${esc(f.name)} <span class="h1-pen">${icon('pencil')}</span></button> ${f.status === 'live' ? '<span class="pill ok">Live</span>' : '<span class="pill warn">Draft</span>'}</h1>
       <div class="muted small">${esc(link)}</div></div>
       <div class="row"><a class="btn" href="${esc(publicUrl(`/f/${f.slug}`))}" target="_blank" rel="noopener">${isArea ? 'Preview as a member' : 'View site'} ${icon('external')}</a>${moreMenu(`<button role="menuitem" data-settings>${icon('gear')} Settings</button>${f.status === 'live' ? `<button role="menuitem" data-unpublish>${icon('pause')} Unpublish</button>` : ''}<button role="menuitem" class="danger" data-delsite>${icon('trash')} Delete</button>`)}
         ${f.status === 'live' ? '' : '<button class="btn primary" data-publish>Publish</button>'}</div></div>
@@ -114,6 +111,11 @@ async function viewWebsite(id) {
     const r = await modal('Website settings', `<label class="f">Business name<input name="name" required value="${esc(f.name)}"></label>
       <p class="hint">Your domain is connected once for the whole business in <a href="#/settings">Settings</a>, where you can also make this the home website.</p>`,
     { onSubmit: (v) => api('PUT', `/api/funnels/${id}`, v) });
+    if (r) { toast('Saved'); viewWebsite(id); }
+  };
+  // Click the name to rename it.
+  $('[data-namehere]').onclick = async () => {
+    const r = await modal('Rename', `<label class="f">Name<input name="name" required maxlength="80" value="${esc(f.name)}"></label>`, { onSubmit: (v) => api('PUT', `/api/funnels/${id}`, { name: v.name }) });
     if (r) { toast('Saved'); viewWebsite(id); }
   };
   const pub = $('[data-publish]');

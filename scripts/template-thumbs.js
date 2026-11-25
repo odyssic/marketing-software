@@ -16,8 +16,12 @@ fs.mkdirSync(out, { recursive: true });
   const browser = await chromium.launch();
   // Rendered at desktop size, then shrunk: the picker shows the top of the page.
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 }, deviceScaleFactor: 0.5 });
+  // The page's own fonts (served from /fonts) load from public/.
+  const pub = path.join(__dirname, '..', 'public');
+  await page.route('http://rilly.local/**', (r) => { const f = path.join(pub, new URL(r.request().url()).pathname); return f.startsWith(pub) && fs.existsSync(f) ? r.fulfill({ body: fs.readFileSync(f) }) : r.fulfill({ status: 404, body: '' }); });
   const shoot = async (file, st, site) => {
-    await page.setContent(renderPage({ title: st.name, blocks: st.blocks, settings: st.settings, business: 'Your business', site }), { waitUntil: 'load' });
+    await page.setContent(renderPage({ title: st.name, blocks: st.blocks, settings: { ...st.settings, motion: false, stickyButton: false }, business: 'Your business', site }).replace('<head>', '<head><base href="http://rilly.local/">'), { waitUntil: 'load' });
+    await page.evaluate(() => document.fonts.ready);
     await page.screenshot({ path: path.join(out, file), type: 'jpeg', quality: 78, clip: { x: 0, y: 0, width: 1280, height: 880 } });
   };
   for (const [key, t] of Object.entries(TEMPLATES)) {

@@ -25,13 +25,12 @@ async function newFunnel() {
       <textarea data-sentence rows="2" placeholder="e.g. A free glaze guide for beginner potters that leads to my $49 starter kit"></textarea></label>
       <div class="row" style="margin-top:8px"><button type="button" class="btn primary" data-describe>${icon('sparkle')} Build it for me</button><span class="err" data-derr style="margin:0"></span></div></div>
     <div class="or"><span>or pick a template</span></div>
-    <label class="f">Page name <span class="hint">optional: “Untitled” until you name it</span><input name="name" placeholder="e.g. Free glaze guide"></label>
     <div class="f" style="margin-bottom:6px;font-size:.85rem;font-weight:500">Start from</div>
     <div class="tpl-grid pics" role="radiogroup">${templates.map((t, i) => `<label class="tpl ${i === 0 ? 'on' : ''}"><input type="radio" name="template" value="${t.key}" ${i === 0 ? 'checked' : ''} class="sr">
       <span class="tpl-pic">${t.key === 'blank' ? '<span class="tpl-blank">+</span>' : `<img src="/img/tpl/${esc(t.key)}.jpg" alt="" loading="lazy" width="640" height="440">`}</span>
       <b>${esc(t.label)}</b><span class="muted small">${esc(t.description)}</span>
       <span class="small">${t.pages} page${t.pages === 1 ? '' : 's'}${t.workflows.length ? ` · ${icon('bolt')} ${t.workflows.map(esc).join(', ')}` : ''}</span></label>`).join('')}</div>
-    <p class="hint">Tip: double-click a template to start with it. Follow-ups are created switched off, so you can review the emails first.</p>
+    <p class="hint">It starts as “Untitled”: click its name on the next screen to rename it. Double-click a template to start with it. Follow-ups are created switched off, so you can review the emails first.</p>
     <div class="err"></div><div class="actions"><button type="button" class="btn" data-x>Cancel</button><button class="btn primary">Create page</button></div></form>`;
   document.body.append(bg);
   const close = () => { bg.remove(); if (location.hash === '#/funnels/new') location.hash = '#/funnels'; };
@@ -42,8 +41,6 @@ async function newFunnel() {
   $$('.tpl', bg).forEach((l) => { l.ondblclick = (e) => {
     e.preventDefault();
     const r = $('input[name=template]', l); r.checked = true; r.onchange();
-    const nm = $('[name=name]', bg);
-    if (nm && !nm.value.trim()) nm.value = $('b', l).textContent.trim();
     $('form', bg).requestSubmit();
   }; });
   // On phones the keyboard would cover the templates, so nothing is focused there.
@@ -221,7 +218,7 @@ async function viewFunnel(id) {
   const link = f.domain && f.status === 'live' ? `https://${f.domain}` : publicUrl(`/f/${f.slug}`);
   shell('pages', `${PAGES_TABS(f.kind === 'website' ? 'websites' : 'funnels')}
     <div class="head" style="margin-bottom:14px"><div><a href="#/flows?show=${f.kind === 'website' ? 'websites' : 'pageflows'}" class="small">← Flows</a>
-      <h1 style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">${esc(f.name)} ${f.status === 'live' ? '<span class="pill ok">Live</span>' : '<span class="pill warn">Draft</span>'} ${purposeTag(f)}</h1></div>
+      <h1 style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button type="button" class="h1-name" data-namehere title="Rename">${esc(f.name)} <span class="h1-pen">${icon('pencil')}</span></button> ${f.status === 'live' ? '<span class="pill ok">Live</span>' : '<span class="pill warn">Draft</span>'} ${purposeTag(f)}</h1></div>
       <div class="row">
         <a class="btn" href="${esc(link)}" target="_blank" rel="noopener">${icon('external')} View</a>
         <button class="btn" data-copy="${esc(link)}" title="${esc(link)}">${icon('copy')} Copy link</button>
@@ -1141,6 +1138,7 @@ async function viewFunnel(id) {
     }
   });
 
+  $('[data-namehere]').onclick = () => $('[data-rename]').onclick();
   $('[data-rename]').onclick = async () => {
     const r = await modal('Page settings', `<label class="f">Name<input name="name" required value="${esc(f.name)}"></label>
       <label class="f">URL <span class="hint">${esc(state.me.baseUrl)}/f/<b>this-part</b></span><input name="slug" required value="${esc(f.slug)}"></label>
