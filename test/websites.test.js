@@ -30,7 +30,9 @@ test('website templates: menu, footer, page links, contact inquiries, menu order
   const t = (await c('GET', '/api/website-templates')).body;
   assert.deepEqual(t.map((x) => x.key), ['personal', 'studio', 'modern', 'coach', 'services', 'restaurant', 'shop', 'wellness']);
   assert.deepEqual(t.find((x) => x.key === 'services').pages, ['Home', 'Services', 'About', 'Reviews', 'Get a quote']);
-  assert.equal((await c('POST', '/api/websites', { name: '' })).status, 400);
+  const unnamed = (await c('POST', '/api/websites', { name: '' })).body;
+  assert.equal((await c('GET', `/api/funnels/${unnamed.id}`)).body.name, 'Untitled website', 'no name yet: Untitled');
+  await c('DELETE', `/api/funnels/${unnamed.id}`);
 
   const site = (await c('POST', '/api/websites', { name: 'Green Lawn Co', template: 'services' })).body;
   assert.equal(site.workflows.length, 1);

@@ -942,8 +942,7 @@ function createApp({ dbPath } = {}) {
       FROM funnels f WHERE f.account_id = ? AND f.kind = 'website' ORDER BY f.id DESC`, req.accountId));
   });
   api.post('/websites', async (req, res) => {
-    const name = String(req.body?.name || '').trim().slice(0, 80);
-    if (!name) throw new HttpError(400, 'Name the website, usually your business name');
+    const name = String(req.body?.name || '').trim().slice(0, 80) || await untitled(req.accountId, 'Untitled website');
     const key = SITE_TEMPLATES[req.body?.template] ? req.body.template : 'services';
     res.status(201).json(await createFunnel(req.accountId, name, key, null, { kind: 'website', templates: SITE_TEMPLATES }));
   });
@@ -1082,9 +1081,14 @@ function createApp({ dbPath } = {}) {
     }
   }
 
+  // No name yet: "Untitled" (then "Untitled 2", …) until they rename it.
+  const untitled = async (accountId, base = 'Untitled') => {
+    const taken = new Set((await db.all('SELECT name FROM funnels WHERE account_id = ? AND name LIKE ?', accountId, `${base}%`)).map((x) => x.name));
+    let n = 1; while (taken.has(n === 1 ? base : `${base} ${n}`)) n++;
+    return n === 1 ? base : `${base} ${n}`;
+  };
   api.post('/funnels', async (req, res) => {
-    const name = String(req.body?.name || '').trim();
-    if (!name) throw new HttpError(400, 'Give your pageflow a name');
+    const name = String(req.body?.name || '').trim().slice(0, 80) || await untitled(req.accountId);
     res.status(201).json(await createFunnel(req.accountId, name, req.body?.template));
   });
 
@@ -1139,7 +1143,7 @@ function createApp({ dbPath } = {}) {
   api.post('/funnels/:id/steps', async (req, res) => {
     const f = await getFunnel(req.accountId, req.params.id);
     const { from, port, x, y, insert } = req.body || {};
-    const name = String(req.body?.name || '').trim() || 'New page';
+    const name = String(req.body?.name || '').trim() || 'Untitled';
     const newId = await db.tx(async (t) => {
       const parent = from ? await stepInFunnel(t, f.id, from) : null;
       const pos = (await t.get('SELECT COALESCE(MAX(position), -1) + 1 AS p FROM funnel_steps WHERE funnel_id = ?', f.id)).p;

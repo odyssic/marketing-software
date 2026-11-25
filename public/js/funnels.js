@@ -25,7 +25,7 @@ async function newFunnel() {
       <textarea data-sentence rows="2" placeholder="e.g. A free glaze guide for beginner potters that leads to my $49 starter kit"></textarea></label>
       <div class="row" style="margin-top:8px"><button type="button" class="btn primary" data-describe>${icon('sparkle')} Build it for me</button><span class="err" data-derr style="margin:0"></span></div></div>
     <div class="or"><span>or pick a template</span></div>
-    <label class="f">Page name<input name="name" placeholder="e.g. Free glaze guide"></label>
+    <label class="f">Page name <span class="hint">optional: “Untitled” until you name it</span><input name="name" placeholder="e.g. Free glaze guide"></label>
     <div class="f" style="margin-bottom:6px;font-size:.85rem;font-weight:500">Start from</div>
     <div class="tpl-grid pics" role="radiogroup">${templates.map((t, i) => `<label class="tpl ${i === 0 ? 'on' : ''}"><input type="radio" name="template" value="${t.key}" ${i === 0 ? 'checked' : ''} class="sr">
       <span class="tpl-pic">${t.key === 'blank' ? '<span class="tpl-blank">+</span>' : `<img src="/img/tpl/${esc(t.key)}.jpg" alt="" loading="lazy" width="640" height="440">`}</span>
@@ -60,7 +60,6 @@ async function newFunnel() {
   };
   $('form', bg).onsubmit = async (e) => {
     e.preventDefault();
-    if (!$('[name=name]', bg).value.trim()) { $('.err:not([data-derr])', bg).textContent = 'Name the page, or describe it above'; $('[name=name]', bg).focus(); return; }
     try {
       const r = await api('POST', '/api/funnels', Object.fromEntries(new FormData(e.target)));
       bg.remove();
@@ -435,7 +434,7 @@ async function viewFunnel(id) {
     if (!r) return;
     if (r.kind === 'page') {
       const t = byId()[s.next_step_id];
-      const v = await modal('Add a page', '<label class="f">Page name<input name="name" required placeholder="e.g. Special offer"></label>',
+      const v = await modal('Add a page', '<label class="f">Page name <span class="hint">optional</span><input name="name" placeholder="e.g. Special offer"></label>',
         { submit: 'Add page', onSubmit: (x) => api('POST', `/api/funnels/${id}/steps`, { name: x.name, from: s.id, port: 'yes', insert: true, x: Math.round((s.x + t.x) / 2), y: s.y + 40 }) });
       if (!v) return;
       const fresh = await api('GET', `/api/funnels/${id}`);
@@ -996,7 +995,7 @@ async function viewFunnel(id) {
 
   async function addPage(at, from, port) {
     const r = await modal('Add a page', `
-      <label class="f">Page name<input name="name" required placeholder="${port === 'no' ? 'e.g. Downsell' : from ? 'e.g. Thank you' : 'e.g. Sales page'}"></label>
+      <label class="f">Page name <span class="hint">optional</span><input name="name" placeholder="${port === 'no' ? 'e.g. Downsell' : from ? 'e.g. Thank you' : 'e.g. Sales page'}"></label>
       ${from ? `<p class="muted small">It will open when visitors ${port === 'no' ? 'click <b>No thanks</b>' : 'continue (<b>yes</b>: submit the form, buy, or click Next)'} on “${esc(byId()[from].name)}”.</p>` : ''}`,
     { submit: 'Add page', onSubmit: (v) => api('POST', `/api/funnels/${id}/steps`, { name: v.name, from, port, x: at.x, y: at.y }) });
     if (r) { toast('Page added. Click “Edit page” to design it.'); reload(); }

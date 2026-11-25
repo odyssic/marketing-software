@@ -418,3 +418,16 @@ test('block motion: chosen per block, played on the live page, never hiding anyt
   assert.match(pv, /d\.ff!=='play'/); assert.doesNotMatch(pv, /classList\.add\('an-pre'\)\}\)/, 'the editor never hides blocks on load');
   assert.doesNotMatch(renderPage({ title: 'x', blocks: [{ id: 'h', type: 'heading', text: 'Hi' }] }), /data-anim|an-pre/, 'no motion, no script');
 });
+
+test('no name yet: flows, websites and pages are called Untitled until renamed', async () => {
+  const c = await setup('fk-untitled@example.com');
+  const a = (await c('POST', '/api/funnels', { name: '  ', template: 'blank' }));
+  assert.equal(a.status, 201);
+  const b = (await c('POST', '/api/funnels', { template: 'blank' })).body;
+  const fa = (await c('GET', `/api/funnels/${a.body.id}`)).body, fb = (await c('GET', `/api/funnels/${b.id}`)).body;
+  assert.equal(fa.name, 'Untitled'); assert.equal(fb.name, 'Untitled 2'); assert.notEqual(fa.slug, fb.slug);
+  const w = (await c('POST', '/api/websites', { template: 'coach' })).body;
+  assert.equal((await c('GET', `/api/funnels/${w.id}`)).body.name, 'Untitled website');
+  const s = (await c('POST', `/api/funnels/${a.body.id}/steps`, { x: 0, y: 0 })).body;
+  assert.equal((await c('GET', `/api/funnels/${a.body.id}`)).body.steps.find((x) => x.id === s.id).name, 'Untitled');
+});
