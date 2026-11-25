@@ -779,6 +779,10 @@ CREATE INDEX IF NOT EXISTS idx_page_reach_step ON page_reach(step_id, created_at
 ALTER TABLE page_events ADD COLUMN IF NOT EXISTS device TEXT NOT NULL DEFAULT '';
 -- A product's own page (its long sales page), made from the product with one click.
 ALTER TABLE products ADD COLUMN IF NOT EXISTS page_funnel_id INT REFERENCES funnels(id) ON DELETE SET NULL;
+-- A limited offer: this price for the first N buyers, then the regular price (or sold out).
+ALTER TABLE products ADD COLUMN IF NOT EXISTS offer_limit INT NOT NULL DEFAULT 0;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS offer_after_cents INT NOT NULL DEFAULT 0;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS offer_label TEXT NOT NULL DEFAULT '';
 -- The offer ladder: what to offer a product's buyers next (empty: the next pricier product).
 ALTER TABLE products ADD COLUMN IF NOT EXISTS next_product_id INT REFERENCES products(id) ON DELETE SET NULL;
 -- What the buyer gets: an uploaded file (/u/…) or a link, emailed the moment they pay.

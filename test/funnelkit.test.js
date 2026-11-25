@@ -364,3 +364,43 @@ test('editorial launch: letter reveal, pinned steps, bento tiles, orbit and an h
   assert.match(html, /REVEAL|\.rvl'\)/); assert.match(html, /stp-item/);
   assert.match(html, /url\(\/fonts\/newsreader-300\.woff2\)/);
 });
+
+test('a limited offer counts real sales, then the price really changes (or it sells out)', async () => {
+  const c = await setup('fk-offer@example.com');
+  assert.equal((await c('POST', '/api/products', { name: 'Guide', price: '20', offer_limit: 2, offer_after: '15' })).status, 400, 'the regular price must be higher');
+  const { id: pid } = (await c('POST', '/api/products', { name: 'Field Guide', price: '20', offer_limit: 2, offer_after: '30', offer_label: 'Founder price' })).body;
+  const { id: sid } = (await c('POST', '/api/products', { name: 'Signed copy', price: '50', offer_limit: 1 })).body;
+  const { id } = (await c('POST', '/api/funnels', { name: 'Shop', template: 'blank' })).body;
+  const f = (await c('GET', `/api/funnels/${id}`)).body;
+  await c('PUT', `/api/steps/${f.steps[0].id}`, { blocks: [{ id: 'p1', type: 'pricing', productId: pid, buttonLabel: 'Buy' }, { id: 'sh', type: 'products', pick: [sid] }] });
+  const prev = process.env.PREFLIGHT_PROMISES; process.env.PREFLIGHT_PROMISES = 'off';
+  assert.equal((await c('POST', `/api/funnels/${id}/publish`)).status, 200);
+  process.env.PREFLIGHT_PROMISES = prev;
+  const page = () => fetch(`${base}/f/${f.slug}`).then((r) => r.text());
+  let html = await page();
+  assert.match(html, /<b>Founder price<\/b><span>0 of 2 claimed<\/span>/); assert.match(html, /Then \$30\. 2 left at this price\./);
+  assert.match(html, /<div class="was">\$30<\/div>/);
+  const buy = async (form) => {
+    const r = await fetch(`${base}/f/${f.slug}/${f.steps[0].slug}/buy`, { method: 'POST', redirect: 'manual', body: new URLSearchParams(form) });
+    if (r.status !== 303) return r;
+    const loc = r.headers.get('location');
+    const amount = (await (await fetch(base + loc)).text()).match(/\$\d+(\.\d\d)?/)?.[0].replace('.00', '');
+    await fetch(base + loc, { method: 'POST', redirect: 'manual', body: new URLSearchParams({ email: `b${Math.random()}@ex.com` }) });
+    return { status: 303, amount };
+  };
+  assert.equal((await buy({ block: 'p1' })).amount, '$20');
+  assert.match(await page(), /1 of 2 claimed/);
+  assert.equal((await buy({ block: 'p1' })).amount, '$20');
+  html = await page();
+  assert.doesNotMatch(html, /Founder price/, 'once it’s over, no counter');
+  assert.match(html, /<sup>\$<\/sup>30/, 'the regular price shows');
+  assert.equal((await buy({ block: 'p1' })).amount, '$30', 'and is what they pay');
+  // No regular price: it sells out, on the page and at the till.
+  assert.match(html, /0 of 1 claimed/);
+  assert.equal((await buy({ block: 'sh', product: String(sid) })).status, 303);
+  html = await page();
+  assert.match(html, /<b>Sold out<\/b><small>All 1 were claimed\.<\/small>/);
+  const r = await buy({ block: 'sh', product: String(sid) });
+  assert.equal(r.status, 410); assert.match(await r.text(), /sold out/);
+  assert.equal((await c('GET', '/api/products')).body.find((p) => p.id === sid).claimed, 1);
+});

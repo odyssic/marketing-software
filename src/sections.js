@@ -478,6 +478,11 @@ details[open] .pm::after{transform:rotate(0)}.faq details p{margin:0 0 18px;opac
 @media(prefers-reduced-motion:reduce){.orb-rot,.orb-i span{animation:none}}
 @media(max-width:760px){.orb{grid-template-columns:1fr}.orb-ring{max-width:min(300px,78vw)}.orb-i span{font-size:.72rem;padding:4px 10px}}
 .rv-note{text-align:center;font-size:.8rem;opacity:.6;margin:16px 0 0}
+/* A limited offer's counter */
+.offer-bar{margin:14px auto 4px;max-width:420px;text-align:left;font-size:.88rem}.ob-row{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+.ob-row b{color:var(--accent);font-weight:700;letter-spacing:.02em}.ob-row span{opacity:.75;font-variant-numeric:tabular-nums}
+.ob-track{height:6px;border-radius:99px;background:color-mix(in srgb,currentColor 12%,transparent);margin:6px 0 6px;overflow:hidden}.ob-track i{display:block;height:100%;background:var(--accent);border-radius:inherit}
+.offer-bar small{opacity:.7}.offer-bar.over{text-align:center}.offer-bar.over b{display:block}.pc-was{opacity:.5;font-weight:400}.pcard .offer-bar{margin:8px 0 10px}
 /* Logos */
 .logos-t{text-align:center;font-size:.8rem;letter-spacing:.2em;text-transform:uppercase;opacity:.65;margin:0 0 18px}
 .logos{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:28px 56px}.logos img{max-height:84px;max-width:170px;object-fit:contain}

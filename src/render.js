@@ -6,6 +6,7 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => (
 ));
 const { payOf, payLabel, money: payMoney } = require('./paidbookings'); // paid Booking blocks
 const sections = require('./sections'); // cover banner, features, FAQ, guarantee and other rich sections
+const { offerState } = require('./offer');
 const { cardIcon } = require('./cardicons'); // icons on cards, matched to their words
 // *Words between stars* in a headline are highlighted.
 const starHl = (html) => html.replace(/\*([^*<\n]+)\*/g, '<em class="hl">$1</em>');
@@ -44,8 +45,17 @@ f.querySelectorAll('input[name=plan]').forEach(function(r){r.addEventListener('c
 if(pre){i.value=pre;d.open=true;go()}})})}</script>`;
 
 const pricingAnchor = (ctx) => { if (ctx.formAnchored) return ''; ctx.formAnchored = true; return ' id="form"'; };
+// "Founder price · 125 of 150 claimed", with a bar; or the plain truth once it's over.
+const offerBar = (o, p) => (!o.on ? '' : o.live
+  ? `<div class="offer-bar"><div class="ob-row"><b>${esc(o.label)}</b><span>${o.claimed.toLocaleString('en-US')} of ${o.limit.toLocaleString('en-US')} claimed</span></div>
+    <div class="ob-track" role="progressbar" aria-valuemin="0" aria-valuemax="${o.limit}" aria-valuenow="${o.claimed}" aria-label="${o.claimed} of ${o.limit} claimed"><i style="width:${Math.min(100, Math.round((o.claimed * 100) / o.limit))}%"></i></div>
+    ${o.after_cents ? `<small>Then ${esc(formatMoney(o.after_cents, p.currency))}. ${o.left.toLocaleString('en-US')} left at this price.</small>` : `<small>${o.left.toLocaleString('en-US')} left. When they’re gone, they’re gone.</small>`}</div>`
+  : o.soldOut ? `<div class="offer-bar over"><b>Sold out</b><small>All ${o.limit.toLocaleString('en-US')} were claimed.</small></div>` : '');
+
 function renderPricing(b, ctx) {
-  const product = ctx.products?.[b.productId];
+  const listed = ctx.products?.[b.productId];
+  const offer = offerState(listed);
+  const product = listed && { ...listed, price_cents: offer.price_cents };
   const price = product ? moneyParts(product.price_cents, product.currency) : null;
   // A free trial says so plainly: "14 days free, then $29/month".
   const trial = product && product.billing !== 'one_time' && product.trial_days > 0
@@ -67,7 +77,9 @@ function renderPricing(b, ctx) {
       <button class="btn cta" style="${btnStyle}">${label}</button></form>
     <p class="oneclick">One click: added to the card you just used. No need to enter it again.</p></div>`;
   }
-  if (product) {
+  if (product && offer.soldOut) {
+    cta = `<button class="btn cta" type="button" disabled style="${btnStyle};opacity:.5;cursor:not-allowed">Sold out</button>`;
+  } else if (product) {
     const blocked = ctx.preview ? ' onsubmit="event.preventDefault();alert(\'Checkout is disabled in preview\')"' : '';
     // Order bump: one checkbox that adds a second item to the same payment.
     const bump = b.bumpProductId && ctx.products?.[b.bumpProductId];
@@ -94,9 +106,10 @@ function renderPricing(b, ctx) {
   return `<div class="pricing"${pricingAnchor(ctx)}>
     ${product?.image_url && !b.hidePhoto ? `<img class="pimg" src="${esc(product.image_url)}" alt="${esc(product.name)}" loading="lazy">` : ''}
     ${b.badge ? `<span class="badge"${ctx.preview ? ' data-f="badge"' : ''}>${esc(b.badge)}</span>` : ''}
-    ${b.compareText ? `<div class="was">${esc(b.compareText)}</div>` : ''}
+    ${b.compareText ? `<div class="was">${esc(b.compareText)}</div>` : offer.live && offer.after_cents ? `<div class="was">${esc(formatMoney(offer.after_cents, product.currency))}</div>` : ''}
     <div class="price">${price ? `<sup>${esc(price.symbol)}</sup>${esc(price.amount)}` : esc(b.priceText || '$0')}</div>
     ${billing ? `<div class="billing">${esc(billing)}</div>` : ''}
+    ${offerBar(offer, product)}
     ${b.note ? `<div class="note">${esc(b.note)}</div>` : ''}
     ${b.featuresTitle ? `<h3${ctx.preview ? ' data-f="featuresTitle"' : ''}>${esc(b.featuresTitle)}</h3>` : ''}
     ${features.length ? `<ul class="features">${features.map((f) => `<li>${esc(f)}</li>`).join('')}</ul>` : ''}
@@ -184,11 +197,11 @@ function renderBlock(b, ctx, index) {
       if (!chosen.length) return ctx.preview ? '<div class="ph"><b>Your products show here</b><small>Add them in Products (a photo, a name and a price), then tick which ones in this block.</small></div>' : '';
       // A product with its own live page links to it from the photo and the name.
       const page = (p) => (p.page_slug ? `/f/${encodeURIComponent(p.page_slug)}` : '');
-      const card = (p) => `<article class="pcard">${page(p) ? `<a class="pc-link" href="${esc(page(p))}">` : ''}${p.image_url ? `<div class="pc-img"><img src="${esc(safeUrl(p.image_url))}" alt="${esc(p.name)}" loading="lazy"></div>` : `<div class="pc-img pc-none" aria-hidden="true">${esc(p.name.slice(0, 1).toUpperCase())}</div>`}${page(p) ? '</a>' : ''}
+      const card = (raw) => { const o = offerState(raw), p = { ...raw, price_cents: o.price_cents }; return `<article class="pcard">${page(p) ? `<a class="pc-link" href="${esc(page(p))}">` : ''}${p.image_url ? `<div class="pc-img"><img src="${esc(safeUrl(p.image_url))}" alt="${esc(p.name)}" loading="lazy"></div>` : `<div class="pc-img pc-none" aria-hidden="true">${esc(p.name.slice(0, 1).toUpperCase())}</div>`}${page(p) ? '</a>' : ''}
         <div class="pc-body"><h3>${page(p) ? `<a href="${esc(page(p))}">${esc(p.name)}</a>` : esc(p.name)}</h3>${p.description ? `<p>${esc(p.description.length > 140 ? `${p.description.slice(0, 137)}…` : p.description)}</p>` : ''}
-        <div class="pc-price">${esc(formatMoney(p.price_cents, p.currency))}${p.billing !== 'one_time' ? ` <small>${esc(BILLING_TEXT[p.billing] || '')}</small>` : ''}${p.ships ? `<small class="pc-ship">${p.shipping_cents ? `+ ${esc(formatMoney(p.shipping_cents, p.currency))} shipping` : 'Free shipping'}</small>` : ''}</div>
-        <form method="post" action="${esc(ctx.buyAction)}"><input type="hidden" name="block" value="${esc(b.id)}"><input type="hidden" name="product" value="${p.id}">
-        <button class="btn pc-buy" type="submit">${esc(b.button || 'Buy now')}</button></form>${page(p) ? `<a class="pc-more" href="${esc(page(p))}">See details →</a>` : ''}</div></article>`;
+        <div class="pc-price">${o.live && o.after_cents ? `<s class="pc-was">${esc(formatMoney(o.after_cents, p.currency))}</s> ` : ''}${esc(formatMoney(p.price_cents, p.currency))}${p.billing !== 'one_time' ? ` <small>${esc(BILLING_TEXT[p.billing] || '')}</small>` : ''}${p.ships ? `<small class="pc-ship">${p.shipping_cents ? `+ ${esc(formatMoney(p.shipping_cents, p.currency))} shipping` : 'Free shipping'}</small>` : ''}</div>
+        ${offerBar(o, p)}${o.soldOut ? '<button class="btn pc-buy" type="button" disabled style="opacity:.5">Sold out</button>' : `<form method="post" action="${esc(ctx.buyAction)}"><input type="hidden" name="block" value="${esc(b.id)}"><input type="hidden" name="product" value="${p.id}">
+        <button class="btn pc-buy" type="submit">${esc(b.button || 'Buy now')}</button></form>`}${page(p) ? `<a class="pc-more" href="${esc(page(p))}">See details →</a>` : ''}</div></article>`; };
       return `${b.title ? `<h2 class="pc-title"${f('title')}>${starHl(esc(b.title))}</h2>` : ''}<div class="pcards n${Math.min(chosen.length, 3)}">${chosen.map(card).join('')}</div>`;
     }
     case 'heading': {

@@ -4,6 +4,7 @@ const path = require('node:path');
 const { openDb, appSecret, defaultDir } = require('./db');
 const auth = require('./auth');
 const { renderPage, esc, formatMoney } = require('./render');
+const { offerState, CLAIMED_SQL } = require('./offer');
 const { TEMPLATES } = require('./templates');
 const mailer = require('./mailer');
 const stripe = require('./stripe');
@@ -257,7 +258,7 @@ function createApp({ dbPath } = {}) {
   const moneyTotals = (rows) => Object.entries(rows.reduce((acc, r) => ({ ...acc, [r.currency]: (acc[r.currency] || 0) + r.value_cents }), {}))
     .sort((x, y) => y[1] - x[1]).map(([currency, cents]) => ({ currency, cents, label: formatMoney(cents, currency) }));
   const productsMap = async (accountId) => Object.fromEntries(
-    (await db.all(`SELECT p.*, CASE WHEN f.status = 'live' THEN f.slug END AS page_slug FROM products p
+    (await db.all(`SELECT p.*, CASE WHEN f.status = 'live' THEN f.slug END AS page_slug, ${CLAIMED_SQL} AS claimed FROM products p
       LEFT JOIN funnels f ON f.id = p.page_funnel_id WHERE p.account_id = ?`, accountId)).map((p) => [p.id, p]),
   );
   // Public URL of the page a step's "yes" (next_step_id) or "no" exit leads to.
@@ -839,6 +840,15 @@ function createApp({ dbPath } = {}) {
     if (trial < 0 || trial > 365) throw new HttpError(400, 'A free trial can be up to 365 days');
     return [name, String(b.description || '').trim(), price, currency, billing, parseTags(b.tag).join(','), image, parts, part, trial, deliver];
   };
+  // A limited offer: this price for the first N buyers, then the regular price (or it sells out).
+  const offerInput = (b, priceCents) => {
+    const limit = Math.round(Number(b.offer_limit) || 0);
+    if (limit < 0 || limit > 1000000) throw new HttpError(400, 'The number of buyers must be between 1 and 1,000,000');
+    const after = limit && b.offer_after !== '' && b.offer_after != null ? Math.round(Number(b.offer_after) * 100) : 0;
+    if (after && (!Number.isFinite(after) || after < 50)) throw new HttpError(400, 'The regular price must be at least 0.50');
+    if (after && after <= priceCents) throw new HttpError(400, 'The regular price should be more than the offer price (or leave it empty to sell out)');
+    return [limit, after, limit ? String(b.offer_label || '').trim().slice(0, 40) : ''];
+  };
   // A physical product: a mailing address is asked for at checkout; shipping is free or a set cost.
   const shippingInput = (b) => {
     const ships = b.ships === true || b.ships === 'on' || b.ships === '1' || b.ships === 1 ? 1 : 0;
@@ -849,20 +859,23 @@ function createApp({ dbPath } = {}) {
   const productOut = (p) => ({ ...p, price: p.price_cents / 100, priceLabel: formatMoney(p.price_cents, p.currency) });
 
   api.get('/products', async (req, res) => {
-    res.json((await db.all(`SELECT p.*,
+    res.json((await db.all(`SELECT p.*, ${CLAIMED_SQL} AS claimed,
         (SELECT COUNT(*)::int FROM orders o WHERE o.product_id = p.id AND o.status = 'paid') AS sales
       FROM products p WHERE account_id = ? ORDER BY id DESC`, req.accountId)).map(productOut));
   });
 
   api.post('/products', async (req, res) => {
-    const r = await db.get(`INSERT INTO products (account_id, name, description, price_cents, currency, billing, tag, image_url, plan_parts, plan_part_cents, trial_days, deliver_url, ships, shipping_cents)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`, req.accountId, ...productInput(req.body || {}), ...shippingInput(req.body || {}));
+    const pi = productInput(req.body || {});
+    const r = await db.get(`INSERT INTO products (account_id, name, description, price_cents, currency, billing, tag, image_url, plan_parts, plan_part_cents, trial_days, deliver_url, ships, shipping_cents, offer_limit, offer_after_cents, offer_label)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`, req.accountId, ...pi, ...shippingInput(req.body || {}), ...offerInput(req.body || {}, pi[2]));
     res.status(201).json({ id: r.id });
   });
 
   api.put('/products/:id', async (req, res) => {
+    const pi = productInput(req.body || {});
     const r = await db.run(`UPDATE products SET name = ?, description = ?, price_cents = ?, currency = ?, billing = ?, tag = ?, image_url = ?,
-      plan_parts = ?, plan_part_cents = ?, trial_days = ?, deliver_url = ?, ships = ?, shipping_cents = ? WHERE id = ? AND account_id = ?`, ...productInput(req.body || {}), ...shippingInput(req.body || {}), id(req.params.id), req.accountId);
+      plan_parts = ?, plan_part_cents = ?, trial_days = ?, deliver_url = ?, ships = ?, shipping_cents = ?, offer_limit = ?, offer_after_cents = ?, offer_label = ? WHERE id = ? AND account_id = ?`,
+    ...pi, ...shippingInput(req.body || {}), ...offerInput(req.body || {}, pi[2]), id(req.params.id), req.accountId);
     if (!r.changes) throw new HttpError(404, 'Product not found');
     if (req.body?.next_product_id !== undefined) {
       const next = req.body.next_product_id ? await db.get('SELECT id FROM products WHERE id = ? AND account_id = ? AND id <> ?', id(req.body.next_product_id), req.accountId, id(req.params.id)) : null;
@@ -1959,9 +1972,12 @@ function createApp({ dbPath } = {}) {
     const block = shelf || findBlock(step, 'pricing', req.body.block);
     const wanted = shelf ? Number(req.body.product) : block?.productId;
     const allowed = shelf ? (!Array.isArray(shelf.pick) || !shelf.pick.length || shelf.pick.map(Number).includes(wanted)) : true;
-    const product = wanted && allowed && await db.get('SELECT * FROM products WHERE id = ? AND account_id = ?',
+    const listed = wanted && allowed && await db.get(`SELECT p.*, ${CLAIMED_SQL} AS claimed FROM products p WHERE p.id = ? AND p.account_id = ?`,
       id(wanted), funnel.account_id);
-    if (!product) return messagePage(res, 404, 'This offer is no longer available.', back);
+    if (!listed) return messagePage(res, 404, 'This offer is no longer available.', back);
+    const offer = offerState(listed);
+    if (offer.soldOut) return messagePage(res, 410, `${listed.name} has sold out. All ${offer.limit} are claimed.`, back);
+    const product = { ...listed, price_cents: offer.price_cents };
     // Order bump: only a one-time item in the same currency joins the payment.
     const bumpProduct = req.body.bump === '1' && block.bumpProductId && await db.get('SELECT * FROM products WHERE id = ? AND account_id = ?', id(block.bumpProductId), funnel.account_id);
     const bump = bumpProduct && bumpProduct.billing === 'one_time' && bumpProduct.currency === product.currency ? bumpProduct : null;
