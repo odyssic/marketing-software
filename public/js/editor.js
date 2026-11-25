@@ -116,6 +116,18 @@ const BLOCKS = {
 // Any section can sit on a full-width band of colour.
 for (const [k, b] of Object.entries(BLOCKS)) if (!['hero', 'notice', 'spacer', 'colbreak', 'colend'].includes(k)) b.fields.push(['band', 'select', 'Background', ['none', 'soft', 'dark', 'brand', 'sunset'], 'soft: a light tint · dark: a deep band · brand: your button colour · sunset: deep colour fading to warm. Neighbouring blocks with the same background share one band.']);
 const uid = () => Math.random().toString(36).slice(2, 10);
+// The Motion menu: how a block comes in, how it leaves, and what it does while on screen.
+// Each chip's little icon plays its own movement on hover.
+const MOTION = {
+  anim: { title: 'Comes in', opts: [['', 'None'], ['fade', 'Fade'], ['rise', 'Rise'], ['drop', 'Drop'], ['left', 'From left'], ['right', 'From right'], ['zoom', 'Zoom'], ['pop', 'Pop'], ['blur', 'Blur in'], ['flip', 'Flip up'], ['wipe', 'Wipe']] },
+  animOut: { title: 'As it leaves', opts: [['', 'Stays'], ['fade', 'Fade out'], ['shrink', 'Shrink'], ['slide', 'Slide away'], ['blur', 'Blur out']] },
+  animLoop: { title: 'While on screen', opts: [['', 'Still'], ['float', 'Float'], ['pulse', 'Pulse button'], ['tilt', 'Tilt on hover'], ['parallax', 'Parallax photo']] },
+};
+const motionHtml = (b, i) => `<details class="f mo-f" ${b.anim || b.animOut || b.animLoop ? 'open' : ''}><summary>${icon('sparkle')} Motion <span class="hint">${b.anim || b.animOut || b.animLoop ? [b.anim, b.animOut && `${b.animOut} out`, b.animLoop].filter(Boolean).join(' · ') : 'none'}</span></summary>
+  ${Object.entries(MOTION).map(([k, m]) => `<div class="mo-g"><span class="mo-t">${m.title}</span><div class="mo-row" role="radiogroup" aria-label="${m.title}">${m.opts.map(([v, l]) => `<button type="button" class="mo-chip ${(b[k] || '') === v ? 'on' : ''}" data-mo="${i}:${k}:${v}" role="radio" aria-checked="${(b[k] || '') === v}" title="${l}"><span class="mo-ico mo-${k}-${v || 'none'}" aria-hidden="true"><i></i></span><small>${l}</small></button>`).join('')}</div></div>`).join('')}
+  ${b.anim ? `<div class="mo-g"><span class="mo-t">Speed</span><div class="mo-row">${[['slow', 'Slow'], ['', 'Normal'], ['quick', 'Quick']].map(([v, l]) => `<button type="button" class="mo-chip txt ${(b.animSpeed || '') === v ? 'on' : ''}" data-mo="${i}:animSpeed:${v}">${l}</button>`).join('')}</div></div>` : ''}
+  ${b.anim || b.animOut ? `<button type="button" class="btn sm" data-moplay="${i}">${icon('play')} Play it</button>` : ''}
+  <p class="hint" style="margin:6px 0 0">Lists of cards, tiles and reviews come in one by one. Visitors who’ve asked their device for less motion see everything still.</p></details>`;
 // New blocks of a kind: Two columns comes as its three markers, ready to drop things into.
 const newBlocks = (type) => (type === 'cols'
   ? [{ id: uid(), type: 'cols', ...BLOCKS.cols.defaults }, { id: uid(), type: 'colbreak' }, { id: uid(), type: 'colend' }]
@@ -295,7 +307,10 @@ async function viewEditor(stepId) {
   };
   // Clicks: what visitors click on this page and how far they read, drawn on the preview.
   const sendStats = () => { const fr = $('iframe'); if (fr?.contentWindow) fr.contentWindow.postMessage(ed.clicks ? { ff: 'stats', on: true, ...ed.clicks } : { ff: 'stats', on: false }, '*'); };
-  $('iframe').addEventListener('load', () => setTimeout(sendStats, 150));
+  $('iframe').addEventListener('load', () => {
+    setTimeout(sendStats, 150);
+    if (ed.playAfter) { const p = ed.playAfter; ed.playAfter = null; setTimeout(() => $('iframe').contentWindow?.postMessage({ ff: 'play', ...p }, '*'), 250); }
+  });
   const clickBar = (c) => {
     const top = [...c.clicks].sort((a, b) => b.people - a.people)[0];
     const pct = (n, d) => (d ? Math.round((n * 100) / d) : 0);
@@ -453,7 +468,7 @@ async function viewEditor(stepId) {
           <button class="btn" data-down="${i}" ${i === ed.blocks.length - 1 ? 'disabled' : ''} title="Move down">↓</button>
           ${b.type === 'cols' ? '' : `<button class="btn" data-dup="${i}" title="Duplicate">${icon('copy')}</button>`}
           <button class="btn danger" data-rm="${i}" title="Delete">${icon('x')}</button></div>
-        ${open ? `<div class="bb">${b.savedId ? linkNote : ''}${def.fields.length ? def.fields.map((fd) => fieldHtml(b, i, fd)).join('') : '<p class="muted small">No settings for this block.</p>'}${b.savedId ? '' : linkNote}</div>` : ''}
+        ${open ? `<div class="bb">${b.savedId ? linkNote : ''}${def.fields.length ? def.fields.map((fd) => fieldHtml(b, i, fd)).join('') : '<p class="muted small">No settings for this block.</p>'}${b.type === 'cols' ? '' : motionHtml(b, i)}${b.savedId ? '' : linkNote}</div>` : ''}
       </div>`;
     }).join('') : '<p class="muted small" data-empty>Your page is empty. Drag a block from above onto the page, or click one to add it.</p>';
   };
@@ -577,6 +592,16 @@ async function viewEditor(stepId) {
       const gone = BLOCKS[ed.blocks[i].type]?.label || 'Block';
       ed.blocks.splice(i, 1); structural();
       undoToast(`${gone} deleted`);
+    } else if (d.mo) {
+      // Pick a motion, then watch it play on the page once the preview has redrawn.
+      const [i, k, v] = d.mo.split(':');
+      if (v) ed.blocks[i][k] = v; else delete ed.blocks[i][k];
+      if (k === 'anim' && !v) delete ed.blocks[i].animSpeed;
+      ed.playAfter = k === 'animLoop' ? null : { i: Number(i), out: k === 'animOut' && Boolean(v) };
+      renderBlocks(); changed();
+    } else if (d.moplay !== undefined) {
+      const b = ed.blocks[d.moplay];
+      $('iframe').contentWindow?.postMessage({ ff: 'play', i: Number(d.moplay), out: !b.anim && Boolean(b.animOut) }, '*');
     } else if (d.align) {
       const [i, a] = d.align.split(':');
       ed.blocks[i].align = a; renderBlocks(); changed();

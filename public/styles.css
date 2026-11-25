@@ -2074,3 +2074,41 @@ span.tp-photo { display: grid; place-items: center; }
 @font-face { font-family: Montserrat; src: url(/fonts/montserrat-700i.woff2) format("woff2"); font-weight: 700; font-style: italic; font-display: swap; }
 @font-face { font-family: Newsreader; src: url(/fonts/newsreader-300i.woff2) format("woff2"); font-weight: 300; font-style: italic; font-display: swap; }
 .type-opt.t-editorial b, .lk-type.t-editorial b { font-family: Newsreader, Georgia, serif; font-weight: 300; font-style: italic; letter-spacing: -.02em; }
+
+/* The Motion menu: chips whose little icons play their own movement */
+.mo-f summary { cursor: pointer; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+.mo-g { margin-top: 10px; }
+.mo-t { display: block; font-size: .78rem; font-weight: 600; color: var(--muted, #6b7280); margin-bottom: 6px; }
+.mo-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 6px; }
+.mo-chip { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 4px 6px; border: 1px solid var(--line, #e5e7eb); background: var(--card, #fff); border-radius: 10px; cursor: pointer; font: inherit; color: inherit; transition: border-color .15s, background .15s, transform .15s; }
+.mo-chip:hover { border-color: var(--brand, #1b736d); transform: translateY(-1px); }
+.mo-chip.on { border-color: var(--brand, #1b736d); background: color-mix(in srgb, var(--brand, #1b736d) 9%, #fff); box-shadow: 0 0 0 1px var(--brand, #1b736d); }
+.mo-chip small { font-size: .7rem; line-height: 1.15; text-align: center; }
+.mo-chip.txt { padding: 7px 4px; font-size: .78rem; }
+.mo-ico { width: 30px; height: 22px; border-radius: 5px; background: color-mix(in srgb, var(--brand, #1b736d) 8%, #fff); position: relative; overflow: hidden; perspective: 80px; }
+.mo-ico i { position: absolute; left: 8px; top: 5px; width: 14px; height: 12px; border-radius: 3px; background: var(--brand, #1b736d); }
+.mo-chip:hover .mo-ico i, .mo-chip.on .mo-ico i { animation: var(--mo-a) 1.4s cubic-bezier(.2,.7,.2,1) infinite; }
+.mo-anim-none i, .mo-animOut-none i, .mo-animLoop-none i { opacity: .35; }
+.mo-anim-fade { --mo-a: mo-fade; } .mo-anim-rise { --mo-a: mo-rise; } .mo-anim-drop { --mo-a: mo-drop; } .mo-anim-left { --mo-a: mo-left; } .mo-anim-right { --mo-a: mo-right; }
+.mo-anim-zoom { --mo-a: mo-zoom; } .mo-anim-pop { --mo-a: mo-pop; } .mo-anim-blur { --mo-a: mo-blur; } .mo-anim-flip { --mo-a: mo-flip; } .mo-anim-wipe { --mo-a: mo-wipe; }
+.mo-animOut-fade { --mo-a: mo-fadeout; } .mo-animOut-shrink { --mo-a: mo-shrink; } .mo-animOut-slide { --mo-a: mo-slideout; } .mo-animOut-blur { --mo-a: mo-blurout; }
+.mo-animLoop-float { --mo-a: mo-float; } .mo-animLoop-pulse { --mo-a: mo-pulse; } .mo-animLoop-tilt { --mo-a: mo-tilt; } .mo-animLoop-parallax { --mo-a: mo-par; }
+@keyframes mo-fade { 0% { opacity: 0 } 60%, 100% { opacity: 1 } }
+@keyframes mo-rise { 0% { opacity: 0; transform: translateY(10px) } 60%, 100% { opacity: 1; transform: none } }
+@keyframes mo-drop { 0% { opacity: 0; transform: translateY(-10px) } 60%, 100% { opacity: 1; transform: none } }
+@keyframes mo-left { 0% { opacity: 0; transform: translateX(-14px) } 60%, 100% { opacity: 1; transform: none } }
+@keyframes mo-right { 0% { opacity: 0; transform: translateX(14px) } 60%, 100% { opacity: 1; transform: none } }
+@keyframes mo-zoom { 0% { opacity: 0; transform: scale(.6) } 60%, 100% { opacity: 1; transform: none } }
+@keyframes mo-pop { 0% { opacity: 0; transform: scale(.3) } 45% { opacity: 1; transform: scale(1.25) } 65%, 100% { transform: none } }
+@keyframes mo-blur { 0% { opacity: 0; filter: blur(4px) } 60%, 100% { opacity: 1; filter: none } }
+@keyframes mo-flip { 0% { opacity: 0; transform: rotateX(70deg); transform-origin: top } 60%, 100% { opacity: 1; transform: none } }
+@keyframes mo-wipe { 0% { clip-path: inset(0 100% 0 0) } 60%, 100% { clip-path: inset(0) } }
+@keyframes mo-fadeout { 0%, 30% { opacity: 1 } 90%, 100% { opacity: 0 } }
+@keyframes mo-shrink { 0%, 30% { transform: none; opacity: 1 } 90%, 100% { transform: scale(.5); opacity: .3 } }
+@keyframes mo-slideout { 0%, 30% { transform: none; opacity: 1 } 90%, 100% { transform: translateX(-16px); opacity: 0 } }
+@keyframes mo-blurout { 0%, 30% { filter: none; opacity: 1 } 90%, 100% { filter: blur(4px); opacity: .2 } }
+@keyframes mo-float { 0%, 100% { transform: translateY(2px) } 50% { transform: translateY(-3px) } }
+@keyframes mo-pulse { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand, #1b736d) 60%, transparent) } 80%, 100% { box-shadow: 0 0 0 7px transparent } }
+@keyframes mo-tilt { 0%, 100% { transform: rotateY(0) } 30% { transform: rotateY(28deg) } 70% { transform: rotateY(-28deg) } }
+@keyframes mo-par { 0%, 100% { transform: translateY(3px) scale(1.2) } 50% { transform: translateY(-3px) scale(1.2) } }
+@media (prefers-reduced-motion: reduce) { .mo-chip .mo-ico i { animation: none !important; } }

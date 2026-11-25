@@ -470,12 +470,51 @@ var f=function(){var r=s.getBoundingClientRect(),t=Math.max(1,s.offsetHeight-inn
 // Pinned steps: the picture beside the steps changes to match the step being read.
 const STEPS_SCRIPT = `<script>(function(){if(!('IntersectionObserver' in window))return;document.querySelectorAll('.stp').forEach(function(s){s.classList.add('js');var items=s.querySelectorAll('.stp-item'),pics=s.querySelectorAll('.stp-pic');
 var io=new IntersectionObserver(function(es){es.forEach(function(e){if(!e.isIntersecting)return;var k=+e.target.dataset.st;items.forEach(function(x,i){x.classList.toggle('on',i===k)});pics.forEach(function(x,i){x.classList.toggle('on',i===k)})})},{rootMargin:'-45% 0px -45% 0px'});items.forEach(function(x){io.observe(x)})})})()</script>`;
+// Per-block motion, chosen in the editor's Motion menu.
+const ANIM_IN = ['fade', 'rise', 'drop', 'left', 'right', 'zoom', 'pop', 'blur', 'flip', 'wipe'];
+const ANIM_OUT = ['fade', 'shrink', 'slide', 'blur'];
+const ANIM_LOOP = ['float', 'pulse', 'tilt', 'parallax'];
+const ANIM_CSS = `<style>
+[data-anim]{--ad:.8s}[data-speed=slow]{--ad:1.3s}[data-speed=quick]{--ad:.45s}
+.an,.an-pre{transition:opacity var(--ad) cubic-bezier(.2,.7,.2,1),transform var(--ad) cubic-bezier(.2,.7,.2,1),filter var(--ad) ease,clip-path var(--ad) cubic-bezier(.6,0,.2,1)}
+.an-pre[data-anim=fade]{opacity:0}.an-pre[data-anim=rise]{opacity:0;transform:translateY(46px)}.an-pre[data-anim=drop]{opacity:0;transform:translateY(-46px)}
+.an-pre[data-anim=left]{opacity:0;transform:translateX(-70px)}.an-pre[data-anim=right]{opacity:0;transform:translateX(70px)}
+.an-pre[data-anim=zoom]{opacity:0;transform:scale(.86)}.an-pre[data-anim=pop]{opacity:0;transform:scale(.55)}[data-anim=pop].an{transition-timing-function:cubic-bezier(.34,1.56,.64,1)}
+.an-pre[data-anim=blur]{opacity:0;filter:blur(16px)}.an-pre[data-anim=flip]{opacity:0;transform:perspective(900px) rotateX(40deg);transform-origin:50% 0}
+[data-anim=wipe]>*{transition:clip-path var(--ad) cubic-bezier(.6,0,.2,1)}.an-pre[data-anim=wipe]>*{clip-path:inset(0 100% 0 0)}[data-anim=wipe].an>*{clip-path:inset(0 0 0 0)}
+[data-out]>*{--o:0}[data-out=fade]>*{opacity:calc(1 - var(--o))}[data-out=shrink]>*{opacity:calc(1 - var(--o) * .8);transform:scale(calc(1 - var(--o) * .16))}
+[data-out=slide]>*{opacity:calc(1 - var(--o));transform:translateX(calc(var(--o) * -90px))}[data-out=blur]>*{opacity:calc(1 - var(--o) * .9);filter:blur(calc(var(--o) * 10px))}
+[data-loop=float]>*{animation:an-float 6s ease-in-out infinite}@keyframes an-float{50%{transform:translateY(-10px)}}
+[data-loop=pulse] :is(.btn,button[type=submit]){animation:an-pulse 2.4s ease-out infinite}@keyframes an-pulse{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--accent) 55%,transparent)}70%,100%{box-shadow:0 0 0 16px transparent}}
+[data-loop=tilt] .an-tilt{transition:transform .25s ease;transform-style:preserve-3d;will-change:transform}
+[data-loop=parallax]{overflow:clip}[data-loop=parallax] img{transform:translateY(var(--py,0)) scale(1.12);will-change:transform}
+@media(prefers-reduced-motion:reduce){[data-loop]>*,[data-loop] .btn{animation:none!important}}
+</style>`;
+// Plays it on the live page: in as it scrolls into view (lists one by one), out as it scrolls away, and the loops.
+const ANIM_SCRIPT = `${ANIM_CSS}<script>(function(){var still=matchMedia('(prefers-reduced-motion: reduce)').matches;if(still)return;
+var LISTS='.cards,.tiles,.pcards,.tcards,.evs,.stats,.bento,.pstack,.logos,.bul,.offer-rows,.stp-list';
+var ins=[].slice.call(document.querySelectorAll('[data-anim]'));ins.forEach(function(w){var list=w.querySelector(LISTS),kids=list&&list.children.length>1?[].slice.call(list.children):null;
+if(kids){kids.forEach(function(k,i){k.setAttribute('data-anim',w.dataset.anim);k.style.setProperty('--ad',getComputedStyle(w).getPropertyValue('--ad'));k.style.transitionDelay=Math.min(i,8)*110+'ms';k.classList.add('an-pre')});w.removeAttribute('data-anim')}else w.classList.add('an-pre')});
+var io='IntersectionObserver' in window&&new IntersectionObserver(function(es){es.forEach(function(e){if(!e.isIntersecting)return;var t=e.target;t.classList.add('an');t.classList.remove('an-pre');io.unobserve(t)})},{threshold:.15,rootMargin:'0px 0px -30px 0px'});
+document.querySelectorAll('.an-pre').forEach(function(t){if(io)io.observe(t);else t.classList.remove('an-pre')});
+var outs=[].slice.call(document.querySelectorAll('[data-out]')),pars=[].slice.call(document.querySelectorAll('[data-loop=parallax] img'));
+var tick=function(){var h=innerHeight;outs.forEach(function(w){var c=w.firstElementChild;if(!c)return;var r=w.getBoundingClientRect(),o=r.bottom<h*.45?Math.min(1,Math.max(0,1-r.bottom/(h*.45))):0;c.style.setProperty('--o',o.toFixed(3))});
+pars.forEach(function(im){var r=im.getBoundingClientRect();if(r.bottom<0||r.top>h)return;im.style.setProperty('--py',((r.top+r.height/2-h/2)*-.08).toFixed(1)+'px')})};
+if(outs.length||pars.length){addEventListener('scroll',function(){requestAnimationFrame(tick)},{passive:true});tick()}
+if(matchMedia('(hover:hover)').matches)document.querySelectorAll('[data-loop=tilt]').forEach(function(w){var ts=w.querySelectorAll('.card,.tile,.pcard,.tcard,.bt,.pcard-s,.pricing,.offer');if(!ts.length)ts=[w.firstElementChild];
+[].forEach.call(ts,function(t){if(!t)return;t.classList.add('an-tilt');t.addEventListener('mousemove',function(e){var r=t.getBoundingClientRect(),x=(e.clientX-r.left)/r.width-.5,y=(e.clientY-r.top)/r.height-.5;t.style.transform='perspective(800px) rotateY('+(x*10).toFixed(2)+'deg) rotateX('+(-y*10).toFixed(2)+'deg) translateY(-3px)'});
+t.addEventListener('mouseleave',function(){t.style.transform=''})})})})()</script>`;
+// In the editor: loops run; a chosen entrance or exit plays when the Motion menu asks (nothing hides while editing).
+const PREVIEW_ANIM_SCRIPT = `${ANIM_CSS}<script>addEventListener('message',function(e){var d=e.data;if(!d||d.ff!=='play')return;var w=document.querySelector('[data-bi="'+d.i+'"]');if(!w)return;
+w.scrollIntoView({block:'center',behavior:'instant'});var c=w.firstElementChild;
+if(d.out&&c){var t0=performance.now();var f=function(n){var p=Math.min(1,(n-t0)/900),o=p<.5?p*2:2-p*2;c.style.setProperty('--o',o.toFixed(3));if(p<1)requestAnimationFrame(f);else c.style.removeProperty('--o')};requestAnimationFrame(f);return}
+if(!w.dataset.anim)return;w.classList.remove('an');w.classList.add('an-pre');void w.offsetWidth;setTimeout(function(){w.classList.add('an');w.classList.remove('an-pre')},60)})</script>`;
 // Gentle motion: sections rise into place as they scroll into view, and numbers count up.
 // Only when the visitor hasn't asked for less motion; without JavaScript everything just shows.
 const MOTION_SCRIPT = `<style>.mo [data-mo]{opacity:0;transform:translateY(26px);transition:opacity .7s ease,transform .7s cubic-bezier(.2,.7,.2,1)}.mo [data-mo].in{opacity:1;transform:none}</style>
 <script>(function(){if(!('IntersectionObserver' in window)||matchMedia('(prefers-reduced-motion: reduce)').matches)return;document.documentElement.classList.add('mo');
 var els=[].slice.call(document.querySelectorAll('main>[data-bi],main>div:not([data-bi]),.band-in>[data-bi],.band-in>div,.cards>.card,.tiles>.tile,.pcards>.pcard,.tcards>.tcard,.evs>.ev,.pstack>.pcard-s,.stats>div,.logos>img'));
-els.forEach(function(e,i){if(e.querySelector('.hphoto.first,.cover.first'))return;e.setAttribute('data-mo','');var sib=e.parentNode.children,k=[].indexOf.call(sib,e);if(k>0&&e.parentNode.matches('.cards,.tiles,.pcards,.tcards,.evs,.stats,.logos,.pstack'))e.style.transitionDelay=Math.min(k,5)*90+'ms'});
+els.forEach(function(e,i){if(e.querySelector('.hphoto.first,.cover.first')||e.closest('[data-anim]'))return;e.setAttribute('data-mo','');var sib=e.parentNode.children,k=[].indexOf.call(sib,e);if(k>0&&e.parentNode.matches('.cards,.tiles,.pcards,.tcards,.evs,.stats,.logos,.pstack'))e.style.transitionDelay=Math.min(k,5)*90+'ms'});
 var count=function(b){var m=b.textContent.match(/^(\\D*)([\\d,]+(?:\\.\\d+)?)(.*)$/);if(!m)return;var end=parseFloat(m[2].replace(/,/g,'')),dec=(m[2].split('.')[1]||'').length,comma=m[2].indexOf(',')>-1,t0=null;
 var fmt=function(v){var s=v.toFixed(dec);return comma?s.replace(/\\B(?=(\\d{3})+(?!\\d))/g,','):s};var step=function(ts){t0=t0||ts;var p=Math.min(1,(ts-t0)/1300);b.textContent=m[1]+fmt(end*(1-Math.pow(1-p,3)))+m[3];if(p<1)requestAnimationFrame(step)};requestAnimationFrame(step)};
 var io=new IntersectionObserver(function(es){es.forEach(function(x){if(!x.isIntersecting)return;x.target.classList.add('in');io.unobserve(x.target);x.target.querySelectorAll&&x.target.querySelectorAll('.stats b').forEach(count);if(x.target.matches('.stats>div'))x.target.querySelectorAll('b').forEach(count)})},{threshold:.12,rootMargin:'0px 0px -40px 0px'});
@@ -507,7 +546,16 @@ function renderPage({ title, blocks, settings = {}, nextUrl = '#', noUrl = '#', 
   // The page's deep colour (dark bands, notice bar): the banner's colour when there is one.
   const heroBg = list.find((b) => b.type === 'hero' && /^#[0-9a-f]{6}$/i.test(b.background || ''))?.background;
   const deep = heroBg || `color-mix(in srgb,${accent} 62%,#0a0d12)`;
-  const wrap = (i, html) => `<div data-bi="${i}">${html}</div>`;
+  // A block's motion (how it comes in, how it leaves, what it does while on screen) rides on its wrapper.
+  const motionAttrs = (b) => {
+    if (!b) return '';
+    const a = ANIM_IN.includes(b.anim) ? ` data-anim="${b.anim}"` : '';
+    const o = ANIM_OUT.includes(b.animOut) ? ` data-out="${b.animOut}"` : '';
+    const l = ANIM_LOOP.includes(b.animLoop) ? ` data-loop="${b.animLoop}"` : '';
+    const s = a && ['slow', 'quick'].includes(b.animSpeed) ? ` data-speed="${b.animSpeed}"` : '';
+    return a + o + l + s;
+  };
+  const wrap = (i, html) => `<div data-bi="${i}"${motionAttrs(list[i])}>${html}</div>`;
   const parts = [];
   for (let i = 0; i < list.length; i++) {
     const b = list[i];
@@ -661,7 +709,7 @@ ${sections.SECTION_CSS}${TYPE_CSS[settings.font] || ''}${embed ? EMBED_STYLE : '
 ${course ? `<style>:root{--crs-accent:${accent};--crs-bg:${bg};--crs-w:${width}px}${course.css}</style>` : ''}
 ${preview ? '' : trackingTags(code, ownDomain)}</head><body${course ? ' class="has-crs"' : ''}>${course ? course.nav : ''}${nav}${logoBar}<main>
 ${course ? course.top : ''}${body || '<p style="text-align:center;opacity:.5">This page is empty. Add blocks in the editor.</p>'}
-${course ? course.bottom : ''}</main>${foot}${(blocks || []).some((b) => b.type === 'booking') ? BOOKING_SCRIPT : ''}${(blocks || []).some((b) => b.type === 'video' && !b.controls && youtubeId(b.url)) ? VIDEO_SCRIPT : ''}${(blocks || []).some((b) => b.type === 'html') ? HTML_RESIZE : ''}${(blocks || []).some((b) => b.type === 'reviews' && b.style === 'slider') ? SLIDER_SCRIPT : ''}${(blocks || []).some((b) => b.type === 'reveal') ? REVEAL_SCRIPT : ''}${(blocks || []).some((b) => b.type === 'steps') ? STEPS_SCRIPT : ''}${settings.motion && !preview && !embed ? MOTION_SCRIPT : ''}${settings.stickyButton && !preview && !embed ? STICKY_SCRIPT : ''}${embed ? EMBED_SCRIPT : ''}${preview ? PREVIEW_EDIT_SCRIPT + PREVIEW_DROP_SCRIPT + PREVIEW_TOOLS_SCRIPT + PREVIEW_STATS_SCRIPT : trackAction ? trackScript(trackAction) : ''}</body></html>`;
+${course ? course.bottom : ''}</main>${foot}${(blocks || []).some((b) => b.type === 'booking') ? BOOKING_SCRIPT : ''}${(blocks || []).some((b) => b.type === 'video' && !b.controls && youtubeId(b.url)) ? VIDEO_SCRIPT : ''}${(blocks || []).some((b) => b.type === 'html') ? HTML_RESIZE : ''}${(blocks || []).some((b) => b.type === 'reviews' && b.style === 'slider') ? SLIDER_SCRIPT : ''}${(blocks || []).some((b) => b.type === 'reveal') ? REVEAL_SCRIPT : ''}${(blocks || []).some((b) => b.type === 'steps') ? STEPS_SCRIPT : ''}${settings.motion && !preview && !embed ? MOTION_SCRIPT : ''}${(blocks || []).some((x) => x.anim || x.animOut || x.animLoop) ? (preview ? PREVIEW_ANIM_SCRIPT : embed ? '' : ANIM_SCRIPT) : ''}${settings.stickyButton && !preview && !embed ? STICKY_SCRIPT : ''}${embed ? EMBED_SCRIPT : ''}${preview ? PREVIEW_EDIT_SCRIPT + PREVIEW_DROP_SCRIPT + PREVIEW_TOOLS_SCRIPT + PREVIEW_STATS_SCRIPT : trackAction ? trackScript(trackAction) : ''}</body></html>`;
 }
 
 // Click-to-edit in the editor preview: click any text to type over it; the

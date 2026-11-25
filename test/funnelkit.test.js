@@ -404,3 +404,17 @@ test('a limited offer counts real sales, then the price really changes (or it se
   assert.equal(r.status, 410); assert.match(await r.text(), /sold out/);
   assert.equal((await c('GET', '/api/products')).body.find((p) => p.id === sid).claimed, 1);
 });
+
+test('block motion: chosen per block, played on the live page, never hiding anything in the editor', async () => {
+  const { renderPage } = require('../src/render');
+  const blocks = [{ id: 'h', type: 'heading', text: 'Hi', anim: 'left', animSpeed: 'quick' }, { id: 'c', type: 'cards', items: 'A | a\nB | b', anim: 'pop', animOut: 'fade', animLoop: 'tilt' },
+    { id: 't', type: 'text', text: 'x', anim: '"><script>', animLoop: 'bogus' }];
+  const live = renderPage({ title: 'x', blocks, trackAction: '/t' });
+  assert.match(live, /<div data-bi="0" data-anim="left" data-speed="quick">/);
+  assert.match(live, /<div data-bi="1" data-anim="pop" data-out="fade" data-loop="tilt">/);
+  assert.match(live, /<div data-bi="2">/, 'only known motions get through');
+  assert.match(live, /IntersectionObserver/); assert.match(live, /prefers-reduced-motion: reduce/);
+  const pv = renderPage({ title: 'x', blocks, preview: true });
+  assert.match(pv, /d\.ff!=='play'/); assert.doesNotMatch(pv, /classList\.add\('an-pre'\)\}\)/, 'the editor never hides blocks on load');
+  assert.doesNotMatch(renderPage({ title: 'x', blocks: [{ id: 'h', type: 'heading', text: 'Hi' }] }), /data-anim|an-pre/, 'no motion, no script');
+});
