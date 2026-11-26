@@ -114,6 +114,7 @@ const BLOCKS = {
     fields: [['code', 'code', 'Your HTML', null, 'Embeds, widgets, forms from other tools. Scripts run in a sealed box on the page.'], ['title', 'text', 'What it is (for screen readers)', null, 'e.g. Calendly scheduler']] },
 };
 // Any section can sit on a full-width band of colour.
+for (const [k, b] of Object.entries(BLOCKS)) if (!['cols', 'colbreak', 'colend'].includes(k)) b.fields.push(['device', 'select', 'Show on', ['everywhere', 'phone', 'computer'], 'phone: only on phones (narrow screens) · computer: only on wider screens. Handy for a shorter phone headline or a different photo.']);
 for (const [k, b] of Object.entries(BLOCKS)) if (!['hero', 'notice', 'spacer', 'colbreak', 'colend'].includes(k)) b.fields.push(['band', 'select', 'Background', ['none', 'soft', 'dark', 'brand', 'sunset'], 'soft: a light tint · dark: a deep band · brand: your button colour · sunset: deep colour fading to warm. Neighbouring blocks with the same background share one band.']);
 const uid = () => Math.random().toString(36).slice(2, 10);
 // The Motion menu: how a block comes in, how it leaves, and what it does while on screen.
@@ -263,6 +264,7 @@ async function viewEditor(stepId) {
       <button class="btn sm" data-history title="Earlier versions of this page">${icon('history')} History</button>
       <button class="btn sm" data-clicks title="Show what visitors click and how far they read" aria-pressed="false">${icon('cursor')} Clicks</button>
       <button class="btn sm" data-device title="Toggle mobile preview">${icon('phone')} Mobile</button>
+      <span class="speed-chip" data-speed title="How quickly this page loads, from the size of its pictures, videos and embeds">…</span>
       ${step.funnel.status === 'live' ? '' : '<button type="button" class="btn sm primary" data-edpublish>Publish</button>'}
       <a class="btn sm ${step.funnel.status === 'live' ? 'primary' : ''}" href="${esc(link)}" target="_blank" rel="noopener" data-live>${step.funnel.status === 'live' ? 'View live' : 'Preview'} ${icon('external')}</a></div>
     <div class="side">
@@ -307,8 +309,22 @@ async function viewEditor(stepId) {
   };
   // Clicks: what visitors click on this page and how far they read, drawn on the preview.
   const sendStats = () => { const fr = $('iframe'); if (fr?.contentWindow) fr.contentWindow.postMessage(ed.clicks ? { ff: 'stats', on: true, ...ed.clicks } : { ff: 'stats', on: false }, '*'); };
+  // Speed: what the page asks a visitor's phone to download (pictures, videos, embeds).
+  const gradeSpeed = () => {
+    const w = $('iframe')?.contentWindow, chip = $('[data-speed]'); if (!w || !chip) return;
+    const res = w.performance.getEntriesByType('resource').filter((r) => r.initiatorType === 'img' || r.initiatorType === 'css');
+    const bytes = res.reduce((n, r) => n + (r.transferSize || r.encodedBodySize || 0), 0);
+    const doc = w.document, embeds = doc.querySelectorAll('iframe:not([data-html]), video').length;
+    const big = [...doc.images].filter((im) => im.naturalWidth > 2400).length;
+    const mb = bytes / 1048576, score = mb + embeds * 0.6 + big * 0.8;
+    const [cls, word] = score < 1.6 ? ['ok', 'Fast'] : score < 4 ? ['meh', 'OK'] : ['bad', 'Slow'];
+    chip.className = `speed-chip ${cls}`;
+    chip.textContent = `${word} to load`;
+    chip.title = `${mb.toFixed(1)} MB of pictures${embeds ? `, ${embeds} video or embed${embeds === 1 ? '' : 's'}` : ''}.${cls === 'ok' ? ' Good on phones.' : ' Fewer or smaller pictures load faster on phones. New uploads are shrunk for you; re-upload very large older photos.'}`;
+  };
   $('iframe').addEventListener('load', () => {
     setTimeout(sendStats, 150);
+    setTimeout(gradeSpeed, 1200);
     if (ed.playAfter) { const p = ed.playAfter; ed.playAfter = null; setTimeout(() => $('iframe').contentWindow?.postMessage({ ff: 'play', ...p }, '*'), 250); }
   });
   const clickBar = (c) => {

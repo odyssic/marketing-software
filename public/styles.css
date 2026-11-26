@@ -2117,3 +2117,16 @@ span.tp-photo { display: grid; place-items: center; }
 .h1-name:hover, .h1-name:focus-visible { background: color-mix(in srgb, var(--brand, #1b736d) 8%, transparent); }
 .h1-name .h1-pen { opacity: .35; display: inline-flex; } .h1-name:hover .h1-pen { opacity: .8; }
 .h1-name .h1-pen svg { width: 18px; height: 18px; }
+
+.sms-spend { border: 1px solid var(--line, #e5e7eb); border-radius: 12px; padding: 12px 14px; margin: 10px 0 14px; }
+.sms-spend .ob-track { height: 6px; border-radius: 99px; background: #eef2f2; margin-top: 6px; overflow: hidden; } .sms-spend .ob-track i { display: block; height: 100%; border-radius: inherit; }
+.a2p-ready { margin: 12px 0; } .eh { margin-top: 12px; border-top: 1px solid var(--line, #e5e7eb); padding-top: 12px; }
+.eh .ck, .a2p-ready .ck, [data-watch] .ck { display: flex; gap: 8px; align-items: flex-start; margin: 6px 0; font-size: .9rem; }
+.eh .ck svg, .a2p-ready .ck svg, [data-watch] .ck svg { flex: none; width: 16px; height: 16px; margin-top: 3px; }
+.eh .ck.ok svg, .a2p-ready .ck.ok svg, [data-watch] .ck.ok svg { color: #15803d; } .ck.bad svg { color: #b91c1c; } .eh .ck.meh svg, .a2p-ready .ck.meh svg { color: #b45309; }
+.plan-exit { margin-top: 12px; gap: 8px; } .plan-exit .btn { opacity: .8; }
+
+.speed-chip { font-size: .78rem; padding: 4px 10px; border-radius: 99px; border: 1px solid var(--line, #e5e7eb); white-space: nowrap; cursor: help; }
+.speed-chip.ok { color: #15803d; border-color: #bbf7d0; background: #f0fdf4; } .speed-chip.meh { color: #b45309; border-color: #fde68a; background: #fffbeb; } .speed-chip.bad { color: #b91c1c; border-color: #fecaca; background: #fef2f2; }
+.help-btn { display: flex; align-items: center; gap: 6px; background: none; border: 1px solid rgba(255,255,255,.18); color: inherit; border-radius: 8px; padding: 6px 10px; cursor: pointer; font: inherit; font-size: .85rem; margin-bottom: 8px; width: 100%; }
+.help-btn:hover { background: rgba(255,255,255,.08); } .help-ans { background: #f6fafa; border: 1px solid #e3ecec; border-radius: 10px; padding: 12px 14px; white-space: pre-wrap; margin-top: 10px; }

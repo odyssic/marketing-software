@@ -4,6 +4,7 @@ const path = require('node:path');
 const { openDb, appSecret, defaultDir } = require('./db');
 const auth = require('./auth');
 const { renderPage, esc, formatMoney } = require('./render');
+const { registerTrust } = require('./trust');
 const { offerState, CLAIMED_SQL } = require('./offer');
 const { TEMPLATES } = require('./templates');
 const mailer = require('./mailer');
@@ -1580,12 +1581,28 @@ function createApp({ dbPath } = {}) {
       return { sent, total: recipients.length, testing: Boolean(rest.length), rest: rest.length };
     }
     let sent = 0;
+    // A new sending domain warms up: a daily allowance, the rest carries on tomorrow (never twice to anyone).
+    const allowance = trust.warmupAllowance(account);
+    let todo = recipients;
+    let later = 0;
+    if (allowance !== Infinity) {
+      const done = new Set((await db.all('SELECT contact_id FROM email_log WHERE broadcast_id = ?', b.id)).map((r) => r.contact_id));
+      const today = (await db.get("SELECT COUNT(*)::int AS n FROM email_log WHERE account_id = ? AND created_at > now() - interval '24 hours'", b.account_id)).n;
+      todo = recipients.filter((c) => !done.has(c.id));
+      const room = Math.max(0, allowance - today);
+      later = Math.max(0, todo.length - room);
+      todo = todo.slice(0, room);
+    }
     // Same sender as workflows and campaigns: merge fields, unsubscribe link, open/click tracking.
-    for (const c of recipients) {
+    for (const c of todo) {
       const r = await messaging.sendToPerson({ account, person: c, subject: b.subject, body: b.body, preheader: b.preheader, broadcastId: b.id });
       if (r.status === 'sent' || r.status === 'logged') sent++;
     }
-    await db.run("UPDATE broadcasts SET status = 'sent', sent_count = ?, sent_at = now() WHERE id = ?", sent, b.id);
+    if (later) {
+      await db.run("UPDATE broadcasts SET status = 'scheduled', scheduled_at = ?, sent_count = sent_count + ?, sent_at = COALESCE(sent_at, now()) WHERE id = ?", new Date(Date.now() + 864e5).toISOString(), sent, b.id);
+      return { sent, total: recipients.length, later, warming: true };
+    }
+    await db.run("UPDATE broadcasts SET status = 'sent', sent_count = sent_count + ?, sent_at = COALESCE(sent_at, now()) WHERE id = ?", sent, b.id);
     return { sent, total: recipients.length };
   }
   api.post('/broadcasts/:id/send', async (req, res) => {
@@ -1693,6 +1710,14 @@ function createApp({ dbPath } = {}) {
   const courses = registerCourses(app, api, { getDb: () => db, HttpError, id, messaging, members, getFunnel: (...x) => getFunnel(...x), portalExtra: (...x) => community.portalCard(...x) });
   const community = registerCommunity(app, api, { getDb: () => db, HttpError, id, upsertContact, logEvent, messaging, members, courses, ownerViewing: (...a) => ownerViewing(...a) });
   const texting = registerTexting(app, api, { getDb: () => db, HttpError, id, upsertContact, logEvent, messaging, publicBase, getSecret: () => secret });
+  // No surprises: texting limits, email health, a daily checkout watchdog, the status page, help.
+  const trust = registerTrust(app, api, { getDb: () => db, HttpError, mailer, publicBase, formatMoney,
+    renderCheck: async (accountId, stepId) => {
+      const s = await db.get('SELECT s.name, s.blocks, s.settings FROM funnel_steps s JOIN funnels f ON f.id = s.funnel_id WHERE s.id = ? AND f.account_id = ?', stepId, accountId);
+      const html = renderPage({ title: s.name, blocks: JSON.parse(s.blocks || '[]'), settings: JSON.parse(s.settings || '{}'), products: await productsMap(accountId), testimonials: await approvedTestimonials(db, accountId) });
+      if (!html.includes('</html>')) throw new Error('the page came out incomplete');
+    } });
+  messaging.smsAllowed = trust.smsAllowed;
   registerSetup(api, { getDb: () => db, HttpError, createFunnel, TEMPLATES, getAccount, saveLogoColors: (...a) => saveLogoColors(...a), seedDefaults: (id) => workflows.seedDefaults(id) });
   registerTasks(api, { getDb: () => db, HttpError, id });
   const reviews = registerReviews(app, { getDb: () => db, id, getSecret: () => secret, logEvent });
@@ -2250,7 +2275,9 @@ ${order.status === 'paid' ? '<p>This order is already paid.</p>' : `<label>Name<
   // the scheduled Netlify function.
   app.runJobs = async (now = new Date()) => {
     await init();
-    return { ...(await bookings.expireHolds(now)), ...(await workflows.processDue({ now })), ...(await digest.sendDue(now)), ...(await bookings.sendReminders(now)), ...(await checkout.recoverCheckouts(now)), ...(await askForReviews(now)), ...(await sendScheduled(now)), ...(await invoices.remindOverdue(now)), ...(await onboarding.sendDue(now)), ...(await reports.sendDue(now)), ...(await integrations.processDue(now)), ...(await courses.sendUnlocks(now)), ...(await community.runJobs(now)), ...(await calsync.syncDue(now)), ...(await affiliates.processDue(now)) };
+    trust.markJobs();
+    const bill = require('./billing').planOf({ plan_status: 'trialing', created_at: now });
+    return { ...(await trust.watchAll(now)), ...(await trust.trialReminders(now, { enabled: bill.enabled, trialDays: bill.trialDays, price: formatMoney(bill.priceCents, bill.currency) })), ...(await bookings.expireHolds(now)), ...(await workflows.processDue({ now })), ...(await digest.sendDue(now)), ...(await bookings.sendReminders(now)), ...(await checkout.recoverCheckouts(now)), ...(await askForReviews(now)), ...(await sendScheduled(now)), ...(await invoices.remindOverdue(now)), ...(await onboarding.sendDue(now)), ...(await reports.sendDue(now)), ...(await integrations.processDue(now)), ...(await courses.sendUnlocks(now)), ...(await community.runJobs(now)), ...(await calsync.syncDue(now)), ...(await affiliates.processDue(now)) };
   };
   app.getDb = () => db; // for tests (seeding history)
   app.messaging = messaging; // for tests (signing tracking links)

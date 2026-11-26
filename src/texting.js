@@ -101,7 +101,7 @@ function registerTexting(app, api, { getDb, HttpError, id, upsertContact, logEve
   }
 
   // Send one text. kind: 'conversation' (a reply, a missed-call text) or 'marketing' (workflows).
-  async function sendText({ account, contact, body, kind = 'conversation', now = new Date() }) {
+  async function sendText({ account, contact, body, kind = 'conversation', now = new Date(), byOwner = false }) {
     const to = e164(contact.phone);
     if (!to) return { status: 'skipped', reason: 'no mobile number' };
     if (contact.sms_opt_out) return { status: 'skipped', reason: 'they replied STOP' };
@@ -114,6 +114,11 @@ function registerTexting(app, api, { getDb, HttpError, id, upsertContact, logEve
       if (!before) body = `${body}\n\nReply STOP to opt out.`;
     }
     let status = 'logged', external = null, reason = '';
+    // Automatic texts stop at the monthly limit (no surprise bills); replies you type still go.
+    if (live() && account.sms_number && !byOwner && messaging.smsAllowed) {
+      const g = await messaging.smsAllowed(account, body, now);
+      if (!g.ok) return { status: 'skipped', reason: g.reason };
+    }
     if (live() && account.sms_number) {
       try {
         external = await twilioSend({ from: account.sms_number, to, body, statusCallback: `${(process.env.PUBLIC_URL || publicBase()).replace(/\/$/, '')}/hooks/sms/status` });
@@ -254,7 +259,7 @@ function registerTexting(app, api, { getDb, HttpError, id, upsertContact, logEve
     }
     if (req.body?.channel === 'sms') {
       if (body.length > 640) throw new HttpError(400, 'Keep texts under 640 characters (about 4 texts)');
-      const r = await sendText({ account, contact, body });
+      const r = await sendText({ account, contact, body, byOwner: true });
       if (r.status === 'skipped') throw new HttpError(409, `Can’t text them: ${r.reason}`);
       if (String(r.status).startsWith('failed')) throw new HttpError(502, `The text didn’t send: ${r.reason}`);
       return res.json({ ok: true, status: r.status });
@@ -362,7 +367,19 @@ function registerTexting(app, api, { getDb, HttpError, id, upsertContact, logEve
       ['Help keywords and reply', `HELP, INFO. Reply: ${a.name}: reply here and we’ll get back to you. Reply STOP to opt out. Msg & data rates may apply.`],
       ['Privacy policy and terms', termsUrl(req.accountId)],
     ];
-    res.json({ live: live(), sms_number: a.sms_number, forward_to: a.forward_to, missed_call_text: a.missed_call_text, default_text: DEFAULT_TEXT_BACK(a), brand,
+    // Ready to apply? The usual reasons carriers say no, checked before the fee is paid.
+    const site = brand.website || '';
+    const ready = [
+      [Boolean(brand.legal_name), 'Legal business name, exactly as on your tax records'],
+      [/^\d{2}-?\d{7}$/.test(brand.ein || '') || !brand.ein, brand.ein ? 'EIN looks right (9 digits)' : 'EIN (or apply as a sole trader without one)'],
+      [Boolean(brand.address), 'Business address'],
+      [/^https:\/\//.test(site), 'A website that starts with https://'],
+      [Boolean(optin), 'A live page where people tick a box to get texts'],
+      [Boolean(brand.use_case), 'What you text about, in a sentence'],
+      [!brand.sample || /stop/i.test(brand.sample), 'Sample text says how to opt out (“Reply STOP to opt out”)'],
+      [!brand.sample || brand.sample.includes(a.name) || brand.sample.includes(brand.legal_name || '~'), 'Sample text names your business'],
+    ].map(([ok, text]) => ({ ok, text }));
+    res.json({ ready, live: live(), sms_number: a.sms_number, forward_to: a.forward_to, missed_call_text: a.missed_call_text, default_text: DEFAULT_TEXT_BACK(a), brand,
       registration: await registration(), answers, optin_page: optin, terms_url: termsUrl(req.accountId),
       hooks: { sms: `${base}/hooks/sms`, voice: `${base}/hooks/voice` } });
   });

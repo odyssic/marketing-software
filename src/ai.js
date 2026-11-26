@@ -177,4 +177,11 @@ function templateRepurpose(text) {
   };
 }
 
-module.exports = { isLive, structured, draftEmail, repurpose, describeFunnel, guessTemplate, extractLeads, plainLeads, voiceSystem, AIError, MODEL };
+// In-app help: a short, plain answer about Rilly, from the guide below; unsure means a person follows up.
+const HelpAnswer = z.object({ answer: z.string(), passToPerson: z.boolean() });
+async function helpAnswer({ question, page, guide }) {
+  return structured({ system: `You answer questions from small-business owners using Rilly, a simple marketing app. Use only this guide; never invent buttons or features. Answer in 2 to 5 short plain sentences with the exact place to click. If the guide doesn't cover it, or something seems broken, say so kindly and set passToPerson to true.\n\nGUIDE:\n${guide}`,
+    prompt: `They are on the screen: ${page || 'unknown'}\nQuestion: ${question}`, schema: HelpAnswer, effort: 'low' });
+}
+
+module.exports = { helpAnswer, isLive, structured, draftEmail, repurpose, describeFunnel, guessTemplate, extractLeads, plainLeads, voiceSystem, AIError, MODEL };

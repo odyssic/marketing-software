@@ -375,12 +375,13 @@ function shell(section, html) {
         <span class="av">${esc(initials(state.me.account.name))}</span><span class="nm">${esc(state.me.account.name)}</span><span class="car">${icon('chevronDown')}</span></button></div>
       <button type="button" class="find-btn" data-find title="Find anything (Ctrl K)" aria-label="Find anything">${icon('search')}<span>Find anything</span><kbd>${/Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl'} K</kbd></button>
       <nav class="nav">${NAV.filter(([k]) => !(state.me.account.hidden_sections || []).includes(k)).map(([k, i, l]) => `<a href="#/${k}" class="${(FLOW_SECTIONS.includes(section) ? 'flows' : NAV_HOME[section] || section) === k ? 'active' : ''}"><span class="ico">${i}</span>${l}${k === 'inbox' ? '<span class="nav-badge" data-unread hidden></span>' : ''}</a>`).join('')}</nav>
-      <div class="foot"><div class="muted">${esc(state.me.user.email)}</div><button data-logout>Sign out</button></div>
+      <div class="foot"><button type="button" class="help-btn" data-help>${icon('info')} Stuck? Ask here</button><div class="muted">${esc(state.me.user.email)}</div><button data-logout>Sign out</button></div>
     </aside>
     <main class="main">${planBanner()}${html}</main>${phoneTabs(section)}</div>`;
   $('[data-logout]').onclick = logout;
   bindPhoneTabs();
   $('[data-find]').onclick = () => openFinder();
+  $('[data-help]').onclick = () => askForHelp();
   applyAgencyBrand();
   refreshUnread();
   $('[data-acct]').onclick = (e) => { e.stopPropagation(); accountMenu(e.currentTarget); };
@@ -612,4 +613,27 @@ async function uploadFile(file, onProgress = () => {}, { onStep = () => {} } = {
     x.send(file);
   });
   return api('POST', `/api/uploads/large/${encodeURIComponent(slot.token)}/done`);
+}
+
+// What a text costs, shown before it's sent: parts of 160 plain characters (70 with emoji), about 1.1¢ each.
+function smsParts(body) {
+  const s = String(body || ''); if (!s) return 0;
+  // eslint-disable-next-line no-control-regex
+  const plain = /^[\x0A\x0D\x20-\x7E£¥èéùìòÇØøÅå_ÆæßÉ¡ÄÖÑÜ§¿äöñüà€^{}\\[~\]|]*$/.test(s);
+  const len = [...s].length, [one, many] = plain ? [160, 153] : [70, 67];
+  return len <= one ? 1 : Math.ceil(len / many);
+}
+const smsCostLine = (body) => { const n = smsParts(body); return n ? `${n} text${n === 1 ? '' : 's'} long · about ${(n * 1.1).toFixed(1)}¢ each person` : 'about 1¢ a text'; };
+
+// Help from inside the app: what you were doing travels with the question (the page you're on and
+// any recent error), so nobody has to explain it twice. An answer comes back straight away when it can.
+const RECENT_ERRORS = [];
+addEventListener('error', (e) => { RECENT_ERRORS.push(String(e.message || '').slice(0, 200)); RECENT_ERRORS.splice(0, RECENT_ERRORS.length - 5); });
+addEventListener('unhandledrejection', (e) => { RECENT_ERRORS.push(String(e.reason?.message || e.reason || '').slice(0, 200)); RECENT_ERRORS.splice(0, RECENT_ERRORS.length - 5); });
+async function askForHelp() {
+  const r = await modal('Stuck? Ask here', `<label class="f">What are you trying to do? <textarea name="question" rows="4" required placeholder="e.g. How do I send people to a thank-you page after they buy?"></textarea></label>
+    <p class="hint">We include the screen you’re on so you don’t have to explain where you are.</p>`, { submit: 'Ask',
+    onSubmit: (v) => api('POST', '/api/help', { question: v.question, page: location.hash, errors: RECENT_ERRORS.join('\n') }) });
+  if (!r) return;
+  modal('Here’s what we found', `<div class="help-ans">${esc(r.answer)}</div>${r.passed && !/real person/.test(r.answer) ? '<p class="hint">A person will also follow up by email.</p>' : ''}`, { submit: 'Thanks' });
 }

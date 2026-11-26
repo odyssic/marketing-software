@@ -71,6 +71,7 @@ function viewSettings() {
       <label class="f">Short name<span class="row" style="gap:6px;align-items:center;flex-wrap:nowrap"><span class="muted small" style="white-space:nowrap">${esc(location.host)}/my/</span><input name="handle" value="${esc(state.me.account.handle || '')}" maxlength="40" pattern="[a-zA-Z0-9-]{3,40}" required></span></label>
       <div class="err"></div><button class="btn primary">Save</button></form>
     <form class="card" style="max-width:560px;margin-top:16px" data-pagecode><h2>Tracking and custom CSS</h2><p class="muted small">Loading…</p></form>
+    <div class="card" style="max-width:560px;margin-top:16px" data-watch><h2>Daily checkout check</h2><p class="muted small">Loading…</p></div>
     <form class="card" style="max-width:560px;margin-top:16px" data-domain>
       <h2>Your domain</h2>
       <p class="muted small">Connect it once for the whole business. The home website opens at the domain; every other website or page lives at /its-name. A flow can also have a domain of its own (a book or product at fieldguide.com): open the flow, then ⋯ → Give it its own domain.</p>
@@ -248,6 +249,7 @@ function viewSettings() {
   if (/[?&]plan=1/.test(location.hash)) setTimeout(() => $('#set-plan')?.scrollIntoView({ block: 'start' }));
   { const m = location.hash.match(/[?&]s=([a-z]+)/); if (m) setTimeout(() => $(`#set-${m[1]}`)?.scrollIntoView({ block: 'start' }), 50); }
   loadTextingSettings();
+  loadWatchdog();
   loadChatSettings();
 }
 
@@ -272,6 +274,7 @@ async function loadTextingSettings() {
       : `<button type="button" class="btn primary" data-getnum>${icon('phone')} Get a number</button><span class="muted small">A local number for this business, ready in a minute.</span>`}</div>` : ''}
     <details class="hint" ${t.live ? '' : 'open'}><summary>${t.live ? 'I already have a number' : 'Your number'}</summary>
     <label class="f">Your ${BRAND} number <span class="hint">the number customers text and call</span><input name="sms_number" type="tel" value="${esc(t.sms_number)}" placeholder="+1 555 010 0000"></label></details>
+    <div class="sms-spend" data-smsspend></div>
     <label class="f">Ring my phone <span class="hint">calls forward here for 20 seconds first</span><input name="forward_to" type="tel" value="${esc(t.forward_to)}" placeholder="Your mobile (leave empty to text every caller back)"></label>
     <label class="f">Missed-call text <span class="hint">sent once per caller every 12 hours</span><textarea name="missed_call_text" rows="2" placeholder="${esc(t.default_text)}">${esc(t.missed_call_text)}</textarea></label>
     <div class="a2p ${esc(t.registration?.status || '')}" ${t.live ? '' : 'hidden'}><b>Texting approval:</b> <span class="pill ${t.registration?.status === 'approved' ? 'ok' : t.registration?.status === 'failed' ? 'bad' : 'warn'}">${esc(t.registration?.label || '')}</span> <span class="muted small">${esc(t.registration?.note || '')}</span></div>
@@ -281,6 +284,8 @@ async function loadTextingSettings() {
       <div class="colors">${bf('contact_name', 'Contact name')}${bf('contact_email', 'Contact email')}${bf('contact_phone', 'Contact phone')}</div>
       ${bf('use_case', 'What you text about', 'e.g. Appointment reminders, replies to customer questions, occasional offers')}
       ${bf('sample', 'A sample text', `e.g. Hi Sam, it’s ${state.me.account.name}. Your appointment is tomorrow at 10am. Reply STOP to opt out.`)}
+      ${(t.ready || []).length ? `<div class="a2p-ready"><p class="small"><b>Ready to apply?</b> <span class="muted">Each rejection costs a fee and a week or two, so check these first.</span></p>
+        ${t.ready.map((r) => `<div class="ck ${r.ok ? 'ok' : 'meh'}">${icon(r.ok ? 'check' : 'alert')}<span>${esc(r.text)}</span></div>`).join('')}</div>` : ''}
       <div class="a2p-answers"><p class="small"><b>Ready to paste into the registration form</b> <span class="muted">(Twilio → Messaging → Regulatory compliance)</span></p>
         ${(t.answers || []).map(([k, v]) => `<div class="a2p-row"><span class="muted small">${esc(k)}</span><p>${esc(v)}</p><button type="button" class="btn sm" data-copyans="${esc(v)}">Copy</button></div>`).join('')}
         ${t.optin_page ? '' : '<p class="small warn-text">Carriers want to see where people agree to texts. Add a form with “SMS updates” switched on to a published page.</p>'}
@@ -289,6 +294,18 @@ async function loadTextingSettings() {
     ${t.live ? `<details class="hint"><summary>Connecting the number</summary><p>In Twilio, set the number’s “A message comes in” webhook to <code>${esc(t.hooks.sms)}</code> and “A call comes in” to <code>${esc(t.hooks.voice)}</code> (both HTTP POST).</p></details>` : ''}
     <div class="err"></div><button class="btn primary">Save texting</button>`;
   addressSuggest($('[name=b_address]', form));
+  // This month's texting spend and the limit that stops automatic texts (no surprise bills).
+  api('GET', '/api/account/sms-usage').then((u) => {
+    const box = $('[data-smsspend]', form); if (!box) return;
+    const money = (c) => `$${(c / 100).toFixed(2)}`;
+    const pct = u.cap_cents ? Math.min(100, Math.round((u.used_cents * 100) / u.cap_cents)) : 0;
+    box.innerHTML = `<div class="row" style="justify-content:space-between;align-items:baseline"><b>Texting this month</b><span class="small">${money(u.used_cents)}${u.cap_cents ? ` of ${money(u.cap_cents)} limit` : ' · no limit'}</span></div>
+      ${u.cap_cents ? `<div class="ob-track"><i style="width:${pct}%;background:${pct >= 80 ? '#d97706' : 'var(--brand)'}"></i></div>` : ''}
+      <label class="f" style="margin-top:8px">Monthly limit <span class="hint">automatic texts stop here; your own replies still go. We email you at 80%. 0 = no limit</span>
+        <span class="row" style="gap:6px;flex-wrap:nowrap"><span>$</span><input type="number" min="0" step="1" data-smscap value="${u.cap_cents / 100}" style="max-width:120px"><button type="button" class="btn sm" data-smscapsave>Save limit</button></span></label>
+      <p class="hint">About ${u.per_text_cents}¢ per text (longer texts and emoji count as more than one).</p>`;
+    $('[data-smscapsave]', box).onclick = async () => { try { await api('PUT', '/api/account/sms-cap', { cap: $('[data-smscap]', box).value }); toast('Limit saved'); } catch (e) { toast(e.message, true); } };
+  }).catch(() => {});
   const gn = $('[data-getnum]', form); if (gn) gn.onclick = () => getNumber(loadTextingSettings);
   $$('[data-copyans]', form).forEach((btn) => { btn.onclick = async () => { try { await navigator.clipboard.writeText(btn.dataset.copyans); toast('Copied'); } catch { toast('Couldn’t copy; select the text instead', true); } }; });
   // Pre-filled suggestions that were never saved count as something to save.
@@ -395,6 +412,17 @@ async function loadSendDomain(data) {
       <div class="err"></div>
       <div class="row"><button type="button" class="btn primary" data-sdcheck>Check now</button><button type="button" class="btn sm" data-sdremove>Cancel</button></div>
       <p class="hint">Until it’s verified, emails keep going out from Rilly’s address, so nothing stops.</p>`}`;
+  card.insertAdjacentHTML('beforeend', `<div class="eh" data-eh><button type="button" class="btn sm" data-ehrun>${icon('check')} Check my email health</button></div>`);
+  $('[data-ehrun]', card).onclick = async (e) => {
+    e.target.disabled = true; e.target.textContent = 'Checking…';
+    try {
+      const h = await api('GET', '/api/account/email-health');
+      $('[data-eh]', card).innerHTML = `<p class="small"><b>${h.good ? 'Looking healthy' : 'A few things to fix'}</b>${h.domain ? ` <span class="muted">for ${esc(h.domain)}</span>` : ''}</p>
+        ${h.checks.map((c) => `<div class="ck ${c.ok ? 'ok' : c.level === 'bad' ? 'bad' : c.level === 'info' ? 'meh' : 'meh'}">${icon(c.ok ? 'check' : c.level === 'info' ? 'info' : 'alert')}<span><b>${esc(c.title)}</b>${c.fix ? `<br><span class="small">${esc(c.fix)}</span>` : ''}
+          ${c.record ? `<span class="copy" style="margin-top:4px"><input readonly value="${esc(c.record.value)}"><button type="button" class="btn sm" data-copy="${esc(c.record.value)}">Copy</button></span>` : ''}</span></div>`).join('')}`;
+      bindCopy();
+    } catch (err) { toast(err.message, true); e.target.disabled = false; }
+  };
   bindCopy();
   const form = $('[data-sdform]', card);
   if (form) form.onsubmit = async (e) => {
@@ -462,4 +490,17 @@ async function loadPageCode() {
     try { await api('PUT', '/api/account/page-code', Object.fromEntries(new FormData(form))); toast('Saved. It’s on every page now'); loadPageCode(); }
     catch (err) { $('.err', form).textContent = err.message; }
   };
+}
+
+// Rilly opens every live page that sells or signs people up, once a day, and emails you if one breaks.
+async function loadWatchdog(r) {
+  const card = $('[data-watch]'); if (!card) return;
+  try { r = r || await api('GET', '/api/account/watchdog'); } catch { card.hidden = true; return; }
+  const when = r.checked_at ? new Date(r.checked_at).toLocaleString(undefined, { weekday: 'short', hour: 'numeric', minute: '2-digit' }) : '';
+  card.innerHTML = `<h2>Daily checkout check</h2>
+    <p class="muted small">Every day Rilly checks each live page that takes payments or sign-ups: the page loads, its product still exists, and your payments are still connected. If something breaks, you get an email.</p>
+    ${r.problems.length ? r.problems.map((p) => `<div class="ck bad">${icon('alert')}<span>${esc(p)}</span></div>`).join('')
+      : `<div class="ck ok">${icon('check')}<span>${r.checked_at ? `All ${r.pages} page${r.pages === 1 ? '' : 's'} working · checked ${esc(when)}` : 'First check runs today'}</span></div>`}
+    <div class="row" style="margin-top:10px"><button type="button" class="btn sm" data-watchrun>Check now</button><a class="btn sm ghost" href="/status" target="_blank" rel="noopener">Rilly status</a></div>`;
+  $('[data-watchrun]', card).onclick = async (e) => { e.target.disabled = true; e.target.textContent = 'Checking…'; try { loadWatchdog(await api('POST', '/api/account/watchdog/run')); } catch (err) { toast(err.message, true); } };
 }

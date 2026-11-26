@@ -368,7 +368,7 @@ function renderInspector() {
         <button class="btn sm" data-test>Send me a test</button>`;
       break;
     case 'sms':
-      body = field('Text message', `<textarea data-c="body" rows="4" maxlength="480">${esc(c.body)}</textarea>`, `${(c.body || '').length}/160 per text`)
+      body = field('Text message', `<textarea data-c="body" rows="4" maxlength="480">${esc(c.body)}</textarea>`, smsCostLine(c.body))
         + `<div class="row" style="gap:4px;margin:-4px 0 10px">${['{{first_name|there}}', '{{business}}'].map((t) => `<button class="chip" data-insert="${esc(t)}">${esc(t)}</button>`).join('')}</div>
         <p class="hint">Only goes to people who ticked “text me” on a form or texted you first, and never after they reply STOP. Texts wait until 8am if it’s late at night. The first one adds “Reply STOP to opt out.”</p>`;
       break;

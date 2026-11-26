@@ -33,7 +33,9 @@ function planCardHtml() {
     ${subscribe ? `<ul class="plan-list"><li>Websites, pages and members areas</li><li>Email, texting and follow-ups that run on their own</li><li>Bookings, products, invoices and payments</li><li>Unlimited contacts and pages</li></ul>` : ''}
     <div class="err"></div>
     <div class="row">${subscribe ? `<button class="btn primary" data-subscribe>${b.status === 'trialing' && !b.locked ? `Subscribe: ${total}` : `Subscribe for ${total}`}</button>` : ''}
-      ${['active', 'past_due'].includes(b.status) ? '<button class="btn" data-portal>Change card, invoices or cancel</button>' : ''}</div>
+      ${['active', 'past_due'].includes(b.status) ? '<button class="btn" data-portal>Change card or see invoices</button>' : ''}</div>
+    ${b.cancelAt || b.pausedUntil ? `<p class="small plan-note">${icon('info')} ${b.cancelAt ? `Ends on <b>${new Date(b.cancelAt).toLocaleDateString()}</b>. Nothing more will be charged.` : `Paused until <b>${new Date(b.pausedUntil).toLocaleDateString()}</b>. Your pages stay live; editing waits until then.`} <button class="btn sm" data-resume>${b.cancelAt ? 'Keep my plan' : 'Resume now'}</button></p>`
+      : b.status === 'active' ? '<div class="row plan-exit"><button class="btn sm ghost" data-pause>Pause for a while</button><button class="btn sm ghost" data-cancel>Cancel plan</button></div>' : ''}
     ${subscribe && b.status === 'trialing' && !b.locked ? '<p class="hint" style="margin-top:8px">Subscribing now keeps your free days: the first charge is when the trial ends.</p>' : ''}
   </div>`;
 }
@@ -46,6 +48,24 @@ function bindPlanCard() {
   };
   const s = $('[data-subscribe]', card); if (s) s.onclick = () => go(s, '/api/billing/checkout');
   const p = $('[data-portal]', card); if (p) p.onclick = () => go(p, '/api/billing/portal');
+  const done = async (msg) => { state.me = await api('GET', '/api/me'); toast(msg); viewSettings(); };
+  const c = $('[data-cancel]', card);
+  if (c) c.onclick = async () => {
+    const r = await modal('Cancel your plan', `<p>No hoops: it stops at the end of this month’s billing period and nothing more is charged. Your pages stay up until then.</p>
+      <p class="small">Before you go, take everything with you:</p><p><a class="btn sm" href="/api/export.zip">${icon('download')} Download everything (.zip)</a></p>
+      <p class="small muted">Rather take a break? You can pause for 1 to 3 months instead and keep everything as it is.</p>`, { submit: 'Cancel my plan', danger: true });
+    if (!r) return;
+    try { const x = await api('POST', '/api/billing/cancel'); done(`Cancelled. It ends on ${new Date(x.cancel_at).toLocaleDateString()}`); } catch (e) { toast(e.message, true); }
+  };
+  const pz = $('[data-pause]', card);
+  if (pz) pz.onclick = async () => {
+    const r = await modal('Pause your plan', `<p>No charges while it’s paused. Your pages, forms and checkouts stay live; editing and sending wait until you’re back.</p>
+      <label class="f">For<select name="months"><option value="1">1 month</option><option value="2">2 months</option><option value="3">3 months</option></select></label>`, { submit: 'Pause' });
+    if (!r) return;
+    try { const x = await api('POST', '/api/billing/pause', { months: r.months }); done(`Paused until ${new Date(x.paused_until).toLocaleDateString()}`); } catch (e) { toast(e.message, true); }
+  };
+  const rs = $('[data-resume]', card);
+  if (rs) rs.onclick = async () => { try { await api('POST', '/api/billing/resume'); done('Your plan carries on as before'); } catch (e) { toast(e.message, true); } };
 }
 
 // Back from Stripe Checkout: confirm, then show the plan.

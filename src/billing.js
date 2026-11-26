@@ -28,9 +28,11 @@ function planOf(u, now = new Date()) {
   const trialEnd = new Date(u.trial_ends_at || new Date(new Date(u.created_at || now).getTime() + c.trialDays * 864e5));
   const daysLeft = Math.max(0, Math.ceil((trialEnd - now) / 864e5));
   const inTrial = status === 'trialing' && trialEnd > now;
-  const locked = enabled() && !['active', 'comped', 'past_due'].includes(status) && !inTrial;
+  const paused = Boolean(u.paused_until && new Date(u.paused_until) > now) && status !== 'comped';
+  const locked = enabled() && ((!['active', 'comped', 'past_due'].includes(status) && !inTrial) || paused);
   return { enabled: enabled(), status, trialEndsAt: trialEnd.toISOString(), daysLeft: status === 'trialing' ? daysLeft : null,
-    locked, priceCents: c.priceCents, extraCents: c.extraCents, currency: c.currency, trialDays: c.trialDays };
+    locked, priceCents: c.priceCents, extraCents: c.extraCents, currency: c.currency, trialDays: c.trialDays,
+    cancelAt: u.cancel_at ? new Date(u.cancel_at).toISOString() : null, pausedUntil: paused ? new Date(u.paused_until).toISOString() : null };
 }
 
 const EXTRA_PRODUCT = 'rilly_extra_business';
@@ -67,14 +69,14 @@ function registerBilling(app, api, { getDb, HttpError, publicBase, express }) {
     }
   }
   const syncLater = (userId) => syncExtras(userId).catch((e) => console.error('billing extras:', e.message));
-  const userRow = (id) => db().get('SELECT id, email, name, plan_status, trial_ends_at, created_at, billing_customer, billing_subscription FROM users WHERE id = ?', id);
+  const userRow = (id) => db().get('SELECT id, email, name, plan_status, trial_ends_at, created_at, billing_customer, billing_subscription, cancel_at, paused_until FROM users WHERE id = ?', id);
   const fromStripe = (s) => (s === 'active' || s === 'trialing' ? 'active' : s === 'past_due' ? 'past_due' : 'canceled');
 
   // While billing is on and the business owner's trial is over, only billing,
   // sign-out and reading work. Invited people follow the owner's plan.
   api.use(async (req, res, next) => {
     if (!req.user || req.method === 'GET' || !enabled() || /^\/(billing|auth)\b/.test(req.path)) return next();
-    const owner = await db().get(`SELECT u.plan_status, u.trial_ends_at, u.created_at FROM memberships m JOIN users u ON u.id = m.user_id
+    const owner = await db().get(`SELECT u.plan_status, u.trial_ends_at, u.created_at, u.paused_until FROM memberships m JOIN users u ON u.id = m.user_id
       WHERE m.account_id = ? AND m.role = 'owner' ORDER BY (u.id = ?) DESC, u.id LIMIT 1`, req.accountId, req.user.id).catch(() => null);
     if (!planOf(owner || req.user).locked) return next();
     res.status(402).json({ error: 'The free trial for this business has ended. The owner can choose a plan in Settings.' });
@@ -115,6 +117,33 @@ function registerBilling(app, api, { getDb, HttpError, publicBase, express }) {
     if (s.status !== 'complete') return res.json({ ok: false });
     await db().run("UPDATE users SET plan_status = 'active', billing_customer = ?, billing_subscription = ? WHERE id = ?", s.customer || '', s.subscription || '', req.user.id);
     syncLater(req.user.id); // in case businesses were added while they were paying
+    res.json({ ok: true });
+  });
+
+  // Cancel or pause right here: no hunting, no phone call, no "are you sure" maze.
+  const sub = async (u) => {
+    if (!enabled() || !u.billing_subscription) throw new HttpError(400, 'There’s no subscription to change');
+    return u.billing_subscription;
+  };
+  api.post('/billing/cancel', async (req, res) => {
+    const u = await userRow(req.user.id);
+    const s = await stripe.call(cfg().key, 'POST', `/subscriptions/${encodeURIComponent(await sub(u))}`, { cancel_at_period_end: 'true' });
+    const at = new Date((s.current_period_end || s.items?.data?.[0]?.current_period_end || Date.now() / 1000) * 1000);
+    await db().run('UPDATE users SET cancel_at = ? WHERE id = ?', at.toISOString(), u.id);
+    res.json({ cancel_at: at.toISOString() });
+  });
+  api.post('/billing/pause', async (req, res) => {
+    const u = await userRow(req.user.id);
+    const months = Math.max(1, Math.min(3, Number(req.body?.months) || 1));
+    const until = new Date(); until.setMonth(until.getMonth() + months);
+    await stripe.call(cfg().key, 'POST', `/subscriptions/${encodeURIComponent(await sub(u))}`, { pause_collection: { behavior: 'void', resumes_at: Math.floor(until / 1000) } });
+    await db().run('UPDATE users SET paused_until = ? WHERE id = ?', until.toISOString(), u.id);
+    res.json({ paused_until: until.toISOString() });
+  });
+  api.post('/billing/resume', async (req, res) => {
+    const u = await userRow(req.user.id);
+    await stripe.call(cfg().key, 'POST', `/subscriptions/${encodeURIComponent(await sub(u))}`, { cancel_at_period_end: 'false', pause_collection: '' });
+    await db().run('UPDATE users SET cancel_at = NULL, paused_until = NULL WHERE id = ?', u.id);
     res.json({ ok: true });
   });
 

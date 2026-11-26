@@ -202,6 +202,7 @@ async function viewCompose(bid) {
       [audienceN > 0, audienceN === null ? 'Counting who gets it…' : audienceN ? `${audienceN} ${audienceN === 1 ? 'person' : 'people'} will get it` : 'Nobody is in this audience yet', audienceN === 0],
       [tested, tested ? 'Test sent to you' : 'Send yourself a test to see it on your phone'],
       [true, 'Unsubscribe link added for you'],
+      ...spamWarnings(v.subject, v.body).map((w) => [false, w]),
     ];
     $('[data-check]').innerHTML = `<b>Before you send</b>${items.map(([ok, text, bad]) => `<div class="ck ${ok ? 'ok' : bad ? 'bad' : 'meh'}">${icon(ok ? 'check' : bad ? 'alert' : 'info')}<span>${esc(text)}</span></div>`).join('')}`;
     const blocking = !body || !v.subject.trim() || /\[[^\]]{2,}\]/.test(v.subject + v.body + v.preheader) || audienceN === 0;
@@ -329,7 +330,7 @@ async function viewCompose(bid) {
       if (v.when === 'later') {
         const r = await api('POST', `/api/broadcasts/${savedId}/schedule`, { at: new Date(v.at).toISOString() });
         toast(`Scheduled for ${new Date(r.scheduled_at).toLocaleString(undefined, { weekday: 'short', hour: 'numeric', minute: '2-digit' })}`);
-      } else { const r = await api('POST', `/api/broadcasts/${savedId}/send`); toast(`Sent to ${r.sent} of ${r.total}`); }
+      } else { const r = await api('POST', `/api/broadcasts/${savedId}/send`); toast(r.warming ? `Sent to ${r.sent} today. Your new domain is warming up, so the other ${r.later} go out tomorrow` : `Sent to ${r.sent} of ${r.total}`); }
       dirty = false; location.hash = '#/email';
     } catch (err) { toast(err.message, true); }
   };
@@ -339,4 +340,19 @@ async function viewCompose(bid) {
   window.onbeforeunload = () => (dirty ? true : undefined);
   const leave = () => { if (!location.hash.startsWith('#/email/')) { window.onbeforeunload = null; window.removeEventListener('hashchange', leave); } };
   window.addEventListener('hashchange', leave);
+}
+
+// Words and habits that send email to spam (the same list the server checks).
+const SPAMMY = ['free money', 'act now', '100% free', 'risk-free', 'risk free', 'guaranteed income', 'click here', 'buy now', 'limited time only', 'winner', 'you have been selected',
+  'cash bonus', 'no credit check', 'double your', 'earn extra cash', 'urgent', 'once in a lifetime', 'not spam', 'dear friend', 'congratulations', 'make money fast', '$$$'];
+function spamWarnings(subject = '', body = '') {
+  const text = `${subject}\n${body}`.toLowerCase(), out = [];
+  const hits = SPAMMY.filter((w) => text.includes(w));
+  if (hits.length) out.push(`Spam filters dislike “${hits.slice(0, 3).join('”, “')}”. Plainer words land in more inboxes`);
+  const letters = String(subject).replace(/[^A-Za-z]/g, '');
+  if (letters.length >= 8 && letters.replace(/[^A-Z]/g, '').length / letters.length > 0.6) out.push('Subject is mostly CAPITALS, which reads as shouting');
+  if (/!{2,}|\?{3,}/.test(subject)) out.push('Several !!! in the subject. One at most');
+  if ((body.match(/https?:\/\//g) || []).length > 6) out.push('Lots of links. Three or four is plenty');
+  if (/bit\.ly|tinyurl|goo\.gl/i.test(body)) out.push('Link shorteners are often blocked. Use the full address');
+  return out;
 }

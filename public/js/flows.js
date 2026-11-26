@@ -250,7 +250,7 @@ async function viewFollowupFlow(id) {
     const n = N[b.dataset.ffedit], c = n.config || {};
     const forms = {
       email: emailBoxHtml(c.subject || '', c.body || ''),
-      sms: `<label class="f">Text message <span class="hint">only to people who said yes to texts</span><textarea name="body" rows="4" maxlength="480" required>${esc(c.body || '')}</textarea></label>`,
+      sms: `<label class="f">Text message <span class="hint">only to people who said yes to texts · ${smsCostLine(c.body)}</span><textarea name="body" rows="4" maxlength="480" required>${esc(c.body || '')}</textarea></label>`,
       wait: `<label class="f">Days<input name="days" type="number" min="0" max="3650" value="${c.days || 0}"></label><label class="f">Hours<input name="hours" type="number" min="0" max="23" value="${c.hours || 0}"></label>`,
       tag: `<label class="f">Add tags<input name="add" value="${esc(c.add || '')}"></label><label class="f">Remove tags<input name="remove" value="${esc(c.remove || '')}"></label>`,
       notify: `<label class="f">Your note to yourself<textarea name="message" rows="3">${esc(c.message || '')}</textarea></label>`,

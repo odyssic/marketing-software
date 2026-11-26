@@ -555,7 +555,9 @@ function renderPage({ title, blocks, settings = {}, nextUrl = '#', noUrl = '#', 
     const s = a && ['slow', 'quick'].includes(b.animSpeed) ? ` data-speed="${b.animSpeed}"` : '';
     return a + o + l + s;
   };
-  const wrap = (i, html) => `<div data-bi="${i}"${motionAttrs(list[i])}>${html}</div>`;
+  // Show on phones only or computers only (the editor shows it faded, labelled, at the other size).
+  const onlyOn = (b) => (b?.device === 'phone' ? ' class="only-phone"' : b?.device === 'computer' ? ' class="only-desk"' : '');
+  const wrap = (i, html) => `<div data-bi="${i}"${onlyOn(list[i])}${motionAttrs(list[i])}>${html}</div>`;
   const parts = [];
   for (let i = 0; i < list.length; i++) {
     const b = list[i];
@@ -704,6 +706,9 @@ ${sections.SECTION_CSS}${TYPE_CSS[settings.font] || ''}${embed ? EMBED_STYLE : '
 .rs-slide figcaption b{text-transform:uppercase;letter-spacing:.08em;font-size:.95rem}.rs-slide figcaption span{font-size:.85rem;text-transform:uppercase;letter-spacing:.06em;opacity:.7}
 .rs-btn{position:absolute;top:40%;z-index:1;background:none;border:0;color:${accent};cursor:pointer;padding:8px}.rs-prev{left:0}.rs-next{right:0}
 @media(max-width:600px){.rs-slide{padding:6px 34px}.rs-btn svg{width:22px;height:22px}}
+${preview ? `@media(min-width:761px){.only-phone{opacity:.38;outline:2px dashed #94a3b8;outline-offset:4px;position:relative}.only-phone::before{content:"Phones only";position:absolute;z-index:5;top:6px;left:6px;font:600 11px system-ui,sans-serif;background:#334155;color:#fff;padding:3px 8px;border-radius:99px}}
+@media(max-width:760px){.only-desk{opacity:.38;outline:2px dashed #94a3b8;outline-offset:4px;position:relative}.only-desk::before{content:"Computers only";position:absolute;z-index:5;top:6px;left:6px;font:600 11px system-ui,sans-serif;background:#334155;color:#fff;padding:3px 8px;border-radius:99px}}`
+    : '@media(min-width:761px){.only-phone{display:none!important}}@media(max-width:760px){.only-desk{display:none!important}}'}
 @media(max-width:760px){.hero-split{grid-template-columns:1fr;gap:24px}.hs-img{order:-1}.hs-img img,.hero-ph{aspect-ratio:16/10}}
 </style>${code.css ? `<style data-site-css>${cleanCss(code.css)}</style>` : ''}${settings.customCss ? `<style data-page-css>${cleanCss(settings.customCss)}</style>` : ''}
 ${course ? `<style>:root{--crs-accent:${accent};--crs-bg:${bg};--crs-w:${width}px}${course.css}</style>` : ''}

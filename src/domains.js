@@ -30,7 +30,7 @@ function registerDomains(api, { getDb, HttpError }) {
     try {
       const d = await resend('GET', `/domains/${encodeURIComponent(a.send_domain_id)}`);
       if (d.status && d.status !== a.send_domain_status) {
-        await db().run('UPDATE accounts SET send_domain_status = ? WHERE id = ?', d.status, req.accountId);
+        await db().run(`UPDATE accounts SET send_domain_status = ?, send_domain_verified_at = CASE WHEN ? = 'verified' THEN COALESCE(send_domain_verified_at, now()) ELSE send_domain_verified_at END WHERE id = ?`, d.status, d.status, req.accountId);
         a.send_domain_status = d.status;
       }
       res.json(out(a, recordsOf(d)));
@@ -53,7 +53,7 @@ function registerDomains(api, { getDb, HttpError }) {
         throw new HttpError(400, /already/i.test(e.message) ? 'That domain is already set up in Rilly for another business. Contact support to move it.' : e.message);
       }
     }
-    await db().run('UPDATE accounts SET send_domain = ?, send_local = ?, send_domain_id = ?, send_domain_status = ? WHERE id = ?',
+    await db().run('UPDATE accounts SET send_domain = ?, send_local = ?, send_domain_id = ?, send_domain_status = ?, send_domain_verified_at = NULL WHERE id = ?',
       domain, local, d.id, d.status || 'not_started', req.accountId);
     res.json(out({ send_domain: domain, send_local: local, send_domain_status: d.status || 'not_started' }, recordsOf(d)));
   });
@@ -64,7 +64,7 @@ function registerDomains(api, { getDb, HttpError }) {
     if (!a.send_domain_id) throw new HttpError(400, 'Add a domain first');
     await resend('POST', `/domains/${encodeURIComponent(a.send_domain_id)}/verify`).catch(() => {});
     const d = await resend('GET', `/domains/${encodeURIComponent(a.send_domain_id)}`);
-    await db().run('UPDATE accounts SET send_domain_status = ? WHERE id = ?', d.status, req.accountId);
+    await db().run(`UPDATE accounts SET send_domain_status = ?, send_domain_verified_at = CASE WHEN ? = 'verified' THEN COALESCE(send_domain_verified_at, now()) ELSE send_domain_verified_at END WHERE id = ?`, d.status, d.status, req.accountId);
     res.json(out({ ...a, send_domain_status: d.status }, recordsOf(d)));
   });
 
