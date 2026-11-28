@@ -259,7 +259,7 @@ async function viewEditor(stepId) {
       <div class="title"><input data-name value="${esc(step.name)}" aria-label="Page name"></div>
       ${step.variant_blocks ? `<span class="seg"><a href="#/editor/${step.id}" class="btn sm ${editingB ? '' : 'primary'}">Version A</a><a href="#/editor/${step.id}?v=b" class="btn sm ${editingB ? 'primary' : ''}">Version B</a></span>` : ''}
       <button class="btn sm" data-abtest>${step.variant_blocks ? icon('flask') + ' Test results' : icon('flask') + ' Split test'}</button>
-      <span class="saved" data-saved>All changes saved</span>
+      <span class="saved" data-saved>${step.funnel.status === 'live' ? 'All changes saved' : 'Draft · saves as you go'}</span>
       <button class="btn sm" data-undo title="Undo (Ctrl+Z)" disabled>${icon('undo')} Undo</button><button class="btn sm" data-redo title="Redo (Ctrl+Shift+Z)" disabled>${icon('redo')} Redo</button>
       <button class="btn sm" data-history title="Earlier versions of this page">${icon('history')} History</button>
       <button class="btn sm" data-clicks title="Show what visitors click and how far they read" aria-pressed="false">${icon('cursor')} Clicks</button>
@@ -304,7 +304,7 @@ async function viewEditor(stepId) {
   const saved = $('[data-saved]');
   let saveTimer, previewTimer;
   const preview = async () => {
-    const { html } = await api('POST', '/api/preview', { blocks: ed.blocks, settings: ed.settings, name: $('[data-name]').value });
+    const { html } = await api('POST', '/api/preview', { blocks: ed.blocks, settings: ed.settings, name: ($('[data-name]')?.value ?? step.name) });
     $('iframe').srcdoc = html;
   };
   // Clicks: what visitors click on this page and how far they read, drawn on the preview.
@@ -373,10 +373,21 @@ async function viewEditor(stepId) {
     // Typing straight into the preview already shows the change; don't reload it under the cursor.
     if (!ed.typing) { clearTimeout(previewTimer); previewTimer = setTimeout(preview, 250); }
     ed.typing = false;
+    // Every change is also kept on this device until the server has it, so nothing is lost
+    // to a dropped connection, a closed tab or leaving the page mid-save.
+    backup.keep();
     clearTimeout(saveTimer);
-    saveTimer = setTimeout(async () => {
+    pendingExtra = { ...pendingExtra, ...extra };
+    saveTimer = setTimeout(saveNow, 700);
+  };
+  let pendingExtra = {}, retryIn = 0, warned = false;
+  const body = () => ({ name: $('[data-name]')?.value ?? step.name, blocks: ed.blocks, settings: ed.settings, ...(editingB ? { variant: 'b' } : {}) });
+  const saveNow = async () => {
+    clearTimeout(saveTimer); saveTimer = null;
+    const extra = pendingExtra; pendingExtra = {};
+    {
       try {
-        const r = await api('PUT', `/api/steps/${stepId}`, { name: $('[data-name]').value, blocks: ed.blocks, settings: ed.settings, ...(editingB ? { variant: 'b' } : {}), ...extra });
+        const r = await api('PUT', `/api/steps/${stepId}`, { ...body(), ...extra });
         for (const b of ed.blocks.filter((x) => x.savedId)) {
           const now = savedContent(b);
           if (ed.savedSync[b.savedId] === now) continue;
@@ -384,11 +395,42 @@ async function viewEditor(stepId) {
           const u = await api('PUT', `/api/saved-blocks/${b.savedId}`, { block: b });
           const x = ed.saved.find((y) => y.id === b.savedId); if (x) { x.pages = u.pages; x.block = JSON.parse(now); }
         }
-        saved.textContent = 'All changes saved';
+        if (!saveTimer) { saved.textContent = step.funnel.status === 'live' ? 'All changes saved' : 'Draft saved'; backup.clear(); }
+        retryIn = 0; warned = false;
         if (extra.slug !== undefined) { $('[data-slug]').value = r.slug; $('[data-live]').href = publicUrl(`/f/${step.funnel.slug}/${r.slug}`); }
-      } catch (err) { saved.textContent = 'Not saved'; toast(err.message, true); }
-    }, 700);
+      } catch (err) {
+        if (err.problems || (err.status && err.status < 500 && err.status !== 408 && err.status !== 429)) { saved.textContent = 'Not saved'; toast(err.message, true); return; }
+        // Offline or a hiccup: kept on this device, and tried again until it goes through.
+        pendingExtra = { ...extra, ...pendingExtra };
+        retryIn = Math.min(30000, retryIn ? retryIn * 2 : 2000);
+        saved.textContent = 'Saved on this device · retrying…';
+        if (!warned) { warned = true; toast('Can’t reach Rilly. Your changes are kept and will save as soon as it’s back'); }
+        if (!saveTimer) saveTimer = setTimeout(saveNow, retryIn);
+      }
+    }
   };
+  // The local copy of unsaved changes for this page.
+  const backup = (() => {
+    const key = `rillyDraft:${stepId}${editingB ? ':b' : ''}`;
+    return {
+      key,
+      keep: () => { try { localStorage.setItem(key, JSON.stringify({ ...body(), at: Date.now() })); } catch { /* storage full or private mode */ } },
+      clear: () => { try { localStorage.removeItem(key); } catch { /* ignore */ } },
+      read: () => { try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch { return null; } },
+    };
+  })();
+  // Leaving the editor (another screen, switching apps, closing the tab): send anything waiting, right now.
+  const flush = () => {
+    if (!saveTimer && !Object.keys(pendingExtra).length) return;
+    clearTimeout(saveTimer); saveTimer = null;
+    try { fetch(`/api/steps/${stepId}`, { method: 'PUT', keepalive: true, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...body(), ...pendingExtra }) }).then((r) => { if (r.ok) backup.clear(); }).catch(() => {}); } catch { /* the local copy remains */ }
+    pendingExtra = {};
+  };
+  const leave = new AbortController();
+  addEventListener('pagehide', flush, { signal: leave.signal });
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flush(); }, { signal: leave.signal });
+  addEventListener('hashchange', () => { if (!location.hash.startsWith(`#/editor/${stepId}`)) { flush(); clearTimeout(previewTimer); leave.abort(); } }, { signal: leave.signal });
+  addEventListener('online', () => { if (saveTimer) { clearTimeout(saveTimer); saveNow(); } }, { signal: leave.signal });
 
   const fieldHtml = (b, i, [key, kind, label, options, hint]) => {
     const v = b[key] ?? '';
@@ -799,7 +841,7 @@ async function viewEditor(stepId) {
   $('[data-slug]').addEventListener('change', (e) => changed({ slug: e.target.value }));
   // Search & AI: a live Google-style preview, length hints, and "Write these for me".
   const serp = () => {
-    const t = ed.settings.seoTitle || $('[data-name]').value, d = ed.settings.seoDescription || '';
+    const t = ed.settings.seoTitle || ($('[data-name]')?.value ?? step.name), d = ed.settings.seoDescription || '';
     $('[data-serptitle]').textContent = t.length > 60 ? `${t.slice(0, 58)}…` : t;
     $('[data-serpdesc]').textContent = d ? (d.length > 158 ? `${d.slice(0, 156)}…` : d) : 'Add a description so search and AI tools know what this page offers.';
     $('[data-serpurl]').textContent = link.replace(/^https?:\/\//, '').replace(/\/[^/]*$/, `/${$('[data-slug]').value}`);
@@ -924,4 +966,13 @@ async function viewEditor(stepId) {
   };
   renderBlocks();
   preview();
+  try { localStorage.setItem('rillyLastEdit', JSON.stringify({ stepId, funnelId: step.funnel.id, page: step.name, at: Date.now() })); } catch { /* ignore */ }
+  const kept = backup.read();
+  if (kept && Array.isArray(kept.blocks) && JSON.stringify([kept.blocks, kept.settings]) !== JSON.stringify([ed.blocks, ed.settings])) {
+    const before = { blocks: ed.blocks, settings: ed.settings };
+    ed.blocks = kept.blocks; ed.settings = { ...ed.settings, ...kept.settings };
+    if (kept.name && $('[data-name]')) $('[data-name]').value = kept.name;
+    renderBlocks(); changed();
+    undoToast(`Brought back changes from ${new Date(kept.at).toLocaleString(undefined, { weekday: 'short', hour: 'numeric', minute: '2-digit' })} that hadn’t saved`, () => { ed.blocks = before.blocks; ed.settings = before.settings; renderBlocks(); changed(); });
+  } else if (kept) backup.clear();
 }

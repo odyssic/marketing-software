@@ -621,7 +621,7 @@ main>*+*{margin-top:28px}main>*:last-child{margin-bottom:8px}.hero:not(.first){m
 .optin .btn{width:100%}.hp{position:absolute;left:-9999px}
 .video{position:relative;padding-top:56.25%;margin:20px 0}.video iframe{position:absolute;inset:0;width:100%;height:100%;border:0;border-radius:10px}
 hr{border:0;border-top:1px solid rgba(0,0,0,.12);margin:28px 0}
-body{overflow-x:hidden}
+body{overflow-x:hidden;overscroll-behavior-x:none}
 .hero{position:relative;margin:0 calc(50% - 50vw) 40px;padding:64px 24px 110px;text-align:center}
 .hero.first{margin-top:-48px}.hero h1{max-width:820px;margin:.2em auto;font-size:clamp(2rem,5vw,3.3rem);font-weight:800}
 .hero p{max-width:640px;margin:12px auto 0;font-size:1.15rem;opacity:.92}

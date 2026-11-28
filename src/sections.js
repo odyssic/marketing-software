@@ -433,7 +433,7 @@ details[open] .pm::after{transform:rotate(0)}.faq details p{margin:0 0 18px;opac
 .ev-go svg{color:var(--accent);transition:transform .15s}.ev-go:hover svg{transform:translateX(3px)}.ev.past{opacity:.45}.ev-past{display:block;font-size:.75rem}
 @media(max-width:560px){.ev{grid-template-columns:auto 1fr;gap:14px}.ev-main{text-align:left}.ev-go{grid-column:1/-1;justify-content:center}}
 /* Letter reveal */
-.rvl{position:relative;height:230vh;margin:56px calc(50% - 50vw);background:var(--deep);color:#fff;--p:0}
+.rvl{position:relative;height:230vh;margin:56px calc(50% - 50vw);background:var(--deep);color:#fff;--p:0;overflow:clip;contain:paint}
 .rvl-stick{position:sticky;top:0;height:100vh;overflow:hidden}
 .rvl-letter{position:absolute;left:64%;top:50%;font:400 min(80vh,62vw)/.8 Newsreader,Georgia,"Times New Roman",serif;background:var(--rv-img) center/cover;-webkit-background-clip:text;background-clip:text;color:transparent;transform:translate(-50%,-52%) scale(calc(1 + var(--p) * var(--p) * 26));transform-origin:50% 60%;will-change:transform;pointer-events:none}
 .rvl-full{position:absolute;inset:0;background:var(--rv-img) center/cover;opacity:clamp(0,calc((var(--p) - .42) * 3),1)}

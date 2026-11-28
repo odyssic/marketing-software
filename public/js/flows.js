@@ -54,6 +54,15 @@ async function viewFlows() {
   shell('flows', `
     <div class="head"><div><h1>Flows</h1><div class="muted">Everything that brings people in and follows up with them: your pages, the emails between them, and follow-ups that start on their own.</div></div>
       ${!groupsAll.length && !wfs.filter((w) => !w.funnel_id).length ? '' : `<button class="btn primary" data-newflow>${icon('plus')} New</button>`}</div>
+    ${(() => {
+      // Where you left off: the page you were last editing, while its flow is still a draft.
+      let last = null; try { last = JSON.parse(localStorage.getItem('rillyLastEdit') || 'null'); } catch { /* ignore */ }
+      const g = last && groupsAll.find((x) => x.id === last.funnelId && x.status !== 'live');
+      if (!g || Date.now() - last.at > 14 * 864e5) return '';
+      const ago = Math.round((Date.now() - last.at) / 60000);
+      const when = ago < 2 ? 'just now' : ago < 60 ? `${ago} min ago` : ago < 1440 ? `${Math.round(ago / 60)} h ago` : `${Math.round(ago / 1440)} d ago`;
+      return `<a class="resume card" href="#/editor/${last.stepId}">${icon('pencil')}<span><b>Pick up where you left off</b><span class="muted small">${esc(g.name)} · ${esc(last.page || 'page')} · draft, saved ${when}</span></span><span class="btn sm primary">Continue</span></a>`;
+    })()}
     ${flowTabs(show)}
     <div class="flows-tools"><input data-q placeholder="Search flows, pages and emails…" value="${esc(q)}" style="max-width:340px" aria-label="Search">
       ${(() => { const off = standalone.filter((w) => w.status !== 'active'); return off.length > 1 ? `<button type="button" class="btn sm" data-allon>${icon('bolt')} Turn all on (${off.length})</button>` : ''; })()}</div>
