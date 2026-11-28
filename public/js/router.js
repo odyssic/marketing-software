@@ -6,7 +6,15 @@ async function route() {
   const invite = location.hash.match(/^#\/invite\/([\w-]+)/);
   if (invite) return viewInvite(invite[1]);
   if (!state.me) {
-    try { state.me = await api('GET', '/api/me'); } catch { return renderAuth(); }
+    // Only a real "not signed in" shows the sign-in page. A blip (phone waking up, a slow
+    // start, an update going out) is retried quietly, then offers Try again, never a sign-out.
+    for (let attempt = 0; !state.me; attempt++) {
+      try { state.me = await api('GET', '/api/me'); } catch (e) {
+        if (e.message === 'Please sign in') return; // signed out for real; the sign-in page is up
+        if (attempt >= 3) return reconnectScreen();
+        await new Promise((r) => setTimeout(r, 800 * 2 ** attempt));
+      }
+    }
   }
   // Remember this browser has signed in, so next time it opens on "Welcome back".
   try { localStorage.setItem('rillySignedIn', '1'); } catch { /* private mode */ }
@@ -59,3 +67,11 @@ async function route() {
 
 window.addEventListener('hashchange', route);
 route();
+
+// Couldn't reach Rilly (offline or a hiccup): you're still signed in; try again when ready.
+function reconnectScreen() {
+  app.innerHTML = `<div class="reconnect"><h1>Can’t reach Rilly right now</h1><p class="muted">You’re still signed in. Check your connection, then try again.</p>
+    <button class="btn primary" data-retry>Try again</button></div>`;
+  $('[data-retry]').onclick = () => route();
+  addEventListener('online', () => { if ($('.reconnect')) route(); }, { once: true });
+}

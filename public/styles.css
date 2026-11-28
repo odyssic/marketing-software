@@ -2138,3 +2138,5 @@ span.tp-photo { display: grid; place-items: center; }
 .speed-chip.ok { color: #15803d; border-color: #bbf7d0; background: #f0fdf4; } .speed-chip.meh { color: #b45309; border-color: #fde68a; background: #fffbeb; } .speed-chip.bad { color: #b91c1c; border-color: #fecaca; background: #fef2f2; }
 .help-btn { display: flex; align-items: center; gap: 6px; background: none; border: 1px solid rgba(255,255,255,.18); color: inherit; border-radius: 8px; padding: 6px 10px; cursor: pointer; font: inherit; font-size: .85rem; margin-bottom: 8px; width: 100%; }
 .help-btn:hover { background: rgba(255,255,255,.08); } .help-ans { background: #f6fafa; border: 1px solid #e3ecec; border-radius: 10px; padding: 12px 14px; white-space: pre-wrap; margin-top: 10px; }
+
+.reconnect { max-width: 420px; margin: 18vh auto; padding: 0 20px; text-align: center; } .reconnect h1 { font-size: 1.5rem; }
