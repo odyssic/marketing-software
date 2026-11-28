@@ -303,7 +303,7 @@ function renderBlock(b, ctx, index) {
       const items = String(b.items || '').split('\n').map((l) => l.split('|').map((x) => x.trim())).filter(([t]) => t);
       // Bento: tiles of different sizes in soft colours, the first one dark and wide.
       if (b.style === 'bento') {
-        return `<div class="bento n${Math.min(items.length, 7)}">${items.map(([t, d], r) => `<div class="bt bt${r % 6}"><span class="bt-k">${String(r + 1).padStart(2, '0')}</span><h3${t.includes('*') ? '' : lf(r, 0)}>${starHl(esc(t))}</h3>${d ? `<p${lf(r, 1)}>${esc(d)}</p>` : ''}</div>`).join('')}</div>`;
+        return `<div class="bento n${Math.min(items.length, 7)}">${items.map(([t, d, n], r) => `<div class="bt bt${r % 6}"><span class="bt-num" aria-hidden="true">${String(r + 1).padStart(2, '0')}</span><span class="bt-ic" aria-hidden="true">${cardIcon(t.replace(/\*/g, ''), d, n)}</span><span class="bt-k">${String(r + 1).padStart(2, '0')}</span><h3${t.includes('*') ? '' : lf(r, 0)}>${starHl(esc(t))}</h3>${d ? `<p${lf(r, 1)}>${esc(d)}</p>` : ''}</div>`).join('')}</div>`;
       }
       if (b.style === 'pastel stack') {
         return `<div class="pstack">${items.map(([t, d], r) => `<div class="pcard-s"><span class="ps-n">${r + 1}.</span><h3${t.includes('*') ? '' : lf(r, 0)}>${starHl(esc(t))}</h3>${d ? `<p${lf(r, 1)}>${esc(d)}</p>` : ''}</div>`).join('')}</div>`;
