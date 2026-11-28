@@ -162,7 +162,15 @@ pre.mail { white-space: pre-wrap; font: .85rem/1.5 ui-monospace, monospace; back
   .sidebar .foot { display: none; }
   .main { padding: 20px 16px 40px; }
   .two { grid-template-columns: 1fr; }
-  .editor { grid-template-columns: 1fr; grid-template-rows: auto auto 70vh; height: auto; }
+  .editor { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto 70vh; height: auto; }
+  /* Phones: the editor stays the width of the screen; the button bar scrolls sideways on its own. */
+  .editor .bar { overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; gap: 8px; padding: 8px 12px; }
+  .editor .bar::-webkit-scrollbar { display: none; }
+  .editor .bar > * { flex: none; }
+  .editor .bar .title { flex: none; max-width: 60vw; }
+  .editor .side { min-width: 0; }
+  .editor .palette { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .editor .palette button { min-width: 0; overflow-wrap: anywhere; }
   .side { border-right: 0; max-height: none; }
 }
 
