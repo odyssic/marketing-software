@@ -15,6 +15,18 @@ const LEVER_UI = {
 const LEVER_FOCUS = { lead: 'bring in new people', conversion: 'turn interest into first sales', upsell: 'grow the size of each order', continuity: 'win repeat business' };
 const dash = { lever: localStorage.getItem('dashLever') || 'all', customize: false, layouts: {}, catalog: [], data: {}, levers: null };
 
+// Home opens on what you were building: the page you last edited, one tap away.
+async function loadResume() {
+  const box = $('[data-resume]'); if (!box) return;
+  let last = null; try { last = JSON.parse(localStorage.getItem('rillyLastEdit') || 'null'); } catch { /* ignore */ }
+  if (!last?.stepId || Date.now() - last.at > 30 * 864e5) return;
+  let step; try { step = await api('GET', `/api/steps/${last.stepId}`); } catch { return; } // deleted, or another business
+  const ago = Math.round((Date.now() - last.at) / 60000);
+  const when = ago < 2 ? 'just now' : ago < 60 ? `${ago} min ago` : ago < 1440 ? `${Math.round(ago / 60)} h ago` : `${Math.round(ago / 1440)} day${Math.round(ago / 1440) === 1 ? '' : 's'} ago`;
+  const live = step.funnel?.status === 'live';
+  box.innerHTML = `<a class="resume card home-resume" href="#/editor/${step.id}">${icon('pencil')}<span><b>Continue where you left off</b>
+    <span class="muted small">${esc(step.funnel?.name || '')} · ${esc(step.name)} · ${live ? 'live' : 'draft'}, edited ${when}</span></span><span class="btn sm primary">Continue</span></a>`;
+}
 async function viewDashboard() {
   const keys = Object.keys(LEVER_UI);
   // All five layouts load up front, so switching levers is instant.
@@ -38,6 +50,7 @@ function renderDashboard() {
     <div class="head"><div><h1>Hi ${esc(state.me.user.name.split(' ')[0])}</h1>
       <div class="muted">${esc(state.me.account.name)} · this week’s focus: <b style="color:${LEVER_UI[focus].color}">${esc(LEVER_FOCUS[focus] || LEVER_UI[focus].label)}</b>${dash.levers.pinned ? ' (pinned)' : ''}</div></div>
       <span class="row" style="gap:8px"><a class="btn" href="#/report">${icon('trend')} Report</a>${createMenu()}</span></div>
+    ${dash.customize ? '' : '<div data-resume></div>'}
     ${dash.customize ? '' : '<section class="card firststeps" data-firststeps hidden></section>'}
     ${dash.customize ? '' : '<section class="card today" data-today hidden></section>'}
     ${dash.customize ? '' : '<section data-metrics aria-label="Business numbers"></section>'}
@@ -64,6 +77,7 @@ function renderDashboard() {
     </div></details>`);
   renderMetrics();
   loadTodayCard();
+  loadResume();
   loadFirstSteps();
   const gf = $('.grow-fold'); if (gf) gf.addEventListener('toggle', () => { dash.growOpen = gf.open; });
   bindCreateMenu();
